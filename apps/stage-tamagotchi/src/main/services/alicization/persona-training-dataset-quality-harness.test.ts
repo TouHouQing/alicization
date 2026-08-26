@@ -99,27 +99,30 @@ describe('persona training dataset quality harness', () => {
             lesson: '跨 card 样本不能混用。',
           }),
         ],
-        expectedExportedSourceIds: ['reflection-clean'],
-        forbiddenExportedSourceIds: [
-          'reflection-pii',
-          'reflection-template',
-          'reflection-private',
-          'raw-transcript-1',
-          'review-queue-1',
-          'failure-artifact-1',
-          'internal-cue-1',
-          'foreign-reflection',
+        expectedExportedSourceRefs: [{
+          sourceId: 'reflection-clean',
+          sourceKind: 'cleaned-long-term-reflection',
+        }],
+        forbiddenExportedSourceRefs: [
+          { sourceId: 'reflection-pii', sourceKind: 'cleaned-long-term-reflection' },
+          { sourceId: 'reflection-template', sourceKind: 'cleaned-long-term-reflection' },
+          { sourceId: 'reflection-private', sourceKind: 'cleaned-long-term-reflection' },
+          { sourceId: 'raw-transcript-1', sourceKind: 'raw-transcript' },
+          { sourceId: 'review-queue-1', sourceKind: 'review-queue' },
+          { sourceId: 'failure-artifact-1', sourceKind: 'failure-artifact' },
+          { sourceId: 'internal-cue-1', sourceKind: 'internal-cue' },
+          { sourceId: 'foreign-reflection', sourceKind: 'cleaned-long-term-reflection' },
         ],
-        expectedQuarantinedSourceIds: [
-          'reflection-pii',
-          'reflection-template',
-          'reflection-private',
+        expectedQuarantinedSourceRefs: [
+          { sourceId: 'reflection-pii', sourceKind: 'cleaned-long-term-reflection' },
+          { sourceId: 'reflection-template', sourceKind: 'cleaned-long-term-reflection' },
+          { sourceId: 'reflection-private', sourceKind: 'cleaned-long-term-reflection' },
         ],
-        expectedRejectedSourceIds: [
-          'raw-transcript-1',
-          'review-queue-1',
-          'failure-artifact-1',
-          'internal-cue-1',
+        expectedRejectedSourceRefs: [
+          { sourceId: 'raw-transcript-1', sourceKind: 'raw-transcript' },
+          { sourceId: 'review-queue-1', sourceKind: 'review-queue' },
+          { sourceId: 'failure-artifact-1', sourceKind: 'failure-artifact' },
+          { sourceId: 'internal-cue-1', sourceKind: 'internal-cue' },
         ],
         expectedDedupeCount: 1,
       },
@@ -146,7 +149,52 @@ describe('persona training dataset quality harness', () => {
       schemaSupported: true,
     })
     expect(result.findings).toEqual([])
-    expect(result.trace.selectedIds).toEqual(['reflection-clean'])
+    expect(result.trace.selectedIds).toEqual([
+      '["cleaned-long-term-reflection","reflection-clean"]',
+    ])
+  })
+
+  it('uses the production PII boundary for user paths without blocking project paths', () => {
+    const result = runPersonaTrainingDatasetQualityHarnessFixture({
+      fixture: {
+        id: 'persona-pii-path-boundary',
+        cardId: 'alice-main',
+        createdAt: now,
+        consent: { granted: true, policyVersion: 'v1', scope: 'persona-dataset', capturedAt: now },
+        sources: [
+          cleanedSource({
+            sourceId: 'reflection-user-home',
+            summary: '文件在 /Users/alice/Documents/private-notes.md。',
+            lesson: '不要训练用户目录。',
+          }),
+          cleanedSource({
+            sourceId: 'reflection-project-path',
+            summary: '项目入口位于 apps/stage-tamagotchi/src/main。',
+            lesson: '可以保留不含用户身份的项目结构经验。',
+          }),
+        ],
+        expectedExportedSourceRefs: [{
+          sourceId: 'reflection-project-path',
+          sourceKind: 'cleaned-long-term-reflection',
+        }],
+        forbiddenExportedSourceRefs: [{
+          sourceId: 'reflection-user-home',
+          sourceKind: 'cleaned-long-term-reflection',
+        }],
+        expectedQuarantinedSourceRefs: [{
+          sourceId: 'reflection-user-home',
+          sourceKind: 'cleaned-long-term-reflection',
+        }],
+      },
+    })
+
+    expect(result.passed).toBe(true)
+    expect(result.manifest.examples.map(example => example.sourceId)).toEqual(['reflection-project-path'])
+    expect(result.examples.find(example => example.sourceId === 'reflection-user-home')).toMatchObject({
+      state: 'quarantined',
+      piiStatus: 'detected',
+      piiReason: expect.stringContaining('user-home-path'),
+    })
   })
 
   it('builds quality fixtures from real runtime examples and respects revoked sources', () => {
@@ -206,7 +254,10 @@ describe('persona training dataset quality harness', () => {
         sources: [
           cleanedSource(),
         ],
-        expectedExportedSourceIds: ['reflection-clean'],
+        expectedExportedSourceRefs: [{
+          sourceId: 'reflection-clean',
+          sourceKind: 'cleaned-long-term-reflection',
+        }],
       },
     })
 
@@ -222,5 +273,107 @@ describe('persona training dataset quality harness', () => {
       '检查 cleaned long-term reflection、persona reinforcement、consent 和 allowTraining 的治理链路。',
       '固定 persona dataset schema/version 门禁，旧版本必须迁移后才能导出或激活。',
     ]))
+  })
+
+  it('detects a runtime snapshot whose staged example consent does not match the dataset policy', () => {
+    const result = runPersonaTrainingDatasetQualityHarnessFixture({
+      fixture: {
+        id: 'persona-consent-policy-mismatch',
+        cardId: 'alice-main',
+        createdAt: now,
+        consent: { granted: true, policyVersion: 'v1', scope: 'persona-dataset', capturedAt: now },
+        sources: [cleanedSource({
+          consent: { granted: true, policyVersion: 'v2', scope: 'other-scope', capturedAt: now },
+          allowTraining: true,
+        })],
+        expectedExportedSourceRefs: [],
+        forbiddenExportedSourceRefs: [{
+          sourceId: 'reflection-clean',
+          sourceKind: 'cleaned-long-term-reflection',
+        }],
+      },
+    })
+
+    expect(result.passed).toBe(false)
+    expect(result.manifest.examples).toEqual([])
+    expect(result.findings.map(item => item.code)).toContain('persona-dataset-consent-leak')
+    expect(result.findings.map(item => item.message)).toContain(
+      'Persona/LoRA 数据集有 1 条样本的 consent 与数据集策略不一致。',
+    )
+  })
+
+  it('does not synthesize dataset consent for a quality fixture whose source consent is missing', () => {
+    const result = runPersonaTrainingDatasetQualityHarnessFixture({
+      fixture: {
+        id: 'persona-source-consent-missing',
+        cardId: 'alice-main',
+        createdAt: now,
+        consent: { granted: true, policyVersion: 'v1', scope: 'persona-dataset', capturedAt: now },
+        sources: [cleanedSource({
+          consent: null,
+          allowTraining: true,
+        })],
+        expectedExportedSourceRefs: [],
+        forbiddenExportedSourceRefs: [{
+          sourceId: 'reflection-clean',
+          sourceKind: 'cleaned-long-term-reflection',
+        }],
+        expectedQuarantinedSourceRefs: [{
+          sourceId: 'reflection-clean',
+          sourceKind: 'cleaned-long-term-reflection',
+        }],
+      },
+    })
+
+    expect(result.passed).toBe(false)
+    expect(result.manifest.examples).toEqual([])
+    expect(result.findings.map(item => item.code)).toContain('persona-dataset-consent-leak')
+    expect(result.findings.map(item => item.message)).toContain(
+      'Persona/LoRA 数据集有 1 条样本缺少有效的来源 consent。',
+    )
+  })
+
+  it('keeps same-id reflection and reinforcement sources distinct throughout quality evaluation', () => {
+    const result = runPersonaTrainingDatasetQualityHarnessFixture({
+      fixture: {
+        id: 'persona-composite-source-quality',
+        cardId: 'alice-main',
+        createdAt: now,
+        consent: { granted: true, policyVersion: 'v1', scope: 'persona-dataset', capturedAt: now },
+        sources: [
+          cleanedSource({
+            sourceId: 'shared-source',
+            sourceKind: 'cleaned-long-term-reflection',
+            summary: '清洗后的长期反思。',
+            lesson: '长期反思保留来源类型。',
+          }),
+          cleanedSource({
+            sourceId: 'shared-source',
+            sourceKind: 'persona-reinforcement',
+            summary: '确认后的人格强化。',
+            lesson: '人格强化保留来源类型。',
+            provenance: {
+              kind: 'working-memory-cleaning',
+              cleaningTransactionId: 'cleaning-reinforcement',
+              cleanedAt: now - 500,
+            },
+          }),
+        ],
+        expectedExportedSourceRefs: [
+          { sourceId: 'shared-source', sourceKind: 'cleaned-long-term-reflection' },
+          { sourceId: 'shared-source', sourceKind: 'persona-reinforcement' },
+        ],
+      },
+    })
+
+    expect(result.passed).toBe(true)
+    expect(result.manifest.examples.map(example => ({
+      sourceId: example.sourceId,
+      sourceKind: example.sourceKind,
+    }))).toEqual(expect.arrayContaining([
+      { sourceId: 'shared-source', sourceKind: 'cleaned-long-term-reflection' },
+      { sourceId: 'shared-source', sourceKind: 'persona-reinforcement' },
+    ]))
+    expect(result.metrics.exportedExampleCount).toBe(2)
   })
 })

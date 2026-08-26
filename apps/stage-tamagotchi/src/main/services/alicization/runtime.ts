@@ -26,6 +26,7 @@ import type {
   AlicizationDurabilityPulseSnapshot,
   AlicizationExecutionEventInput,
   AlicizationGenesisInput,
+  AlicizationLlmConfigPayload,
   AlicizationMindHeadKey,
   AlicizationPersonalityState,
   AlicizationPersonaRuntimeConfig,
@@ -79,7 +80,7 @@ import type {
 
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { appendFile, mkdir, readdir, readFile, rm, unlink, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pid, platform, cwd as processCwd } from 'node:process'
 
@@ -184,6 +185,7 @@ import {
   buildAlicizationDesktopInspectionSuggestedActions,
   summarizeAlicizationDesktopInspection,
 } from './local-desktop-inspection'
+import { resolveLongTermMemoryVectorSpaceId } from './long-term-memory-embedding-provider'
 import { resolveOpenAICompatibleLongTermMemoryEmbeddingProvider } from './long-term-memory-openai-embedding-provider'
 import { abortAlicizationDirectChatRun, abortAlicizationRunningChatRuns } from './main-chat-abort'
 import { runAlicizationMainChatBackground } from './main-chat-background-run'
@@ -1589,8 +1591,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     normalizeProviderConfig,
     rememberMainGatewayRoute,
     resolveMainGatewayConfig,
-    ensureMainGatewayReachable,
-    recordMainGatewayGenerationTimeout,
   } = mainGatewayConfigRuntime
   const cardPromptRuntime = createAlicizationCardPromptRuntime({
     getActiveCardId: () => activeCardId,
@@ -3301,17 +3301,22 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     void appendAuditLog(input, cardId).catch(() => {})
   }
 
-  async function persistLlmConfigToDisk() {
+  async function persistLlmConfigToDisk(payload?: AlicizationLlmConfigPayload) {
+    const nextConfig = payload ?? {
+      activeProviderId,
+      activeModelId,
+      providerCredentials,
+    } satisfies AlicizationLlmConfigPayload
     await mkdir(join(userDataPath, 'alicizations'), { recursive: true })
-    await writeFile(
-      llmConfigPath,
-      JSON.stringify({
-        activeProviderId,
-        activeModelId,
-        providerCredentials,
-      }, null, 2),
-      'utf-8',
-    ).catch(() => {})
+    const temporaryPath = `${llmConfigPath}.${randomUUID()}.tmp`
+    try {
+      await writeFile(temporaryPath, JSON.stringify(nextConfig, null, 2), 'utf-8')
+      await rename(temporaryPath, llmConfigPath)
+    }
+    catch (error) {
+      await unlink(temporaryPath).catch(() => {})
+      throw error
+    }
   }
 
   async function restoreLlmConfigFromDisk() {
@@ -3458,9 +3463,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     turnWriteAbortControllers,
     alicizationDb: {
       clearConversationData: () => alicizationDb.clearConversationData(),
+      listActivePersonaTrainingArtifacts: input => alicizationDb.listActivePersonaTrainingArtifacts(input),
       setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
+      stopPersonaTraining: reason => alicizationDb.stopPersonaTraining(reason),
       close: () => alicizationDb.close(),
     },
+    unloadPersonaTrainingArtifact: input => localPersonaTrainingRuntime.loader.unload(input),
     activeSessionIdByCard,
     subconsciousStateByCard,
     proactiveLoopStateByCard,
@@ -3479,6 +3487,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       soulLifecycleState.watching = false
       soulLifecycleState.muteWatchUntil = 0
       soulLifecycleState.revision = 0
+    },
+    removeCardScopeRoot: async (cardId: string) => {
+      await rm(resolveCardPaths(cardId).soulRoot, { recursive: true, force: true })
     },
     removeAlicizationsRoot: async () => {
       await rm(join(userDataPath, 'alicizations'), { recursive: true, force: true })
@@ -3544,6 +3555,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     visualPresenceStateMetaKey: alicizationVisualPresenceStateMetaKey,
   })
   const clearAllConversationData = cardScopeLifecycleRuntime.clearAllConversationData
+  const deleteCardScopeData = cardScopeLifecycleRuntime.deleteCardScopeData
   const deleteAllAlicizationData = cardScopeLifecycleRuntime.deleteAllAlicizationData
 
   type ReminderScheduleSource = 'tool' | 'manual-fallback' | 'autonomy'
@@ -6495,7 +6507,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
               setActiveModelId: value => activeModelId = value,
               persistLlmConfigToDisk,
             }),
-          ensureMainGatewayReachable,
           appendRuntimeDebugLine,
           normalizeCardId,
           sanitizeText,
@@ -6630,8 +6641,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           currentRun.rawChunkChars += rawDelta.length
         }
       },
-      ensureMainGatewayReachable,
-      recordMainGatewayGenerationTimeout,
       appendRuntimeDebugLine,
       queueScopedAuditLog,
       recordPreparedMindTrace: async ({ payload, prepared }) => {
@@ -6963,22 +6972,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     appendAuditLog,
     executeBuiltinRealtimeQuery,
     defaultAlicizationCardId,
-    normalizeCardId,
-    switchCardScope,
-    resolveCardPaths,
-    rm,
-    proactiveLoopStateByCard,
-    perceptionStateByCard,
-    visualPresenceStateByCard,
-    visualPresenceCapturePersistMetaByCard,
-    emitVisualPresenceState,
-    screenSemanticCacheByCard,
-    subconsciousStateByCard,
-    activeSessionIdByCard,
-    clearDialogueDeliveryCardState: cardId => dialogueDeliveryRuntime.clearCardState(cardId),
-    clearDialogueSessionMirrorCard: cardId => dialogueSessionManager.clear(cardId),
-    clearExecutionDeliveryStateMemory: (cardId: string) => executionDeliveryRuntime.clear(cardId),
-    bootstrap,
+    deleteCardScopeData,
     deleteAllAlicizationData,
     ensureSubconsciousState,
     runSubconsciousTickAcrossCards,
@@ -6989,7 +6983,22 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     setActiveModelId: value => activeModelId = value,
     setProviderCredentials: value => providerCredentials = value,
     persistLlmConfigToDisk,
-    resumePendingEmbeddingReindexJobs: async () => await alicizationDb.resumePendingMemoryEmbeddingReindexJobs(),
+    resumePendingEmbeddingReindexJobs: async scope => await (scope.database as typeof alicizationDb).resumePendingMemoryEmbeddingReindexJobs(),
+    getEmbeddingVectorSpaceId: () => {
+      const provider = resolveLongTermMemoryEmbeddingProvider()
+      return provider ? resolveLongTermMemoryVectorSpaceId(provider) : null
+    },
+    resolveEmbeddingVectorSpaceIdForConfig: (config) => {
+      const provider = resolveOpenAICompatibleLongTermMemoryEmbeddingProvider({
+        activeProviderId: config.activeProviderId,
+        providerCredentials: config.providerCredentials,
+      })
+      return provider ? resolveLongTermMemoryVectorSpaceId(provider) : null
+    },
+    startEmbeddingReindexForActiveCard: async scope => await (scope.database as typeof alicizationDb).reindexMemoryWorkbenchEmbeddings({
+      cardId: scope.cardId,
+      action: 'start',
+    }),
     getActiveProviderId: () => activeProviderId,
     getActiveModelId: () => activeModelId,
     getProviderCredentials: () => providerCredentials,

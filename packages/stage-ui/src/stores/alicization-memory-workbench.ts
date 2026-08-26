@@ -1,4 +1,5 @@
 import type {
+  AlicizationLongTermMemoryReviewItem,
   AlicizationMemoryEmbeddingConnectionTestPayload,
   AlicizationMemoryEmbeddingConnectionTestResult,
   AlicizationMemoryEmbeddingModelInfo,
@@ -18,7 +19,9 @@ import type {
   AlicizationMemorySemanticScaleJobTier,
   AlicizationMemoryWorkbenchItem,
   AlicizationMemoryWorkbenchListPayload,
+  AlicizationMemoryWorkbenchReviewListPayload,
   AlicizationMemoryWorkbenchSnapshot,
+  AlicizationMemoryWorkbenchTombstoneItem,
   AlicizationPersonaCandidateListPayload,
   AlicizationPersonaCandidateWorkbenchDecision,
   AlicizationPersonaCandidateWorkbenchItem,
@@ -27,6 +30,7 @@ import type {
   AlicizationPersonaRuntimeConnectionResult,
   AlicizationPersonaTrainingDatasetExamplePolicyPayload,
   AlicizationPersonaTrainingDatasetExportResult,
+  AlicizationPersonaTrainingDatasetRevokePayload,
   AlicizationPersonaTrainingDatasetSnapshot,
   AlicizationPersonaTrainingDatasetStagePayload,
   AlicizationPersonaTrainingExecutorConfig,
@@ -34,6 +38,8 @@ import type {
   AlicizationPersonaTrainingExecutorConnectionResult,
   AlicizationPersonaTrainingPipelineIncrement,
   AlicizationPersonaTrainingPipelineRunRecord,
+  AlicizationPersonaTrainingSourceRevokeIntent,
+  AlicizationPersonaTrainingSourceRevokeIntentStatus,
   AlicizationSkillWorkbenchItem,
   AlicizationWorkingMemoryCleaningQueueItem,
   AlicizationWorkingMemoryCleaningQueuePayload,
@@ -50,7 +56,7 @@ import { computed, ref } from 'vue'
 
 import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
 
-export type AlicizationMemoryWorkbenchTab = 'working' | 'long-term' | 'review' | 'probe' | 'persona' | 'quality' | 'health' | 'skills'
+export type AlicizationMemoryWorkbenchTab = 'working' | 'long-term' | 'tombstones' | 'review' | 'probe' | 'persona' | 'quality' | 'health' | 'skills'
 export type AlicizationMemoryQualityGoldLabelReason = BridgeMemoryQualityGoldLabelReason
 export type AlicizationMemoryQualityGoldLabelPayload = Omit<BridgeMemoryQualityGoldLabelPayload, 'cardId'> & {
   reason?: AlicizationMemoryQualityGoldLabelReason | null
@@ -66,20 +72,50 @@ type LongTermFilters = Omit<Required<Pick<
   AlicizationMemoryWorkbenchListPayload,
   'kind' | 'query' | 'sensitivity' | 'visibility' | 'training' | 'source'
 >>, 'cardId'>
+type ReviewFilters = Omit<Required<Pick<
+  AlicizationMemoryWorkbenchReviewListPayload,
+  'kind' | 'query' | 'sensitivity' | 'visibility' | 'training'
+>>, 'cardId'>
+
+const DEFAULT_LONG_TERM_FILTERS: LongTermFilters = {
+  query: '',
+  kind: 'all',
+  sensitivity: 'all',
+  visibility: 'all',
+  training: 'all',
+  source: '',
+}
+
+const DEFAULT_REVIEW_FILTERS: ReviewFilters = {
+  query: '',
+  kind: 'all',
+  sensitivity: 'all',
+  visibility: 'all',
+  training: 'all',
+}
 
 export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memory-workbench', () => {
   const activeTab = ref<AlicizationMemoryWorkbenchTab>('working')
   const snapshot = ref<AlicizationMemoryWorkbenchSnapshot | null>(null)
   const longTermItems = ref<AlicizationMemoryWorkbenchItem[]>([])
-  const longTermFilters = ref<LongTermFilters>({
-    query: '',
-    kind: 'all',
-    sensitivity: 'all',
-    visibility: 'all',
-    training: 'all',
-    source: '',
-  })
+  const longTermFilters = ref<LongTermFilters>({ ...DEFAULT_LONG_TERM_FILTERS })
+  const longTermAppliedFilters = ref<LongTermFilters>({ ...DEFAULT_LONG_TERM_FILTERS })
   const longTermNextCursor = ref<string | null>(null)
+  const longTermLoaded = ref(false)
+  const longTermError = ref<string | null>(null)
+  const tombstoneItems = ref<AlicizationMemoryWorkbenchTombstoneItem[]>([])
+  const tombstoneNextCursor = ref<string | null>(null)
+  const tombstoneLoaded = ref(false)
+  const tombstoneLoading = ref(false)
+  const tombstoneError = ref<string | null>(null)
+  const tombstoneRestoreLoadingId = ref<string | null>(null)
+  const reviewQueueItems = ref<AlicizationLongTermMemoryReviewItem[]>([])
+  const reviewFilters = ref<ReviewFilters>({ ...DEFAULT_REVIEW_FILTERS })
+  const reviewAppliedFilters = ref<ReviewFilters>({ ...DEFAULT_REVIEW_FILTERS })
+  const reviewNextCursor = ref<string | null>(null)
+  const reviewLoaded = ref(false)
+  const reviewListLoading = ref(false)
+  const reviewError = ref<string | null>(null)
   const workingMemoryCleaningFailures = ref<AlicizationWorkingMemoryCleaningQueueItem[]>([])
   const workingMemoryCleaningFailuresNextCursor = ref<string | null>(null)
   const workingMemoryCleaningRetriedItems = ref<AlicizationWorkingMemoryCleaningQueueItem[]>([])
@@ -94,6 +130,8 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const personaTrainingRunLoading = ref(false)
   const personaTrainingRun = ref<AlicizationPersonaTrainingPipelineRunRecord | null>(null)
   const personaTrainingRuns = ref<AlicizationPersonaTrainingPipelineRunRecord[]>([])
+  const personaTrainingSourceRevokeIntents = ref<AlicizationPersonaTrainingSourceRevokeIntent[]>([])
+  const personaTrainingSourceRevokeIntentsLoading = ref(false)
   const personaTrainingExecutorConfigState = ref<AlicizationPersonaTrainingExecutorConfigState>({
     configured: false,
     config: null,
@@ -138,6 +176,9 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   let qualityReplaySessionsRevision = 0
   let qualityTrialContextRevision = 0
   let cardScopeRevision = 0
+  let longTermRequestRevision = 0
+  let tombstoneRequestRevision = 0
+  let reviewRequestRevision = 0
   let embeddingModelDiscoveryRevision = 0
   let embeddingConnectionTestRevision = 0
   let semanticScaleContextRevision = 0
@@ -156,7 +197,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const lastError = ref<string | null>(null)
 
   const workingMemory = computed(() => snapshot.value?.workingMemory ?? null)
-  const reviewItems = computed(() => snapshot.value?.review.items ?? [])
+  const reviewItems = computed(() => reviewQueueItems.value)
   const health = computed(() => snapshot.value?.health ?? null)
   const pendingReviewCount = computed(() => snapshot.value?.review.pending ?? 0)
   const activeReindexStatuses = new Set(['queued', 'running', 'cancel_requested'])
@@ -439,9 +480,28 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
 
   function resetCardScope() {
     cardScopeRevision += 1
+    longTermRequestRevision += 1
+    tombstoneRequestRevision += 1
+    reviewRequestRevision += 1
     snapshot.value = null
     longTermItems.value = []
+    longTermAppliedFilters.value = { ...longTermFilters.value }
     longTermNextCursor.value = null
+    longTermLoaded.value = false
+    longTermError.value = null
+    listLoading.value = false
+    tombstoneItems.value = []
+    tombstoneNextCursor.value = null
+    tombstoneLoaded.value = false
+    tombstoneLoading.value = false
+    tombstoneError.value = null
+    tombstoneRestoreLoadingId.value = null
+    reviewQueueItems.value = []
+    reviewAppliedFilters.value = { ...reviewFilters.value }
+    reviewNextCursor.value = null
+    reviewLoaded.value = false
+    reviewListLoading.value = false
+    reviewError.value = null
     workingMemoryCleaningFailures.value = []
     workingMemoryCleaningFailuresNextCursor.value = null
     workingMemoryCleaningRetriedItems.value = []
@@ -452,6 +512,8 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     personaTrainingDataset.value = null
     personaTrainingDatasetExport.value = null
     personaTrainingDatasetLoading.value = false
+    personaTrainingSourceRevokeIntents.value = []
+    personaTrainingSourceRevokeIntentsLoading.value = false
     skills.value = []
     skillLoading.value = false
     reindexResult.value = null
@@ -519,8 +581,6 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       if (revision !== cardScopeRevision)
         return null
       snapshot.value = next
-      longTermItems.value = next.longTerm.items
-      longTermNextCursor.value = null
       restoreReindexProgress(next.health.embedding.reindexJob, revision)
       lastError.value = next.health.embedding.reindexJob?.lastError ?? null
       if (next.health.embedding.reindexJob?.status === 'failed') {
@@ -541,8 +601,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
-  function buildLongTermPayload(cursor: string | null = null) {
-    const filters = longTermFilters.value
+  function buildLongTermPayload(filters: LongTermFilters, cursor: string | null = null) {
     return {
       limit: 50,
       cursor,
@@ -558,62 +617,246 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   async function refreshLongTerm(filters?: Partial<LongTermFilters>) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListLongTerm)
       return []
-    const revision = cardScopeRevision
-    longTermFilters.value = {
+    const scopeRevision = cardScopeRevision
+    const requestRevision = ++longTermRequestRevision
+    const nextFilters = {
       ...longTermFilters.value,
       ...filters,
     }
-    longTermNextCursor.value = null
+    longTermFilters.value = nextFilters
+    longTermError.value = null
     listLoading.value = true
     try {
-      const result = await getAlicizationBridge().memoryWorkbenchListLongTerm!(buildLongTermPayload(null))
-      if (revision !== cardScopeRevision)
+      const result = await getAlicizationBridge().memoryWorkbenchListLongTerm!(buildLongTermPayload(nextFilters, null))
+      if (
+        scopeRevision !== cardScopeRevision
+        || requestRevision !== longTermRequestRevision
+      ) {
         return []
+      }
       longTermItems.value = result.items
+      longTermAppliedFilters.value = { ...nextFilters }
       longTermNextCursor.value = result.nextCursor
-      lastError.value = null
+      longTermLoaded.value = true
+      longTermError.value = null
       return result.items
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === longTermRequestRevision
+      ) {
+        longTermError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
       return []
     }
     finally {
-      if (revision === cardScopeRevision)
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === longTermRequestRevision
+      ) {
         listLoading.value = false
+      }
     }
   }
 
   async function loadMoreLongTerm() {
     if (!longTermNextCursor.value || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListLongTerm)
       return []
-    const revision = cardScopeRevision
+    const scopeRevision = cardScopeRevision
+    const requestRevision = ++longTermRequestRevision
+    const cursor = longTermNextCursor.value
+    longTermError.value = null
     listLoading.value = true
     try {
-      const result = await getAlicizationBridge().memoryWorkbenchListLongTerm!(buildLongTermPayload(longTermNextCursor.value))
-      if (revision !== cardScopeRevision)
+      const result = await getAlicizationBridge().memoryWorkbenchListLongTerm!(
+        buildLongTermPayload(longTermAppliedFilters.value, cursor),
+      )
+      if (
+        scopeRevision !== cardScopeRevision
+        || requestRevision !== longTermRequestRevision
+      ) {
         return []
+      }
       longTermItems.value = [
         ...longTermItems.value,
         ...result.items,
       ]
       longTermNextCursor.value = result.nextCursor
-      lastError.value = null
+      longTermError.value = null
       return result.items
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === longTermRequestRevision
+      ) {
+        longTermError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
       return []
     }
     finally {
-      if (revision === cardScopeRevision)
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === longTermRequestRevision
+      ) {
         listLoading.value = false
+      }
     }
+  }
+
+  async function refreshTombstones() {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListTombstones)
+      return []
+    const scopeRevision = cardScopeRevision
+    const requestRevision = ++tombstoneRequestRevision
+    tombstoneError.value = null
+    tombstoneLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListTombstones!({
+        limit: 50,
+        cursor: null,
+      })
+      if (
+        scopeRevision !== cardScopeRevision
+        || requestRevision !== tombstoneRequestRevision
+      ) {
+        return []
+      }
+      tombstoneItems.value = result.items
+      tombstoneNextCursor.value = result.nextCursor
+      tombstoneLoaded.value = true
+      tombstoneError.value = null
+      return result.items
+    }
+    catch (error) {
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === tombstoneRequestRevision
+      ) {
+        tombstoneError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
+      return []
+    }
+    finally {
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === tombstoneRequestRevision
+      ) {
+        tombstoneLoading.value = false
+      }
+    }
+  }
+
+  async function loadMoreTombstones() {
+    if (!tombstoneNextCursor.value || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListTombstones)
+      return []
+    const scopeRevision = cardScopeRevision
+    const requestRevision = ++tombstoneRequestRevision
+    const cursor = tombstoneNextCursor.value
+    tombstoneError.value = null
+    tombstoneLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListTombstones!({
+        limit: 50,
+        cursor,
+      })
+      if (
+        scopeRevision !== cardScopeRevision
+        || requestRevision !== tombstoneRequestRevision
+      ) {
+        return []
+      }
+      tombstoneItems.value = [
+        ...tombstoneItems.value,
+        ...result.items,
+      ]
+      tombstoneNextCursor.value = result.nextCursor
+      tombstoneError.value = null
+      return result.items
+    }
+    catch (error) {
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === tombstoneRequestRevision
+      ) {
+        tombstoneError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
+      return []
+    }
+    finally {
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === tombstoneRequestRevision
+      ) {
+        tombstoneLoading.value = false
+      }
+    }
+  }
+
+  async function restoreTombstone(tombstoneId: string) {
+    const normalizedId = tombstoneId.trim()
+    if (!normalizedId || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRestoreTombstone)
+      return null
+    const scopeRevision = cardScopeRevision
+    tombstoneRestoreLoadingId.value = normalizedId
+    tombstoneError.value = null
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchRestoreTombstone!({
+        tombstoneId: normalizedId,
+      })
+      if (scopeRevision !== cardScopeRevision)
+        return null
+      await Promise.all([
+        refreshTombstones(),
+        refreshLongTerm(),
+        refreshSnapshot(snapshot.value?.sessionId ?? null),
+      ])
+      return result
+    }
+    catch (error) {
+      if (scopeRevision === cardScopeRevision)
+        tombstoneError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      if (scopeRevision === cardScopeRevision)
+        tombstoneRestoreLoadingId.value = null
+    }
+  }
+
+  async function ensureActiveTabLoaded() {
+    if (activeTab.value === 'long-term' && !longTermLoaded.value && !listLoading.value)
+      await refreshLongTerm()
+    if (activeTab.value === 'tombstones' && !tombstoneLoaded.value && !tombstoneLoading.value)
+      await refreshTombstones()
+    if (activeTab.value === 'review' && !reviewLoaded.value && !reviewListLoading.value)
+      await refreshReview()
+  }
+
+  async function selectTab(tab: AlicizationMemoryWorkbenchTab) {
+    activeTab.value = tab
+    await ensureActiveTabLoaded()
+  }
+
+  async function refreshActiveTab() {
+    const listRefresh = activeTab.value === 'long-term'
+      ? refreshLongTerm()
+      : activeTab.value === 'tombstones'
+        ? refreshTombstones()
+        : activeTab.value === 'review'
+          ? refreshReview()
+          : Promise.resolve([])
+    await Promise.all([
+      refreshSnapshot(snapshot.value?.sessionId ?? null),
+      listRefresh,
+    ])
   }
 
   async function applyLongTermAction(
     memoryItemId: string,
     decision: AlicizationMemoryLongTermActionDecision,
+    source?: string,
   ) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchApplyLongTermAction)
       return null
@@ -621,6 +864,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     try {
       const result = await getAlicizationBridge().memoryWorkbenchApplyLongTermAction!({
         memoryItemId,
+        source,
         decision,
       })
       await refreshLongTerm()
@@ -735,6 +979,109 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
+  function buildReviewPayload(filters: ReviewFilters, cursor: string | null) {
+    return {
+      query: filters.query.trim() || undefined,
+      kind: filters.kind,
+      sensitivity: filters.sensitivity,
+      visibility: filters.visibility,
+      training: filters.training,
+      limit: 50,
+      cursor,
+    } satisfies Omit<AlicizationMemoryWorkbenchReviewListPayload, 'cardId'>
+  }
+
+  async function refreshReview(filters?: Partial<ReviewFilters>) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListReview)
+      return []
+    const scopeRevision = cardScopeRevision
+    const requestRevision = ++reviewRequestRevision
+    const nextFilters = {
+      ...reviewFilters.value,
+      ...filters,
+    }
+    reviewFilters.value = nextFilters
+    reviewError.value = null
+    reviewListLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListReview!(buildReviewPayload(nextFilters, null))
+      if (
+        scopeRevision !== cardScopeRevision
+        || requestRevision !== reviewRequestRevision
+      ) {
+        return []
+      }
+      reviewQueueItems.value = result.items
+      reviewAppliedFilters.value = { ...nextFilters }
+      reviewNextCursor.value = result.nextCursor
+      reviewLoaded.value = true
+      reviewError.value = null
+      return result.items
+    }
+    catch (error) {
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === reviewRequestRevision
+      ) {
+        reviewError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
+      return []
+    }
+    finally {
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === reviewRequestRevision
+      ) {
+        reviewListLoading.value = false
+      }
+    }
+  }
+
+  async function loadMoreReview() {
+    if (!reviewNextCursor.value || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListReview)
+      return []
+    const scopeRevision = cardScopeRevision
+    const requestRevision = ++reviewRequestRevision
+    const cursor = reviewNextCursor.value
+    reviewError.value = null
+    reviewListLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListReview!(
+        buildReviewPayload(reviewAppliedFilters.value, cursor),
+      )
+      if (
+        scopeRevision !== cardScopeRevision
+        || requestRevision !== reviewRequestRevision
+      ) {
+        return []
+      }
+      reviewQueueItems.value = [
+        ...reviewQueueItems.value,
+        ...result.items,
+      ]
+      reviewNextCursor.value = result.nextCursor
+      reviewError.value = null
+      return result.items
+    }
+    catch (error) {
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === reviewRequestRevision
+      ) {
+        reviewError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
+      return []
+    }
+    finally {
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === reviewRequestRevision
+      ) {
+        reviewListLoading.value = false
+      }
+    }
+  }
+
   async function applyReviewAction(
     reviewItemId: string,
     decision: AlicizationMemoryReviewActionPayload['decision'],
@@ -744,6 +1091,14 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     reviewActionLoadingId.value = reviewItemId
     try {
       const result = await getAlicizationBridge().memoryWorkbenchApplyReviewAction!({ reviewItemId, decision })
+      if (result) {
+        if (decision === 'approve' || decision === 'reject' || decision === 'tombstone') {
+          reviewQueueItems.value = reviewQueueItems.value.filter(item => item.id !== reviewItemId)
+        }
+        else {
+          reviewQueueItems.value = reviewQueueItems.value.map(item => item.id === reviewItemId ? result : item)
+        }
+      }
       await refreshSnapshot(snapshot.value?.sessionId ?? null)
       lastError.value = null
       return result
@@ -972,13 +1327,18 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
-  async function revokePersonaTrainingDatasetSource(sourceId: string) {
+  async function revokePersonaTrainingDatasetSource(
+    sourceRef: Omit<AlicizationPersonaTrainingDatasetRevokePayload, 'cardId'>,
+  ) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRevokePersonaTrainingDatasetSource)
       return null
     let operationError: string | null = null
     personaTrainingDatasetLoading.value = true
     try {
-      const result = await getAlicizationBridge().memoryWorkbenchRevokePersonaTrainingDatasetSource!({ sourceId })
+      const result = await getAlicizationBridge().memoryWorkbenchRevokePersonaTrainingDatasetSource!({
+        sourceId: sourceRef.sourceId,
+        sourceKind: sourceRef.sourceKind,
+      })
       return result
     }
     catch (error) {
@@ -993,11 +1353,77 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
+  async function refreshPersonaTrainingSourceRevokeIntents(
+    status: AlicizationPersonaTrainingSourceRevokeIntentStatus | 'all' = 'all',
+  ) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListPersonaTrainingSourceRevokeIntents)
+      return []
+    const revision = personaTrainingContextRevision
+    personaTrainingSourceRevokeIntentsLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListPersonaTrainingSourceRevokeIntents!({
+        status,
+        limit: 64,
+      })
+      if (revision !== personaTrainingContextRevision)
+        return []
+      personaTrainingSourceRevokeIntents.value = result.items
+      lastError.value = null
+      return result.items
+    }
+    catch (error) {
+      if (revision === personaTrainingContextRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return []
+    }
+    finally {
+      if (revision === personaTrainingContextRevision)
+        personaTrainingSourceRevokeIntentsLoading.value = false
+    }
+  }
+
+  async function retryPersonaTrainingSourceRevokeIntent(intentId: string) {
+    const normalizedIntentId = intentId.trim()
+    if (
+      !normalizedIntentId
+      || !hasAlicizationBridge()
+      || !getAlicizationBridge().memoryWorkbenchRetryPersonaTrainingSourceRevokeIntent
+    ) {
+      return null
+    }
+    const revision = personaTrainingContextRevision
+    personaTrainingSourceRevokeIntentsLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchRetryPersonaTrainingSourceRevokeIntent!({
+        intentId: normalizedIntentId,
+      })
+      if (revision !== personaTrainingContextRevision)
+        return null
+      await Promise.all([
+        refreshPersonaTrainingSourceRevokeIntents(),
+        refreshPersonaTrainingState(),
+      ])
+      lastError.value = null
+      return result.item
+    }
+    catch (error) {
+      if (revision === personaTrainingContextRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      await refreshPersonaTrainingSourceRevokeIntents()
+      return null
+    }
+    finally {
+      if (revision === personaTrainingContextRevision)
+        personaTrainingSourceRevokeIntentsLoading.value = false
+    }
+  }
+
   async function refreshPersonaTrainingState() {
     await Promise.all([
       refreshPersonaTrainingDataset(),
       refreshPersonaTrainingRuns(),
       refreshPersonaTrainingIncrements(),
+      refreshPersonaTrainingSourceRevokeIntents(),
     ])
   }
 
@@ -1884,6 +2310,19 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     longTermItems,
     longTermFilters,
     longTermNextCursor,
+    longTermLoaded,
+    longTermError,
+    tombstoneItems,
+    tombstoneNextCursor,
+    tombstoneLoaded,
+    tombstoneLoading,
+    tombstoneError,
+    tombstoneRestoreLoadingId,
+    reviewFilters,
+    reviewNextCursor,
+    reviewLoaded,
+    reviewListLoading,
+    reviewError,
     workingMemoryCleaningFailures,
     workingMemoryCleaningFailuresNextCursor,
     workingMemoryCleaningRetriedItems,
@@ -1898,6 +2337,8 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     personaTrainingRunLoading,
     personaTrainingRun,
     personaTrainingRuns,
+    personaTrainingSourceRevokeIntents,
+    personaTrainingSourceRevokeIntentsLoading,
     personaTrainingExecutorConfigState,
     personaTrainingExecutorConnection,
     personaTrainingExecutorLoading,
@@ -1944,9 +2385,17 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     health,
     pendingReviewCount,
     refreshSnapshot,
+    selectTab,
+    ensureActiveTabLoaded,
+    refreshActiveTab,
     refreshLongTerm,
     loadMoreLongTerm,
+    refreshTombstones,
+    loadMoreTombstones,
+    restoreTombstone,
     applyLongTermAction,
+    refreshReview,
+    loadMoreReview,
     refreshWorkingMemoryCleaningFailures,
     loadMoreWorkingMemoryCleaningFailures,
     retryWorkingMemoryCleaningFailures,
@@ -1961,6 +2410,8 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     rollbackPersonaTrainingDataset,
     setPersonaTrainingDatasetExamplePolicy,
     revokePersonaTrainingDatasetSource,
+    refreshPersonaTrainingSourceRevokeIntents,
+    retryPersonaTrainingSourceRevokeIntent,
     refreshPersonaTrainingIncrements,
     refreshPersonaTrainingRuns,
     refreshPersonaTrainingRun,

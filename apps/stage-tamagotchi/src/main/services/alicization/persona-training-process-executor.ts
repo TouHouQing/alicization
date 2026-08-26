@@ -145,18 +145,41 @@ interface RunChildProcessOptions {
   onEvent?: (event: Record<string, unknown>) => void | Promise<void>
 }
 
-function signalTrainerProcess(child: ReturnType<typeof spawn>, signal: NodeJS.Signals) {
-  if (processPlatform !== 'win32' && child.pid) {
+interface PersonaTrainingProcessSignalTarget {
+  pid?: number | null
+  kill: (signal: NodeJS.Signals) => void
+}
+
+interface PersonaTrainingProcessSignalDependencies {
+  platform: NodeJS.Platform
+  killProcess: typeof killProcess
+}
+
+export function signalPersonaTrainingProcess(
+  child: PersonaTrainingProcessSignalTarget,
+  signal: NodeJS.Signals,
+  dependencies: PersonaTrainingProcessSignalDependencies = {
+    platform: processPlatform,
+    killProcess,
+  },
+) {
+  if (dependencies.platform !== 'win32' && child.pid) {
     try {
-      killProcess(-child.pid, signal)
-      return
+      dependencies.killProcess(-child.pid, signal)
+      return true
     }
-    catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code !== 'ESRCH')
-        throw error
+    catch {
+      // Fall through to the direct child signal when process-group
+      // termination is unavailable or rejected by the host.
     }
   }
-  child.kill(signal)
+  try {
+    child.kill(signal)
+    return true
+  }
+  catch {
+    return false
+  }
 }
 
 function normalizeNonEmptyText(value: unknown, label: string, maxLength: number) {
@@ -292,11 +315,11 @@ async function runChildProcess(options: RunChildProcessOptions) {
       terminalError = error
     if (child.exitCode != null || child.signalCode != null)
       return
-    signalTrainerProcess(child, 'SIGTERM')
+    signalPersonaTrainingProcess(child, 'SIGTERM')
     if (!terminationTimer) {
       terminationTimer = setTimeout(() => {
         if (child.exitCode == null && child.signalCode == null)
-          signalTrainerProcess(child, 'SIGKILL')
+          signalPersonaTrainingProcess(child, 'SIGKILL')
       }, options.terminationGraceMs)
       terminationTimer.unref?.()
     }

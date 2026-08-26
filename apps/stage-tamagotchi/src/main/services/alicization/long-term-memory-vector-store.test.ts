@@ -16,6 +16,7 @@ describe('long-term memory vector store', () => {
         vector: [1, 0, 0],
         modelId: 'local-a',
         dimensions: 3,
+        vectorSpaceId: 'local-a:3',
         updatedAt: 1,
       },
       {
@@ -26,6 +27,7 @@ describe('long-term memory vector store', () => {
         vector: [1, 0],
         modelId: 'local-b',
         dimensions: 2,
+        vectorSpaceId: 'local-b:2',
         updatedAt: 2,
       },
     ])
@@ -33,6 +35,7 @@ describe('long-term memory vector store', () => {
     const results = await store.searchVectors([1, 0, 0], {
       modelId: 'local-a',
       dimensions: 3,
+      vectorSpaceId: 'local-a:3',
       limit: 4,
     })
 
@@ -50,6 +53,7 @@ describe('long-term memory vector store', () => {
         vector: [0, 1, 0],
         modelId: 'old-local',
         dimensions: 3,
+        vectorSpaceId: 'old-local:3',
         updatedAt: 1,
       },
     ])
@@ -58,6 +62,7 @@ describe('long-term memory vector store', () => {
     const newModelResults = await store.searchVectors([0, 1, 0], {
       modelId: 'new-local',
       dimensions: 3,
+      vectorSpaceId: 'new-local:3',
       limit: 4,
     })
 
@@ -67,6 +72,29 @@ describe('long-term memory vector store', () => {
       recordCount: 1,
     })
     expect(newModelResults).toEqual([])
+  })
+
+  it('rejects vector writes and searches without an explicit vector space id', async () => {
+    const store = createInMemoryLongTermMemoryVectorStore()
+    const record = {
+      id: 'vec-without-space',
+      sourceId: 'memory-without-space',
+      source: 'memory_facts',
+      text: '必须显式标识向量空间',
+      vector: [1, 0, 0],
+      modelId: 'local-a',
+      dimensions: 3,
+      updatedAt: 1,
+    }
+
+    await expect(store.upsertVectors([record])).rejects.toThrow(
+      'embedding provider vectorSpaceId is required',
+    )
+    await expect(store.searchVectors([1, 0, 0], {
+      modelId: record.modelId,
+      dimensions: record.dimensions,
+      limit: 4,
+    })).rejects.toThrow('embedding provider vectorSpaceId is required')
   })
 
   it('treats missing or failing embedding providers as unavailable semantic recall', async () => {

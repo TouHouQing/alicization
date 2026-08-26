@@ -1,3 +1,5 @@
+import { resolveLongTermMemoryVectorSpaceId } from './long-term-memory-embedding-provider'
+
 export interface LongTermMemoryVectorRecord {
   id: string
   sourceId: string
@@ -80,7 +82,11 @@ export function createInMemoryLongTermMemoryVectorStore(): LongTermMemoryVectorS
       const source = normalizeText(record.source, 120)
       const modelId = normalizeText(record.modelId, 160)
       const dimensions = Math.max(1, Math.floor(Number(record.dimensions)))
-      const vectorSpaceId = normalizeText(record.vectorSpaceId, 240) || `legacy:${modelId}:${dimensions}`
+      const vectorSpaceId = resolveLongTermMemoryVectorSpaceId({
+        modelId,
+        dimensions,
+        vectorSpaceId: record.vectorSpaceId,
+      })
       if (!id || !sourceId || !source || !modelId)
         continue
       if (!isValidVector(record.vector, dimensions))
@@ -107,7 +113,11 @@ export function createInMemoryLongTermMemoryVectorStore(): LongTermMemoryVectorS
   ): Promise<LongTermMemoryVectorSearchResult[]> {
     const modelId = normalizeText(filters.modelId, 160)
     const dimensions = Math.max(1, Math.floor(Number(filters.dimensions)))
-    const vectorSpaceId = normalizeText(filters.vectorSpaceId, 240) || `legacy:${modelId}:${dimensions}`
+    const vectorSpaceId = resolveLongTermMemoryVectorSpaceId({
+      modelId,
+      dimensions,
+      vectorSpaceId: filters.vectorSpaceId,
+    })
     if (!modelId || !isValidVector(queryVector, dimensions))
       return []
 

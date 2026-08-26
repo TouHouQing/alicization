@@ -177,6 +177,7 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
   foreignCardId: string
   modelId: string
   dimensions: number
+  vectorSpaceId: string
   corpusSizes: number[]
   queryCount?: number
   batchSize?: number
@@ -193,6 +194,7 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
   const vectorSpaceId = resolveLongTermMemoryVectorSpaceId({
     modelId: input.modelId,
     dimensions,
+    vectorSpaceId: input.vectorSpaceId,
   })
   const searches: MemorySemanticScaleSearchObservation[] = []
   const totalWork = corpusSizes.reduce((total, corpusSize, index) => {

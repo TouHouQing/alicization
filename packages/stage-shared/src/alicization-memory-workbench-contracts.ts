@@ -560,13 +560,22 @@ export interface AlicizationPersonaTrainingDatasetCleaningProvenance {
   cleanedAt: number
 }
 
+export type AlicizationPersonaTrainingSourceKind
+  = 'cleaned-long-term-reflection'
+    | 'persona-reinforcement'
+
+export interface AlicizationPersonaTrainingSourceRef {
+  sourceId: string
+  sourceKind: AlicizationPersonaTrainingSourceKind
+}
+
 export interface AlicizationPersonaTrainingDatasetExample {
   id: string
   datasetId: string
   cardId: string
   schemaVersion: string
   sourceId: string
-  sourceKind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+  sourceKind: AlicizationPersonaTrainingSourceKind
   contentHash: string
   behaviorLesson: string
   positiveExample: string
@@ -1110,7 +1119,7 @@ export interface AlicizationMemoryScopeFuzzReport {
 export interface AlicizationMemoryEmbeddingProgress {
   jobId: string
   cardId: string
-  status: 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
+  status: 'queued' | 'running' | 'paused' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
   stage: 'projection-refresh-queued' | 'projection-refresh-running' | 'embedding-indexing' | 'completed' | 'cancelled' | 'failed'
   modelId: string
   dimensions: number
@@ -1166,7 +1175,7 @@ export interface AlicizationMemorySemanticScaleReindexResult {
     retryable: number
     deadLettered: number
     cancelled: number
-    status: 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
+    status: 'queued' | 'running' | 'paused' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
     lastError: string | null
   }
   observations: {
@@ -2236,7 +2245,7 @@ export interface AlicizationPersonaTrainingPipelineIncrement {
   cardId: string
   datasetId: string
   manifestHash: string
-  sourceIds: string[]
+  sourceRefs: AlicizationPersonaTrainingSourceRef[]
   basePersonaRevision: string
   artifact: AlicizationPersonaTrainingArtifact
   state: AlicizationPersonaTrainingPipelineIncrementState
@@ -2293,7 +2302,7 @@ export interface AlicizationPersonaTrainingPipelineRunRecord {
   cardId: string
   datasetId: string
   manifestHash: string
-  sourceIds: string[]
+  sourceRefs: AlicizationPersonaTrainingSourceRef[]
   basePersonaRevision: string
   status: AlicizationPersonaTrainingPipelineRunStatus
   stage: AlicizationPersonaTrainingPipelineRunStage
@@ -2390,9 +2399,40 @@ export type AlicizationPersonaTrainingPipelineResult
     error: string
   }
 
-export interface AlicizationPersonaTrainingDatasetRevokePayload {
+export interface AlicizationPersonaTrainingDatasetRevokePayload extends AlicizationPersonaTrainingSourceRef {
+  cardId: string
+}
+
+export type AlicizationPersonaTrainingSourceRevokeIntentStatus = 'pending' | 'failed' | 'completed'
+
+export interface AlicizationPersonaTrainingSourceRevokeIntent {
+  id: string
   cardId: string
   sourceId: string
+  sourceKind: AlicizationPersonaTrainingSourceRef['sourceKind']
+  reason: string
+  status: AlicizationPersonaTrainingSourceRevokeIntentStatus
+  attempts: number
+  lastError: string | null
+  createdAt: number
+  updatedAt: number
+  completedAt: number | null
+}
+
+export interface AlicizationPersonaTrainingSourceRevokeIntentListPayload {
+  cardId: string
+  status?: AlicizationPersonaTrainingSourceRevokeIntentStatus | 'all'
+  limit?: number
+}
+
+export interface AlicizationPersonaTrainingSourceRevokeIntentRetryPayload {
+  cardId: string
+  intentId: string
+}
+
+export interface AlicizationPersonaTrainingSourceRevokeIntentResult {
+  item: AlicizationPersonaTrainingSourceRevokeIntent | null
+  items: AlicizationPersonaTrainingSourceRevokeIntent[]
 }
 
 export interface AlicizationPersonaTrainingRunPayload {

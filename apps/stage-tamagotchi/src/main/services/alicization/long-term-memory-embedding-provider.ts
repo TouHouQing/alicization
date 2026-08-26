@@ -4,7 +4,7 @@ export interface LongTermMemoryEmbeddingProvider {
   modelId: string
   dimensions: number
   vectorSpaceId?: string
-  embedTexts: (texts: string[]) => Promise<Array<{ text: string, vector: number[] }>>
+  embedTexts: (texts: string[], signal?: AbortSignal) => Promise<Array<{ text: string, vector: number[] }>>
 }
 
 export interface LongTermMemoryEmbeddingResult {
@@ -26,8 +26,10 @@ function normalizeText(raw: unknown) {
 }
 
 export function resolveLongTermMemoryVectorSpaceId(provider: Pick<LongTermMemoryEmbeddingProvider, 'modelId' | 'dimensions' | 'vectorSpaceId'>) {
-  return normalizeText(provider.vectorSpaceId)
-    || `legacy:${normalizeText(provider.modelId)}:${Math.max(1, Math.floor(Number(provider.dimensions)))}`
+  const vectorSpaceId = normalizeText(provider.vectorSpaceId)
+  if (!vectorSpaceId)
+    throw new Error('embedding provider vectorSpaceId is required')
+  return vectorSpaceId
 }
 
 function isValidVector(vector: unknown, dimensions: number): vector is number[] {
@@ -38,6 +40,7 @@ function isValidVector(vector: unknown, dimensions: number): vector is number[] 
 
 export async function safeEmbedLongTermMemoryTexts(input: {
   provider?: LongTermMemoryEmbeddingProvider | null
+  signal?: AbortSignal
   texts: string[]
 }): Promise<SafeLongTermMemoryEmbeddingResult> {
   const provider = input.provider ?? null
@@ -59,16 +62,33 @@ export async function safeEmbedLongTermMemoryTexts(input: {
       }
     }
 
-    const rawEmbeddings = await provider.embedTexts(texts)
-    const embeddings = rawEmbeddings
-      .map(item => ({
-        text: normalizeText(item.text),
-        vector: item.vector,
+    const rawEmbeddings = await provider.embedTexts(texts, input.signal)
+    if (rawEmbeddings.length !== texts.length) {
+      throw new Error(
+        `embedding provider returned ${rawEmbeddings.length} embeddings for ${texts.length} texts`,
+      )
+    }
+
+    const vectorSpaceId = resolveLongTermMemoryVectorSpaceId(provider)
+    const embeddings = rawEmbeddings.map((item, index) => {
+      const text = normalizeText(item.text)
+      const vector: unknown = item.vector
+      if (text !== texts[index])
+        throw new Error(`embedding provider returned text mismatch at index ${index}`)
+      if (!isValidVector(vector, provider.dimensions)) {
+        const actualDimensions = Array.isArray(vector) ? vector.length : 'none'
+        throw new Error(
+          `embedding provider returned invalid vector dimensions at index ${index} (${actualDimensions}; expected ${provider.dimensions})`,
+        )
+      }
+      return {
+        text,
+        vector: [...vector],
         modelId: provider.modelId,
         dimensions: provider.dimensions,
-        vectorSpaceId: resolveLongTermMemoryVectorSpaceId(provider),
-      }))
-      .filter(item => item.text && isValidVector(item.vector, provider.dimensions))
+        vectorSpaceId,
+      }
+    })
 
     return {
       status: 'ok',

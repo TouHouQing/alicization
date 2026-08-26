@@ -2764,6 +2764,223 @@ describe('alicization sqlite dao', () => {
     expect(vectorCount[0]?.total).toBe(0)
   })
 
+  it('preserves legacy policy rows that share ids across source namespaces during migration', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'cards', 'card-a')
+    await mkdir(rootDir, { recursive: true })
+    const dbPath = join(rootDir, 'alicization.db')
+    const legacyDatabase = await openActualSqlite(dbPath)
+    await runActualSqlite(legacyDatabase, `
+      CREATE TABLE long_term_memory_policy_overrides (
+        id TEXT NOT NULL,
+        card_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        source_kind TEXT NOT NULL,
+        visible_mode TEXT NOT NULL,
+        allow_training INTEGER NOT NULL,
+        review_state TEXT NOT NULL,
+        reason TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(card_id, source_id, source)
+      )
+    `)
+    await runActualSqlite(legacyDatabase, `
+      INSERT INTO long_term_memory_policy_overrides (
+        id, card_id, source_id, source, source_kind, visible_mode,
+        allow_training, review_state, reason, created_at, updated_at
+      ) VALUES
+        ('shared-legacy-id', 'card-a', 'shared-source', 'memory_reflections', 'cleaned-long-term-reflection', 'inward-only', 0, 'no-training', 'reflection', 1, 1),
+        ('shared-legacy-id', 'card-a', 'shared-source', 'persona_reinforcement_events', 'persona-reinforcement', 'explicit', 1, 'approved', 'reinforcement', 2, 2)
+    `)
+    await closeActualSqlite(legacyDatabase)
+
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+    await db.close()
+
+    const migratedDatabase = await openActualSqlite(dbPath)
+    const migratedRows = await allActualSqlite<{
+      source: string
+      source_kind: string
+      visible_mode: string
+      reason: string | null
+    }>(
+      migratedDatabase,
+      `
+      SELECT source, source_kind, visible_mode, reason
+      FROM long_term_memory_policy_overrides
+      WHERE card_id = ? AND source_id = ?
+      ORDER BY source ASC
+      `,
+      ['card-a', 'shared-source'],
+    )
+    await closeActualSqlite(migratedDatabase)
+
+    expect(migratedRows).toEqual([
+      {
+        source: 'memory_reflections',
+        source_kind: 'cleaned-long-term-reflection',
+        visible_mode: 'inward-only',
+        reason: 'reflection',
+      },
+      {
+        source: 'persona_reinforcement_events',
+        source_kind: 'persona-reinforcement',
+        visible_mode: 'explicit',
+        reason: 'reinforcement',
+      },
+    ])
+  })
+
+  it('recovers a renamed legacy policy table with source kind intact', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'cards', 'card-a')
+    await mkdir(rootDir, { recursive: true })
+    const dbPath = join(rootDir, 'alicization.db')
+    const legacyDatabase = await openActualSqlite(dbPath)
+    await runActualSqlite(legacyDatabase, `
+      CREATE TABLE long_term_memory_policy_overrides_legacy (
+        id TEXT NOT NULL,
+        card_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        source_kind TEXT NOT NULL,
+        visible_mode TEXT NOT NULL,
+        allow_training INTEGER NOT NULL,
+        review_state TEXT NOT NULL,
+        reason TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `)
+    await runActualSqlite(legacyDatabase, `
+      INSERT INTO long_term_memory_policy_overrides_legacy (
+        id, card_id, source_id, source, source_kind, visible_mode,
+        allow_training, review_state, reason, created_at, updated_at
+      ) VALUES
+        ('shared-legacy-id', 'card-a', 'shared-source', 'memory_reflections', 'cleaned-long-term-reflection', 'inward-only', 0, 'no-training', 'reflection', 1, 1),
+        ('shared-legacy-id', 'card-a', 'shared-source', 'memory_reflections', 'persona-reinforcement', 'explicit', 1, 'approved', 'reinforcement', 2, 2)
+    `)
+    await closeActualSqlite(legacyDatabase)
+
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+    await db.close()
+
+    const migratedDatabase = await openActualSqlite(dbPath)
+    const migratedRows = await allActualSqlite<{
+      source: string
+      source_kind: string
+      visible_mode: string
+      reason: string | null
+    }>(
+      migratedDatabase,
+      `
+      SELECT source, source_kind, visible_mode, reason
+      FROM long_term_memory_policy_overrides
+      WHERE card_id = ? AND source_id = ?
+      ORDER BY source_kind ASC
+      `,
+      ['card-a', 'shared-source'],
+    )
+    await closeActualSqlite(migratedDatabase)
+
+    expect(migratedRows).toEqual([
+      {
+        source: 'memory_reflections',
+        source_kind: 'cleaned-long-term-reflection',
+        visible_mode: 'inward-only',
+        reason: 'reflection',
+      },
+      {
+        source: 'memory_reflections',
+        source_kind: 'persona-reinforcement',
+        visible_mode: 'explicit',
+        reason: 'reinforcement',
+      },
+    ])
+  })
+
+  it('migrates policy rows from a schema without source kind without collapsing source namespaces', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'cards', 'card-a')
+    await mkdir(rootDir, { recursive: true })
+    const dbPath = join(rootDir, 'alicization.db')
+    const legacyDatabase = await openActualSqlite(dbPath)
+    await runActualSqlite(legacyDatabase, `
+      CREATE TABLE long_term_memory_policy_overrides (
+        id TEXT NOT NULL,
+        card_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        visible_mode TEXT NOT NULL,
+        allow_training INTEGER NOT NULL,
+        review_state TEXT NOT NULL,
+        reason TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(card_id, source_id, source)
+      )
+    `)
+    await runActualSqlite(legacyDatabase, `
+      INSERT INTO long_term_memory_policy_overrides (
+        id, card_id, source_id, source, visible_mode,
+        allow_training, review_state, reason, created_at, updated_at
+      ) VALUES
+        ('shared-legacy-id', 'card-a', 'shared-source', 'memory_facts', 'explicit', 0, 'none', 'fact', 1, 1),
+        ('shared-legacy-id', 'card-a', 'shared-source', 'memory_consolidations', 'inward-only', 0, 'inward-only', 'consolidation', 2, 2)
+    `)
+    await closeActualSqlite(legacyDatabase)
+
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+    await db.close()
+
+    const migratedDatabase = await openActualSqlite(dbPath)
+    const migratedRows = await allActualSqlite<{
+      source: string
+      source_kind: string
+      visible_mode: string
+      reason: string | null
+    }>(
+      migratedDatabase,
+      `
+      SELECT source, source_kind, visible_mode, reason
+      FROM long_term_memory_policy_overrides
+      WHERE card_id = ? AND source_id = ?
+      ORDER BY source ASC
+      `,
+      ['card-a', 'shared-source'],
+    )
+    await closeActualSqlite(migratedDatabase)
+
+    expect(migratedRows).toEqual([
+      {
+        source: 'memory_consolidations',
+        source_kind: '',
+        visible_mode: 'inward-only',
+        reason: 'consolidation',
+      },
+      {
+        source: 'memory_facts',
+        source_kind: '',
+        visible_mode: 'explicit',
+        reason: 'fact',
+      },
+    ])
+  })
+
   it('keeps tombstone rows isolated by card and source', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const rootDir = join(userDataPath, 'alicizations')
@@ -2951,6 +3168,88 @@ describe('alicization sqlite dao', () => {
       limit: 4,
     })
     expect(afterMatchingSource.evidence.map(item => item.candidate.id)).not.toContain(fact!.id)
+    await db.close()
+  })
+
+  it('keeps same source id policies isolated by source namespace in workbench actions', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'cards', 'default')
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'default',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+
+    await db.upsertMemoryFacts([{
+      subject: 'user',
+      predicate: 'prefers',
+      object: 'source namespace isolation',
+      confidence: 0.8,
+    }], 'rule')
+    await db.rebuildLongTermMemorySearchIndex({ cardId: 'default' })
+    const [fact] = await db.listMemoryWorkbenchLongTermItems({
+      cardId: 'default',
+      source: 'memory_facts',
+      limit: 10,
+    }).then(page => page.items)
+    expect(fact).toBeTruthy()
+
+    const database = await openActualSqlite(join(rootDir, 'alicization.db'))
+    await runActualSqlite(database, `
+      INSERT INTO long_term_memory_policy_overrides (
+        id, card_id, source_id, source, source_kind, visible_mode,
+        allow_training, review_state, reason, created_at, updated_at
+      ) VALUES
+        ('policy-unrelated', 'default', ?, 'memory_reflections', 'cleaned-long-term-reflection', 'inward-only', 1, 'approved', 'unrelated', 1, 2)
+    `, [fact!.id])
+    await closeActualSqlite(database)
+
+    const actionResult = await db.applyMemoryWorkbenchLongTermAction({
+      cardId: 'default',
+      memoryItemId: fact!.id,
+      decision: 'no-training',
+      reason: 'fact-only policy',
+    })
+    expect(actionResult?.visibility).toBe('explicit')
+
+    const policies = await db.listMemoryWorkbenchLongTermItems({
+      cardId: 'default',
+      source: 'memory_facts',
+      limit: 10,
+    })
+    expect(policies.items[0]?.visibility).toBe('explicit')
+
+    const persistedDatabase = await openActualSqlite(join(rootDir, 'alicization.db'))
+    const persistedPolicies = await allActualSqlite<{
+      source: string
+      source_kind: string
+      visible_mode: string
+      reason: string | null
+    }>(
+      persistedDatabase,
+      `
+      SELECT source, source_kind, visible_mode, reason
+      FROM long_term_memory_policy_overrides
+      WHERE card_id = ? AND source_id = ?
+      ORDER BY source ASC
+      `,
+      ['default', fact!.id],
+    )
+    await closeActualSqlite(persistedDatabase)
+    expect(persistedPolicies).toEqual([
+      {
+        source: 'memory_facts',
+        source_kind: '',
+        visible_mode: 'explicit',
+        reason: 'fact-only policy',
+      },
+      {
+        source: 'memory_reflections',
+        source_kind: 'cleaned-long-term-reflection',
+        visible_mode: 'inward-only',
+        reason: 'unrelated',
+      },
+    ])
     await db.close()
   })
 
@@ -4943,7 +5242,7 @@ describe('alicization sqlite dao', () => {
     })
     await db.drainWorkingMemoryLongTermQueue(4)
 
-    const reviewItems = await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 10 })
+    const reviewItems = (await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 10 })).items
     expect(reviewItems.length).toBeGreaterThan(0)
 
     const actionResult = await db.applyMemoryWorkbenchReviewAction({

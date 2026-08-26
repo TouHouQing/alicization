@@ -15,10 +15,11 @@ import nodeProcess, {
 
 import { Buffer } from 'node:buffer'
 import { spawn } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { isAbsolute, relative, resolve } from 'node:path'
+import { createHash, randomUUID } from 'node:crypto'
+import { constants } from 'node:fs'
+import { access, copyFile, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { homedir, tmpdir } from 'node:os'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import { StringDecoder } from 'node:string_decoder'
 
 import { errorMessageFrom } from '@moeru/std'
@@ -49,9 +50,13 @@ const codexProviderRetryMaxRetries = 5
 const codexProviderRetryBaseDelayMs = 500
 const codexProviderRetryMaxDelayMs = 10_000
 const codexActivityHeartbeatMs = 10_000
+const codexSemanticKeyCapacity = 256
 const codexEventChunkChars = 1_500
 const codexMaxPreviewChars = 4_000
 const codexMaxBufferBytes = 2 * 1024 * 1024
+const codexIsolatedHomePrefix = 'alicization-codex-home-'
+const codexIsolatedHomeOwnerFileName = '.alicization-owner.json'
+const codexIsolatedHomeStaleAgeMs = 6 * 60 * 60_000
 const codexTerminationGraceMs = 750
 const codexTerminalReapDelayMs = 250
 const codexPostExitDrainTimeoutMs = 2_000
@@ -94,6 +99,7 @@ interface AlicizationCodexExecutionRuntimeResult {
   assistantOutput?: string
   errorCode?: string
   errorMessage?: string
+  retryUnsafeActivityObserved?: boolean
 }
 
 interface AlicizationCodexStructuredFailure {
@@ -235,6 +241,29 @@ function normalizeOptionalText(raw: unknown, maxChars = 120) {
   return value || null
 }
 
+function buildCodexSemanticTextFingerprint(raw: unknown) {
+  if (typeof raw !== 'string' || raw.length === 0)
+    return ''
+  return `${raw.length}:${createHash('sha256').update(raw).digest('hex').slice(0, 24)}`
+}
+
+function rememberBoundedCodexSemanticKey(
+  observedKeys: Set<string>,
+  semanticKey: string,
+) {
+  if (observedKeys.has(semanticKey))
+    return false
+
+  observedKeys.add(semanticKey)
+  while (observedKeys.size > codexSemanticKeyCapacity) {
+    const oldestKey = observedKeys.values().next().value
+    if (typeof oldestKey !== 'string')
+      break
+    observedKeys.delete(oldestKey)
+  }
+  return true
+}
+
 function readRecord(raw: unknown) {
   return typeof raw === 'object' && raw !== null && !Array.isArray(raw)
     ? raw as Record<string, unknown>
@@ -261,6 +290,14 @@ function normalizeCodexItemType(raw: unknown) {
 }
 
 function isCodexActiveWorkItemType(itemType: string | null) {
+  return itemType === 'command_execution'
+    || itemType === 'mcp_tool_call'
+    || itemType === 'collab_tool_call'
+    || itemType === 'web_search'
+    || itemType === 'file_change'
+}
+
+function isCodexRetryUnsafeActivityItemType(itemType: string | null) {
   return itemType === 'command_execution'
     || itemType === 'mcp_tool_call'
     || itemType === 'collab_tool_call'
@@ -372,8 +409,12 @@ function parseCodexJsonlProgress(rawLine: string): AlicizationCodexRuntimeProgre
     const itemExitCode = typeof item?.exit_code === 'number' && Number.isFinite(item.exit_code)
       ? Math.floor(item.exit_code)
       : null
-    const itemOutputPreview = itemType === 'command_execution'
-      ? normalizeOptionalText(item?.aggregated_output ?? item?.output, 1_200)
+    const rawItemOutput = itemType === 'command_execution'
+      && typeof (item?.aggregated_output ?? item?.output) === 'string'
+      ? String(item?.aggregated_output ?? item?.output)
+      : null
+    const itemOutputPreview = rawItemOutput
+      ? normalizeOptionalText(rawItemOutput, 1_200)
       : null
     const reasoningSummary = Array.isArray(item?.summary)
       ? item.summary
@@ -388,11 +429,12 @@ function parseCodexJsonlProgress(rawLine: string): AlicizationCodexRuntimeProgre
           itemId ?? '',
           itemType ?? '',
           itemStatus ?? '',
-          itemCommand ?? '',
+          buildCodexSemanticTextFingerprint(itemCommand),
           itemExitCode ?? '',
-          assistantText ?? '',
-          reasoningSummary ?? '',
-          message ?? '',
+          buildCodexSemanticTextFingerprint(assistantText),
+          buildCodexSemanticTextFingerprint(reasoningSummary),
+          buildCodexSemanticTextFingerprint(rawItemOutput),
+          buildCodexSemanticTextFingerprint(message),
         ].join(':')
       : null
 
@@ -1116,6 +1158,7 @@ type AlicizationCodexPreflightResult
     args: string[]
     command: string
     env: NodeJS.ProcessEnv
+    cleanup: () => Promise<void>
   }
   | {
     ok: false
@@ -1124,6 +1167,144 @@ type AlicizationCodexPreflightResult
     errorCode: string
     errorMessage: string
   }
+
+function codexAuthenticationRequired(config: AlicizationCodexInheritedConfig | null) {
+  if (config?.provider?.requiresOpenAiAuth === false)
+    return false
+  const providerEnvKey = config?.provider?.envKey
+  if (providerEnvKey && normalizeOptionalText(processEnv[providerEnvKey], 10_000))
+    return false
+  return !normalizeOptionalText(processEnv.CODEX_API_KEY ?? processEnv.OPENAI_API_KEY, 10_000)
+}
+
+function readCodexIsolatedHomeOwner(raw: string) {
+  try {
+    const parsed = readRecord(JSON.parse(raw))
+    const pid = Number(parsed?.pid)
+    const createdAt = Number(parsed?.createdAt)
+    if (
+      !Number.isSafeInteger(pid)
+      || pid <= 0
+      || !Number.isFinite(createdAt)
+      || createdAt <= 0
+    ) {
+      return null
+    }
+    return {
+      pid,
+      createdAt,
+    }
+  }
+  catch {
+    return null
+  }
+}
+
+function isCodexIsolatedHomeOwnerAlive(pid: number) {
+  if (pid === nodeProcess.pid)
+    return true
+  try {
+    processKill(pid, 0)
+    return true
+  }
+  catch (error) {
+    const code = typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code?: unknown }).code ?? '')
+      : ''
+    return code !== 'ESRCH'
+  }
+}
+
+async function scavengeExpiredCodexHomes(
+  excludedHome: string,
+  now = Date.now(),
+) {
+  let entries
+  try {
+    entries = await readdir(tmpdir(), { withFileTypes: true })
+  }
+  catch {
+    return
+  }
+
+  await Promise.all(entries.map(async (entry) => {
+    if (!entry.isDirectory() || !entry.name.startsWith(codexIsolatedHomePrefix))
+      return
+
+    const home = resolve(tmpdir(), entry.name)
+    if (home === excludedHome)
+      return
+
+    let owner: { pid: number, createdAt: number } | null
+    try {
+      owner = readCodexIsolatedHomeOwner(
+        await readFile(resolve(home, codexIsolatedHomeOwnerFileName), 'utf8'),
+      )
+    }
+    catch {
+      return
+    }
+
+    if (
+      !owner
+      || now - owner.createdAt <= codexIsolatedHomeStaleAgeMs
+      || isCodexIsolatedHomeOwnerAlive(owner.pid)
+    ) {
+      return
+    }
+
+    await rm(home, { recursive: true, force: true }).catch(() => {})
+  }))
+}
+
+async function createIsolatedCodexHome(
+  sourceHome: string,
+  authenticationRequired: boolean,
+) {
+  const sourceAuthPath = resolve(sourceHome, 'auth.json')
+  await scavengeExpiredCodexHomes(resolve(sourceHome))
+  const isolatedHome = await mkdtemp(join(tmpdir(), codexIsolatedHomePrefix))
+  try {
+    await writeFile(
+      resolve(isolatedHome, codexIsolatedHomeOwnerFileName),
+      JSON.stringify({
+        pid: nodeProcess.pid,
+        createdAt: Date.now(),
+      }),
+      {
+        encoding: 'utf8',
+        mode: 0o600,
+      },
+    )
+    await access(sourceAuthPath, constants.R_OK)
+    await copyFile(sourceAuthPath, resolve(isolatedHome, 'auth.json'))
+  }
+  catch {
+    if (!authenticationRequired) {
+      return {
+        ok: true as const,
+        home: isolatedHome,
+        cleanup: async () => {
+          await rm(isolatedHome, { recursive: true, force: true })
+        },
+      }
+    }
+    await rm(isolatedHome, { recursive: true, force: true }).catch(() => {})
+    return {
+      ok: false as const,
+      errorCode: 'CODEX_PROVIDER_AUTH_FAILED',
+      errorMessage: 'Codex authentication is unavailable. Sign in to Codex or configure auth.json in CODEX_HOME.',
+    }
+  }
+
+  return {
+    ok: true as const,
+    home: isolatedHome,
+    cleanup: async () => {
+      await rm(isolatedHome, { recursive: true, force: true })
+    },
+  }
+}
 
 async function runCodexPreflight(input: {
   spec: AlicizationCodexCommandSpec
@@ -1182,15 +1363,54 @@ async function runCodexPreflight(input: {
         return
       }
 
-      const env = buildAlicizationExecutionEnv()
-      const command = await resolveAlicizationExecutionBinary('codex', {
-        pathValue: env.PATH,
+      const configuredHome = normalizeOptionalText(processEnv.CODEX_HOME, 1_000)
+      const sourceHome = configuredHome
+        ? resolve(configuredHome)
+        : resolve(homedir(), '.codex')
+      const isolatedHome = await createIsolatedCodexHome(
+        sourceHome,
+        codexAuthenticationRequired(inheritedConfigResult.config),
+      )
+      if (!isolatedHome.ok) {
+        finish({
+          ok: false,
+          aborted: false,
+          timedOut: false,
+          errorCode: isolatedHome.errorCode,
+          errorMessage: isolatedHome.errorMessage,
+        })
+        return
+      }
+
+      if (settled) {
+        await isolatedHome.cleanup()
+        return
+      }
+
+      const env = buildAlicizationExecutionEnv(processEnv, {
+        CODEX_HOME: isolatedHome.home,
       })
+      let command: string
+      try {
+        command = await resolveAlicizationExecutionBinary('codex', {
+          pathValue: env.PATH,
+          explicitPath: processEnv.CODEX_CLI_PATH,
+        })
+      }
+      catch (error) {
+        await isolatedHome.cleanup().catch(() => {})
+        throw error
+      }
+      if (settled) {
+        await isolatedHome.cleanup()
+        return
+      }
       finish({
         ok: true,
         args: buildCodexExecArgs(input.spec, inheritedConfigResult.config),
         command,
         env,
+        cleanup: isolatedHome.cleanup,
       })
     })().catch((error) => {
       const errorCode = typeof error === 'object' && error != null && 'code' in error
@@ -1270,7 +1490,11 @@ async function runCodexCommandAttempt(
   }
 
   const { args, command, env } = preflight
+  const cleanupPreflight = async () => {
+    await preflight.cleanup().catch(() => {})
+  }
   if (abortSignal?.aborted) {
+    await cleanupPreflight()
     return {
       ok: false,
       stdout: '',
@@ -1286,6 +1510,7 @@ async function runCodexCommandAttempt(
   }
   const remainingExecutionTimeoutMs = totalTimeoutMs - Math.max(0, now() - startedAt)
   if (remainingExecutionTimeoutMs <= 0) {
+    await cleanupPreflight()
     return {
       ok: false,
       stdout: '',
@@ -1351,13 +1576,28 @@ async function runCodexCommandAttempt(
     let terminalReapStarted = false
     let processReapFailed = false
     let child: ReturnType<typeof spawn> | null = null
+    let preflightCleanupStarted = false
+    let retryUnsafeActivityObserved = false
 
     const resolveOnce = (result: AlicizationCodexExecutionRuntimeResult) => {
       if (settled)
         return
       settled = true
       cleanup()
-      resolveResult(result)
+      const finalResult = retryUnsafeActivityObserved
+        ? {
+            ...result,
+            retryUnsafeActivityObserved: true,
+          }
+        : result
+      if (preflightCleanupStarted) {
+        resolveResult(finalResult)
+        return
+      }
+      preflightCleanupStarted = true
+      void preflight.cleanup()
+        .catch(() => {})
+        .finally(() => resolveResult(finalResult))
     }
 
     const settleFromProcessState = (
@@ -1826,6 +2066,12 @@ async function runCodexCommandAttempt(
         latestAssistantOutput = progress.assistantText
       if (progress.interruptedCommand)
         interruptedCommand = true
+      if (
+        progress.type.startsWith('item.')
+        && isCodexRetryUnsafeActivityItemType(progress.itemType)
+      ) {
+        retryUnsafeActivityObserved = true
+      }
       onProgress?.(progress)
       if (progress.terminalStatus) {
         lifecyclePhase = 'terminal'
@@ -1877,6 +2123,11 @@ async function runCodexCommandAttempt(
       if (!progress.semanticProgress && !progress.activeWorkPhase)
         return
 
+      const semanticKey = progress.semanticKey
+      const duplicateSemanticProgress = semanticKey
+        ? !rememberBoundedCodexSemanticKey(observedSemanticKeys, semanticKey)
+        : false
+
       if (progress.activeWorkPhase && progress.activeWorkKey) {
         if (progress.activeWorkPhase === 'completed') {
           const removed = activeWorkItems.delete(progress.activeWorkKey)
@@ -1885,6 +2136,8 @@ async function runCodexCommandAttempt(
           }
         }
         else {
+          if (duplicateSemanticProgress)
+            return
           const currentTime = now()
           const existingWork = activeWorkItems.get(progress.activeWorkKey)
           if (existingWork) {
@@ -1908,11 +2161,6 @@ async function runCodexCommandAttempt(
           scheduleActiveStepDeadline()
         }
       }
-
-      const semanticKey = progress.semanticKey
-      if (!semanticKey || observedSemanticKeys.has(semanticKey))
-        return
-      observedSemanticKeys.add(semanticKey)
     }
 
     const consumeStdoutLines = (flush = false) => {
@@ -1977,16 +2225,22 @@ async function runCodexCommandAttempt(
       settleFromProcessState()
     }
 
-    child = spawn(command, args, {
-      cwd: spec.cwd,
-      detached: processPlatform !== 'win32',
-      env,
-      // The prompt is already an argv value. Keeping stdin ignored prevents
-      // Codex from entering its appended-stdin input mode while still leaving
-      // stdout/stderr available for diagnostics.
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-    })
+    try {
+      child = spawn(command, args, {
+        cwd: spec.cwd,
+        detached: processPlatform !== 'win32',
+        env,
+        // The prompt is already an argv value. Keeping stdin ignored prevents
+        // Codex from entering its appended-stdin input mode while still leaving
+        // stdout/stderr available for diagnostics.
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+    }
+    catch (error) {
+      settleFromProcessState(error)
+      return
+    }
     const spawnedChild = child
     unregisterProcessGroup = registerCodexProcessGroup(spawnedChild)
     activityHeartbeatTimer = setInterval(() => {
@@ -2101,6 +2355,7 @@ function shouldRetryCodexProviderFailure(input: {
     && !input.abortSignal?.aborted
     && !input.result.ok
     && !input.result.aborted
+    && input.result.retryUnsafeActivityObserved !== true
     && input.result.errorCode === 'CODEX_PROVIDER_UNAVAILABLE'
 }
 

@@ -337,7 +337,7 @@ export async function runMemoryProductionTrialRunner(
 
   if (runtimeHealth) {
     const reindexJobPending = runtimeHealth.embedding.reindexJob
-      ? ['queued', 'running', 'cancel_requested', 'failed'].includes(runtimeHealth.embedding.reindexJob.status)
+      ? ['queued', 'running', 'paused', 'cancel_requested', 'failed'].includes(runtimeHealth.embedding.reindexJob.status)
       : false
     const healthFailures = [
       ...runtimeHealth.errors.map(() => 'runtime-health-query-error'),

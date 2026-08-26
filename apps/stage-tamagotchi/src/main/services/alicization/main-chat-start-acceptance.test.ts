@@ -43,7 +43,6 @@ function createInput(overrides?: Partial<Parameters<typeof acceptAlicizationMain
       activeModelId: 'gpt-test',
       persistedConfigKeys: ['apiKey'],
     })),
-    ensureMainGatewayReachable: vi.fn(async () => ({ reachable: true })),
     appendRuntimeDebugLine: vi.fn(async () => {}),
     normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() || 'default' : 'default',
     sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,

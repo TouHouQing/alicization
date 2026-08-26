@@ -166,10 +166,10 @@ Run: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/m
 
 Run: `pnpm -F @proj-alicization/stage-ui typecheck`, `pnpm -F @proj-alicization/stage-tamagotchi typecheck:node`, and the targeted Vitest suites from Tasks 2-7.
 
-- [ ] **Step 2: 构建、签名并启动 macOS App**
+- [x] **Step 2: 构建、签名并启动 macOS App**
 
 验证首屏、首条消息、多轮短期记忆、长期召回、压缩后下一轮、明确/非明确 Coding Agent 请求、失败透明展示和 Memory Workbench 投影。
 
-- [ ] **Step 3: 运行 `git diff --check`、审阅排除文件并按小步 Conventional Commit 提交**
+- [x] **Step 3: 运行 `git diff --check`、审阅排除文件并按小步 Conventional Commit 提交**
 
 不得提交 `.serena/project.yml`、`.claude-flow/`、`.serena/memories/memory_maintenance.md`、`index.js` 或真实密钥。

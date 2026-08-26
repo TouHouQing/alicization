@@ -164,7 +164,10 @@ function createRun(activation: Record<string, unknown>) {
     cardId: 'default',
     datasetId: 'dataset-1',
     manifestHash: 'manifest-1',
-    sourceIds: ['reflection-1'],
+    sourceRefs: [{
+      sourceId: 'reflection-1',
+      sourceKind: 'cleaned-long-term-reflection',
+    }],
     basePersonaRevision: 'persona-core-v1',
     status: 'completed',
     stage: 'finalizing',
@@ -317,7 +320,10 @@ describe('persona training runs', () => {
       cardId: 'default',
       datasetId: 'dataset-1',
       manifestHash: 'manifest-1',
-      sourceIds: ['reflection-1'],
+      sourceRefs: [{
+        sourceId: 'reflection-1',
+        sourceKind: 'cleaned-long-term-reflection',
+      }],
       basePersonaRevision: 'persona-core-v1',
       artifact: run.artifact,
       state: 'available',

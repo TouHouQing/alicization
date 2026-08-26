@@ -116,11 +116,14 @@ import {
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchListQualityTrialReports,
   electronAlicizationMemoryWorkbenchListReplaySessions,
+  electronAlicizationMemoryWorkbenchListReview,
+  electronAlicizationMemoryWorkbenchListTombstones,
   electronAlicizationMemoryWorkbenchManageSemanticScaleJobs,
   electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue,
   electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationMemoryWorkbenchRecordQualityGoldLabel,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
+  electronAlicizationMemoryWorkbenchRestoreTombstone,
   electronAlicizationMemoryWorkbenchRollbackPersonaTrainingIncrement,
   electronAlicizationMemoryWorkbenchRunPersonaTraining,
   electronAlicizationMemoryWorkbenchRunQualityTrial,
@@ -279,6 +282,9 @@ const alicizationUpsertMemoryFacts = useElectronEventaInvoke(electronAlicization
 const alicizationImportLegacyMemory = useElectronEventaInvoke(electronAlicizationMemoryImportLegacy)
 const memoryWorkbenchGetSnapshot = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchGetSnapshot)
 const memoryWorkbenchListLongTerm = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListLongTerm)
+const memoryWorkbenchListTombstones = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListTombstones)
+const memoryWorkbenchRestoreTombstone = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRestoreTombstone)
+const memoryWorkbenchListReview = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListReview)
 const memoryWorkbenchApplyLongTermAction = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchApplyLongTermAction)
 const memoryWorkbenchApplyReviewAction = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchApplyReviewAction)
 const memoryWorkbenchRecallProbe = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRecallProbe)
@@ -1371,6 +1377,9 @@ setAlicizationBridge({
   importLegacyMemory: async payload => await alicizationImportLegacyMemory({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchGetSnapshot: async payload => await memoryWorkbenchGetSnapshot({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListLongTerm: async payload => await memoryWorkbenchListLongTerm({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchListTombstones: async payload => await memoryWorkbenchListTombstones({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchRestoreTombstone: async payload => await memoryWorkbenchRestoreTombstone({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchListReview: async payload => await memoryWorkbenchListReview({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchApplyLongTermAction: async payload => await memoryWorkbenchApplyLongTermAction({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchApplyReviewAction: async payload => await memoryWorkbenchApplyReviewAction({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchRecallProbe: async payload => await memoryWorkbenchRecallProbe({ ...resolveAlicizationScope(), ...payload }),

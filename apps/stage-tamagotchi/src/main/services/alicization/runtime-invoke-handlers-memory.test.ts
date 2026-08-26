@@ -2,9 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   electronAlicizationMemoryWorkbenchCancelQualityTrial,
+  electronAlicizationMemoryWorkbenchListLongTerm,
   electronAlicizationMemoryWorkbenchListQualityTrialReports,
+  electronAlicizationMemoryWorkbenchListReview,
+  electronAlicizationMemoryWorkbenchListTombstones,
   electronAlicizationMemoryWorkbenchManageSemanticScaleJobs,
   electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue,
+  electronAlicizationMemoryWorkbenchRestoreTombstone,
+  electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource,
   electronAlicizationMemoryWorkbenchRunQualityTrial,
 } from '../../../shared/eventa'
 import { registerAlicizationMemoryInvokeHandlers } from './runtime-invoke-handlers-memory'
@@ -176,6 +181,178 @@ function createQualityTrialReportWithPrivateDiagnostics() {
 }
 
 describe('alicization memory invoke handlers', () => {
+  it('forwards the complete composite persona source identity for revoke', async () => {
+    const handlers = new Map<unknown, (payload: Record<string, any>) => Promise<unknown>>()
+    const revokePersonaTrainingDatasetSource = vi.fn(async () => ({ affected: 1 }))
+
+    registerAlicizationMemoryInvokeHandlers({
+      registerInvokeHandler: (channel: unknown, handler: (...args: unknown[]) => Promise<unknown>) => {
+        handlers.set(channel, async payload => await handler(payload))
+      },
+      withCardScope: async <T>(_cardId: unknown, task: () => Promise<T>) => await task(),
+      cardIdFrom: (scope?: { cardId?: string }) => scope?.cardId?.trim() || 'default',
+      getAlicizationDb: () => ({
+        revokePersonaTrainingDatasetSource,
+      }),
+      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+    } as unknown as Parameters<typeof registerAlicizationMemoryInvokeHandlers>[0])
+
+    await handlers.get(electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource)?.({
+      cardId: ' card-a ',
+      sourceId: ' shared-source ',
+      sourceKind: 'persona-reinforcement',
+    })
+
+    expect(revokePersonaTrainingDatasetSource).toHaveBeenCalledWith({
+      cardId: 'card-a',
+      sourceId: 'shared-source',
+      sourceKind: 'persona-reinforcement',
+    })
+  })
+
+  it('sanitizes and routes review pagination filters', async () => {
+    const handlers = new Map<unknown, (payload: Record<string, any>) => Promise<unknown>>()
+    const listMemoryWorkbenchReviewItems = vi.fn(async () => ({
+      items: [],
+      nextCursor: 'next-review-cursor',
+    }))
+
+    registerAlicizationMemoryInvokeHandlers({
+      registerInvokeHandler: (channel: unknown, handler: (...args: unknown[]) => Promise<unknown>) => {
+        handlers.set(channel, async payload => await handler(payload))
+      },
+      withCardScope: async <T>(_cardId: unknown, task: () => Promise<T>) => await task(),
+      cardIdFrom: (scope?: { cardId?: string }) => scope?.cardId ?? 'default',
+      getAlicizationDb: () => ({
+        listMemoryWorkbenchReviewItems,
+      }),
+      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+    } as unknown as Parameters<typeof registerAlicizationMemoryInvokeHandlers>[0])
+
+    const handler = handlers.get(electronAlicizationMemoryWorkbenchListReview)
+    expect(handler).toBeDefined()
+
+    await handler?.({
+      cardId: 'card-a',
+      query: '  长期陪伴  ',
+      kind: 'relationship',
+      sensitivity: 'personal',
+      visibility: 'explicit',
+      training: 'blocked',
+      limit: 20,
+      cursor: '  review-cursor-a  ',
+    })
+
+    expect(listMemoryWorkbenchReviewItems).toHaveBeenCalledWith({
+      cardId: 'card-a',
+      query: '长期陪伴',
+      kind: 'relationship',
+      sensitivity: 'personal',
+      visibility: 'explicit',
+      training: 'blocked',
+      limit: 20,
+      cursor: 'review-cursor-a',
+    })
+  })
+
+  it('sanitizes and routes every supported long-term pagination filter', async () => {
+    const handlers = new Map<unknown, (payload: Record<string, any>) => Promise<unknown>>()
+    const listMemoryWorkbenchLongTermItems = vi.fn(async () => ({
+      items: [],
+      nextCursor: 'next-cursor',
+    }))
+
+    registerAlicizationMemoryInvokeHandlers({
+      registerInvokeHandler: (channel: unknown, handler: (...args: unknown[]) => Promise<unknown>) => {
+        handlers.set(channel, async payload => await handler(payload))
+      },
+      withCardScope: async <T>(_cardId: unknown, task: () => Promise<T>) => await task(),
+      cardIdFrom: (scope?: { cardId?: string }) => scope?.cardId ?? 'default',
+      getAlicizationDb: () => ({
+        listMemoryWorkbenchLongTermItems,
+      }),
+      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+    } as unknown as Parameters<typeof registerAlicizationMemoryInvokeHandlers>[0])
+
+    const handler = handlers.get(electronAlicizationMemoryWorkbenchListLongTerm)
+    expect(handler).toBeDefined()
+
+    await handler?.({
+      cardId: 'card-a',
+      query: '  长期陪伴  ',
+      kind: 'relationship',
+      sensitivity: 'personal',
+      visibility: 'inward-only',
+      training: 'blocked',
+      source: '  relationship_memories  ',
+      limit: 50,
+      cursor: '  cursor-a  ',
+    })
+
+    expect(listMemoryWorkbenchLongTermItems).toHaveBeenCalledWith({
+      cardId: 'card-a',
+      query: '长期陪伴',
+      kind: 'relationship',
+      sensitivity: 'personal',
+      visibility: 'inward-only',
+      training: 'blocked',
+      source: 'relationship_memories',
+      limit: 50,
+      cursor: 'cursor-a',
+    })
+  })
+
+  it('routes tombstone pagination and restore through the active card DB facade', async () => {
+    const handlers = new Map<unknown, (payload: Record<string, any>) => Promise<unknown>>()
+    const listMemoryWorkbenchTombstones = vi.fn(async () => ({
+      items: [],
+      nextCursor: 'next-tombstone-cursor',
+    }))
+    const restoreMemoryWorkbenchTombstone = vi.fn(async () => ({
+      restored: true,
+      item: null,
+      reindexJobId: 'reindex-restored-memory',
+    }))
+
+    registerAlicizationMemoryInvokeHandlers({
+      registerInvokeHandler: (channel: unknown, handler: (...args: unknown[]) => Promise<unknown>) => {
+        handlers.set(channel, async payload => await handler(payload))
+      },
+      withCardScope: async <T>(_cardId: unknown, task: () => Promise<T>) => await task(),
+      cardIdFrom: (scope?: { cardId?: string }) => scope?.cardId ?? 'default',
+      getAlicizationDb: () => ({
+        listMemoryWorkbenchTombstones,
+        restoreMemoryWorkbenchTombstone,
+      }),
+      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+    } as unknown as Parameters<typeof registerAlicizationMemoryInvokeHandlers>[0])
+
+    const listHandler = handlers.get(electronAlicizationMemoryWorkbenchListTombstones)
+    const restoreHandler = handlers.get(electronAlicizationMemoryWorkbenchRestoreTombstone)
+    expect(listHandler).toBeDefined()
+    expect(restoreHandler).toBeDefined()
+
+    await listHandler?.({
+      cardId: 'card-a',
+      limit: 24,
+      cursor: '  tombstone-cursor-a  ',
+    })
+    await restoreHandler?.({
+      cardId: 'card-a',
+      tombstoneId: '  tombstone-a  ',
+    })
+
+    expect(listMemoryWorkbenchTombstones).toHaveBeenCalledWith({
+      cardId: 'card-a',
+      limit: 24,
+      cursor: 'tombstone-cursor-a',
+    })
+    expect(restoreMemoryWorkbenchTombstone).toHaveBeenCalledWith({
+      cardId: 'card-a',
+      tombstoneId: 'tombstone-a',
+    })
+  })
+
   it('propagates quality trial cancellation to the active card controller', async () => {
     const handlers = new Map<unknown, (payload: Record<string, unknown>) => Promise<unknown>>()
     let resolveStarted: (() => void) | undefined

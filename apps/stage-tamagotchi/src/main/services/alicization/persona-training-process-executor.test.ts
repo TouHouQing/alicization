@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createPersonaTrainingProcessExecutor,
   normalizePersonaTrainingProcessConfig,
+  signalPersonaTrainingProcess,
   testPersonaTrainingProcessConnection,
 } from './persona-training-process-executor'
 
@@ -91,6 +92,22 @@ afterEach(async () => {
 })
 
 describe('persona training process executor', () => {
+  it('falls back to the direct child when process-group termination is rejected', () => {
+    const childKill = vi.fn()
+    const child = {
+      pid: 42,
+      kill: childKill,
+    }
+
+    expect(signalPersonaTrainingProcess(child, 'SIGTERM', {
+      platform: 'darwin',
+      killProcess: () => {
+        throw Object.assign(new Error('operation not permitted'), { code: 'EPERM' })
+      },
+    })).toBe(true)
+    expect(childKill).toHaveBeenCalledWith('SIGTERM')
+  })
+
   it('normalizes an MLX LoRA configuration with an auditable parameter snapshot', () => {
     expect(normalizePersonaTrainingProcessConfig({
       executable: '/tmp/mlx-lm-trainer.py',

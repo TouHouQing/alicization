@@ -16,7 +16,10 @@ describe('alicization persona training artifact contract', () => {
       cardId: 'card-a',
       datasetId: 'dataset-a',
       manifestHash: 'manifest-a',
-      sourceIds: ['reflection-a'],
+      sourceRefs: [{
+        sourceId: 'reflection-a',
+        sourceKind: 'cleaned-long-term-reflection',
+      }],
       basePersonaRevision: 'persona-core-v1',
       artifact: {
         schemaVersion: 'alicization-persona-training-artifact-v1',

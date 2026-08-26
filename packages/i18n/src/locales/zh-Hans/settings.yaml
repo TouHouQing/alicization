@@ -520,6 +520,7 @@ pages:
       tabs:
         working: 当前短期记忆
         long_term: 长期记忆
+        tombstones: 回收站
         review: 待审核
         probe: 召回测试
         persona: 人格候选
@@ -531,6 +532,7 @@ pages:
         approve: 批准
         reject: 拒绝
         tombstone: 删除并屏蔽
+        restore: 恢复
         cancel: 取消
         confirm: 确认
         inward_only: 只内在使用
@@ -575,11 +577,17 @@ pages:
         test_persona_runtime: 测试人格运行时
         save_persona_runtime: 保存人格运行时
         clear_persona_runtime: 清除人格运行时
+        refresh_persona_source_revoke_intents: 刷新撤回状态
+        retry_persona_source_revoke: 重试来源撤回
       confirm_tombstone_title: 确认删除并屏蔽这条记忆？
       confirm_tombstone_description: 这会让她不再召回这条记忆，也不会进入人格训练。当前内容：{summary}
       states:
         empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
+        loading_long_term: 正在读取长期记忆...
+        loading_tombstones: 正在读取回收站...
+        loading_review: 正在读取待审核记忆...
         empty_long_term: 还没有匹配的长期记忆。
+        empty_tombstones: 回收站是空的。
         empty_review: 当前没有需要你审核的记忆。
         empty_probe: 输入一句话，查看她会回想起什么。
         empty_persona: 还没有可审查的人格候选。
@@ -636,6 +644,9 @@ pages:
         persona_training_increment_available: 可用
         persona_training_increment_rolled_back: 已回滚
         persona_training_increment_revoked: 已撤回
+        persona_source_revoke_pending: 待处理
+        persona_source_revoke_failed: 失败
+        persona_source_revoke_completed: 已完成
         persona_training_cleanup_pending: 清理待处理
         persona_training_cleanup_stage_unload: 正在卸载适配器
         persona_training_cleanup_stage_discard: 正在删除训练产物
@@ -666,6 +677,7 @@ pages:
         cancelled_by_user: 用户取消向量重建
         reindex_queued: 等待执行
         reindex_running: 正在重建
+        reindex_paused: 已暂停，等待向量服务恢复
         reindex_cancel_requested: 正在取消
         reindex_completed: 重建完成
         reindex_cancelled: 已取消
@@ -675,6 +687,7 @@ pages:
         reindex_stage_embedding: 正在写入向量索引
         empty_embedding_models: 填写服务根地址和 API Key 后检索可用向量模型；如果服务不返回列表，也可以直接输入模型名。
         embedding_config_saved: 向量配置已保存，正在刷新记忆健康状态。
+        embedding_config_save_unavailable: 当前运行时不支持保存向量配置。
         loading: 正在读取记忆状态...
         quality_passed: 通过
         quality_failed: 需要优化
@@ -737,8 +750,13 @@ pages:
         failed: 失败
         policy: 策略
         source: 来源
+        long_term_list_error: 长期记忆加载失败
+        tombstone_list_error: 回收站加载失败
+        review_list_error: 待审核记忆加载失败
         status: 状态
         updated_at: 更新时间
+        deleted_at: 删除时间
+        deleted_reason: 删除原因
         confidence: 置信度
         salience: 重要度
         behavior_lesson: 行为规则
@@ -760,6 +778,9 @@ pages:
         dataset_versions: 数据集版本
         dataset_examples: 数据集样本
         persona_dataset_description: 只允许来自已清洗的长期反思或人格强化样本。默认不允许训练，所有动作只写治理策略，不会自动启动训练。
+        persona_source_revoke_intents: 来源撤回任务
+        persona_source_revoke_intents_description: 长期记忆撤回会同步撤销人格训练来源。失败任务会保留在这里，可手动重试。
+        attempts: 尝试次数
         dataset_example_state: 样本状态
         pii_status: PII 状态
         quarantined: 已隔离
@@ -985,6 +1006,11 @@ pages:
           episode: 事件片段
           reflection: 反思
           consolidation: 凝练记忆
+          procedure: 操作经验
+          relationship: 关系记忆
+          preference: 偏好
+          correction: 用户纠正
+          candidate: 待确认候选
         sensitivity:
           all: 全部敏感度
           public: 普通
@@ -999,12 +1025,19 @@ pages:
           all: 全部训练策略
           allowed: 允许训练
           blocked: 禁止训练
+        source:
+          all: 全部来源
+          memory_facts: 事实
+          memory_reflections: 反思
+          episodic_events: 事件片段
+          memory_consolidations: 凝练记忆
       placeholders:
         persona_runtime_executable: 例如 /opt/homebrew/bin/llama-server 或 mlx_lm.server
         persona_runtime_model_path: 例如 /Models/base-model.gguf
         persona_runtime_model_directory: 例如 /Models/Qwen2.5-0.5B-Instruct-4bit
         long_term_search: 搜索长期记忆摘要、证据、来源 ID...
         long_term_source: 按来源筛选，例如 memory_reflections
+        review_search: 搜索待审核记忆摘要或审核原因...
         embedding_provider: openai-compatible
         embedding_base_url: https://api.siliconflow.cn
         embedding_api_key: sk-...

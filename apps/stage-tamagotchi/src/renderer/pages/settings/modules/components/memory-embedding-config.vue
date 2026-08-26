@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { Button } from '@proj-alicization/ui'
+import { errorMessageFrom } from '@moeru/std'
+import { getAlicizationBridge, hasAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import { useAlicizationMemoryWorkbenchStore } from '@proj-alicization/stage-ui/stores/alicization-memory-workbench'
+import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
 import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
+import { Button } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -11,6 +14,7 @@ const LEGACY_MEMORY_EMBEDDING_CONFIG_KEY = 'alicizationMemoryEmbedding'
 
 const store = useAlicizationMemoryWorkbenchStore()
 const providersStore = useProvidersStore()
+const consciousnessStore = useConsciousnessStore()
 const { t } = useI18n()
 const {
   embeddingModels,
@@ -20,6 +24,7 @@ const {
   embeddingConnectionTest,
 } = storeToRefs(store)
 const { providers } = storeToRefs(providersStore)
+const { activeProvider, activeModel } = storeToRefs(consciousnessStore)
 
 const memoryEmbeddingProviderId = shallowRef('openai-compatible')
 const memoryEmbeddingBaseUrl = shallowRef('')
@@ -28,6 +33,8 @@ const memoryEmbeddingModel = shallowRef('')
 const memoryEmbeddingModelSearch = shallowRef('')
 const memoryEmbeddingDimensions = shallowRef('')
 const savedAt = shallowRef<number | null>(null)
+const embeddingConfigSaving = shallowRef(false)
+const embeddingConfigSaveError = shallowRef<string | null>(null)
 let embeddingModelDiscoveryTimer: ReturnType<typeof setTimeout> | null = null
 
 const filteredEmbeddingModels = computed(() => {
@@ -69,10 +76,10 @@ function readEmbeddingConfig() {
   memoryEmbeddingDimensions.value = String(config.dimensions ?? config.memoryEmbeddingDimensions ?? '')
 }
 
-function saveEmbeddingConfig() {
+async function saveEmbeddingConfig() {
   const current = providers.value[MEMORY_EMBEDDING_CONFIG_KEY] ?? {}
   const dimensions = Number(memoryEmbeddingDimensions.value)
-  providers.value[MEMORY_EMBEDDING_CONFIG_KEY] = {
+  const nextMemoryConfig = {
     ...current,
     apiKey: memoryEmbeddingApiKey.value.trim(),
     baseUrl: memoryEmbeddingBaseUrl.value.trim(),
@@ -80,9 +87,36 @@ function saveEmbeddingConfig() {
     model: memoryEmbeddingModel.value.trim(),
     providerId: memoryEmbeddingProviderId.value.trim() || 'openai-compatible',
   }
-  delete providers.value[LEGACY_MEMORY_EMBEDDING_CONFIG_KEY]
-  savedAt.value = Date.now()
-  void store.refreshSnapshot()
+  const nextProviders = JSON.parse(JSON.stringify({
+    ...providers.value,
+    [MEMORY_EMBEDDING_CONFIG_KEY]: nextMemoryConfig,
+  })) as Record<string, Record<string, unknown>>
+  delete nextProviders[LEGACY_MEMORY_EMBEDDING_CONFIG_KEY]
+  if (!hasAlicizationBridge() || !getAlicizationBridge().syncLlmConfig) {
+    embeddingConfigSaveError.value = t('settings.pages.memory.workbench.states.embedding_config_save_unavailable')
+    savedAt.value = null
+    return
+  }
+
+  embeddingConfigSaving.value = true
+  embeddingConfigSaveError.value = null
+  savedAt.value = null
+  try {
+    await getAlicizationBridge().syncLlmConfig!({
+      activeProviderId: activeProvider.value || '',
+      activeModelId: activeModel.value || '',
+      providerCredentials: nextProviders,
+    })
+    providers.value = nextProviders
+    savedAt.value = Date.now()
+    await store.refreshSnapshot()
+  }
+  catch (error) {
+    embeddingConfigSaveError.value = errorMessageFrom(error) ?? String(error)
+  }
+  finally {
+    embeddingConfigSaving.value = false
+  }
 }
 
 async function discoverEmbeddingModels() {
@@ -126,6 +160,7 @@ function scheduleEmbeddingModelDiscovery() {
 
 function markEmbeddingConfigDirty() {
   savedAt.value = null
+  embeddingConfigSaveError.value = null
   store.embeddingConnectionTest = null
 }
 
@@ -189,6 +224,8 @@ watch([memoryEmbeddingProviderId, memoryEmbeddingModel, memoryEmbeddingDimension
           icon="i-solar:diskette-bold-duotone"
           size="sm"
           variant="secondary"
+          :loading="embeddingConfigSaving"
+          :disabled="embeddingConfigSaving"
           @click="saveEmbeddingConfig()"
         />
       </div>
@@ -254,6 +291,12 @@ watch([memoryEmbeddingProviderId, memoryEmbeddingModel, memoryEmbeddingDimension
       :class="['mt-3', 'border', 'border-emerald-200', 'bg-emerald-50', 'p-2', 'text-xs', 'text-emerald-700', 'dark:border-emerald-900', 'dark:bg-emerald-950/30', 'dark:text-emerald-200']"
     >
       {{ savedStatus }}
+    </div>
+    <div
+      v-if="embeddingConfigSaveError"
+      :class="['mt-3', 'border', 'border-red-200', 'bg-red-50', 'p-2', 'text-xs', 'text-red-700', 'dark:border-red-900', 'dark:bg-red-950/30', 'dark:text-red-200']"
+    >
+      {{ embeddingConfigSaveError }}
     </div>
 
     <div :class="['mt-4', 'grid', 'grid-cols-1', 'gap-3', 'xl:grid-cols-[minmax(0,1fr)_320px]']">

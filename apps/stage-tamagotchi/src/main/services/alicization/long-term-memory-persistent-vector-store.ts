@@ -30,6 +30,15 @@ export interface PersistentLongTermMemoryVectorSearchFilters {
   limit?: number
 }
 
+export interface PersistentLongTermMemoryVectorDeleteInput {
+  cardId: string
+  sourceIds: string[]
+  source?: string | null
+  modelId?: string | null
+  dimensions?: number | null
+  vectorSpaceId?: string | null
+}
+
 export interface PersistentLongTermMemoryVectorCoverage {
   canonicalCount: number
   indexedCount: number
@@ -421,17 +430,34 @@ export function createPersistentLongTermMemoryVectorStore(input: {
       .slice(0, limit)
   }
 
-  async function deleteVectorsBySource(inputDelete: { cardId: string, sourceIds: string[] }) {
+  async function deleteVectorsBySource(inputDelete: PersistentLongTermMemoryVectorDeleteInput) {
     const cardId = normalizeText(inputDelete.cardId, 120)
     const sourceIds = inputDelete.sourceIds.map(id => normalizeText(id, 240)).filter(Boolean)
+    const source = normalizeText(inputDelete.source, 120)
     if (!cardId || sourceIds.length === 0)
       return 0
     let deleted = 0
     await input.enqueueWrite(async () => {
-      for (const sourceId of sourceIds) {
-        await input.run(input.database, 'DELETE FROM long_term_memory_vectors WHERE card_id = ? AND source_id = ?', [cardId, sourceId])
-        deleted += 1
-      }
+      const sourceClause = source && source !== 'long_term_memory' ? ' AND source = ?' : ''
+      const rows = await input.all<{ id: string }>(
+        input.database,
+        `SELECT id
+         FROM long_term_memory_vectors
+         WHERE card_id = ?
+           AND source_id IN (${sourceIds.map(() => '?').join(', ')})
+           ${sourceClause}`,
+        [cardId, ...sourceIds, ...(sourceClause ? [source] : [])],
+      )
+      if (rows.length === 0)
+        return
+      await input.run(
+        input.database,
+        `DELETE FROM long_term_memory_vectors
+         WHERE card_id = ?
+           AND id IN (${rows.map(() => '?').join(', ')})`,
+        [cardId, ...rows.map(row => row.id)],
+      )
+      deleted = rows.length
     })
     return deleted
   }
@@ -508,9 +534,24 @@ export function createPersistentLongTermMemoryVectorStore(input: {
     })
   }
 
-  async function reindexByModel(reindexInput: { cardId: string, modelId: string }): Promise<LongTermMemoryVectorReindexPlan> {
+  async function reindexByModel(reindexInput: {
+    cardId: string
+    modelId: string
+    dimensions?: number
+    vectorSpaceId?: string
+  }): Promise<LongTermMemoryVectorReindexPlan> {
     const cardId = normalizeText(reindexInput.cardId, 120)
     const modelId = normalizeText(reindexInput.modelId, 160)
+    const dimensions = Number.isFinite(reindexInput.dimensions)
+      ? Math.max(1, Math.floor(Number(reindexInput.dimensions)))
+      : null
+    const vectorSpaceId = dimensions
+      ? resolveLongTermMemoryVectorSpaceId({
+          modelId,
+          dimensions,
+          vectorSpaceId: reindexInput.vectorSpaceId,
+        })
+      : null
     if (!cardId || !modelId) {
       return {
         modelId,
@@ -518,17 +559,27 @@ export function createPersistentLongTermMemoryVectorStore(input: {
         recordCount: 0,
       }
     }
+    const scopeClause = dimensions && vectorSpaceId
+      ? ' AND dimensions = ? AND vector_space_id = ?'
+      : ''
+    const scopeParams = dimensions && vectorSpaceId ? [dimensions, vectorSpaceId] : []
     const rows = await input.all<{ source_id: string }>(
       input.database,
-      'SELECT DISTINCT source_id FROM long_term_memory_vectors WHERE card_id = ? AND model_id = ? ORDER BY source_id ASC',
-      [cardId, modelId],
+      `SELECT DISTINCT source_id
+       FROM long_term_memory_vectors
+       WHERE card_id = ? AND model_id = ?${scopeClause}
+       ORDER BY source_id ASC`,
+      [cardId, modelId, ...scopeParams],
     )
     await input.enqueueWrite(async () => {
-      await input.run(input.database, 'UPDATE long_term_memory_vectors SET status = ?, updated_at = ? WHERE card_id = ? AND model_id = ?', [
+      await input.run(input.database, `UPDATE long_term_memory_vectors
+        SET status = ?, updated_at = ?
+        WHERE card_id = ? AND model_id = ?${scopeClause}`, [
         'stale',
         input.now(),
         cardId,
         modelId,
+        ...scopeParams,
       ])
     })
     const sourceIds = rows.map(row => row.source_id)

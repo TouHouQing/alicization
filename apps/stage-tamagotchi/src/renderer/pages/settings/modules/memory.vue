@@ -2,6 +2,7 @@
 import type {
   AlicizationMemoryQualityActionCode,
   AlicizationMemoryQualityFailureCode,
+  AlicizationPersonaTrainingDatasetExample,
   AlicizationSimpleRecallGoldLabel,
 } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import type { AlicizationMemoryQualityGoldLabelReason } from '@proj-alicization/stage-ui/stores/alicization-memory-workbench'
@@ -39,6 +40,16 @@ const {
   longTermItems,
   longTermFilters,
   longTermNextCursor,
+  longTermError,
+  tombstoneItems,
+  tombstoneNextCursor,
+  tombstoneLoading,
+  tombstoneError,
+  tombstoneRestoreLoadingId,
+  reviewFilters,
+  reviewNextCursor,
+  reviewListLoading,
+  reviewError,
   workingMemoryCleaningFailures,
   workingMemoryCleaningFailuresNextCursor,
   workingMemoryCleaningRetriedItems,
@@ -48,6 +59,8 @@ const {
   personaTrainingDataset,
   personaTrainingDatasetExport,
   personaTrainingDatasetLoading,
+  personaTrainingSourceRevokeIntents,
+  personaTrainingSourceRevokeIntentsLoading,
   skills,
   skillLoading,
   reindexLoading,
@@ -103,6 +116,7 @@ const qualityExpectedMemoryIds = ref('')
 const qualitySurfacedMemoryIds = ref<string[]>([])
 const pendingTombstone = ref<{
   id: string
+  source?: string
   summary: string
   kind: 'long-term' | 'review'
 } | null>(null)
@@ -141,6 +155,7 @@ function qualityEvidenceSnapshot() {
 
 function requestTombstone(input: {
   id: string
+  source?: string
   summary: string
   kind: 'long-term' | 'review'
 }) {
@@ -157,7 +172,7 @@ async function confirmTombstone() {
   if (!pending)
     return
   if (pending.kind === 'long-term')
-    await store.applyLongTermAction(pending.id, 'tombstone')
+    await store.applyLongTermAction(pending.id, 'tombstone', pending.source)
   else
     await store.applyReviewAction(pending.id, 'tombstone')
 }
@@ -165,6 +180,7 @@ async function confirmTombstone() {
 const tabs = computed(() => [
   { id: 'working' as const, icon: 'i-solar:clipboard-list-bold-duotone', label: t('settings.pages.memory.workbench.tabs.working') },
   { id: 'long-term' as const, icon: 'i-solar:database-bold-duotone', label: t('settings.pages.memory.workbench.tabs.long_term') },
+  { id: 'tombstones' as const, icon: 'i-solar:trash-bin-trash-bold-duotone', label: t('settings.pages.memory.workbench.tabs.tombstones') },
   { id: 'review' as const, icon: 'i-solar:checklist-bold-duotone', label: t('settings.pages.memory.workbench.tabs.review') },
   { id: 'probe' as const, icon: 'i-solar:magnifer-bold-duotone', label: t('settings.pages.memory.workbench.tabs.probe') },
   { id: 'persona' as const, icon: 'i-solar:user-heart-bold-duotone', label: t('settings.pages.memory.workbench.tabs.persona') },
@@ -173,7 +189,28 @@ const tabs = computed(() => [
   { id: 'skills' as const, icon: 'i-solar:stars-bold-duotone', label: t('settings.pages.memory.workbench.tabs.skills') },
 ])
 
-const kindOptions = ['all', 'fact', 'episode', 'reflection', 'consolidation'] as const
+const kindOptions = [
+  'all',
+  'fact',
+  'episode',
+  'reflection',
+  'consolidation',
+] as const
+const reviewKindOptions = [
+  'all',
+  'episode',
+  'procedure',
+  'relationship',
+  'preference',
+  'correction',
+] as const
+const memorySourceOptions = [
+  '',
+  'memory_facts',
+  'memory_reflections',
+  'episodic_events',
+  'memory_consolidations',
+] as const
 const sensitivityOptions = ['all', 'public', 'personal', 'private', 'secret'] as const
 const visibilityOptions = ['all', 'explicit', 'inward-only'] as const
 const trainingOptions = ['all', 'allowed', 'blocked'] as const
@@ -186,6 +223,11 @@ const longTermFilterLabelKeys = {
     episode: 'settings.pages.memory.workbench.filters.kind.episode',
     reflection: 'settings.pages.memory.workbench.filters.kind.reflection',
     consolidation: 'settings.pages.memory.workbench.filters.kind.consolidation',
+    procedure: 'settings.pages.memory.workbench.filters.kind.procedure',
+    relationship: 'settings.pages.memory.workbench.filters.kind.relationship',
+    preference: 'settings.pages.memory.workbench.filters.kind.preference',
+    correction: 'settings.pages.memory.workbench.filters.kind.correction',
+    candidate: 'settings.pages.memory.workbench.filters.kind.candidate',
   },
   sensitivity: {
     all: 'settings.pages.memory.workbench.filters.sensitivity.all',
@@ -206,9 +248,18 @@ const longTermFilterLabelKeys = {
   },
 } as const
 
+const memorySourceLabelKeys = {
+  '': 'settings.pages.memory.workbench.filters.source.all',
+  'memory_facts': 'settings.pages.memory.workbench.filters.source.memory_facts',
+  'memory_reflections': 'settings.pages.memory.workbench.filters.source.memory_reflections',
+  'episodic_events': 'settings.pages.memory.workbench.filters.source.episodic_events',
+  'memory_consolidations': 'settings.pages.memory.workbench.filters.source.memory_consolidations',
+} as const
+
 const reindexStatusLabelKeys = {
   queued: 'settings.pages.memory.workbench.states.reindex_queued',
   running: 'settings.pages.memory.workbench.states.reindex_running',
+  paused: 'settings.pages.memory.workbench.states.reindex_paused',
   cancel_requested: 'settings.pages.memory.workbench.states.reindex_cancel_requested',
   completed: 'settings.pages.memory.workbench.states.reindex_completed',
   cancelled: 'settings.pages.memory.workbench.states.reindex_cancelled',
@@ -414,6 +465,10 @@ function formatLongTermFilterLabel(group: LongTermFilterGroup, value: string) {
   return t(longTermFilterLabelKeys[group][value as keyof typeof longTermFilterLabelKeys[typeof group]] ?? value)
 }
 
+function formatMemorySource(value: string) {
+  return t(memorySourceLabelKeys[value as keyof typeof memorySourceLabelKeys] ?? value)
+}
+
 function formatReindexStatus(value: string) {
   return t(reindexStatusLabelKeys[value as keyof typeof reindexStatusLabelKeys] ?? value)
 }
@@ -428,6 +483,10 @@ function formatSemanticScaleStatus(value: string) {
 
 function formatDatasetState(value: string) {
   return t(datasetStateLabelKeys[value as keyof typeof datasetStateLabelKeys] ?? value)
+}
+
+function formatPersonaRevokeIntentStatus(value: string) {
+  return t(`settings.pages.memory.workbench.states.persona_source_revoke_${value}`)
 }
 
 function formatPiiStatus(value: string) {
@@ -490,6 +549,17 @@ function resetLongTermFilters() {
   void store.refreshLongTerm()
 }
 
+function resetReviewFilters() {
+  reviewFilters.value = {
+    query: '',
+    kind: 'all',
+    sensitivity: 'all',
+    visibility: 'all',
+    training: 'all',
+  }
+  void store.refreshReview()
+}
+
 function currentPersonaConsent() {
   return {
     granted: personaTrainingConsentGranted.value,
@@ -522,8 +592,11 @@ function updatePersonaExamplePolicy(exampleId: string, allowTraining: boolean) {
   })
 }
 
-function revokePersonaSource(sourceId: string) {
-  void store.revokePersonaTrainingDatasetSource(sourceId)
+function revokePersonaSource(
+  sourceId: string,
+  sourceKind: AlicizationPersonaTrainingDatasetExample['sourceKind'],
+) {
+  void store.revokePersonaTrainingDatasetSource({ sourceId, sourceKind })
 }
 
 function loadQualityGoldLabels() {
@@ -587,9 +660,11 @@ function reloadQualityTrialContext() {
 
 onMounted(() => {
   void store.refreshSnapshot()
+  void store.ensureActiveTabLoaded()
   void store.refreshWorkingMemoryCleaningFailures()
   void store.refreshPersonaCandidates()
   void store.refreshPersonaTrainingDataset()
+  void store.refreshPersonaTrainingSourceRevokeIntents()
   void store.refreshSkills(false)
   void store.loadMonthlyGoldLabels(goldLabelMonth.value)
   reloadQualityTrialContext()
@@ -599,10 +674,11 @@ watch(activeCardId, () => {
   store.resetCardScope()
   reloadQualityTrialContext()
   void store.refreshSnapshot()
-  void store.refreshLongTerm()
+  void store.ensureActiveTabLoaded()
   void store.refreshWorkingMemoryCleaningFailures()
   void store.refreshPersonaCandidates()
   void store.refreshPersonaTrainingDataset()
+  void store.refreshPersonaTrainingSourceRevokeIntents()
   void store.refreshPersonaTrainingRuns()
   void store.refreshPersonaTrainingIncrements()
   void store.refreshSkills(false)
@@ -625,8 +701,8 @@ watch(activeCardId, () => {
         :label="t('settings.pages.memory.workbench.actions.refresh')"
         icon="i-solar:refresh-bold-duotone"
         size="sm"
-        :loading="loading"
-        @click="store.refreshSnapshot()"
+        :loading="loading || listLoading || tombstoneLoading || reviewListLoading"
+        @click="store.refreshActiveTab()"
       />
     </header>
 
@@ -685,7 +761,7 @@ watch(activeCardId, () => {
             ? 'border-neutral-950 bg-neutral-950 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-950'
             : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300 dark:hover:bg-neutral-900',
         ]"
-        @click="activeTab = tab.id"
+        @click="store.selectTab(tab.id)"
       >
         <span :class="tab.icon" />
         <span>{{ tab.label }}</span>
@@ -773,12 +849,15 @@ watch(activeCardId, () => {
             {{ formatLongTermFilterLabel('training', option) }}
           </option>
         </select>
-        <input
+        <select
           v-model="longTermFilters.source"
           :aria-label="t('settings.pages.memory.workbench.fields.source')"
-          :placeholder="t('settings.pages.memory.workbench.placeholders.long_term_source')"
           :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
         >
+          <option v-for="option in memorySourceOptions" :key="option || 'all'" :value="option">
+            {{ formatMemorySource(option) }}
+          </option>
+        </select>
       </div>
       <div :class="['flex', 'flex-wrap', 'gap-2']">
         <Button
@@ -796,10 +875,24 @@ watch(activeCardId, () => {
           @click="resetLongTermFilters()"
         />
       </div>
-      <div v-if="longTermItems.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
+      <div
+        v-if="longTermError"
+        :class="['border', 'border-rose-300', 'bg-rose-50', 'p-3', 'text-sm', 'text-rose-700', 'dark:border-rose-900', 'dark:bg-rose-950/40', 'dark:text-rose-200']"
+      >
+        <div :class="['font-medium']">
+          {{ t('settings.pages.memory.workbench.fields.long_term_list_error') }}
+        </div>
+        <div :class="['mt-1', 'whitespace-pre-wrap', 'break-words']">
+          {{ longTermError }}
+        </div>
+      </div>
+      <div v-if="listLoading && longTermItems.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
+        {{ t('settings.pages.memory.workbench.states.loading_long_term') }}
+      </div>
+      <div v-else-if="!longTermError && longTermItems.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
         {{ t('settings.pages.memory.workbench.states.empty_long_term') }}
       </div>
-      <article v-for="item in longTermItems" :key="item.id" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+      <article v-for="item in longTermItems" :key="`${item.source}:${item.id}`" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
         <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
           <span>{{ t('settings.pages.memory.workbench.fields.kind') }}: {{ formatLongTermFilterLabel('kind', item.kind) }}</span>
           <span>{{ t('settings.pages.memory.workbench.fields.sensitivity') }}: {{ formatLongTermFilterLabel('sensitivity', item.sensitivity) }}</span>
@@ -813,7 +906,7 @@ watch(activeCardId, () => {
           {{ listText(item.evidenceSnippets) }}
         </div>
         <div :class="['mt-3', 'grid', 'grid-cols-1', 'gap-2', 'text-xs', 'text-neutral-500', 'md:grid-cols-3']">
-          <div>{{ t('settings.pages.memory.workbench.fields.source') }}: {{ item.source }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.source') }}: {{ formatMemorySource(item.source) }}</div>
           <div>{{ t('settings.pages.memory.workbench.fields.confidence') }}: {{ item.confidence.toFixed(2) }}</div>
           <div>{{ t('settings.pages.memory.workbench.fields.salience') }}: {{ item.salience.toFixed(2) }}</div>
           <div>{{ t('settings.pages.memory.workbench.fields.source_ids') }}: {{ listText(item.sourceIds) }}</div>
@@ -825,21 +918,21 @@ watch(activeCardId, () => {
             variant="danger"
             :label="t('settings.pages.memory.workbench.actions.tombstone')"
             :loading="reviewActionLoadingId === item.id"
-            @click="requestTombstone({ id: item.id, summary: item.summary, kind: 'long-term' })"
+            @click="requestTombstone({ id: item.id, source: item.source, summary: item.summary, kind: 'long-term' })"
           />
           <Button
             size="sm"
             variant="secondary"
             :label="t('settings.pages.memory.workbench.actions.inward_only')"
             :loading="reviewActionLoadingId === item.id"
-            @click="store.applyLongTermAction(item.id, 'inward-only')"
+            @click="store.applyLongTermAction(item.id, 'inward-only', item.source)"
           />
           <Button
             size="sm"
             variant="secondary"
             :label="t('settings.pages.memory.workbench.actions.no_training')"
             :loading="reviewActionLoadingId === item.id"
-            @click="store.applyLongTermAction(item.id, 'no-training')"
+            @click="store.applyLongTermAction(item.id, 'no-training', item.source)"
           />
         </div>
       </article>
@@ -854,11 +947,145 @@ watch(activeCardId, () => {
       />
     </section>
 
+    <section v-else-if="activeTab === 'tombstones'" :class="['flex', 'flex-col', 'gap-3']">
+      <div
+        v-if="tombstoneError"
+        :class="['border', 'border-rose-300', 'bg-rose-50', 'p-3', 'text-sm', 'text-rose-700', 'dark:border-rose-900', 'dark:bg-rose-950/40', 'dark:text-rose-200']"
+      >
+        <div :class="['font-medium']">
+          {{ t('settings.pages.memory.workbench.fields.tombstone_list_error') }}
+        </div>
+        <div :class="['mt-1', 'whitespace-pre-wrap', 'break-words']">
+          {{ tombstoneError }}
+        </div>
+      </div>
+      <div v-if="tombstoneLoading && tombstoneItems.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
+        {{ t('settings.pages.memory.workbench.states.loading_tombstones') }}
+      </div>
+      <div v-else-if="!tombstoneError && tombstoneItems.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
+        {{ t('settings.pages.memory.workbench.states.empty_tombstones') }}
+      </div>
+      <article v-for="item in tombstoneItems" :key="item.id" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
+          <span>{{ t('settings.pages.memory.workbench.fields.source') }}: {{ formatMemorySource(item.source) }}</span>
+          <span>{{ t('settings.pages.memory.workbench.fields.deleted_at') }}: {{ formatTimestamp(item.deletedAt) }}</span>
+        </div>
+        <div :class="['mt-2', 'text-sm', 'font-medium']">
+          {{ item.memory?.summary ?? item.sourceId }}
+        </div>
+        <div :class="['mt-2', 'text-xs', 'text-neutral-500']">
+          {{ t('settings.pages.memory.workbench.fields.deleted_reason') }}: {{ item.reason ?? '-' }}
+        </div>
+        <div v-if="item.memory?.evidenceSnippets.length" :class="['mt-2', 'text-xs', 'text-neutral-500']">
+          {{ listText(item.memory.evidenceSnippets) }}
+        </div>
+        <Button
+          :class="['mt-3']"
+          size="sm"
+          variant="secondary"
+          icon="i-solar:restart-bold-duotone"
+          :label="t('settings.pages.memory.workbench.actions.restore')"
+          :loading="tombstoneRestoreLoadingId === item.id"
+          @click="store.restoreTombstone(item.id)"
+        />
+      </article>
+      <Button
+        v-if="tombstoneNextCursor"
+        :label="t('settings.pages.memory.workbench.actions.load_more')"
+        icon="i-solar:alt-arrow-down-bold-duotone"
+        size="sm"
+        variant="secondary"
+        :loading="tombstoneLoading"
+        @click="store.loadMoreTombstones()"
+      />
+    </section>
+
     <section v-else-if="activeTab === 'review'" :class="['flex', 'flex-col', 'gap-3']">
-      <div v-if="reviewItems.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
+      <div :class="['grid', 'grid-cols-1', 'gap-2', 'md:grid-cols-3', 'xl:grid-cols-5']">
+        <input
+          v-model="reviewFilters.query"
+          :aria-label="t('settings.pages.memory.workbench.actions.search')"
+          :placeholder="t('settings.pages.memory.workbench.placeholders.review_search')"
+          :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+          @keydown.enter.prevent="store.refreshReview()"
+        >
+        <select
+          v-model="reviewFilters.kind"
+          :aria-label="t('settings.pages.memory.workbench.fields.kind')"
+          :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+        >
+          <option v-for="option in reviewKindOptions" :key="option" :value="option">
+            {{ formatLongTermFilterLabel('kind', option) }}
+          </option>
+        </select>
+        <select
+          v-model="reviewFilters.sensitivity"
+          :aria-label="t('settings.pages.memory.workbench.fields.sensitivity')"
+          :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+        >
+          <option v-for="option in sensitivityOptions" :key="option" :value="option">
+            {{ formatLongTermFilterLabel('sensitivity', option) }}
+          </option>
+        </select>
+        <select
+          v-model="reviewFilters.visibility"
+          :aria-label="t('settings.pages.memory.workbench.fields.visibility')"
+          :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+        >
+          <option v-for="option in visibilityOptions" :key="option" :value="option">
+            {{ formatLongTermFilterLabel('visibility', option) }}
+          </option>
+        </select>
+        <select
+          v-model="reviewFilters.training"
+          :aria-label="t('settings.pages.memory.workbench.fields.training')"
+          :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+        >
+          <option v-for="option in trainingOptions" :key="option" :value="option">
+            {{ formatLongTermFilterLabel('training', option) }}
+          </option>
+        </select>
+      </div>
+      <div :class="['flex', 'flex-wrap', 'gap-2']">
+        <Button
+          :label="t('settings.pages.memory.workbench.actions.search')"
+          icon="i-solar:magnifer-bold-duotone"
+          size="sm"
+          :loading="reviewListLoading"
+          @click="store.refreshReview()"
+        />
+        <Button
+          :label="t('settings.pages.memory.workbench.actions.reset')"
+          icon="i-solar:restart-bold-duotone"
+          size="sm"
+          variant="secondary"
+          @click="resetReviewFilters()"
+        />
+      </div>
+      <div
+        v-if="reviewError"
+        :class="['border', 'border-rose-300', 'bg-rose-50', 'p-3', 'text-sm', 'text-rose-700', 'dark:border-rose-900', 'dark:bg-rose-950/40', 'dark:text-rose-200']"
+      >
+        <div :class="['font-medium']">
+          {{ t('settings.pages.memory.workbench.fields.review_list_error') }}
+        </div>
+        <div :class="['mt-1', 'whitespace-pre-wrap', 'break-words']">
+          {{ reviewError }}
+        </div>
+      </div>
+      <div v-if="reviewListLoading && reviewItems.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
+        {{ t('settings.pages.memory.workbench.states.loading_review') }}
+      </div>
+      <div v-else-if="!reviewError && reviewItems.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
         {{ t('settings.pages.memory.workbench.states.empty_review') }}
       </div>
       <article v-for="item in reviewItems" :key="item.id" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
+          <span>{{ t('settings.pages.memory.workbench.fields.kind') }}: {{ formatLongTermFilterLabel('kind', item.kind) }}</span>
+          <span>{{ t('settings.pages.memory.workbench.fields.sensitivity') }}: {{ formatLongTermFilterLabel('sensitivity', item.sensitivity) }}</span>
+          <span>{{ t('settings.pages.memory.workbench.fields.visibility') }}: {{ formatLongTermFilterLabel('visibility', item.visibleMode) }}</span>
+          <span>{{ t('settings.pages.memory.workbench.fields.training') }}: {{ formatLongTermFilterLabel('training', item.allowTraining ? 'allowed' : 'blocked') }}</span>
+        </div>
         <div :class="['text-sm', 'font-medium']">
           {{ item.summary }}
         </div>
@@ -873,6 +1100,15 @@ watch(activeCardId, () => {
           <Button size="sm" variant="secondary" :label="t('settings.pages.memory.workbench.actions.no_training')" :loading="reviewActionLoadingId === item.id" @click="store.applyReviewAction(item.id, 'no-training')" />
         </div>
       </article>
+      <Button
+        v-if="reviewNextCursor"
+        :label="t('settings.pages.memory.workbench.actions.load_more')"
+        icon="i-solar:alt-arrow-down-bold-duotone"
+        size="sm"
+        variant="secondary"
+        :loading="reviewListLoading"
+        @click="store.loadMoreReview()"
+      />
 
       <section :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
         <div :class="['flex', 'flex-col', 'gap-3', 'lg:flex-row', 'lg:items-start', 'lg:justify-between']">
@@ -1034,9 +1270,61 @@ watch(activeCardId, () => {
                     size="sm"
                     variant="danger"
                     :loading="personaTrainingDatasetLoading"
-                    @click="revokePersonaSource(example.sourceId)"
+                    @click="revokePersonaSource(example.sourceId, example.sourceKind)"
                   />
                 </div>
+              </article>
+            </div>
+          </div>
+
+          <div :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-4', 'dark:border-neutral-800']">
+            <div :class="['flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
+              <div>
+                <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                  {{ t('settings.pages.memory.workbench.fields.persona_source_revoke_intents') }}
+                </div>
+                <div :class="['mt-1', 'text-xs', 'text-neutral-500']">
+                  {{ t('settings.pages.memory.workbench.fields.persona_source_revoke_intents_description') }}
+                </div>
+              </div>
+              <Button
+                :label="t('settings.pages.memory.workbench.actions.refresh_persona_source_revoke_intents')"
+                icon="i-solar:refresh-bold-duotone"
+                size="sm"
+                variant="secondary"
+                :loading="personaTrainingSourceRevokeIntentsLoading"
+                @click="store.refreshPersonaTrainingSourceRevokeIntents()"
+              />
+            </div>
+            <div v-if="personaTrainingSourceRevokeIntents.length === 0" :class="['mt-2', 'text-sm', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.states.empty_persona_source_revoke_intents') }}
+            </div>
+            <div v-else :class="['mt-2', 'flex', 'flex-col', 'gap-2']">
+              <article
+                v-for="intent in personaTrainingSourceRevokeIntents"
+                :key="intent.id"
+                :class="['border', 'border-neutral-200', 'p-3', 'dark:border-neutral-800']"
+              >
+                <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
+                  <span>{{ formatPersonaRevokeIntentStatus(intent.status) }}</span>
+                  <span>{{ intent.sourceKind }} · {{ intent.sourceId }}</span>
+                  <span>{{ t('settings.pages.memory.workbench.fields.attempts') }}: {{ intent.attempts }}</span>
+                </div>
+                <div :class="['mt-1', 'text-xs', 'text-neutral-500']">
+                  {{ intent.reason }}
+                </div>
+                <div v-if="intent.lastError" :class="['mt-1', 'text-xs', 'text-rose-600', 'dark:text-rose-300']">
+                  {{ intent.lastError }}
+                </div>
+                <Button
+                  v-if="intent.status !== 'completed'"
+                  :label="t('settings.pages.memory.workbench.actions.retry_persona_source_revoke')"
+                  icon="i-solar:restart-bold-duotone"
+                  size="sm"
+                  variant="secondary"
+                  :loading="personaTrainingSourceRevokeIntentsLoading"
+                  @click="store.retryPersonaTrainingSourceRevokeIntent(intent.id)"
+                />
               </article>
             </div>
           </div>

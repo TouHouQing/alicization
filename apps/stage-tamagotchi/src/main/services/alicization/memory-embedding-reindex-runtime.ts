@@ -8,7 +8,7 @@ import {
   normalizeLongTermMemoryEmbeddingText,
 } from './long-term-memory-embedding-text'
 
-export type MemoryEmbeddingReindexJobStatus = 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
+export type MemoryEmbeddingReindexJobStatus = 'queued' | 'running' | 'paused' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
 export type MemoryEmbeddingReindexItemStatus = 'pending' | 'leased' | 'indexed' | 'retryable' | 'dead-lettered' | 'cancelled'
 export type MemoryEmbeddingReindexJobStage
   = 'projection-refresh-queued'
@@ -278,14 +278,6 @@ export function createMemoryEmbeddingReindexRuntime(input: {
     `)
     await input.run(input.database, `
       UPDATE memory_embedding_reindex_jobs
-      SET vector_space_id = 'legacy:' || model_id || ':' || dimensions,
-          updated_at = ?
-      WHERE vector_space_id = ''
-        AND TRIM(model_id) <> ''
-        AND dimensions > 0
-    `, [input.now()])
-    await input.run(input.database, `
-      UPDATE memory_embedding_reindex_jobs
       SET status = 'failed',
           stage = 'failed',
           last_error = COALESCE(last_error, 'legacy reindex job could not determine its vector space during migration'),
@@ -476,6 +468,41 @@ export function createMemoryEmbeddingReindexRuntime(input: {
     return nextStatus
   }
 
+  async function pauseJobForProvider(jobId: string, reason = 'embedding provider is not configured') {
+    const now = input.now()
+    await input.enqueueWrite(async () => {
+      await input.runInTransaction(input.database, async () => {
+        const job = await readJobRow(jobId)
+        if (['completed', 'cancelled', 'failed'].includes(job.status))
+          return
+        await input.run(input.database, `
+          UPDATE memory_embedding_reindex_items
+          SET status = 'pending', lease_token = NULL, lease_expires_at = NULL,
+              next_retry_at = NULL, updated_at = ?
+          WHERE job_id = ? AND status = 'leased'
+        `, [now, jobId])
+        await input.run(input.database, `
+          UPDATE memory_embedding_reindex_jobs
+          SET status = 'paused', last_error = ?, completed_at = NULL, updated_at = ?
+          WHERE id = ? AND status IN ('queued', 'running', 'paused')
+        `, [normalizeText(reason, 300) || 'embedding provider is not configured', now, jobId])
+      })
+    })
+  }
+
+  async function markJobFailed(jobId: string, error: unknown) {
+    const message = errorText(error)
+    const now = input.now()
+    await input.enqueueWrite(async () => {
+      await input.run(input.database, `
+        UPDATE memory_embedding_reindex_jobs
+        SET status = 'failed', stage = 'failed', last_error = ?,
+            completed_at = COALESCE(completed_at, ?), updated_at = ?
+        WHERE id = ? AND status NOT IN ('completed', 'cancelled', 'failed')
+      `, [message, now, now, jobId])
+    })
+  }
+
   async function getReindexJob(jobId: string, expectedCardId?: string): Promise<MemoryEmbeddingReindexProgress> {
     const counts = await input.all<MemoryEmbeddingReindexStatusCountRow>(
       input.database,
@@ -528,20 +555,27 @@ export function createMemoryEmbeddingReindexRuntime(input: {
     }
   }
 
-  async function getLatestReindexJob(cardId: string): Promise<MemoryEmbeddingReindexProgress | null> {
+  async function getLatestReindexJob(
+    cardId: string,
+    vectorSpaceId?: string | null,
+  ): Promise<MemoryEmbeddingReindexProgress | null> {
     const normalizedCardId = normalizeText(cardId, 120)
     if (!normalizedCardId)
       return null
+    const normalizedVectorSpaceId = normalizeText(vectorSpaceId, 240)
     const row = await input.get<{ id: string }>(
       input.database,
       `
       SELECT id
       FROM memory_embedding_reindex_jobs
       WHERE card_id = ?
-      ORDER BY created_at DESC, id DESC
+        ${normalizedVectorSpaceId ? 'AND vector_space_id = ?' : ''}
+      ORDER BY created_at DESC, rowid DESC
       LIMIT 1
       `,
-      [normalizedCardId],
+      normalizedVectorSpaceId
+        ? [normalizedCardId, normalizedVectorSpaceId]
+        : [normalizedCardId],
     )
     return row ? await getReindexJob(row.id, normalizedCardId) : null
   }
@@ -710,17 +744,17 @@ export function createMemoryEmbeddingReindexRuntime(input: {
       throw new Error('embedding reindex projection refresh is not configured')
 
     const projectionStartedAt = input.now()
-    await input.enqueueWrite(async () => {
-      await input.runInTransaction(input.database, async () => {
+    const projectionClaimed = await input.enqueueWrite(async () => {
+      return await input.runInTransaction(input.database, async () => {
         const latest = await readJobRow(jobId)
         if (latest.status === 'cancel_requested') {
           await markProjectionCancelled(jobId)
-          return
+          return false
         }
         if (latest.status !== 'queued'
           || !['projection-refresh-queued', 'projection-refresh-running'].includes(latest.stage)
           || (latest.projection_next_retry_at != null && latest.projection_next_retry_at > projectionStartedAt)) {
-          return
+          return false
         }
         await input.run(input.database, `
           UPDATE memory_embedding_reindex_jobs
@@ -731,8 +765,15 @@ export function createMemoryEmbeddingReindexRuntime(input: {
           WHERE id = ? AND status = 'queued'
             AND stage IN ('projection-refresh-queued', 'projection-refresh-running')
         `, [projectionStartedAt, projectionStartedAt, jobId])
+        const claimed = await input.get<{ count: number }>(
+          input.database,
+          'SELECT changes() AS count',
+        )
+        return (claimed?.count ?? 0) === 1
       })
     })
+    if (!projectionClaimed)
+      return
 
     try {
       const sourceIds = job.projection_source_ids_json
@@ -943,10 +984,16 @@ export function createMemoryEmbeddingReindexRuntime(input: {
   }
 
   async function canCommitItem(item: ClaimedReindexItem) {
-    const row = await input.get<{ job_status: MemoryEmbeddingReindexJobStatus, item_status: MemoryEmbeddingReindexItemStatus, lease_token: string | null }>(
+    const row = await input.get<{
+      job_status: MemoryEmbeddingReindexJobStatus
+      item_status: MemoryEmbeddingReindexItemStatus
+      lease_token: string | null
+      lease_expires_at: number | null
+    }>(
       input.database,
       `
-      SELECT job.status AS job_status, item.status AS item_status, item.lease_token
+      SELECT job.status AS job_status, item.status AS item_status,
+             item.lease_token, item.lease_expires_at
       FROM memory_embedding_reindex_items item
       JOIN memory_embedding_reindex_jobs job ON job.id = item.job_id
       WHERE item.id = ? AND item.job_id = ?
@@ -956,65 +1003,172 @@ export function createMemoryEmbeddingReindexRuntime(input: {
     return row?.job_status === 'running'
       && row.item_status === 'leased'
       && row.lease_token === item.leaseToken
+      && row.lease_expires_at != null
+      && row.lease_expires_at > input.now()
   }
 
-  async function runNextBatch(inputData: { jobId: string, batchSize?: number }) {
+  async function renewLease(item: ClaimedReindexItem) {
+    const now = input.now()
+    const nextLeaseExpiresAt = now + leaseMs
+    await input.enqueueWrite(async () => {
+      await input.run(
+        input.database,
+        `
+        UPDATE memory_embedding_reindex_items
+        SET lease_expires_at = ?, updated_at = ?
+        WHERE id = ?
+          AND job_id = ?
+          AND status = 'leased'
+          AND lease_token = ?
+          AND lease_expires_at > ?
+        `,
+        [nextLeaseExpiresAt, now, item.id, item.jobId, item.leaseToken, now],
+      )
+    })
+    return await canCommitItem(item)
+  }
+
+  function validateEmbeddedBatch(
+    items: ClaimedReindexItem[],
+    embedded: Array<{ text: string, vector: number[] }>,
+  ) {
+    if (embedded.length !== items.length) {
+      throw new Error(
+        `embedding provider returned ${embedded.length} embeddings for ${items.length} texts`,
+      )
+    }
+    return items.map((item, index) => {
+      const result = embedded[index]
+      if (!result || normalizeLongTermMemoryEmbeddingText(result.text) !== item.text) {
+        throw new Error(
+          `embedding provider returned mismatched text at index ${index}`,
+        )
+      }
+      const actualDimensions = result.vector.length
+      if (!isValidVector(result.vector, item.dimensions)) {
+        throw new Error(
+          `embedding provider returned invalid vector dimensions (${actualDimensions}; expected ${item.dimensions})`,
+        )
+      }
+      return result
+    })
+  }
+
+  function shouldIsolateProviderBatchFailure(error: unknown) {
+    const message = errorText(error)
+    return /\bHTTP (?:400|413|422)\b/.test(message)
+  }
+
+  async function runNextBatch(inputData: { jobId: string, batchSize?: number, signal?: AbortSignal }) {
+    if (!resolveProvider()) {
+      await pauseJobForProvider(inputData.jobId)
+      return await getReindexJob(inputData.jobId)
+    }
     const claimed = await claimNextBatch(inputData)
-    for (const item of claimed) {
+    if (claimed.length > 0) {
+      const commitEmbeddedItems = async (
+        items: ClaimedReindexItem[],
+        embedded: Array<{ text: string, vector: number[] }>,
+      ) => {
+        const validated = validateEmbeddedBatch(items, embedded)
+        // Refresh the whole claimed batch before the first commit. A later
+        // item must not lose its original lease while an earlier item is
+        // being committed.
+        for (const item of items) {
+          if (!await renewLease(item)) {
+            await recoverExpiredLeases()
+            await markItemSuccess(item)
+          }
+        }
+        for (const [index, item] of items.entries()) {
+          const result = validated[index]
+          if (!result)
+            throw new Error(`embedding provider omitted result at index ${index}`)
+          if (!await renewLease(item) || !await canCommitItem(item)) {
+            await recoverExpiredLeases()
+            await markItemSuccess(item)
+            continue
+          }
+          const vectorRecord: UpsertVectorInput = {
+            cardId: item.cardId,
+            sourceId: item.sourceId,
+            source: item.source,
+            text: item.text,
+            textHash: item.textHash,
+            vector: result.vector,
+            modelId: item.modelId,
+            dimensions: item.dimensions,
+            vectorSpaceId: item.vectorSpaceId,
+            status: 'indexed',
+          }
+          if (input.commitVectorAndItem) {
+            const committed = await input.commitVectorAndItem({
+              item,
+              vector: vectorRecord,
+              now: input.now(),
+            })
+            if (!committed)
+              continue
+          }
+          else {
+            // Production injects an atomic commit callback. The fallback keeps
+            // the lease fence adjacent to the canonical vector write.
+            if (!await canCommitItem(item)) {
+              await recoverExpiredLeases()
+              await markItemSuccess(item)
+              continue
+            }
+            await input.upsertVector(vectorRecord)
+            await markItemSuccess(item)
+          }
+        }
+      }
+
+      const provider = resolveProvider()
       try {
-        const provider = resolveProvider()
         if (!provider)
           throw new Error('embedding provider is not configured')
-        if (provider.modelId !== item.modelId || provider.dimensions !== item.dimensions) {
+        const firstItem = claimed[0]
+        if (provider.modelId !== firstItem.modelId || provider.dimensions !== firstItem.dimensions) {
           throw new Error(
-            `embedding provider model changed during reindex (job=${item.modelId}/${item.dimensions}, active=${provider.modelId}/${provider.dimensions})`,
+            `embedding provider model changed during reindex (job=${firstItem.modelId}/${firstItem.dimensions}, active=${provider.modelId}/${provider.dimensions})`,
           )
         }
         const activeVectorSpaceId = resolveLongTermMemoryVectorSpaceId(provider)
-        if (activeVectorSpaceId !== item.vectorSpaceId) {
+        if (activeVectorSpaceId !== firstItem.vectorSpaceId) {
           throw new Error(
-            `embedding provider vector space changed during reindex (job=${item.vectorSpaceId}, active=${activeVectorSpaceId})`,
+            `embedding provider vector space changed during reindex (job=${firstItem.vectorSpaceId}, active=${activeVectorSpaceId})`,
           )
         }
-        const embedded = await provider.embedTexts([item.text])
-        const result = embedded.find(candidate => candidate.text.trim() === item.text.trim()) ?? embedded[0]
-        if (!result || !isValidVector(result.vector, item.dimensions))
-          throw new Error(`embedding provider returned invalid vector dimensions (${item.dimensions})`)
-        if (!await canCommitItem(item)) {
-          await markItemSuccess(item)
-          continue
-        }
-        const vectorRecord: UpsertVectorInput = {
-          cardId: item.cardId,
-          sourceId: item.sourceId,
-          source: item.source,
-          text: item.text,
-          textHash: item.textHash,
-          vector: result.vector,
-          modelId: item.modelId,
-          dimensions: item.dimensions,
-          vectorSpaceId: item.vectorSpaceId,
-          status: 'indexed',
-        }
-        if (input.commitVectorAndItem) {
-          const committed = await input.commitVectorAndItem({
-            item,
-            vector: vectorRecord,
-            now: input.now(),
-          })
-          if (!committed)
-            continue
-        }
-        else {
-          // The canonical vector is written exactly once. A transient `stale`
-          // write followed by an indexed write can leave duplicate native rows
-          // when the lease expires between the two operations.
-          await input.upsertVector(vectorRecord)
-          await markItemSuccess(item)
-        }
+        const embedded = await provider.embedTexts(claimed.map(item => item.text), inputData.signal)
+        await commitEmbeddedItems(claimed, embedded)
       }
       catch (error) {
-        await markItemFailure(item, error)
+        if (
+          claimed.length > 1
+          && !inputData.signal?.aborted
+          && shouldIsolateProviderBatchFailure(error)
+        ) {
+          if (!provider) {
+            for (const item of claimed)
+              await markItemFailure(item, error)
+          }
+          else {
+            for (const item of claimed) {
+              try {
+                const embedded = await provider.embedTexts([item.text], inputData.signal)
+                await commitEmbeddedItems([item], embedded)
+              }
+              catch (itemError) {
+                await markItemFailure(item, itemError)
+              }
+            }
+          }
+        }
+        else {
+          for (const item of claimed)
+            await markItemFailure(item, error)
+        }
       }
     }
     await input.enqueueWrite(async () => {
@@ -1131,6 +1285,10 @@ export function createMemoryEmbeddingReindexRuntime(input: {
           const before = await getReindexJob(jobId)
           if (['cancel_requested', 'cancelled', 'failed', 'completed'].includes(before.status))
             break
+          if (!resolveProvider()) {
+            await pauseJobForProvider(jobId)
+            break
+          }
           if (before.stage === 'projection-refresh-queued' || before.stage === 'projection-refresh-running') {
             if (before.nextRetryAt && before.nextRetryAt > input.now()) {
               await wait(Math.min(1_000, Math.max(50, before.nextRetryAt - input.now())))
@@ -1139,7 +1297,7 @@ export function createMemoryEmbeddingReindexRuntime(input: {
             await prepareProjectionForJob(jobId, controller.signal)
             continue
           }
-          const progress = await runNextBatch({ jobId, batchSize })
+          const progress = await runNextBatch({ jobId, batchSize, signal: controller.signal })
           if (progress.leased === 0 && progress.pending === 0 && progress.retryable === 0)
             break
           if (progress.status === 'cancel_requested' || progress.status === 'cancelled' || progress.status === 'failed')
@@ -1147,6 +1305,10 @@ export function createMemoryEmbeddingReindexRuntime(input: {
           if (progress.leased === 0 && progress.nextRetryAt && progress.nextRetryAt > input.now())
             await wait(Math.min(1_000, Math.max(50, progress.nextRetryAt - input.now())))
         }
+      }
+      catch (error) {
+        await markJobFailed(jobId, error).catch(() => {})
+        throw error
       }
       finally {
         activeWorkers.delete(jobId)
@@ -1158,10 +1320,33 @@ export function createMemoryEmbeddingReindexRuntime(input: {
   }
 
   async function resumePendingJobs(batchSize = 8, cardId?: string) {
-    if (stopping || !resolveProvider())
+    if (stopping)
       return []
-    await recoverExpiredLeases()
+    const provider = resolveProvider()
     const normalizedCardId = normalizeText(cardId, 120)
+    if (!provider) {
+      const pausedAt = input.now()
+      await input.enqueueWrite(async () => {
+        await input.run(input.database, `
+          UPDATE memory_embedding_reindex_jobs
+          SET status = 'paused', last_error = ?, updated_at = ?
+          WHERE status IN ('queued', 'running')
+            ${normalizedCardId ? 'AND card_id = ?' : ''}
+        `, ['embedding provider is not configured', pausedAt, ...(normalizedCardId ? [normalizedCardId] : [])])
+      })
+      return []
+    }
+    await recoverExpiredLeases()
+    const vectorSpaceId = resolveLongTermMemoryVectorSpaceId(provider)
+    await input.enqueueWrite(async () => {
+      await input.run(input.database, `
+        UPDATE memory_embedding_reindex_jobs
+        SET status = 'queued', last_error = NULL, updated_at = ?
+        WHERE status = 'paused'
+          AND model_id = ? AND dimensions = ? AND vector_space_id = ?
+          ${normalizedCardId ? 'AND card_id = ?' : ''}
+      `, [input.now(), provider.modelId, provider.dimensions, vectorSpaceId, ...(normalizedCardId ? [normalizedCardId] : [])])
+    })
     const jobs = await input.all<{ id: string }>(
       input.database,
       `SELECT id

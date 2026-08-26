@@ -4,6 +4,7 @@ import type {
   AlicizationMemoryWorkbenchItem,
   AlicizationMemoryWorkbenchKind,
   AlicizationMemoryWorkbenchSensitivity,
+  AlicizationMemoryWorkbenchTombstoneListResult,
   AlicizationMemoryWorkbenchTrainingState,
   AlicizationMemoryWorkbenchVisibility,
 } from '../../../shared/eventa'
@@ -26,6 +27,11 @@ export interface LongTermMemoryEmbeddingCorpusEntry {
 export interface LongTermMemorySearchIndexRuntime {
   initializeSchema: () => Promise<void>
   rebuildLongTermMemorySearchIndex: (input: { cardId: string }) => Promise<{ indexed: number }>
+  refreshLongTermMemorySearchIndex: (input: {
+    cardId: string
+    source: string
+    sourceIds?: string[]
+  }) => Promise<{ indexed: number }>
   listLongTermMemoryEmbeddingCorpus: (input: {
     cardId: string
     source?: string
@@ -43,7 +49,17 @@ export interface LongTermMemorySearchIndexRuntime {
     limit?: number
     cursor?: string | null
   }) => Promise<{ items: AlicizationMemoryWorkbenchItem[], nextCursor: string | null }>
-  getLongTermMemorySearchItem: (input: { cardId: string, memoryItemId: string }) => Promise<AlicizationMemoryWorkbenchItem | null>
+  listLongTermMemoryTombstones: (input: {
+    cardId: string
+    limit?: number
+    cursor?: string | null
+  }) => Promise<AlicizationMemoryWorkbenchTombstoneListResult>
+  getLongTermMemorySearchItem: (input: {
+    cardId: string
+    memoryItemId: string
+    source?: string
+    includeTombstoned?: boolean
+  }) => Promise<AlicizationMemoryWorkbenchItem | null>
 }
 
 interface SearchDocument {
@@ -157,6 +173,7 @@ interface DbMemoryConsolidationRow {
 type SearchCursor
   = { version: 1, mode: 'recent', updatedAt: number, documentId: string }
     | { version: 1, mode: 'search', rank: number, updatedAt: number, documentId: string }
+    | { version: 1, mode: 'tombstones', deletedAt: number, tombstoneId: string }
 
 function normalizeText(raw: unknown, maxChars = 320) {
   if (typeof raw !== 'string')
@@ -442,7 +459,17 @@ function decodeCursor(raw: string | null | undefined): SearchCursor | null {
     return null
   try {
     const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<SearchCursor>
-    if (parsed.version !== 1 || typeof parsed.documentId !== 'string' || !parsed.documentId.trim())
+    if (parsed.version !== 1)
+      return null
+    if (parsed.mode === 'tombstones' && Number.isFinite(parsed.deletedAt) && typeof parsed.tombstoneId === 'string' && parsed.tombstoneId.trim()) {
+      return {
+        version: 1,
+        mode: 'tombstones',
+        deletedAt: Number(parsed.deletedAt),
+        tombstoneId: parsed.tombstoneId.trim(),
+      }
+    }
+    if (!('documentId' in parsed) || typeof parsed.documentId !== 'string' || !parsed.documentId.trim())
       return null
     if (parsed.mode === 'recent' && Number.isFinite(parsed.updatedAt)) {
       return {
@@ -478,6 +505,10 @@ function buildFtsQuery(query: string) {
     .filter(Boolean))]
     .map(term => `"${term.replace(/"/g, '""')}"`)
     .join(' OR ')
+}
+
+function buildLikeQuery(query: string) {
+  return `%${normalizeText(query, 240).replace(/[\\%_]/g, match => `\\${match}`)}%`
 }
 
 function mapDocumentRow(row: SearchDocumentRow): AlicizationMemoryWorkbenchItem {
@@ -584,26 +615,60 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     )`)
   }
 
-  async function loadProjectionDocuments(cardId: string) {
+  async function loadProjectionDocuments(
+    cardId: string,
+    projection?: {
+      source?: string
+      sourceIds?: string[]
+    },
+  ) {
+    const source = normalizeSource(projection?.source)
+    const sourceIds = [...new Set(
+      (projection?.sourceIds ?? [])
+        .map(sourceId => normalizeText(sourceId, 240))
+        .filter(Boolean),
+    )]
+    const sourceIdClause = sourceIds.length > 0
+      ? ` AND id IN (${sourceIds.map(() => '?').join(', ')})`
+      : ''
+    const sourceParams = sourceIds.length > 0 ? sourceIds : []
     const [facts, reflections, episodes, consolidations] = await Promise.all([
-      input.all<DbMemoryFactRow>(
-        input.database,
-        `SELECT *
+      !source || source === 'memory_facts'
+        ? input.all<DbMemoryFactRow>(
+            input.database,
+            `SELECT *
          FROM memory_facts
          WHERE card_id = ?
-           AND COALESCE(validation_status, '') != 'superseded'`,
-        [cardId],
-      ),
-      input.all<DbMemoryReflectionRow>(
-        input.database,
-        `SELECT *
+           AND COALESCE(validation_status, '') != 'superseded'
+           ${sourceIdClause}`,
+            [cardId, ...sourceParams],
+          )
+        : Promise.resolve([]),
+      !source || source === 'memory_reflections'
+        ? input.all<DbMemoryReflectionRow>(
+            input.database,
+            `SELECT *
          FROM memory_reflections
          WHERE card_id = ?
-           AND status = 'confirmed'`,
-        [cardId],
-      ),
-      input.all<DbEpisodicEventRow>(input.database, 'SELECT * FROM episodic_events WHERE card_id = ?', [cardId]),
-      input.all<DbMemoryConsolidationRow>(input.database, 'SELECT * FROM memory_consolidations WHERE card_id = ?', [cardId]),
+           AND status = 'confirmed'
+           ${sourceIdClause}`,
+            [cardId, ...sourceParams],
+          )
+        : Promise.resolve([]),
+      !source || source === 'episodic_events'
+        ? input.all<DbEpisodicEventRow>(
+            input.database,
+            `SELECT * FROM episodic_events WHERE card_id = ?${sourceIdClause}`,
+            [cardId, ...sourceParams],
+          )
+        : Promise.resolve([]),
+      !source || source === 'memory_consolidations'
+        ? input.all<DbMemoryConsolidationRow>(
+            input.database,
+            `SELECT * FROM memory_consolidations WHERE card_id = ?${sourceIdClause}`,
+            [cardId, ...sourceParams],
+          )
+        : Promise.resolve([]),
     ])
     return [
       ...facts.map(mapFactDocument),
@@ -614,6 +679,14 @@ export function createLongTermMemorySearchIndexRuntime(input: {
   }
 
   async function upsertDocument(document: SearchDocument) {
+    await input.run(
+      input.database,
+      `
+      DELETE FROM long_term_memory_search_documents_fts
+      WHERE card_id = ? AND source = ? AND source_id = ?
+      `,
+      [document.cardId, document.source, document.sourceId],
+    )
     await input.run(
       input.database,
       `
@@ -701,16 +774,72 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     const cardId = normalizeCardId(rebuildInput.cardId)
     if (!cardId)
       return { indexed: 0 }
-    const documents = await loadProjectionDocuments(cardId)
-    await input.enqueueWrite(async () => {
-      await input.runInTransaction(input.database, async () => {
+    return await input.enqueueWrite(async () => {
+      const indexed = await input.runInTransaction(input.database, async () => {
+        const documents = await loadProjectionDocuments(cardId)
         await input.run(input.database, 'DELETE FROM long_term_memory_search_documents WHERE card_id = ?', [cardId])
         await input.run(input.database, 'DELETE FROM long_term_memory_search_documents_fts WHERE card_id = ?', [cardId])
         for (const document of documents)
           await upsertDocument(document)
+        return documents.length
       })
+      return { indexed }
     })
-    return { indexed: documents.length }
+  }
+
+  async function refreshLongTermMemorySearchIndex(refreshInput: {
+    cardId: string
+    source: string
+    sourceIds?: string[]
+  }) {
+    const cardId = normalizeCardId(refreshInput.cardId)
+    const source = normalizeSource(refreshInput.source)
+    const sourceIds = [...new Set(
+      (refreshInput.sourceIds ?? [])
+        .map(sourceId => normalizeText(sourceId, 240))
+        .filter(Boolean),
+    )]
+    if (!cardId || !source)
+      return { indexed: 0 }
+    return await input.enqueueWrite(async () => {
+      const indexed = await input.runInTransaction(input.database, async () => {
+        const documents = await loadProjectionDocuments(cardId, {
+          source,
+          sourceIds,
+        })
+        if (sourceIds.length > 0) {
+          const placeholders = sourceIds.map(() => '?').join(', ')
+          await input.run(
+            input.database,
+            `DELETE FROM long_term_memory_search_documents_fts
+             WHERE card_id = ? AND source = ? AND source_id IN (${placeholders})`,
+            [cardId, source, ...sourceIds],
+          )
+          await input.run(
+            input.database,
+            `DELETE FROM long_term_memory_search_documents
+             WHERE card_id = ? AND source = ? AND source_id IN (${placeholders})`,
+            [cardId, source, ...sourceIds],
+          )
+        }
+        else {
+          await input.run(
+            input.database,
+            'DELETE FROM long_term_memory_search_documents_fts WHERE card_id = ? AND source = ?',
+            [cardId, source],
+          )
+          await input.run(
+            input.database,
+            'DELETE FROM long_term_memory_search_documents WHERE card_id = ? AND source = ?',
+            [cardId, source],
+          )
+        }
+        for (const document of documents)
+          await upsertDocument(document)
+        return documents.length
+      })
+      return { indexed }
+    })
   }
 
   async function listLongTermMemoryEmbeddingCorpus(corpusInput: {
@@ -935,6 +1064,46 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     }
   }
 
+  async function listShortSearch(inputRaw: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemorySearchItems']>[0], query: string) {
+    const limit = safeLimit(inputRaw.limit)
+    const cursor = decodeCursor(inputRaw.cursor)
+    const clauses: string[] = []
+    const params: unknown[] = []
+    appendCommonFilters(clauses, params, inputRaw)
+    clauses.push('doc.search_text LIKE ? ESCAPE \'\\\'')
+    params.push(buildLikeQuery(query))
+    if (cursor?.mode === 'recent') {
+      clauses.push('(doc.updated_at < ? OR (doc.updated_at = ? AND doc.id > ?))')
+      params.push(cursor.updatedAt, cursor.updatedAt, cursor.documentId)
+    }
+    params.push(limit + 1)
+    const rows = await input.all<SearchDocumentRow>(
+      input.database,
+      `
+      SELECT ${projectionSelectColumns()}
+      FROM long_term_memory_search_documents doc
+      ${projectionJoins()}
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY doc.updated_at DESC, doc.id ASC
+      LIMIT ?
+      `,
+      params,
+    )
+    const pageRows = rows.slice(0, limit)
+    const next = rows.length > limit ? pageRows.at(-1) : null
+    return {
+      items: pageRows.map(mapDocumentRow),
+      nextCursor: next
+        ? encodeCursor({
+            version: 1,
+            mode: 'recent',
+            updatedAt: next.updated_at,
+            documentId: next.id,
+          })
+        : null,
+    }
+  }
+
   async function listLongTermMemorySearchItems(listInput: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemorySearchItems']>[0]) {
     const cardId = normalizeCardId(listInput.cardId)
     if (!cardId)
@@ -944,16 +1113,108 @@ export function createLongTermMemorySearchIndexRuntime(input: {
       cardId,
     }
     const query = normalizeText(listInput.query, 240)
+    if ([...query].length > 0 && [...query].length < 3)
+      return await listShortSearch(normalizedInput, query)
     if (query)
       return await listSearch(normalizedInput, query)
     return await listRecent(normalizedInput)
   }
 
-  async function getLongTermMemorySearchItem(inputItem: { cardId: string, memoryItemId: string }) {
+  async function listLongTermMemoryTombstones(
+    listInput: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemoryTombstones']>[0],
+  ): Promise<AlicizationMemoryWorkbenchTombstoneListResult> {
+    const cardId = normalizeCardId(listInput.cardId)
+    if (!cardId)
+      return { items: [], nextCursor: null }
+    const limit = safeLimit(listInput.limit)
+    const cursor = decodeCursor(listInput.cursor)
+    const clauses = ['tomb.card_id = ?']
+    const params: unknown[] = [cardId]
+    if (cursor?.mode === 'tombstones') {
+      clauses.push('(tomb.created_at < ? OR (tomb.created_at = ? AND tomb.id > ?))')
+      params.push(cursor.deletedAt, cursor.deletedAt, cursor.tombstoneId)
+    }
+    params.push(limit + 1)
+    const rows = await input.all<SearchDocumentRow & {
+      tombstone_id: string
+      tombstone_source_id: string
+      tombstone_source: string
+      tombstone_reason: string | null
+      tombstone_created_at: number
+    }>(
+      input.database,
+      `
+      SELECT
+        doc.*,
+        COALESCE(policy.visible_mode, CASE WHEN doc.sensitivity IN ('private', 'secret') THEN 'inward-only' ELSE 'explicit' END) AS visibility,
+        CASE WHEN COALESCE(policy.allow_training, 0) = 1 THEN 'allowed' ELSE 'blocked' END AS training,
+        tomb.id AS tombstone_id,
+        tomb.source_id AS tombstone_source_id,
+        tomb.source AS tombstone_source,
+        tomb.reason AS tombstone_reason,
+        tomb.created_at AS tombstone_created_at
+      FROM long_term_memory_tombstones tomb
+      LEFT JOIN long_term_memory_search_documents doc
+        ON doc.id = (
+          SELECT candidate.id
+          FROM long_term_memory_search_documents candidate
+          WHERE candidate.card_id = tomb.card_id
+            AND candidate.source_id = tomb.source_id
+            AND (tomb.source = candidate.source OR tomb.source = 'long_term_memory')
+          ORDER BY
+            candidate.updated_at DESC,
+            candidate.id ASC
+          LIMIT 1
+        )
+      LEFT JOIN long_term_memory_policy_overrides policy
+        ON policy.card_id = doc.card_id
+        AND policy.source = doc.source
+        AND policy.source_id = doc.source_id
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY tomb.created_at DESC, tomb.id ASC
+      LIMIT ?
+      `,
+      params,
+    )
+    const pageRows = rows.slice(0, limit)
+    const next = rows.length > limit ? pageRows.at(-1) : null
+    return {
+      items: pageRows.map(row => ({
+        id: row.tombstone_id,
+        sourceId: row.tombstone_source_id,
+        source: row.tombstone_source,
+        reason: normalizeText(row.tombstone_reason, 300) || null,
+        deletedAt: Math.max(0, Math.floor(Number(row.tombstone_created_at) || 0)),
+        memory: row.id
+          ? {
+              ...mapDocumentRow(row),
+              tombstoned: true,
+            }
+          : null,
+      })),
+      nextCursor: next
+        ? encodeCursor({
+            version: 1,
+            mode: 'tombstones',
+            deletedAt: next.tombstone_created_at,
+            tombstoneId: next.tombstone_id,
+          })
+        : null,
+    }
+  }
+
+  async function getLongTermMemorySearchItem(inputItem: {
+    cardId: string
+    memoryItemId: string
+    source?: string
+    includeTombstoned?: boolean
+  }) {
     const cardId = normalizeCardId(inputItem.cardId)
     const memoryItemId = normalizeText(inputItem.memoryItemId, 240)
+    const source = normalizeSource(inputItem.source)
     if (!cardId || !memoryItemId)
       return null
+    const sourceClause = source ? 'AND doc.source = ?' : ''
     const row = await input.get<SearchDocumentRow>(
       input.database,
       `
@@ -961,12 +1222,15 @@ export function createLongTermMemorySearchIndexRuntime(input: {
       FROM long_term_memory_search_documents doc
       ${projectionJoins()}
       WHERE doc.card_id = ?
-        AND doc.tombstoned = 0
-        AND tomb.source_id IS NULL
+        ${inputItem.includeTombstoned ? '' : 'AND doc.tombstoned = 0 AND tomb.source_id IS NULL'}
+        ${sourceClause}
         AND (doc.source_id = ? OR doc.id = ?)
+      ORDER BY CASE WHEN tomb.source = doc.source THEN 0 ELSE 1 END
       LIMIT 1
       `,
-      [cardId, memoryItemId, memoryItemId],
+      source
+        ? [cardId, source, memoryItemId, memoryItemId]
+        : [cardId, memoryItemId, memoryItemId],
     )
     return row ? mapDocumentRow(row) : null
   }
@@ -974,8 +1238,10 @@ export function createLongTermMemorySearchIndexRuntime(input: {
   return {
     initializeSchema,
     rebuildLongTermMemorySearchIndex,
+    refreshLongTermMemorySearchIndex,
     listLongTermMemoryEmbeddingCorpus,
     listLongTermMemorySearchItems,
+    listLongTermMemoryTombstones,
     getLongTermMemorySearchItem,
   }
 }

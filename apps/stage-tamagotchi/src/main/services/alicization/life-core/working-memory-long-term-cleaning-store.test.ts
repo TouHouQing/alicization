@@ -304,6 +304,160 @@ describe('working memory long-term cleaning store', () => {
     ])
   })
 
+  it('paginates and filters review transactions in SQLite before projection', async () => {
+    const firstReview = transaction({
+      id: 'wm-lt-review:relationship',
+      queueItemId: 'queue-review-relationship',
+      status: 'needs-user-review',
+      decision: 'review',
+      cleanedCandidate: {
+        id: 'candidate-review-relationship',
+        queueItemId: 'queue-review-relationship',
+        source: 'working-memory-owner',
+        kind: 'relationship',
+        cardId: 'default',
+        sessionId: 'session-1',
+        summary: '用户希望长期陪伴关系保持连续。',
+        reason: 'relationship-boundary',
+        sourceTurnIds: ['turn-review-relationship'],
+        evidenceSnippets: ['长期陪伴关系保持连续。'],
+        retrievalCues: ['长期陪伴'],
+        entities: ['用户'],
+        relationshipMeaning: '长期陪伴关系需要连续。',
+        salience: 0.9,
+        confidence: 0.88,
+        sensitivity: 'personal',
+        trainingEligibility: 'review-required',
+        createdAt: 1_000,
+      },
+      reviewReasons: ['relationship-boundary'],
+      createdAt: 1_000,
+      updatedAt: 3_000,
+    })
+    const secondReview = transaction({
+      id: 'wm-lt-review:private',
+      queueItemId: 'queue-review-private',
+      status: 'needs-user-review',
+      decision: 'review',
+      cleanedCandidate: {
+        id: 'candidate-review-private',
+        queueItemId: 'queue-review-private',
+        source: 'working-memory-owner',
+        kind: 'relationship',
+        cardId: 'default',
+        sessionId: 'session-1',
+        summary: '用户设置了私人边界。',
+        reason: 'private-memory',
+        sourceTurnIds: ['turn-review-private'],
+        evidenceSnippets: ['私人边界只应内在使用。'],
+        retrievalCues: ['私人边界'],
+        entities: ['用户'],
+        relationshipMeaning: '私人边界只应内在使用。',
+        salience: 0.94,
+        confidence: 0.9,
+        sensitivity: 'private',
+        trainingEligibility: 'review-required',
+        createdAt: 900,
+      },
+      reviewReasons: ['private-memory'],
+      createdAt: 900,
+      updatedAt: 2_000,
+    })
+    const queries: Array<{ sql: string, params: unknown[] }> = []
+    const responses = [
+      [firstReview, secondReview],
+      [secondReview],
+    ]
+    const runtime = createWorkingMemoryLongTermCleaningStoreRuntime({
+      database: {} as any,
+      now: () => 5_000,
+      run: async () => undefined,
+      get: async () => undefined,
+      all: async (_database, sql, params = []) => {
+        queries.push({ sql: normalizeSql(sql), params })
+        return (responses.shift() ?? []).map(item => ({
+          id: item.id,
+          idempotency_key: item.idempotencyKey,
+          queue_item_id: item.queueItemId,
+          card_id: item.cardId,
+          session_id: item.sessionId,
+          status: item.status,
+          decision: item.decision,
+          queue_item_json: JSON.stringify(item.item),
+          cleaned_candidate_json: JSON.stringify(item.cleanedCandidate),
+          projections_json: null,
+          allow_training: 0,
+          rejection_reasons_json: '[]',
+          review_reasons_json: JSON.stringify(item.reviewReasons),
+          contamination_flags_json: '[]',
+          attempt_count: 0,
+          last_error: null,
+          created_at: item.createdAt,
+          updated_at: item.updatedAt,
+          next_attempt_at: item.nextAttemptAt,
+          applied_at: null,
+        })) as any
+      },
+      runInTransaction: async (_database, task) => await task(),
+    })
+
+    const first = await runtime.listReviewTransactions({
+      cardId: 'default',
+      query: '陪伴',
+      kind: 'relationship',
+      sensitivity: 'personal',
+      visibility: 'explicit',
+      training: 'blocked',
+      limit: 1,
+    })
+    const second = await runtime.listReviewTransactions({
+      cardId: 'default',
+      query: '陪伴',
+      kind: 'relationship',
+      sensitivity: 'personal',
+      visibility: 'explicit',
+      training: 'blocked',
+      limit: 1,
+      cursor: first.nextCursor,
+    })
+
+    expect(first.items.map(item => item.id)).toEqual(['wm-lt-review:relationship'])
+    expect(first.nextCursor).toBe('3000:wm-lt-review:relationship')
+    expect(second.items.map(item => item.id)).toEqual(['wm-lt-review:private'])
+    expect(second.nextCursor).toBeNull()
+    expect(queries[0]).toEqual({
+      sql: expect.stringContaining('json_extract(cleaned_candidate_json, \'$.kind\') = ?'),
+      params: [
+        'default',
+        'relationship',
+        'personal',
+        'explicit',
+        'blocked',
+        '%陪伴%',
+        '%陪伴%',
+        '%陪伴%',
+        2,
+      ],
+    })
+    expect(queries[1]).toEqual({
+      sql: expect.stringContaining('(updated_at < ? OR (updated_at = ? AND id > ?))'),
+      params: [
+        'default',
+        'relationship',
+        'personal',
+        'explicit',
+        'blocked',
+        '%陪伴%',
+        '%陪伴%',
+        '%陪伴%',
+        3_000,
+        3_000,
+        'wm-lt-review:relationship',
+        2,
+      ],
+    })
+  })
+
   it('retries a selected failed or dead-lettered transaction as pending while preserving its raw error in the mutation result', async () => {
     const failed = transaction({
       id: 'wm-lt-clean:failed',

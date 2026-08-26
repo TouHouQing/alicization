@@ -101,6 +101,8 @@ export interface AlicizationChatTimeoutFailureContext {
   providerId: string
   model: string
   phase: 'preparation' | 'provider-first-event' | 'provider-continuation' | 'tool-result-handoff'
+  transportCode?: string
+  transportMessage?: string
   timeoutPhase?: AlicizationChatTimeoutPhase
   timeoutStage?: AlicizationChatTimeoutStage
   timeoutReason?: string

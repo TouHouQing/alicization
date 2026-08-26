@@ -40,14 +40,19 @@ import {
   electronAlicizationMemoryWorkbenchListPersonaCandidates,
   electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements,
   electronAlicizationMemoryWorkbenchListPersonaTrainingRuns,
+  electronAlicizationMemoryWorkbenchListPersonaTrainingSourceRevokeIntents,
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchListQualityTrialReports,
   electronAlicizationMemoryWorkbenchListReplaySessions,
+  electronAlicizationMemoryWorkbenchListReview,
+  electronAlicizationMemoryWorkbenchListTombstones,
   electronAlicizationMemoryWorkbenchManageSemanticScaleJobs,
   electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue,
   electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationMemoryWorkbenchRecordQualityGoldLabel,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
+  electronAlicizationMemoryWorkbenchRestoreTombstone,
+  electronAlicizationMemoryWorkbenchRetryPersonaTrainingSourceRevokeIntent,
   electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource,
   electronAlicizationMemoryWorkbenchRollbackPersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchRollbackPersonaTrainingIncrement,
@@ -136,6 +141,12 @@ interface RegisterAlicizationMemoryInvokeHandlersOptions {
   }>
 }
 
+function personaTrainingSourceKindFromPayload(raw: unknown) {
+  if (raw === 'cleaned-long-term-reflection' || raw === 'persona-reinforcement')
+    return raw
+  throw new Error('persona training source revoke requires a supported sourceKind')
+}
+
 export function registerAlicizationMemoryInvokeHandlers(options: RegisterAlicizationMemoryInvokeHandlersOptions) {
   const {
     registerInvokeHandler,
@@ -188,7 +199,7 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
         return persistedSnapshot
       },
       listLongTermItems: async () => (await alicizationDb.listMemoryWorkbenchLongTermItems({ cardId, limit: 24 })).items,
-      listReviewItems: async () => await alicizationDb.listMemoryWorkbenchReviewItems({ cardId, limit: 24 }),
+      listReviewItems: async () => (await alicizationDb.listMemoryWorkbenchReviewItems({ cardId, limit: 24 })).items,
       getQueueHealth: async () => await alicizationDb.getMemoryWorkbenchQueueHealth({ cardId }),
       getRecallHealth: async () => await alicizationDb.getMemoryWorkbenchRecallHealth({ cardId }),
       getEmbeddingHealth: async () => await alicizationDb.getMemoryWorkbenchEmbeddingHealth({ cardId }),
@@ -284,18 +295,41 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
   registerInvokeHandler(electronAlicizationMemoryWorkbenchListLongTerm, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().listMemoryWorkbenchLongTermItems({
     cardId: cardIdFrom(payload),
     kind: payload.kind,
-    query: payload.query,
+    query: sanitizeText(payload.query, '') || undefined,
     sensitivity: payload.sensitivity,
     visibility: payload.visibility,
     training: payload.training,
-    source: payload.source,
+    source: sanitizeText(payload.source, '') || undefined,
     limit: payload.limit,
-    cursor: payload.cursor,
+    cursor: sanitizeText(payload.cursor, '') || null,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchListTombstones, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().listMemoryWorkbenchTombstones({
+    cardId: cardIdFrom(payload),
+    limit: payload.limit,
+    cursor: sanitizeText(payload.cursor, '') || null,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchRestoreTombstone, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().restoreMemoryWorkbenchTombstone({
+    cardId: cardIdFrom(payload),
+    tombstoneId: sanitizeText(payload.tombstoneId),
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchListReview, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().listMemoryWorkbenchReviewItems({
+    cardId: cardIdFrom(payload),
+    query: sanitizeText(payload.query, '') || undefined,
+    kind: payload.kind,
+    sensitivity: payload.sensitivity,
+    visibility: payload.visibility,
+    training: payload.training,
+    limit: payload.limit,
+    cursor: sanitizeText(payload.cursor, '') || null,
   })))
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchApplyLongTermAction, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().applyMemoryWorkbenchLongTermAction({
     cardId: cardIdFrom(payload),
     memoryItemId: sanitizeText(payload.memoryItemId),
+    source: sanitizeText(payload.source, '') || undefined,
     decision: payload.decision,
     reason: sanitizeText(payload.reason, '') || null,
   })))
@@ -419,6 +453,24 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
   registerInvokeHandler(electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().revokePersonaTrainingDatasetSource({
     cardId: cardIdFrom(payload),
     sourceId: sanitizeText(payload.sourceId),
+    sourceKind: personaTrainingSourceKindFromPayload(payload.sourceKind),
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchListPersonaTrainingSourceRevokeIntents, async payload => await withCardScope(payload.cardId, async () => ({
+    item: null,
+    items: await getAlicizationDb().listPersonaTrainingSourceRevokeIntents({
+      cardId: cardIdFrom(payload),
+      status: payload.status,
+      limit: payload.limit,
+    }),
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchRetryPersonaTrainingSourceRevokeIntent, async payload => await withCardScope(payload.cardId, async () => ({
+    item: await getAlicizationDb().retryPersonaTrainingSourceRevokeIntent({
+      cardId: cardIdFrom(payload),
+      intentId: sanitizeText(payload.intentId),
+    }),
+    items: [],
   })))
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchRunPersonaTraining, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().startPersonaTraining({

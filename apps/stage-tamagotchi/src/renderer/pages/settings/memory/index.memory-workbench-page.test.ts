@@ -53,6 +53,12 @@ describe('memory workbench settings page', () => {
 
     expect(source).toContain('longTermFilters')
     expect(source).toContain('loadMoreLongTerm')
+    expect(source).toContain('reviewFilters')
+    expect(source).toContain('loadMoreReview')
+    expect(source).toContain('refreshActiveTab')
+    expect(source).toContain('memorySourceOptions')
+    expect(source).toContain('v-model="longTermFilters.source"')
+    expect(source).not.toContain('\'candidate\',')
     expect(source).toContain('settings.pages.memory.workbench.fields.semantic_channel')
     expect(source).toContain('recallProbe.semantic')
     expect(source).toContain('settings.pages.memory.workbench.fields.queue_health')
@@ -68,15 +74,49 @@ describe('memory workbench settings page', () => {
 
   it('localizes long-term memory search filters instead of rendering raw enum values', () => {
     const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const zhHans = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/zh-Hans/settings.yaml', import.meta.url), 'utf8')
+    const en = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/en/settings.yaml', import.meta.url), 'utf8')
 
     expect(source).toContain('settings.pages.memory.workbench.placeholders.long_term_search')
-    expect(source).toContain('settings.pages.memory.workbench.placeholders.long_term_source')
+    expect(source).toContain('settings.pages.memory.workbench.filters.source.')
     expect(source).toContain('settings.pages.memory.workbench.filters.kind.')
     expect(source).toContain('settings.pages.memory.workbench.filters.sensitivity.')
     expect(source).toContain('settings.pages.memory.workbench.filters.visibility.')
     expect(source).toContain('settings.pages.memory.workbench.filters.training.')
     expect(source).toContain('formatLongTermFilterLabel(')
     expect(source).not.toContain('{{ option }}')
+    expect(source).toContain('\'procedure\'')
+    expect(source).toContain('\'relationship\'')
+    expect(source).toContain('\'preference\'')
+    expect(source).toContain('\'correction\'')
+    expect(source).toContain('\'candidate\'')
+    expect(zhHans).toContain('procedure: 操作经验')
+    expect(zhHans).toContain('relationship: 关系记忆')
+    expect(zhHans).toContain('preference: 偏好')
+    expect(zhHans).toContain('correction: 用户纠正')
+    expect(zhHans).toContain('candidate: 待确认候选')
+    expect(en).toContain('procedure: Procedure')
+    expect(en).toContain('relationship: Relationship')
+    expect(en).toContain('preference: Preference')
+    expect(en).toContain('correction: Correction')
+    expect(en).toContain('candidate: Candidate')
+  })
+
+  it('loads the real long-term page on tab entry and renders dedicated loading and failure states', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const zhHans = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/zh-Hans/settings.yaml', import.meta.url), 'utf8')
+    const en = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/en/settings.yaml', import.meta.url), 'utf8')
+
+    expect(source).toContain('@click="store.selectTab(tab.id)"')
+    expect(source).toContain('store.ensureActiveTabLoaded()')
+    expect(source).toContain('longTermError')
+    expect(source).toContain('settings.pages.memory.workbench.states.loading_long_term')
+    expect(source).toContain('settings.pages.memory.workbench.fields.long_term_list_error')
+    expect(source).toContain('v-else-if="!longTermError && longTermItems.length === 0"')
+    expect(zhHans).toContain('loading_long_term: 正在读取长期记忆...')
+    expect(zhHans).toContain('long_term_list_error: 长期记忆加载失败')
+    expect(en).toContain('loading_long_term: Loading long-term memory...')
+    expect(en).toContain('long_term_list_error: Long-term memory loading failed')
   })
 
   it('exposes direct governance actions on confirmed long-term memory items', () => {
@@ -92,6 +132,25 @@ describe('memory workbench settings page', () => {
     expect(storeSource).toContain('async function applyLongTermAction(')
     expect(storeSource).toContain('memoryWorkbenchApplyLongTermAction')
     expect(bridgeSource).toContain('memoryWorkbenchApplyLongTermAction')
+  })
+
+  it('exposes a localized paginated recycle bin with explicit restore actions', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const zhHans = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/zh-Hans/settings.yaml', import.meta.url), 'utf8')
+    const en = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/en/settings.yaml', import.meta.url), 'utf8')
+
+    expect(source).toContain('\'tombstones\'')
+    expect(source).toContain('tombstoneItems')
+    expect(source).toContain('tombstoneNextCursor')
+    expect(source).toContain('store.restoreTombstone(item.id)')
+    expect(source).toContain('store.loadMoreTombstones()')
+    expect(source).toContain('settings.pages.memory.workbench.tabs.tombstones')
+    expect(source).toContain('settings.pages.memory.workbench.actions.restore')
+    expect(source).toContain('settings.pages.memory.workbench.states.empty_tombstones')
+    expect(zhHans).toContain('tombstones: 回收站')
+    expect(zhHans).toContain('restore: 恢复')
+    expect(en).toContain('tombstones: Recycle Bin')
+    expect(en).toContain('restore: Restore')
   })
 
   it('requires an explicit confirmation before tombstoning user-visible memory', () => {
@@ -172,6 +231,7 @@ describe('memory workbench settings page', () => {
     expect(source).toContain('activatePersonaTrainingDataset')
     expect(source).toContain('rollbackPersonaTrainingDataset')
     expect(source).toContain('revokePersonaTrainingDatasetSource')
+    expect(source).toContain('revokePersonaSource(example.sourceId, example.sourceKind)')
     expect(source).toContain('setPersonaTrainingDatasetExamplePolicy')
     expect(source).toContain('settings.pages.memory.workbench.fields.dataset_consent')
     expect(source).toContain('settings.pages.memory.workbench.fields.pii_status')
@@ -362,6 +422,16 @@ describe('memory workbench settings page', () => {
     expect(english).toContain('semantic_scale_quality_failed: Quality Checks Failed')
     expect(english).toContain('semantic_scale_failing_checks: Failing Checks')
     expect(english).toContain('semantic_scale_recommended_actions: Recommended Actions')
+  })
+
+  it('localizes paused embedding reindex state for provider recovery', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const zhHans = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/zh-Hans/settings.yaml', import.meta.url), 'utf8')
+    const english = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/en/settings.yaml', import.meta.url), 'utf8')
+
+    expect(source).toContain('paused: \'settings.pages.memory.workbench.states.reindex_paused\'')
+    expect(zhHans).toContain('reindex_paused: 已暂停，等待向量服务恢复')
+    expect(english).toContain('reindex_paused: Paused until the embedding service is available')
   })
 
   it('renders long-term recall regression metrics in the quality report', () => {

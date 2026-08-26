@@ -1,11 +1,13 @@
 import type {
   AlicizationAuditLogInput,
   AlicizationCardScope,
+  AlicizationLlmConfigPayload,
   AlicizationRealtimeExecutePayload,
   AlicizationRealtimeExecuteResult,
   AlicizationSubconsciousStatePayload,
-  AlicizationVisualPresenceStateSnapshot,
 } from '../../../shared/eventa'
+
+import { errorMessageFrom } from '@moeru/std'
 
 import {
   electronAlicizationAppendAuditLog,
@@ -31,22 +33,7 @@ interface RegisterAlicizationMaintenanceInvokeHandlersOptions {
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
   executeBuiltinRealtimeQuery: (payload: AlicizationRealtimeExecutePayload) => Promise<AlicizationRealtimeExecuteResult>
   defaultAlicizationCardId: string
-  normalizeCardId: (raw: unknown) => string
-  switchCardScope: (nextCardIdRaw: unknown) => Promise<void>
-  resolveCardPaths: (cardId: string) => { soulRoot: string }
-  rm: (path: string, options: { recursive: true, force: true }) => Promise<void>
-  proactiveLoopStateByCard: Map<string, unknown>
-  perceptionStateByCard: Map<string, unknown>
-  visualPresenceStateByCard: Map<string, unknown>
-  visualPresenceCapturePersistMetaByCard: Map<string, unknown>
-  emitVisualPresenceState: (cardIdRaw: unknown, state: AlicizationVisualPresenceStateSnapshot | null) => void
-  screenSemanticCacheByCard: Map<string, unknown>
-  subconsciousStateByCard: Map<string, unknown>
-  activeSessionIdByCard: Map<string, unknown>
-  clearDialogueDeliveryCardState: (cardId: string) => void
-  clearDialogueSessionMirrorCard: (cardId: string) => void
-  clearExecutionDeliveryStateMemory: (cardId: string) => void
-  bootstrap: () => Promise<unknown>
+  deleteCardScopeData: (cardId: string, reason: string) => Promise<void>
   deleteAllAlicizationData: (reason: string) => Promise<void>
   ensureSubconsciousState: (cardId: string) => Promise<{
     boredom: number
@@ -64,8 +51,11 @@ interface RegisterAlicizationMaintenanceInvokeHandlersOptions {
   setActiveProviderId: (value: string) => void
   setActiveModelId: (value: string) => void
   setProviderCredentials: (value: Record<string, Record<string, unknown>>) => void
-  persistLlmConfigToDisk: () => Promise<void>
-  resumePendingEmbeddingReindexJobs: () => Promise<unknown>
+  persistLlmConfigToDisk: (payload: AlicizationLlmConfigPayload) => Promise<void>
+  resumePendingEmbeddingReindexJobs: (scope: { cardId: string, database: unknown }) => Promise<unknown>
+  getEmbeddingVectorSpaceId: () => string | null
+  resolveEmbeddingVectorSpaceIdForConfig: (payload: AlicizationLlmConfigPayload) => string | null
+  startEmbeddingReindexForActiveCard: (scope: { cardId: string, database: unknown }) => Promise<unknown>
   getActiveProviderId: () => string
   getActiveModelId: () => string
   getProviderCredentials: () => Record<string, Record<string, unknown>>
@@ -81,22 +71,7 @@ export function registerAlicizationMaintenanceInvokeHandlers(options: RegisterAl
     appendAuditLog,
     executeBuiltinRealtimeQuery,
     defaultAlicizationCardId,
-    normalizeCardId,
-    switchCardScope,
-    resolveCardPaths,
-    rm,
-    proactiveLoopStateByCard,
-    perceptionStateByCard,
-    visualPresenceStateByCard,
-    visualPresenceCapturePersistMetaByCard,
-    emitVisualPresenceState,
-    screenSemanticCacheByCard,
-    subconsciousStateByCard,
-    activeSessionIdByCard,
-    clearDialogueDeliveryCardState,
-    clearDialogueSessionMirrorCard,
-    clearExecutionDeliveryStateMemory,
-    bootstrap,
+    deleteCardScopeData,
     deleteAllAlicizationData,
     ensureSubconsciousState,
     runSubconsciousTickAcrossCards,
@@ -108,6 +83,9 @@ export function registerAlicizationMaintenanceInvokeHandlers(options: RegisterAl
     setProviderCredentials,
     persistLlmConfigToDisk,
     resumePendingEmbeddingReindexJobs,
+    getEmbeddingVectorSpaceId,
+    resolveEmbeddingVectorSpaceIdForConfig,
+    startEmbeddingReindexForActiveCard,
     getActiveProviderId,
     getActiveModelId,
     getProviderCredentials,
@@ -136,28 +114,13 @@ export function registerAlicizationMaintenanceInvokeHandlers(options: RegisterAl
     })
   })
 
-  registerInvokeHandler(electronAlicizationDeleteCardScope, async payload => await withCardScope(defaultAlicizationCardId, async () => {
-    const targetCardId = normalizeCardId(payload?.cardId)
-    if (targetCardId === getActiveCardId()) {
-      await switchCardScope(defaultAlicizationCardId)
-    }
-    await rm(resolveCardPaths(targetCardId).soulRoot, { recursive: true, force: true })
-    proactiveLoopStateByCard.delete(targetCardId)
-    perceptionStateByCard.delete(targetCardId)
-    visualPresenceStateByCard.delete(targetCardId)
-    visualPresenceCapturePersistMetaByCard.delete(targetCardId)
-    emitVisualPresenceState(targetCardId, null)
-    screenSemanticCacheByCard.delete(targetCardId)
-    subconsciousStateByCard.delete(targetCardId)
-    activeSessionIdByCard.delete(targetCardId)
-    clearDialogueDeliveryCardState(targetCardId)
-    clearDialogueSessionMirrorCard(targetCardId)
-    clearExecutionDeliveryStateMemory(targetCardId)
-    if (targetCardId === defaultAlicizationCardId) {
-      await switchCardScope(defaultAlicizationCardId)
-      await bootstrap()
-    }
-  }))
+  registerInvokeHandler(electronAlicizationDeleteCardScope, async payload => await withCardScope(
+    defaultAlicizationCardId,
+    async () => await deleteCardScopeData(cardIdFrom(payload), 'renderer'),
+    {
+      label: 'delete-card-scope',
+    },
+  ))
 
   registerInvokeHandler(electronAlicizationDeleteAllData, async () => await withCardScope(defaultAlicizationCardId, async () => {
     await deleteAllAlicizationData('renderer')
@@ -188,11 +151,57 @@ export function registerAlicizationMaintenanceInvokeHandlers(options: RegisterAl
   })
 
   registerInvokeHandler(electronAlicizationLlmSyncConfig, async (payload) => {
-    setActiveProviderId(sanitizeText(payload.activeProviderId))
-    setActiveModelId(sanitizeText(payload.activeModelId))
-    setProviderCredentials(normalizeProviderCredentialsMap(payload.providerCredentials))
-    await persistLlmConfigToDisk()
-    await resumePendingEmbeddingReindexJobs()
+    const maintenanceScope = {
+      cardId: getActiveCardId(),
+      database: getAlicizationDb(),
+    }
+    let previousVectorSpaceId: string | null = null
+    try {
+      previousVectorSpaceId = getEmbeddingVectorSpaceId()
+    }
+    catch {
+      // An invalid stored config must remain repairable from this endpoint.
+    }
+    const nextConfig = {
+      activeProviderId: sanitizeText(payload.activeProviderId),
+      activeModelId: sanitizeText(payload.activeModelId),
+      providerCredentials: normalizeProviderCredentialsMap(payload.providerCredentials),
+    } satisfies AlicizationLlmConfigPayload
+    const nextVectorSpaceId = resolveEmbeddingVectorSpaceIdForConfig(nextConfig)
+    await persistLlmConfigToDisk(nextConfig)
+    setActiveProviderId(nextConfig.activeProviderId)
+    setActiveModelId(nextConfig.activeModelId)
+    setProviderCredentials(nextConfig.providerCredentials)
+    void (async () => {
+      const errors: string[] = []
+      if (nextVectorSpaceId && nextVectorSpaceId !== previousVectorSpaceId) {
+        try {
+          await startEmbeddingReindexForActiveCard(maintenanceScope)
+        }
+        catch (error) {
+          errors.push(`reindex: ${errorMessageFrom(error) ?? String(error)}`)
+        }
+      }
+      try {
+        await resumePendingEmbeddingReindexJobs(maintenanceScope)
+      }
+      catch (error) {
+        errors.push(`resume: ${errorMessageFrom(error) ?? String(error)}`)
+      }
+      if (errors.length > 0) {
+        await appendAuditLog({
+          level: 'warning',
+          category: 'memory-embedding',
+          action: 'embedding-maintenance-failed',
+          message: 'Embedding configuration was saved, but background index maintenance failed.',
+          payload: {
+            errors,
+            previousVectorSpaceId,
+            nextVectorSpaceId,
+          },
+        }).catch(() => {})
+      }
+    })()
   })
 
   registerInvokeHandler(electronAlicizationLlmGetConfig, async () => {

@@ -64,6 +64,8 @@ function deterministicVector(seed: string) {
   return [first, first / 2, 1]
 }
 
+const vectorSpaceId = 'scope-model:3'
+
 async function createVectorScopeAdapter() {
   const database = new sqlite3.Database(':memory:')
   await run(database, `
@@ -240,6 +242,7 @@ describe('memory scope fuzz production integration', () => {
                 vector: deterministicVector(query.sourceId),
                 modelId: 'scope-model',
                 dimensions: 3,
+                vectorSpaceId,
                 updatedAt: 10,
                 metadata: {},
               },
@@ -252,6 +255,7 @@ describe('memory scope fuzz production integration', () => {
                 vector: deterministicVector(query.sourceId),
                 modelId: 'scope-model',
                 dimensions: 3,
+                vectorSpaceId,
                 updatedAt: 10,
                 metadata: {},
               },
@@ -261,6 +265,7 @@ describe('memory scope fuzz production integration', () => {
               cardId: query.cardId,
               modelId: 'scope-model',
               dimensions: 3,
+              vectorSpaceId,
               limit: 4,
             })
             return found.map(result => scopeRecord({
@@ -304,14 +309,12 @@ describe('memory scope fuzz production integration', () => {
               }],
             })
             await db.drainWorkingMemoryLongTermQueue(4)
-            return (await db.listMemoryWorkbenchReviewItems({ cardId: query.cardId, limit: 8 }))
-              .filter(item => item.summary.includes(query.sourceId))
-              .map(item => scopeRecord({
-                id: item.id,
-                cardId: query.cardId,
-                userId: query.userId,
-                sourceId: query.sourceId,
-              }))
+            return (await db.listMemoryWorkbenchReviewItems({ cardId: query.cardId, limit: 8 })).items.filter(item => item.summary.includes(query.sourceId)).map(item => scopeRecord({
+              id: item.id,
+              cardId: query.cardId,
+              userId: query.userId,
+              sourceId: query.sourceId,
+            }))
           },
           persona_dataset: async ({ query }) => {
             await db.enqueueWorkingMemoryLongTermQueueItems({
@@ -347,8 +350,7 @@ describe('memory scope fuzz production integration', () => {
               }],
             })
             await db.drainWorkingMemoryLongTermQueue(4)
-            const reviewItem = (await db.listMemoryWorkbenchReviewItems({ cardId: query.cardId, limit: 16 }))
-              .find(item => item.summary.includes(query.sourceId))
+            const reviewItem = (await db.listMemoryWorkbenchReviewItems({ cardId: query.cardId, limit: 16 })).items.find(item => item.summary.includes(query.sourceId))
             if (reviewItem) {
               await db.applyMemoryWorkbenchReviewAction({
                 cardId: query.cardId,

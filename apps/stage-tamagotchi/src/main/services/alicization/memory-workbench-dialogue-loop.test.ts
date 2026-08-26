@@ -222,7 +222,7 @@ describe('memory workbench dialogue loop acceptance', () => {
       })
       await db.drainWorkingMemoryLongTermQueue(4)
 
-      const [reviewItem] = await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 8 })
+      const [reviewItem] = (await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 8 })).items
       expect(reviewItem).toEqual(expect.objectContaining({
         visibleMode: 'explicit',
         allowTraining: false,
@@ -239,7 +239,7 @@ describe('memory workbench dialogue loop acceptance', () => {
         decision: 'no-training',
       })
 
-      const [after] = await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 8 })
+      const [after] = (await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 8 })).items
       expect(after).toEqual(expect.objectContaining({
         visibleMode: 'inward-only',
         allowTraining: false,
@@ -287,7 +287,7 @@ describe('memory workbench dialogue loop acceptance', () => {
       })
       await db.drainWorkingMemoryLongTermQueue(4)
 
-      const [reviewItem] = await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 8 })
+      const [reviewItem] = (await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 8 })).items
       expect(reviewItem).toBeTruthy()
 
       await db.applyMemoryWorkbenchReviewAction({
@@ -354,7 +354,7 @@ describe('memory workbench dialogue loop acceptance', () => {
       })
       await db.drainWorkingMemoryLongTermQueue(4)
 
-      const [reviewItem] = await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 8 })
+      const [reviewItem] = (await db.listMemoryWorkbenchReviewItems({ cardId: 'default', limit: 8 })).items
       expect(reviewItem).toBeTruthy()
 
       await db.applyMemoryWorkbenchReviewAction({
@@ -436,6 +436,7 @@ describe('memory workbench dialogue loop acceptance', () => {
       embeddingProvider: {
         modelId: 'local-test-embedding',
         dimensions: 3,
+        vectorSpaceId: 'local-test-embedding:3',
         embedTexts: async texts => texts.map((text, index) => ({
           text,
           vector: [1, index + 1, 0],
@@ -534,6 +535,7 @@ describe('memory workbench dialogue loop acceptance', () => {
       embeddingProvider = {
         dimensions: 3,
         modelId: 'lazy-embedding',
+        vectorSpaceId: 'lazy-embedding:3',
         embedTexts: async texts => texts.map(text => ({ text, vector: [1, 0, 0] })),
       }
 

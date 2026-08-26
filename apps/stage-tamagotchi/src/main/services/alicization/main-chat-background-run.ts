@@ -16,7 +16,6 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
-import type { AlicizationMainGatewayReachabilitySnapshot } from './main-gateway-health'
 import type { AlicizationRuntimeCallChainSnapshot } from './runtime-call-chain'
 import type {
   ChatRunState,
@@ -159,10 +158,6 @@ interface RunAlicizationMainChatBackgroundOptions {
   emitToolResult: (payload: AlicizationChatToolResultInput) => void
   emitError: (payload: AlicizationChatErrorEvent) => void
   incrementChunkStats: (rawDelta: string) => void
-  ensureMainGatewayReachable: (mainGateway: MainGatewayResolvedConfig, options?: {
-    bypassCache?: boolean
-  }) => Promise<AlicizationMainGatewayReachabilitySnapshot>
-  recordMainGatewayGenerationTimeout: (mainGateway: MainGatewayResolvedConfig, reason: unknown) => void | Promise<void>
   appendRuntimeDebugLine: (event: string, payload: Record<string, unknown>) => Promise<void>
   queueScopedAuditLog: (cardId: string, input: {
     level: 'warning' | 'notice'
@@ -401,7 +396,6 @@ export async function runAlicizationMainChatBackground(
       payload: input.payload,
       dispatchBound: input.runState.hasLoggedDispatchBinding === true,
       nonProgressEventTypes,
-      recordMainGatewayGenerationTimeout: input.recordMainGatewayGenerationTimeout,
       emitError: (reason, metadata) => {
         input.emitError({
           cardId: input.payload.cardId,

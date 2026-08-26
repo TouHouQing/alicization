@@ -1,4 +1,8 @@
-import type { PersistentLongTermMemoryVectorRecord, PersistentLongTermMemoryVectorSearchFilters } from './long-term-memory-persistent-vector-store'
+import type {
+  PersistentLongTermMemoryVectorDeleteInput,
+  PersistentLongTermMemoryVectorRecord,
+  PersistentLongTermMemoryVectorSearchFilters,
+} from './long-term-memory-persistent-vector-store'
 import type {
   LongTermMemoryVectorReindexPlan,
   LongTermMemoryVectorSearchResult,
@@ -34,7 +38,7 @@ export interface LongTermMemoryVectorIndexNativeBackend {
   approximate: boolean
   initialize: () => Promise<void>
   upsert: (records: PersistentLongTermMemoryVectorRecord[]) => Promise<void>
-  delete: (input: { cardId: string, sourceIds: string[] }) => Promise<number>
+  delete: (input: PersistentLongTermMemoryVectorDeleteInput) => Promise<number>
   search: (
     queryVector: number[],
     filters: PersistentLongTermMemoryVectorSearchFilters,
@@ -55,7 +59,7 @@ export interface LongTermMemoryVectorIndexStore {
     queryVector: number[],
     filters: PersistentLongTermMemoryVectorSearchFilters,
   ) => Promise<LongTermMemoryVectorSearchResult[]>
-  deleteVectorsBySource: (input: { cardId: string, sourceIds: string[] }) => Promise<number>
+  deleteVectorsBySource: (input: PersistentLongTermMemoryVectorDeleteInput) => Promise<number>
   pruneOrphanedVectors: (input: { cardId: string }) => Promise<{
     deleted: number
     spaces: Array<{
@@ -64,7 +68,7 @@ export interface LongTermMemoryVectorIndexStore {
       vectorSpaceId: string
     }>
   }>
-  reindexByModel: (input: { cardId: string, modelId: string }) => Promise<LongTermMemoryVectorReindexPlan>
+  reindexByModel: (input: { cardId: string, modelId: string, dimensions?: number, vectorSpaceId?: string }) => Promise<LongTermMemoryVectorReindexPlan>
   getHealth: (input: {
     cardId: string
     activeModelId: string | null
@@ -90,7 +94,7 @@ export interface LongTermMemoryVectorIndexAdapter {
   initialize: () => Promise<void>
   upsert: (records: PersistentLongTermMemoryVectorRecord[]) => Promise<void>
   upsertNative: (records: PersistentLongTermMemoryVectorRecord[]) => Promise<void>
-  delete: (input: { cardId: string, sourceIds: string[] }) => Promise<number>
+  delete: (input: PersistentLongTermMemoryVectorDeleteInput) => Promise<number>
   pruneOrphaned: (input: { cardId: string }) => Promise<number>
   search: (
     input: PersistentLongTermMemoryVectorSearchFilters & { queryVector: number[] },
@@ -103,7 +107,9 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
   store: LongTermMemoryVectorIndexStore
   native?: LongTermMemoryVectorIndexNativeBackend
 }): LongTermMemoryVectorIndexAdapter {
-  let nativeLastError: string | null = null
+  const nativeLastErrors = new Map<string, string>()
+  let nativeUnscopedLastError: string | null = null
+  let nativeInitializationError: string | null = null
   let nativeInitialized = false
   const nativeHealthCache = new Map<string, {
     health: { ready: boolean, lastError: string | null }
@@ -125,8 +131,44 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
     ].join('\u0000')
   }
 
-  function clearNativeHealthCache() {
+  function clearNativeHealthCache(key?: string) {
+    if (key) {
+      nativeHealthCache.delete(key)
+      return
+    }
     nativeHealthCache.clear()
+  }
+
+  function vectorSpaceKey(input: {
+    cardId: string
+    modelId: string
+    dimensions: number
+    vectorSpaceId: string
+  }) {
+    return nativeHealthCacheKey(input)
+  }
+
+  function vectorSpaceKeyForRecord(record: PersistentLongTermMemoryVectorRecord) {
+    return vectorSpaceKey({
+      cardId: record.cardId,
+      modelId: record.modelId,
+      dimensions: record.dimensions,
+      vectorSpaceId: resolveLongTermMemoryVectorSpaceId(record),
+    })
+  }
+
+  function setNativeError(key: string, error: unknown) {
+    nativeLastErrors.set(key, error instanceof Error ? error.message : String(error))
+    clearNativeHealthCache(key)
+  }
+
+  function clearNativeError(key: string) {
+    nativeLastErrors.delete(key)
+    clearNativeHealthCache(key)
+  }
+
+  function nativeErrorFor(key: string) {
+    return nativeLastErrors.get(key) ?? nativeUnscopedLastError ?? nativeInitializationError
   }
 
   async function getNativeHealth(healthInput: {
@@ -157,12 +199,14 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
     try {
       await input.native.initialize()
       nativeInitialized = true
-      nativeLastError = null
+      nativeInitializationError = null
+      nativeUnscopedLastError = null
+      nativeLastErrors.clear()
       clearNativeHealthCache()
     }
     catch (error) {
       nativeInitialized = false
-      nativeLastError = error instanceof Error ? error.message : String(error)
+      nativeInitializationError = error instanceof Error ? error.message : String(error)
     }
   }
 
@@ -177,26 +221,60 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
       return
     try {
       await input.native.upsert(records)
-      nativeLastError = null
-      clearNativeHealthCache()
+      if (records.length === 0) {
+        nativeUnscopedLastError = null
+        clearNativeHealthCache()
+      }
+      else {
+        for (const key of new Set(records.map(vectorSpaceKeyForRecord)))
+          clearNativeError(key)
+      }
     }
     catch (error) {
-      nativeLastError = error instanceof Error ? error.message : String(error)
+      if (records.length === 0) {
+        nativeUnscopedLastError = error instanceof Error ? error.message : String(error)
+        clearNativeHealthCache()
+      }
+      else {
+        for (const key of new Set(records.map(vectorSpaceKeyForRecord)))
+          setNativeError(key, error)
+      }
     }
   }
 
-  async function deleteVectors(inputDelete: { cardId: string, sourceIds: string[] }) {
+  async function deleteVectors(inputDelete: PersistentLongTermMemoryVectorDeleteInput) {
     const deleted = await input.store.deleteVectorsBySource(inputDelete)
     clearNativeHealthCache()
     if (!input.native || !nativeInitialized)
       return deleted
     try {
       await input.native.delete(inputDelete)
-      nativeLastError = null
-      clearNativeHealthCache()
+      if (inputDelete.modelId && inputDelete.dimensions && inputDelete.vectorSpaceId) {
+        clearNativeError(vectorSpaceKey({
+          cardId: inputDelete.cardId,
+          modelId: inputDelete.modelId,
+          dimensions: inputDelete.dimensions,
+          vectorSpaceId: inputDelete.vectorSpaceId,
+        }))
+      }
+      else {
+        nativeUnscopedLastError = null
+        clearNativeHealthCache()
+      }
     }
     catch (error) {
-      nativeLastError = error instanceof Error ? error.message : String(error)
+      if (inputDelete.modelId && inputDelete.dimensions && inputDelete.vectorSpaceId) {
+        setNativeError(vectorSpaceKey({
+          cardId: inputDelete.cardId,
+          modelId: inputDelete.modelId,
+          dimensions: inputDelete.dimensions,
+          vectorSpaceId: inputDelete.vectorSpaceId,
+        }), error)
+      }
+      else {
+        nativeUnscopedLastError = error instanceof Error ? error.message : String(error)
+        clearNativeHealthCache()
+      }
     }
     return deleted
   }
@@ -216,13 +294,25 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
           dimensions: space.dimensions,
           vectorSpaceId: space.vectorSpaceId,
         })
+        clearNativeError(vectorSpaceKey({
+          cardId: pruneInput.cardId,
+          modelId: space.modelId,
+          dimensions: space.dimensions,
+          vectorSpaceId: space.vectorSpaceId,
+        }))
       }
       catch (error) {
         rebuildError ??= error instanceof Error ? error.message : String(error)
+        setNativeError(vectorSpaceKey({
+          cardId: pruneInput.cardId,
+          modelId: space.modelId,
+          dimensions: space.dimensions,
+          vectorSpaceId: space.vectorSpaceId,
+        }), error)
       }
     }
-    nativeLastError = rebuildError
-    clearNativeHealthCache()
+    if (rebuildError && result.spaces.length === 0)
+      nativeUnscopedLastError = rebuildError
     return result.deleted
   }
 
@@ -245,15 +335,27 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
           dimensions: resolvedFilters.dimensions,
           vectorSpaceId,
         })
-        nativeLastError = health.lastError
-        if (health.ready) {
+        const key = vectorSpaceKey({
+          cardId: resolvedFilters.cardId,
+          modelId: resolvedFilters.modelId,
+          dimensions: resolvedFilters.dimensions,
+          vectorSpaceId,
+        })
+        if (!nativeErrorFor(key) && health.lastError)
+          setNativeError(key, health.lastError)
+        if (health.ready && !nativeErrorFor(key)) {
           const results = await input.native.search(queryVector, resolvedFilters)
-          nativeLastError = null
+          clearNativeError(key)
           return results
         }
       }
       catch (error) {
-        nativeLastError = error instanceof Error ? error.message : String(error)
+        setNativeError(vectorSpaceKey({
+          cardId: resolvedFilters.cardId,
+          modelId: resolvedFilters.modelId,
+          dimensions: resolvedFilters.dimensions,
+          vectorSpaceId,
+        }), error)
       }
     }
     return await input.store.searchVectors(queryVector, resolvedFilters)
@@ -263,17 +365,18 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
     if (input.native && nativeInitialized) {
       try {
         await input.native.rebuild(rebuildInput)
-        nativeLastError = null
-        clearNativeHealthCache()
+        clearNativeError(vectorSpaceKey(rebuildInput))
         return
       }
       catch (error) {
-        nativeLastError = error instanceof Error ? error.message : String(error)
+        setNativeError(vectorSpaceKey(rebuildInput), error)
       }
     }
     return await input.store.reindexByModel({
       cardId: rebuildInput.cardId,
       modelId: rebuildInput.modelId,
+      dimensions: rebuildInput.dimensions,
+      vectorSpaceId: rebuildInput.vectorSpaceId,
     })
   }
 
@@ -292,7 +395,17 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
       vectorSpaceId,
     })
     let nativeReady = false
-    let lastError = nativeLastError
+    const healthKey = healthInput.modelId && healthInput.dimensions && vectorSpaceId
+      ? vectorSpaceKey({
+          cardId: healthInput.cardId,
+          modelId: healthInput.modelId,
+          dimensions: healthInput.dimensions,
+          vectorSpaceId,
+        })
+      : null
+    let lastError = healthKey
+      ? nativeErrorFor(healthKey)
+      : nativeUnscopedLastError ?? nativeInitializationError
     if (input.native && nativeInitialized && healthInput.modelId && healthInput.dimensions && vectorSpaceId) {
       try {
         const nativeHealth = await getNativeHealth({
@@ -301,13 +414,25 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
           dimensions: healthInput.dimensions,
           vectorSpaceId,
         })
-        nativeReady = nativeHealth.ready
-        lastError = nativeHealth.lastError
-        nativeLastError = nativeHealth.lastError
+        if (healthKey && nativeErrorFor(healthKey)) {
+          nativeReady = false
+          lastError = nativeErrorFor(healthKey) ?? lastError
+        }
+        else {
+          nativeReady = nativeHealth.ready
+          lastError = nativeHealth.lastError
+          if (healthKey && nativeHealth.lastError)
+            setNativeError(healthKey, nativeHealth.lastError)
+          else if (healthKey)
+            clearNativeError(healthKey)
+        }
       }
       catch (error) {
         lastError = error instanceof Error ? error.message : String(error)
-        nativeLastError = lastError
+        if (healthKey)
+          setNativeError(healthKey, error)
+        else
+          nativeUnscopedLastError = lastError
       }
     }
     const nativeActive = Boolean(input.native && nativeReady && !lastError)

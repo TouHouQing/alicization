@@ -58,7 +58,7 @@ export interface MemorySemanticScaleReindexObservation {
     retryable: number
     deadLettered: number
     cancelled: number
-    status: 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
+    status: 'queued' | 'running' | 'paused' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
     lastError: string | null
   }
   observations: {

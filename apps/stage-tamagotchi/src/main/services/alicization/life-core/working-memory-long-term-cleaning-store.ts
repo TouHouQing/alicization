@@ -1,5 +1,6 @@
 import type sqlite3 from 'sqlite3'
 
+import type { WorkingMemoryLongTermCandidate } from './working-memory'
 import type {
   WorkingMemoryLongTermAdmissionDecision,
   WorkingMemoryLongTermCleaningStatus,
@@ -93,6 +94,10 @@ function parseFailureCursor(raw: string | null | undefined) {
     updatedAt,
     id,
   }
+}
+
+function escapeLikePattern(raw: string) {
+  return raw.replace(/[\\%_]/g, value => `\\${value}`)
 }
 
 export function mapWorkingMemoryLongTermCleaningRow(row: WorkingMemoryLongTermCleaningRow): WorkingMemoryLongTermCleaningTransaction {
@@ -294,24 +299,83 @@ export function createWorkingMemoryLongTermCleaningStoreRuntime(options: Working
 
   async function listReviewTransactions(input: {
     cardId: string
+    query?: string
+    kind?: WorkingMemoryLongTermCandidate['kind'] | 'all'
+    sensitivity?: WorkingMemoryLongTermCandidate['sensitivity'] | 'all'
+    visibility?: 'explicit' | 'inward-only' | 'all'
+    training?: 'allowed' | 'blocked' | 'all'
     limit?: number
+    cursor?: string | null
   }) {
+    const cardId = input.cardId.trim()
+    if (!cardId) {
+      return {
+        items: [],
+        nextCursor: null,
+      }
+    }
+    const limit = Math.max(1, Math.min(64, Math.floor(input.limit ?? 24)))
+    const cursor = parseFailureCursor(input.cursor)
+    const clauses = [
+      'status = \'needs-user-review\'',
+      'card_id = ?',
+    ]
+    const params: unknown[] = [cardId]
+    if (input.kind && input.kind !== 'all') {
+      clauses.push('json_extract(cleaned_candidate_json, \'$.kind\') = ?')
+      params.push(input.kind)
+    }
+    if (input.sensitivity && input.sensitivity !== 'all') {
+      clauses.push('json_extract(cleaned_candidate_json, \'$.sensitivity\') = ?')
+      params.push(input.sensitivity)
+    }
+    if (input.visibility && input.visibility !== 'all') {
+      clauses.push(`CASE
+        WHEN json_extract(cleaned_candidate_json, '$.sensitivity') IN ('private', 'secret')
+          THEN 'inward-only'
+        ELSE 'explicit'
+      END = ?`)
+      params.push(input.visibility)
+    }
+    if (input.training && input.training !== 'all') {
+      clauses.push(`CASE WHEN allow_training = 1 THEN 'allowed' ELSE 'blocked' END = ?`)
+      params.push(input.training)
+    }
+    const query = input.query?.trim() ?? ''
+    if (query) {
+      const pattern = `%${escapeLikePattern(query)}%`
+      clauses.push(`(
+        COALESCE(json_extract(cleaned_candidate_json, '$.summary'), '') LIKE ? ESCAPE '\\'
+        OR COALESCE(json_extract(cleaned_candidate_json, '$.evidenceSnippets'), '') LIKE ? ESCAPE '\\'
+        OR COALESCE(review_reasons_json, '') LIKE ? ESCAPE '\\'
+      )`)
+      params.push(pattern, pattern, pattern)
+    }
+    if (cursor) {
+      clauses.push('(updated_at < ? OR (updated_at = ? AND id > ?))')
+      params.push(cursor.updatedAt, cursor.updatedAt, cursor.id)
+    }
+    params.push(limit + 1)
     const rows = await options.all<WorkingMemoryLongTermCleaningRow>(
       options.database,
       `
       SELECT *
       FROM working_memory_long_term_transactions
-      WHERE status = 'needs-user-review'
-        AND card_id = ?
+      WHERE ${clauses.join(' AND ')}
       ORDER BY updated_at DESC, created_at DESC
       LIMIT ?
       `,
-      [
-        input.cardId,
-        Math.max(1, Math.min(64, Math.floor(input.limit ?? 24))),
-      ],
+      params,
     )
-    return rows.map(mapWorkingMemoryLongTermCleaningRow)
+    const transactions = rows.map(mapWorkingMemoryLongTermCleaningRow)
+    const hasMore = transactions.length > limit
+    const items = hasMore ? transactions.slice(0, limit) : transactions
+    return {
+      items,
+      nextCursor: hasMore && items.length > 0
+        ? failureCursor(items[items.length - 1]!)
+        : null,
+    }
   }
 
   async function updateTransaction(

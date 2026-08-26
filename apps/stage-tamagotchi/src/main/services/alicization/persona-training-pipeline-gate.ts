@@ -1,5 +1,6 @@
 import type {
   AlicizationPersonaTrainingArtifact,
+  AlicizationPersonaTrainingSourceRef,
 } from '@proj-alicization/stage-shared'
 
 import type {
@@ -21,6 +22,41 @@ export type PersonaTrainingPipelineIncrementState
   = 'available'
     | 'rolled-back'
     | 'revoked'
+
+function clonePersonaTrainingSourceRefs(sourceRefs: AlicizationPersonaTrainingSourceRef[]) {
+  return sourceRefs.map(sourceRef => ({ ...sourceRef }))
+}
+
+function personaTrainingSourceRefKey(sourceRef: AlicizationPersonaTrainingSourceRef) {
+  return `${sourceRef.sourceKind}\0${sourceRef.sourceId}`
+}
+
+function personaTrainingSourceRefsFromManifest(
+  manifest: PersonaTrainingDatasetManifest,
+): AlicizationPersonaTrainingSourceRef[] {
+  return manifest.examples.map(example => ({
+    sourceId: example.sourceId,
+    sourceKind: example.sourceKind,
+  }))
+}
+
+function personaTrainingSourceRefsEqual(
+  left: AlicizationPersonaTrainingSourceRef[],
+  right: AlicizationPersonaTrainingSourceRef[],
+) {
+  const leftKeys = [...new Set(left.map(personaTrainingSourceRefKey))].sort()
+  const rightKeys = [...new Set(right.map(personaTrainingSourceRefKey))].sort()
+  return leftKeys.length === rightKeys.length
+    && leftKeys.every((key, index) => key === rightKeys[index])
+}
+
+function personaTrainingSourceRefsInclude(
+  sourceRefs: AlicizationPersonaTrainingSourceRef[],
+  expected: AlicizationPersonaTrainingSourceRef,
+) {
+  const expectedKey = personaTrainingSourceRefKey(expected)
+  return sourceRefs.some(sourceRef => personaTrainingSourceRefKey(sourceRef) === expectedKey)
+}
 
 function throwCleanupErrors(errors: unknown[], context: string): never {
   if (errors.length === 1)
@@ -196,7 +232,7 @@ export type PersonaTrainingDatasetGovernanceMutation
   | {
     kind: 'revoke-source'
     cardId: string
-    sourceId: string
+    sourceRef: AlicizationPersonaTrainingSourceRef
     at: number
     cleanupIntents: PersonaTrainingArtifactCleanupIntent[]
   }
@@ -231,7 +267,7 @@ export interface PersonaTrainingPipelineIncrement {
   cardId: string
   datasetId: string
   manifestHash: string
-  sourceIds: string[]
+  sourceRefs: AlicizationPersonaTrainingSourceRef[]
   basePersonaRevision: string
   artifact: AlicizationPersonaTrainingArtifact
   state: PersonaTrainingPipelineIncrementState
@@ -265,7 +301,7 @@ export interface PersonaTrainingPipelineRunRecord {
   cardId: string
   datasetId: string
   manifestHash: string
-  sourceIds: string[]
+  sourceRefs: AlicizationPersonaTrainingSourceRef[]
   basePersonaRevision: string
   status: PersonaTrainingPipelineRunStatus
   stage: PersonaTrainingPipelineRunStage
@@ -299,7 +335,7 @@ export interface PersonaTrainingPipelineAuditEvent {
   cardId: string
   datasetId: string
   manifestHash: string | null
-  sourceIds: string[]
+  sourceRefs: AlicizationPersonaTrainingSourceRef[]
   reason: string | null
   createdAt: number
 }
@@ -458,7 +494,7 @@ export interface PersonaTrainingPipelineGate {
   stop: (reason: string) => Promise<void>
   activateVersion: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
   rollbackVersion: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
-  revokeSource: (input: { cardId: string, sourceId: string }) => Promise<{ affected: number }>
+  revokeSource: (input: { cardId: string } & AlicizationPersonaTrainingSourceRef) => Promise<{ affected: number }>
   rollbackIncrement: (input: { incrementId: string, cardId?: string }) => Promise<PersonaTrainingPipelineIncrement | null>
   listIncrements: () => PersonaTrainingPipelineIncrement[]
   listPersistedIncrements: () => Promise<PersonaTrainingPipelineIncrement[]>
@@ -470,7 +506,7 @@ interface ActiveTrainingRun {
   cardId: string
   datasetId: string
   manifestHash: string | null
-  sourceIds: Set<string>
+  sourceRefKeys: Set<string>
   controller: AbortController
   invalidatedReason: PersonaTrainingPipelineFailureReason | null
   cancellationReason: string | null
@@ -639,7 +675,9 @@ function activatedPersonaTrainingArtifactFromReceipt(input: {
   } satisfies AlicizationPersonaTrainingArtifact
 }
 
-function isAllowedTrainingSourceKind(sourceKind: string) {
+function isAllowedTrainingSourceKind(
+  sourceKind: string,
+): sourceKind is AlicizationPersonaTrainingSourceRef['sourceKind'] {
   return sourceKind === 'cleaned-long-term-reflection'
     || sourceKind === 'persona-reinforcement'
 }
@@ -738,7 +776,7 @@ export function createPersonaTrainingPipelineGate(input: {
   async function appendAuditEvent(event: PersonaTrainingPipelineAuditEvent) {
     await persistence.appendEvent({
       ...event,
-      sourceIds: [...event.sourceIds],
+      sourceRefs: clonePersonaTrainingSourceRefs(event.sourceRefs),
     })
   }
 
@@ -758,12 +796,18 @@ export function createPersonaTrainingPipelineGate(input: {
     run: ActiveTrainingRun,
     update: Partial<PersonaTrainingPipelineRunRecord>,
   ) {
+    const persistedUpdate = update.sourceRefs
+      ? {
+          ...update,
+          sourceRefs: clonePersonaTrainingSourceRefs(update.sourceRefs),
+        }
+      : update
     const applied = await persistence.updateRun({
       runId: run.runId,
-      ...update,
+      ...persistedUpdate,
     })
     if (applied)
-      Object.assign(run.record, update)
+      Object.assign(run.record, persistedUpdate)
     return applied
   }
 
@@ -772,7 +816,7 @@ export function createPersonaTrainingPipelineGate(input: {
     for (const increment of persisted) {
       increments.set(increment.id, {
         ...increment,
-        sourceIds: [...increment.sourceIds],
+        sourceRefs: clonePersonaTrainingSourceRefs(increment.sourceRefs),
       })
     }
   }
@@ -791,7 +835,7 @@ export function createPersonaTrainingPipelineGate(input: {
       cardId: input.run.cardId,
       datasetId: input.run.datasetId,
       manifestHash: input.run.manifestHash ?? null,
-      sourceIds: [...input.run.sourceIds],
+      sourceRefs: clonePersonaTrainingSourceRefs(input.run.record.sourceRefs),
       reason: input.reason,
       createdAt: input.createdAt,
     } satisfies PersonaTrainingPipelineAuditEvent
@@ -845,7 +889,7 @@ export function createPersonaTrainingPipelineGate(input: {
 
       const finalRecord: PersonaTrainingPipelineRunRecord = {
         ...terminalInput.run.record,
-        sourceIds: [...terminalInput.run.record.sourceIds],
+        sourceRefs: clonePersonaTrainingSourceRefs(terminalInput.run.record.sourceRefs),
         status: terminalInput.status,
         error: terminalInput.error,
         failureReason: terminalInput.failureReason ?? null,
@@ -909,7 +953,7 @@ export function createPersonaTrainingPipelineGate(input: {
     return await enqueueRunMutation(terminalInput.run, async () => {
       const finalRecord: PersonaTrainingPipelineRunRecord = {
         ...terminalInput.run.record,
-        sourceIds: [...terminalInput.run.record.sourceIds],
+        sourceRefs: clonePersonaTrainingSourceRefs(terminalInput.run.record.sourceRefs),
         status: terminalInput.status,
         stage: 'finalizing',
         error: terminalInput.error,
@@ -937,14 +981,19 @@ export function createPersonaTrainingPipelineGate(input: {
   async function invalidateRuns(input: {
     cardId: string
     reason: PersonaTrainingPipelineFailureReason
-    sourceId?: string
+    sourceRef?: AlicizationPersonaTrainingSourceRef
     now: number
   }) {
     for (const run of activeRuns.values()) {
       if (run.cardId !== input.cardId)
         continue
-      if (input.sourceId && run.datasetId && !run.sourceIds.has(input.sourceId))
+      if (
+        input.sourceRef
+        && run.datasetId
+        && !run.sourceRefKeys.has(personaTrainingSourceRefKey(input.sourceRef))
+      ) {
         continue
+      }
       run.invalidatedReason = input.reason
       run.controller.abort(input.reason)
     }
@@ -974,7 +1023,7 @@ export function createPersonaTrainingPipelineGate(input: {
     state: Extract<PersonaTrainingPipelineIncrementState, 'rolled-back' | 'revoked'>
     datasetId?: string
     excludeDatasetId?: string
-    sourceId?: string
+    sourceRef?: AlicizationPersonaTrainingSourceRef
     now: number
   }) {
     await hydratePersistedIncrements()
@@ -987,7 +1036,7 @@ export function createPersonaTrainingPipelineGate(input: {
         continue
       if (markInput.excludeDatasetId && candidate.datasetId === markInput.excludeDatasetId)
         continue
-      if (markInput.sourceId && !candidate.sourceIds.includes(markInput.sourceId))
+      if (markInput.sourceRef && !personaTrainingSourceRefsInclude(candidate.sourceRefs, markInput.sourceRef))
         continue
       try {
         await enqueueIncrementMutation(incrementId, async () => {
@@ -1000,7 +1049,7 @@ export function createPersonaTrainingPipelineGate(input: {
             return
           if (markInput.excludeDatasetId && increment.datasetId === markInput.excludeDatasetId)
             return
-          if (markInput.sourceId && !increment.sourceIds.includes(markInput.sourceId))
+          if (markInput.sourceRef && !personaTrainingSourceRefsInclude(increment.sourceRefs, markInput.sourceRef))
             return
           const shouldTransition = markInput.state === 'revoked'
             ? increment.state !== 'revoked'
@@ -1016,8 +1065,8 @@ export function createPersonaTrainingPipelineGate(input: {
             cardId: increment.cardId,
             datasetId: increment.datasetId,
             manifestHash: increment.manifestHash,
-            sourceIds: [...increment.sourceIds],
-            reason: markInput.sourceId ? 'source-revoked' : 'dataset-rolled-back',
+            sourceRefs: clonePersonaTrainingSourceRefs(increment.sourceRefs),
+            reason: markInput.sourceRef ? 'source-revoked' : 'dataset-rolled-back',
             createdAt: markInput.now,
           } satisfies PersonaTrainingPipelineAuditEvent
           if (markInput.state === 'revoked' && increment.state === 'rolled-back') {
@@ -1639,7 +1688,7 @@ export function createPersonaTrainingPipelineGate(input: {
             cardId: increment.cardId,
             datasetId: increment.datasetId,
             manifestHash: increment.manifestHash,
-            sourceIds: [...increment.sourceIds],
+            sourceRefs: clonePersonaTrainingSourceRefs(increment.sourceRefs),
             reason: intent.reason,
             createdAt: input.now(),
           },
@@ -1808,7 +1857,7 @@ export function createPersonaTrainingPipelineGate(input: {
           cardId: run.cardId,
           datasetId: approved.dataset.id,
           manifestHash: approved.manifest.manifestHash,
-          sourceIds: [...run.sourceIds],
+          sourceRefs: clonePersonaTrainingSourceRefs(run.record.sourceRefs),
           reason: null,
           createdAt: startedAt,
         })
@@ -1924,7 +1973,7 @@ export function createPersonaTrainingPipelineGate(input: {
         cardId: run.cardId,
         datasetId: approved.dataset.id,
         manifestHash: approved.manifest.manifestHash,
-        sourceIds: approved.manifest.examples.map(example => example.sourceId),
+        sourceRefs: personaTrainingSourceRefsFromManifest(approved.manifest),
         basePersonaRevision,
         artifact: trainedArtifact,
         state: 'available',
@@ -2078,7 +2127,7 @@ export function createPersonaTrainingPipelineGate(input: {
       cardId,
       datasetId: approved.dataset.id,
       manifestHash: approved.manifest.manifestHash,
-      sourceIds: approved.manifest.examples.map(example => example.sourceId),
+      sourceRefs: personaTrainingSourceRefsFromManifest(approved.manifest),
       basePersonaRevision,
       status: 'queued',
       stage: 'writing-input',
@@ -2100,7 +2149,7 @@ export function createPersonaTrainingPipelineGate(input: {
       cardId,
       datasetId: approved.dataset.id,
       manifestHash: approved.manifest.manifestHash,
-      sourceIds: new Set(record.sourceIds),
+      sourceRefKeys: new Set(record.sourceRefs.map(personaTrainingSourceRefKey)),
       controller: new AbortController(),
       invalidatedReason: null,
       cancellationReason: null,
@@ -2109,7 +2158,7 @@ export function createPersonaTrainingPipelineGate(input: {
       mutationQueue: Promise.resolve(),
       record: {
         ...record,
-        sourceIds: [...record.sourceIds],
+        sourceRefs: clonePersonaTrainingSourceRefs(record.sourceRefs),
         configSnapshot: record.configSnapshot
           ? { ...record.configSnapshot }
           : null,
@@ -2131,7 +2180,7 @@ export function createPersonaTrainingPipelineGate(input: {
     return {
       run: {
         ...record,
-        sourceIds: [...record.sourceIds],
+        sourceRefs: clonePersonaTrainingSourceRefs(record.sourceRefs),
         configSnapshot: record.configSnapshot
           ? { ...record.configSnapshot }
           : null,
@@ -2149,7 +2198,7 @@ export function createPersonaTrainingPipelineGate(input: {
       return null
     return {
       ...persisted,
-      sourceIds: [...persisted.sourceIds],
+      sourceRefs: clonePersonaTrainingSourceRefs(persisted.sourceRefs),
       configSnapshot: persisted.configSnapshot
         ? { ...persisted.configSnapshot }
         : null,
@@ -2166,7 +2215,7 @@ export function createPersonaTrainingPipelineGate(input: {
       .slice(0, Math.max(1, Math.min(100, Math.floor(listInput.limit ?? 20))))
       .map(run => ({
         ...run,
-        sourceIds: [...run.sourceIds],
+        sourceRefs: clonePersonaTrainingSourceRefs(run.sourceRefs),
         configSnapshot: run.configSnapshot
           ? { ...run.configSnapshot }
           : null,
@@ -2190,7 +2239,7 @@ export function createPersonaTrainingPipelineGate(input: {
     if (run.terminalizing || !isNonTerminalRunStatus(run.record.status)) {
       return {
         ...run.record,
-        sourceIds: [...run.record.sourceIds],
+        sourceRefs: clonePersonaTrainingSourceRefs(run.record.sourceRefs),
         configSnapshot: run.record.configSnapshot
           ? { ...run.record.configSnapshot }
           : null,
@@ -2213,7 +2262,10 @@ export function createPersonaTrainingPipelineGate(input: {
     })
     if (cancelled)
       run.controller.abort(reason)
-    return { ...run.record, sourceIds: [...run.record.sourceIds] }
+    return {
+      ...run.record,
+      sourceRefs: clonePersonaTrainingSourceRefs(run.record.sourceRefs),
+    }
   }
 
   async function stop(reasonRaw: string) {
@@ -2261,7 +2313,7 @@ export function createPersonaTrainingPipelineGate(input: {
       cardId: run.cardId,
       datasetId: run.datasetId,
       manifestHash: run.manifestHash,
-      sourceIds: [...run.sourceIds],
+      sourceRefs: clonePersonaTrainingSourceRefs(run.sourceRefs),
       reason,
       createdAt: at,
     }
@@ -2335,7 +2387,7 @@ export function createPersonaTrainingPipelineGate(input: {
         cardId: increment.cardId,
         datasetId: increment.datasetId,
         manifestHash: increment.manifestHash,
-        sourceIds: [...increment.sourceIds],
+        sourceRefs: clonePersonaTrainingSourceRefs(increment.sourceRefs),
         reason,
         createdAt: input.now(),
       },
@@ -2474,14 +2526,12 @@ export function createPersonaTrainingPipelineGate(input: {
         return 'the trained manifest no longer matches the current eligible dataset'
       }
 
-      const persistedSourceIds = [...new Set(candidate.run.sourceIds)].sort()
-      const currentSourceIds = [...new Set(
-        currentManifest.examples.map(example => example.sourceId),
-      )].sort()
       if (
-        persistedSourceIds.length === 0
-        || persistedSourceIds.length !== currentSourceIds.length
-        || persistedSourceIds.some((sourceId, index) => sourceId !== currentSourceIds[index])
+        candidate.run.sourceRefs.length === 0
+        || !personaTrainingSourceRefsEqual(
+          candidate.run.sourceRefs,
+          personaTrainingSourceRefsFromManifest(currentManifest),
+        )
       ) {
         return 'the trained sources are no longer staged, consented, PII-clear, and provenance-backed'
       }
@@ -3049,11 +3099,19 @@ export function createPersonaTrainingPipelineGate(input: {
     return rolledBack
   }
 
-  async function revokeSource(revokeInput: { cardId: string, sourceId: string }) {
+  async function revokeSource(
+    revokeInput: { cardId: string } & AlicizationPersonaTrainingSourceRef,
+  ) {
     const cardId = normalizeCardId(revokeInput.cardId)
     const sourceId = revokeInput.sourceId.trim()
     if (!sourceId)
       throw new Error('persona training pipeline source revoke requires sourceId')
+    if (!isAllowedTrainingSourceKind(revokeInput.sourceKind))
+      throw new Error('persona training pipeline source revoke requires a supported sourceKind')
+    const sourceRef = {
+      sourceId,
+      sourceKind: revokeInput.sourceKind,
+    } satisfies AlicizationPersonaTrainingSourceRef
     await resumePendingArtifactCleanups({
       cardId,
       reason: 'source-revoked',
@@ -3062,7 +3120,7 @@ export function createPersonaTrainingPipelineGate(input: {
     const previousAvailable = [...increments.values()]
       .filter(increment => increment.cardId === cardId
         && increment.state === 'available'
-        && increment.sourceIds.includes(sourceId))
+        && personaTrainingSourceRefsInclude(increment.sourceRefs, sourceRef))
     if (persistence.commitDatasetGovernanceWithArtifactCleanup) {
       const at = input.now()
       const cleanupIntentsToPersist = buildDatasetGovernanceCleanupIntents({
@@ -3074,7 +3132,7 @@ export function createPersonaTrainingPipelineGate(input: {
       const committed = await persistence.commitDatasetGovernanceWithArtifactCleanup({
         kind: 'revoke-source',
         cardId,
-        sourceId,
+        sourceRef: { ...sourceRef },
         at,
         cleanupIntents: cleanupIntentsToPersist,
       })
@@ -3083,13 +3141,13 @@ export function createPersonaTrainingPipelineGate(input: {
       registerPersistedGovernanceCleanupIntents(cleanupIntentsToPersist)
       await invalidateRuns({
         cardId,
-        sourceId,
+        sourceRef,
         reason: 'source-revoked',
         now: at,
       })
       await markIncrements({
         cardId,
-        sourceId,
+        sourceRef,
         state: 'revoked',
         now: at,
       })
@@ -3097,11 +3155,11 @@ export function createPersonaTrainingPipelineGate(input: {
     }
     const result = await input.datasetRuntime.revokeSource({
       cardId,
-      sourceId,
+      ...sourceRef,
     })
     await invalidateRuns({
       cardId,
-      sourceId,
+      sourceRef,
       reason: 'source-revoked',
       now: input.now(),
     })
@@ -3115,7 +3173,7 @@ export function createPersonaTrainingPipelineGate(input: {
     else {
       await markIncrements({
         cardId,
-        sourceId,
+        sourceRef,
         state: 'revoked',
         now: input.now(),
       })
@@ -3144,7 +3202,7 @@ export function createPersonaTrainingPipelineGate(input: {
           cardId: increment.cardId,
           datasetId: increment.datasetId,
           manifestHash: increment.manifestHash,
-          sourceIds: [...increment.sourceIds],
+          sourceRefs: clonePersonaTrainingSourceRefs(increment.sourceRefs),
           reason: 'manual-rollback',
           createdAt: input.now(),
         } satisfies PersonaTrainingPipelineAuditEvent
@@ -3161,12 +3219,18 @@ export function createPersonaTrainingPipelineGate(input: {
           },
         })
       }
-      return { ...increment }
+      return {
+        ...increment,
+        sourceRefs: clonePersonaTrainingSourceRefs(increment.sourceRefs),
+      }
     })
   }
 
   function listIncrements() {
-    return [...increments.values()].map(increment => ({ ...increment }))
+    return [...increments.values()].map(increment => ({
+      ...increment,
+      sourceRefs: clonePersonaTrainingSourceRefs(increment.sourceRefs),
+    }))
   }
 
   function listUsableIncrements() {
@@ -3189,7 +3253,10 @@ export function createPersonaTrainingPipelineGate(input: {
 
   async function listPersistedIncrements() {
     const persisted = await persistence.listIncrements()
-    return persisted.map(increment => ({ ...increment, sourceIds: [...increment.sourceIds] }))
+    return persisted.map(increment => ({
+      ...increment,
+      sourceRefs: clonePersonaTrainingSourceRefs(increment.sourceRefs),
+    }))
   }
 
   return {

@@ -22,6 +22,7 @@ interface SqliteHarness {
 const harnesses: SqliteHarness[] = []
 const temporaryDirectories: string[] = []
 const originalResourcesPath = process.resourcesPath
+const modelAVectorSpaceId = 'model-a:3'
 
 function createSqliteHarness(): Promise<SqliteHarness> {
   return new Promise((resolve, reject) => {
@@ -121,7 +122,7 @@ async function createBackendHarness() {
   }>) {
     for (const record of records) {
       const textHash = hashLongTermMemoryEmbeddingText(record.text)
-      const vectorSpaceId = record.vectorSpaceId ?? `legacy:${record.modelId}:${record.dimensions}`
+      const vectorSpaceId = record.vectorSpaceId ?? `${record.modelId}:${record.dimensions}`
       await harness.run(`
         INSERT INTO long_term_memory_vectors (
           id, card_id, source_id, source, text_hash, text, vector_blob,
@@ -222,6 +223,7 @@ describe('sqlite-vec long-term memory vector backend', () => {
         vector: [1, 0, 0],
         modelId: 'model-a',
         dimensions: 3,
+        vectorSpaceId: modelAVectorSpaceId,
         updatedAt: 10,
         metadata: {},
       },
@@ -234,6 +236,7 @@ describe('sqlite-vec long-term memory vector backend', () => {
         vector: [0.9, 0.1, 0],
         modelId: 'model-a',
         dimensions: 3,
+        vectorSpaceId: modelAVectorSpaceId,
         updatedAt: 20,
         metadata: {},
       },
@@ -246,6 +249,7 @@ describe('sqlite-vec long-term memory vector backend', () => {
         vector: [1, 0, 0],
         modelId: 'model-a',
         dimensions: 3,
+        vectorSpaceId: modelAVectorSpaceId,
         updatedAt: 30,
         metadata: {},
       },
@@ -257,7 +261,7 @@ describe('sqlite-vec long-term memory vector backend', () => {
       cardId: 'card-a',
       modelId: 'model-a',
       dimensions: 3,
-      vectorSpaceId: 'legacy:model-a:3',
+      vectorSpaceId: modelAVectorSpaceId,
       source: 'memory_reflections',
       limit: 4,
     })
@@ -267,7 +271,7 @@ describe('sqlite-vec long-term memory vector backend', () => {
       cardId: 'card-a',
       modelId: 'model-a',
       dimensions: 3,
-      vectorSpaceId: 'legacy:model-a:3',
+      vectorSpaceId: modelAVectorSpaceId,
     })).resolves.toMatchObject({
       ready: true,
       lastError: null,
@@ -294,7 +298,7 @@ describe('sqlite-vec long-term memory vector backend', () => {
       vector,
       'model-a',
       3,
-      'legacy:model-a:3',
+      modelAVectorSpaceId,
       'indexed',
       null,
       '{}',
@@ -311,7 +315,7 @@ describe('sqlite-vec long-term memory vector backend', () => {
       cardId: 'card-a',
       modelId: 'model-a',
       dimensions: 3,
-      vectorSpaceId: 'legacy:model-a:3',
+      vectorSpaceId: modelAVectorSpaceId,
     })).resolves.toMatchObject({
       ready: false,
     })
@@ -319,14 +323,14 @@ describe('sqlite-vec long-term memory vector backend', () => {
       cardId: 'card-a',
       modelId: 'model-a',
       dimensions: 3,
-      vectorSpaceId: 'legacy:model-a:3',
+      vectorSpaceId: modelAVectorSpaceId,
     })
 
     await expect(backend.getHealth({
       cardId: 'card-a',
       modelId: 'model-a',
       dimensions: 3,
-      vectorSpaceId: 'legacy:model-a:3',
+      vectorSpaceId: modelAVectorSpaceId,
     })).resolves.toMatchObject({
       ready: true,
       lastError: null,
@@ -335,7 +339,7 @@ describe('sqlite-vec long-term memory vector backend', () => {
       cardId: 'card-a',
       modelId: 'model-a',
       dimensions: 3,
-      vectorSpaceId: 'legacy:model-a:3',
+      vectorSpaceId: modelAVectorSpaceId,
       limit: 4,
     })).resolves.toEqual([
       expect.objectContaining({
@@ -359,6 +363,7 @@ describe('sqlite-vec long-term memory vector backend', () => {
       vector: [1, 0, 0],
       modelId: 'model-a',
       dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
       updatedAt: 10,
       metadata: {},
     }]
@@ -375,7 +380,48 @@ describe('sqlite-vec long-term memory vector backend', () => {
       cardId: 'card-a',
       modelId: 'model-a',
       dimensions: 3,
-      vectorSpaceId: 'legacy:model-a:3',
+      vectorSpaceId: modelAVectorSpaceId,
+    })).resolves.toMatchObject({
+      ready: false,
+      lastError: 'sqlite-vec index is not synchronized with canonical vectors',
+    })
+  })
+
+  it('reports native degradation when an untracked vec0 row remains in the active space', async () => {
+    const { harness, backend, upsertCanonical } = await createBackendHarness()
+    const records = [{
+      id: 'vector-native-extra',
+      cardId: 'card-a',
+      sourceId: 'reflection-native-extra',
+      source: 'memory_reflections',
+      text: '原生索引中残留的额外行必须被健康检查发现。',
+      vector: [1, 0, 0],
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
+      updatedAt: 10,
+      metadata: {},
+    }]
+    await upsertCanonical(records)
+    await backend.upsert(records)
+    await harness.run(`
+      INSERT INTO long_term_memory_vec_3 (
+        rowid, embedding, card_id, model_id, vector_space_id, source
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `, [
+      987_654,
+      Buffer.from(new Float32Array([0, 1, 0]).buffer),
+      'card-a',
+      'model-a',
+      modelAVectorSpaceId,
+      'memory_reflections',
+    ])
+
+    await expect(backend.getHealth({
+      cardId: 'card-a',
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
     })).resolves.toMatchObject({
       ready: false,
       lastError: 'sqlite-vec index is not synchronized with canonical vectors',
@@ -394,6 +440,7 @@ describe('sqlite-vec long-term memory vector backend', () => {
         vector: [1, 0, 0],
         modelId: 'model-a',
         dimensions: 3,
+        vectorSpaceId: modelAVectorSpaceId,
         updatedAt: 10,
         metadata: {},
       },
@@ -406,6 +453,7 @@ describe('sqlite-vec long-term memory vector backend', () => {
         vector: [1, 0, 0],
         modelId: 'model-a',
         dimensions: 3,
+        vectorSpaceId: modelAVectorSpaceId,
         updatedAt: 10,
         metadata: {},
       },
@@ -421,14 +469,70 @@ describe('sqlite-vec long-term memory vector backend', () => {
       cardId: 'card-a',
       modelId: 'model-a',
       dimensions: 3,
-      vectorSpaceId: 'legacy:model-a:3',
+      vectorSpaceId: modelAVectorSpaceId,
       limit: 4,
     })).resolves.toEqual([])
     await expect(backend.search([1, 0, 0], {
       cardId: 'card-b',
       modelId: 'model-a',
       dimensions: 3,
-      vectorSpaceId: 'legacy:model-a:3',
+      vectorSpaceId: modelAVectorSpaceId,
+      limit: 4,
+    })).resolves.toHaveLength(1)
+  })
+
+  it('removes only the matching source namespace when ids are reused', async () => {
+    const { backend, upsertCanonical } = await createBackendHarness()
+    const records = [
+      {
+        id: 'vector-reflection-shared-id',
+        cardId: 'card-a',
+        sourceId: 'shared-source',
+        source: 'memory_reflections',
+        text: 'reflection memory',
+        vector: [1, 0, 0],
+        modelId: 'model-a',
+        dimensions: 3,
+        vectorSpaceId: modelAVectorSpaceId,
+        updatedAt: 10,
+        metadata: {},
+      },
+      {
+        id: 'vector-episode-shared-id',
+        cardId: 'card-a',
+        sourceId: 'shared-source',
+        source: 'episodic_events',
+        text: 'episode memory',
+        vector: [1, 0, 0],
+        modelId: 'model-a',
+        dimensions: 3,
+        vectorSpaceId: modelAVectorSpaceId,
+        updatedAt: 10,
+        metadata: {},
+      },
+    ]
+    await upsertCanonical(records)
+    await backend.upsert(records)
+
+    expect(await backend.delete({
+      cardId: 'card-a',
+      sourceIds: ['shared-source'],
+      source: 'memory_reflections',
+    })).toBe(1)
+    await expect(backend.search([1, 0, 0], {
+      cardId: 'card-a',
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
+      source: 'memory_reflections',
+      limit: 4,
+    })).resolves.toEqual([])
+    await expect(backend.search([1, 0, 0], {
+      cardId: 'card-a',
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
+      source: 'episodic_events',
       limit: 4,
     })).resolves.toHaveLength(1)
   })

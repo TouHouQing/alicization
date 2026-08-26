@@ -15,6 +15,7 @@ import {
   PERSONA_TRAINING_DATASET_SCHEMA_VERSION,
   PERSONA_TRAINING_EXAMPLE_SCHEMA_VERSION,
 } from './persona-training-dataset-runtime'
+import { detectPersonaTrainingPii } from './persona-training-pii'
 
 export type PersonaTrainingDatasetQualityFindingCode
   = | 'persona-dataset-expected-export-miss'
@@ -49,11 +50,34 @@ export interface PersonaTrainingDatasetQualityFixture {
   consent: PersonaTrainingDatasetConsentSnapshot
   sources: PersonaTrainingDatasetSource[]
   datasetSchemaVersion?: string
-  expectedExportedSourceIds?: string[]
-  forbiddenExportedSourceIds?: string[]
-  expectedQuarantinedSourceIds?: string[]
-  expectedRejectedSourceIds?: string[]
+  expectedExportedSourceRefs?: PersonaTrainingDatasetQualitySourceRef[]
+  forbiddenExportedSourceRefs?: PersonaTrainingDatasetQualitySourceRef[]
+  expectedQuarantinedSourceRefs?: PersonaTrainingDatasetQualitySourceRef[]
+  expectedRejectedSourceRefs?: PersonaTrainingDatasetQualitySourceRef[]
   expectedDedupeCount?: number
+}
+
+export interface PersonaTrainingDatasetQualitySourceRef {
+  sourceId: string
+  sourceKind: PersonaTrainingDatasetSource['sourceKind']
+}
+
+function personaTrainingDatasetQualitySourceRefKey(
+  sourceRef: PersonaTrainingDatasetQualitySourceRef,
+) {
+  return JSON.stringify([
+    normalizePersonaTrainingDatasetText(sourceRef.sourceKind, 80),
+    normalizePersonaTrainingDatasetText(sourceRef.sourceId, 240),
+  ])
+}
+
+function personaTrainingDatasetQualitySourceRefFromSource(
+  source: Pick<PersonaTrainingDatasetSource, 'sourceId' | 'sourceKind'>,
+): PersonaTrainingDatasetQualitySourceRef {
+  return {
+    sourceId: normalizePersonaTrainingDatasetText(source.sourceId, 240),
+    sourceKind: source.sourceKind,
+  }
 }
 
 function exampleHasCleaningProvenance(example: PersonaTrainingDatasetExample) {
@@ -89,7 +113,7 @@ export function buildPersonaDatasetQualityFixtureFromRuntimeSnapshot(input: {
     consent: example.consentSnapshot,
     provenance: example.provenance,
   } satisfies PersonaTrainingDatasetSource))
-  const expectedExportedSourceIds = scopedExamples
+  const expectedExportedSourceRefs = scopedExamples
     .filter(example =>
       example.datasetId
       && example.state === 'staged'
@@ -98,7 +122,7 @@ export function buildPersonaDatasetQualityFixtureFromRuntimeSnapshot(input: {
       && example.consentSnapshot.granted
       && exampleHasCleaningProvenance(example),
     )
-    .map(example => example.sourceId)
+    .map(personaTrainingDatasetQualitySourceRefFromSource)
   return {
     id: input.id,
     cardId,
@@ -106,7 +130,7 @@ export function buildPersonaDatasetQualityFixtureFromRuntimeSnapshot(input: {
     consent,
     sources,
     datasetSchemaVersion: input.datasetSchemaVersion,
-    expectedExportedSourceIds,
+    expectedExportedSourceRefs,
   }
 }
 
@@ -167,18 +191,44 @@ function normalizeConsent(input: PersonaTrainingDatasetConsentSnapshot, now: num
   }
 }
 
+function normalizeSourceConsent(
+  input: PersonaTrainingDatasetConsentSnapshot | null | undefined,
+  now: number,
+): PersonaTrainingDatasetConsentSnapshot {
+  if (input == null) {
+    return {
+      granted: false,
+      policyVersion: '',
+      scope: '',
+      capturedAt: now,
+    }
+  }
+  return {
+    granted: input.granted === true,
+    policyVersion: normalizePersonaTrainingDatasetText(input.policyVersion, 120),
+    scope: normalizePersonaTrainingDatasetText(input.scope, 160),
+    capturedAt: Number.isFinite(input.capturedAt)
+      ? Math.max(0, Math.floor(Number(input.capturedAt)))
+      : now,
+  }
+}
+
 function normalizeCardId(cardId: string) {
   return normalizePersonaTrainingDatasetText(cardId, 120)
 }
 
+function consentMatchesDatasetPolicy(
+  source: PersonaTrainingDatasetConsentSnapshot,
+  dataset: PersonaTrainingDatasetConsentSnapshot,
+) {
+  return source.granted === true
+    && dataset.granted === true
+    && source.policyVersion === dataset.policyVersion
+    && source.scope === dataset.scope
+}
+
 function containsPiiText(...values: string[]) {
-  const text = values.join(' ')
-  return /\b[\w.%+-]+@[\w.-]+\.[A-Z]{2,}\b/i.test(text)
-    || /(?:\+?86[-\s]?)?1[3-9]\d{9}\b/u.test(text)
-    || /\b(?:sk|api|key|token)[-_]?[\dA-Z]{12,}\b/iu.test(text)
-    || /\b(?:\d{1,3}\.){3}\d{1,3}\b/u.test(text)
-    || /\b\d{17}[\dXx]\b/u.test(text)
-    || /\b(?:\d[ -]?){13,19}\b/u.test(text)
+  return detectPersonaTrainingPii(...values).detected
 }
 
 function containsTemplateResidueText(...values: string[]) {
@@ -265,27 +315,37 @@ function buildExamples(input: {
       seenHashes.add(result.contentHash)
       return true
     })
-    .map(({ source, result }) => ({
-      id: `persona-example:${input.dataset.id}:${result.contentHash}`,
-      datasetId: input.dataset.id,
-      cardId,
-      schemaVersion: PERSONA_TRAINING_EXAMPLE_SCHEMA_VERSION,
-      sourceId: normalizePersonaTrainingDatasetText(source.sourceId, 240),
-      sourceKind: result.sourceKind!,
-      contentHash: result.contentHash!,
-      behaviorLesson: result.behaviorLesson,
-      positiveExample: result.positiveExample,
-      negativeExample: result.negativeExample,
-      sensitivity: normalizePersonaTrainingDatasetText(source.sensitivity, 40) || 'personal',
-      piiStatus: result.piiStatus,
-      piiReason: result.piiReason,
-      consentSnapshot: input.consent,
-      provenance: source.provenance ?? null,
-      allowTraining: result.allowTraining && input.consent.granted,
-      state: result.state,
-      createdAt: input.fixture.createdAt,
-      revokedAt: null,
-    } satisfies PersonaTrainingDatasetExample))
+    .map(({ source, result }) => {
+      const sourceConsent = normalizeSourceConsent(source.consent, input.fixture.createdAt)
+      const sourceConsentMatches = consentMatchesDatasetPolicy(sourceConsent, input.consent)
+      return {
+        id: `persona-example:${input.dataset.id}:${result.contentHash}`,
+        datasetId: input.dataset.id,
+        cardId,
+        schemaVersion: PERSONA_TRAINING_EXAMPLE_SCHEMA_VERSION,
+        sourceId: normalizePersonaTrainingDatasetText(source.sourceId, 240),
+        sourceKind: result.sourceKind!,
+        contentHash: result.contentHash!,
+        behaviorLesson: result.behaviorLesson,
+        positiveExample: result.positiveExample,
+        negativeExample: result.negativeExample,
+        sensitivity: normalizePersonaTrainingDatasetText(source.sensitivity, 40) || 'personal',
+        piiStatus: result.piiStatus,
+        piiReason: sourceConsentMatches
+          ? result.piiReason
+          : sourceConsent.granted !== true
+            ? 'source consent is not granted'
+            : 'source consent does not match dataset policy',
+        consentSnapshot: sourceConsent,
+        provenance: source.provenance ?? null,
+        allowTraining: result.allowTraining
+          && input.consent.granted
+          && sourceConsentMatches,
+        state: sourceConsentMatches ? result.state : 'quarantined',
+        createdAt: input.fixture.createdAt,
+        revokedAt: null,
+      } satisfies PersonaTrainingDatasetExample
+    })
 
   return {
     sourceResults,
@@ -299,9 +359,19 @@ function buildFindings(input: {
   manifest: PersonaTrainingDatasetManifest
   examples: PersonaTrainingDatasetExample[]
   metrics: PersonaTrainingDatasetQualityMetrics
-  sourcesById: Map<string, PersonaTrainingDatasetSource>
+  sourcesByRef: Map<string, PersonaTrainingDatasetSource>
 }) {
   const findings: PersonaTrainingDatasetQualityFinding[] = []
+  const sourceConsentMissingCount = input.examples.filter((example) => {
+    const source = input.sourcesByRef.get(personaTrainingDatasetQualitySourceRefKey(example))
+    return source?.consent?.granted !== true
+  }).length
+  const consentMismatchCount = input.examples.filter((example) => {
+    const source = input.sourcesByRef.get(personaTrainingDatasetQualitySourceRefKey(example))
+    return source?.consent != null
+      && source.consent.granted === true
+      && !consentMatchesDatasetPolicy(source.consent, input.manifest.consentSnapshot)
+  }).length
   const add = (
     code: PersonaTrainingDatasetQualityFindingCode,
     severity: PersonaTrainingDatasetQualityFinding['severity'],
@@ -372,7 +442,7 @@ function buildFindings(input: {
   }
 
   const exportedSources = input.manifest.examples
-    .map(example => input.sourcesById.get(example.sourceId))
+    .map(example => input.sourcesByRef.get(personaTrainingDatasetQualitySourceRefKey(example)))
     .filter((source): source is PersonaTrainingDatasetSource => Boolean(source))
   if (exportedSources.some(source => source.sourceKind === 'review-queue')) {
     add(
@@ -423,6 +493,24 @@ function buildFindings(input: {
       'critical',
       'Persona/LoRA 数据集在 consent 未授予时仍导出训练样本。',
       '导出和激活都必须同时检查 dataset consent 与 example consent。',
+    )
+  }
+
+  if (consentMismatchCount > 0) {
+    add(
+      'persona-dataset-consent-leak',
+      'critical',
+      `Persona/LoRA 数据集有 ${consentMismatchCount} 条样本的 consent 与数据集策略不一致。`,
+      '样本 consent 必须绑定当前 dataset 的 policyVersion 和 scope，策略不一致时隔离且禁止导出。',
+    )
+  }
+
+  if (sourceConsentMissingCount > 0) {
+    add(
+      'persona-dataset-consent-leak',
+      'critical',
+      `Persona/LoRA 数据集有 ${sourceConsentMissingCount} 条样本缺少有效的来源 consent。`,
+      '来源样本必须显式携带 granted consent，并与当前 dataset 的 policyVersion 和 scope 一致。',
     )
   }
 
@@ -478,14 +566,13 @@ export function runPersonaTrainingDatasetQualityHarnessFixture(input: {
     },
     consent,
   })
-  const sourceById = new Map(fixture.sources.map(source => [
-    normalizePersonaTrainingDatasetText(source.sourceId, 240),
+  const sourceByRef = new Map(fixture.sources.map(source => [
+    personaTrainingDatasetQualitySourceRefKey(source),
     source,
   ]))
-  const rejectedIds = fixture.sources
+  const rejectedRefs = fixture.sources
     .filter(source => !classifyPersonaTrainingDatasetSource(source).accepted)
-    .map(source => normalizePersonaTrainingDatasetText(source.sourceId, 240))
-    .filter(Boolean)
+    .map(personaTrainingDatasetQualitySourceRefFromSource)
   const built = buildExamples({
     fixture: {
       ...fixture,
@@ -499,38 +586,52 @@ export function runPersonaTrainingDatasetQualityHarnessFixture(input: {
     examples: built.examples,
     exportedAt: fixture.createdAt,
   })
-  const exportedIds = manifest.examples.map(example => example.sourceId)
-  const exportedSet = new Set(exportedIds)
-  const expectedExportedIds = (fixture.expectedExportedSourceIds ?? []).map(id => normalizePersonaTrainingDatasetText(id, 240)).filter(Boolean)
-  const forbiddenExportedIds = (fixture.forbiddenExportedSourceIds ?? []).map(id => normalizePersonaTrainingDatasetText(id, 240)).filter(Boolean)
-  const expectedQuarantinedIds = (fixture.expectedQuarantinedSourceIds ?? []).map(id => normalizePersonaTrainingDatasetText(id, 240)).filter(Boolean)
-  const expectedRejectedIds = (fixture.expectedRejectedSourceIds ?? []).map(id => normalizePersonaTrainingDatasetText(id, 240)).filter(Boolean)
-  const expectedExportMissCount = expectedExportedIds.filter(id => !exportedSet.has(id)).length
-  const forbiddenExportLeakCount = forbiddenExportedIds.filter(id => exportedSet.has(id)).length
-  const exampleBySourceId = new Map(built.examples.map(example => [example.sourceId, example]))
-  const rejectedSet = new Set(rejectedIds)
-  const expectedQuarantineMissCount = expectedQuarantinedIds.filter(id => exampleBySourceId.get(id)?.state !== 'quarantined').length
-  const expectedRejectMissCount = expectedRejectedIds.filter(id => !rejectedSet.has(id)).length
-  const exportedSources = exportedIds
-    .map(id => sourceById.get(id))
+  const exportedRefs = manifest.examples.map(personaTrainingDatasetQualitySourceRefFromSource)
+  const exportedKeys = exportedRefs.map(personaTrainingDatasetQualitySourceRefKey)
+  const exportedSet = new Set(exportedKeys)
+  const expectedExportedRefs = fixture.expectedExportedSourceRefs ?? []
+  const forbiddenExportedRefs = fixture.forbiddenExportedSourceRefs ?? []
+  const expectedQuarantinedRefs = fixture.expectedQuarantinedSourceRefs ?? []
+  const expectedRejectedRefs = fixture.expectedRejectedSourceRefs ?? []
+  const expectedExportMissCount = expectedExportedRefs
+    .filter(sourceRef => !exportedSet.has(personaTrainingDatasetQualitySourceRefKey(sourceRef)))
+    .length
+  const forbiddenExportLeakCount = forbiddenExportedRefs
+    .filter(sourceRef => exportedSet.has(personaTrainingDatasetQualitySourceRefKey(sourceRef)))
+    .length
+  const exampleBySourceRef = new Map(built.examples.map(example => [
+    personaTrainingDatasetQualitySourceRefKey(example),
+    example,
+  ]))
+  const rejectedSet = new Set(rejectedRefs.map(personaTrainingDatasetQualitySourceRefKey))
+  const expectedQuarantineMissCount = expectedQuarantinedRefs
+    .filter(sourceRef =>
+      exampleBySourceRef.get(personaTrainingDatasetQualitySourceRefKey(sourceRef))?.state !== 'quarantined',
+    )
+    .length
+  const expectedRejectMissCount = expectedRejectedRefs
+    .filter(sourceRef => !rejectedSet.has(personaTrainingDatasetQualitySourceRefKey(sourceRef)))
+    .length
+  const exportedSources = exportedRefs
+    .map(sourceRef => sourceByRef.get(personaTrainingDatasetQualitySourceRefKey(sourceRef)))
     .filter((source): source is PersonaTrainingDatasetSource => Boolean(source))
   const unsafeSourceExportLeakCount = exportedSources.filter(source => sourceHasUnsafeKind(source)).length
   const piiExportLeakCount = exportedSources.filter(source => sourceHasPii(source)).length
   const templateResidueExportLeakCount = exportedSources.filter(source => sourceHasTemplateResidue(source)).length
   const consentLeakCount = consent.granted ? 0 : manifest.examples.length
   const defaultTrainingLeakCount = built.examples.filter((example) => {
-    const source = sourceById.get(example.sourceId)
+    const source = sourceByRef.get(personaTrainingDatasetQualitySourceRefKey(example))
     return example.allowTraining && source?.allowTraining !== true
   }).length
   const crossCardLeakCount = built.examples.filter(example => example.cardId !== cardId).length
   const missingProvenanceAcceptedCount = built.examples.filter((example) => {
-    const source = sourceById.get(example.sourceId)
+    const source = sourceByRef.get(personaTrainingDatasetQualitySourceRefKey(example))
     return !source || !hasValidCleaningProvenance(source)
   }).length
   const traceableExportedCount = manifest.examples.filter(example =>
     Boolean(example.sourceId)
     && Boolean(example.contentHash)
-    && hasValidCleaningProvenance(sourceById.get(example.sourceId)!),
+    && hasValidCleaningProvenance(sourceByRef.get(personaTrainingDatasetQualitySourceRefKey(example))!),
   ).length
   const sourceTraceRate = manifest.examples.length === 0
     ? 1
@@ -542,7 +643,7 @@ export function runPersonaTrainingDatasetQualityHarnessFixture(input: {
     acceptedSourceCount: built.sourceResults.length,
     stagedExampleCount: built.examples.filter(example => example.state === 'staged').length,
     quarantinedExampleCount: built.examples.filter(example => example.state === 'quarantined').length,
-    rejectedSourceCount: rejectedIds.length,
+    rejectedSourceCount: rejectedRefs.length,
     exportedExampleCount: manifest.examples.length,
     expectedExportMissCount,
     forbiddenExportLeakCount,
@@ -565,16 +666,16 @@ export function runPersonaTrainingDatasetQualityHarnessFixture(input: {
     manifest,
     examples: built.examples,
     metrics,
-    sourcesById: sourceById,
+    sourcesByRef: sourceByRef,
   })
   const trace: PersonaTrainingDatasetQualityTrace = {
     id: `persona-training-dataset-quality:${fixture.id}:${fixture.createdAt}`,
     fixtureId: fixture.id,
     owner: 'PersonaTrainingDataset',
-    selectedIds: exportedIds,
-    rejectedIds,
-    forbiddenIds: forbiddenExportedIds,
-    rankReasonsById: Object.fromEntries(manifest.examples.map(example => [example.sourceId, [
+    selectedIds: exportedKeys,
+    rejectedIds: rejectedRefs.map(personaTrainingDatasetQualitySourceRefKey),
+    forbiddenIds: forbiddenExportedRefs.map(personaTrainingDatasetQualitySourceRefKey),
+    rankReasonsById: Object.fromEntries(manifest.examples.map(example => [personaTrainingDatasetQualitySourceRefKey(example), [
       'persona-dataset:manifest-exported',
       `schema:${example.schemaVersion}`,
       `state:${built.examples.find(item => item.id === example.id)?.state ?? 'unknown'}`,

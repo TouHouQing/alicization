@@ -4,7 +4,7 @@ import type { AlicizationMemoryQualityTrialReportRecordSurface } from '@proj-ali
 import { Button } from '@proj-alicization/ui'
 import { useI18n } from 'vue-i18n'
 
-const props = defineProps<{
+defineProps<{
   reports: AlicizationMemoryQualityTrialReportRecordSurface[]
   selectedReportId: string | null
   loading: boolean

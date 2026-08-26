@@ -62,6 +62,12 @@ function formatTimestamp(value: number | null) {
   return value == null || value <= 0 ? '-' : new Date(value).toLocaleString()
 }
 
+function formatSourceRefs(
+  sourceRefs: AlicizationPersonaTrainingPipelineRunRecord['sourceRefs'],
+) {
+  return sourceRefs.map(sourceRef => `${sourceRef.sourceKind} · ${sourceRef.sourceId}`).join(', ')
+}
+
 function cancelActiveRun() {
   if (personaTrainingRun.value)
     void store.cancelPersonaTraining(personaTrainingRun.value.runId, 'user-requested')
@@ -136,6 +142,9 @@ onMounted(refreshPersonaTrainingState)
       </div>
       <div v-if="personaTrainingRun.progressMessage" :class="['mt-2', 'text-sm']">
         {{ personaTrainingRun.progressMessage }}
+      </div>
+      <div :class="['mt-2', 'break-words', 'font-mono', 'text-xs', 'text-neutral-500']">
+        {{ formatSourceRefs(personaTrainingRun.sourceRefs) }}
       </div>
       <div v-if="personaTrainingRun.error" :class="['mt-2', 'text-sm', 'text-rose-600', 'dark:text-rose-300']">
         {{ personaTrainingRun.error }}
@@ -239,6 +248,9 @@ onMounted(refreshPersonaTrainingState)
             <div :class="['mt-1', 'truncate', 'font-mono', 'text-xs', 'text-neutral-500']">
               {{ run.runId }}
             </div>
+            <div :class="['mt-1', 'break-words', 'font-mono', 'text-xs', 'text-neutral-500']">
+              {{ formatSourceRefs(run.sourceRefs) }}
+            </div>
           </button>
         </template>
       </div>
@@ -260,6 +272,9 @@ onMounted(refreshPersonaTrainingState)
           </div>
           <div :class="['mt-1', 'truncate', 'font-mono', 'text-xs']">
             {{ increment.id }}
+          </div>
+          <div :class="['mt-1', 'break-words', 'font-mono', 'text-xs', 'text-neutral-500']">
+            {{ formatSourceRefs(increment.sourceRefs) }}
           </div>
           <div v-if="increment.cleanup" :class="['mt-2', 'border-l-2', 'border-amber-400', 'pl-2', 'text-xs']">
             <div>

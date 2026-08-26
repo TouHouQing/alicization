@@ -667,6 +667,10 @@ export type AlicizationMemoryWorkbenchKind
 export type AlicizationMemoryWorkbenchSensitivity = 'public' | 'personal' | 'private' | 'secret'
 export type AlicizationMemoryWorkbenchVisibility = 'explicit' | 'inward-only'
 export type AlicizationMemoryWorkbenchTrainingState = 'allowed' | 'blocked'
+export type AlicizationMemoryWorkbenchReviewKind = Extract<
+  AlicizationMemoryWorkbenchKind,
+  'episode' | 'preference' | 'relationship' | 'procedure' | 'correction'
+>
 export type AlicizationMemoryWorkbenchReviewDecision = 'approve' | 'reject' | 'tombstone' | 'inward-only' | 'no-training'
 export type AlicizationMemoryLongTermActionDecision = 'tombstone' | 'inward-only' | 'no-training'
 export type AlicizationMemoryRecallProbeMode = 'none' | 'episodic' | 'relationship' | 'preference' | 'procedure' | 'task' | 'mixed'
@@ -813,6 +817,50 @@ export interface AlicizationMemoryWorkbenchListResult {
   nextCursor: string | null
 }
 
+export interface AlicizationMemoryWorkbenchTombstoneItem {
+  id: string
+  sourceId: string
+  source: string
+  reason: string | null
+  deletedAt: number
+  memory: AlicizationMemoryWorkbenchItem | null
+}
+
+export interface AlicizationMemoryWorkbenchTombstoneListPayload extends AlicizationCardScope {
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationMemoryWorkbenchTombstoneListResult {
+  items: AlicizationMemoryWorkbenchTombstoneItem[]
+  nextCursor: string | null
+}
+
+export interface AlicizationMemoryWorkbenchTombstoneRestorePayload extends AlicizationCardScope {
+  tombstoneId: string
+}
+
+export interface AlicizationMemoryWorkbenchTombstoneRestoreResult {
+  restored: boolean
+  item: AlicizationMemoryWorkbenchItem | null
+  reindexJobId: string | null
+}
+
+export interface AlicizationMemoryWorkbenchReviewListPayload extends AlicizationCardScope {
+  query?: string
+  kind?: AlicizationMemoryWorkbenchReviewKind | 'all'
+  sensitivity?: AlicizationMemoryWorkbenchSensitivity | 'all'
+  visibility?: AlicizationMemoryWorkbenchVisibility | 'all'
+  training?: AlicizationMemoryWorkbenchTrainingState | 'all'
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationMemoryWorkbenchReviewListResult {
+  items: AlicizationLongTermMemoryReviewItem[]
+  nextCursor: string | null
+}
+
 export interface AlicizationMemoryReviewActionPayload extends AlicizationCardScope {
   reviewItemId: string
   decision: AlicizationMemoryWorkbenchReviewDecision
@@ -821,6 +869,7 @@ export interface AlicizationMemoryReviewActionPayload extends AlicizationCardSco
 
 export interface AlicizationMemoryLongTermActionPayload extends AlicizationCardScope {
   memoryItemId: string
+  source?: string
   decision: AlicizationMemoryLongTermActionDecision
   reason?: string | null
 }
@@ -983,6 +1032,11 @@ export interface AlicizationPersonaTrainingDatasetExamplePolicyPayload extends A
 }
 
 export type AlicizationPersonaTrainingDatasetRevokePayload = SharedMemoryWorkbench.AlicizationPersonaTrainingDatasetRevokePayload
+export type AlicizationPersonaTrainingSourceRevokeIntentStatus = SharedMemoryWorkbench.AlicizationPersonaTrainingSourceRevokeIntentStatus
+export type AlicizationPersonaTrainingSourceRevokeIntent = SharedMemoryWorkbench.AlicizationPersonaTrainingSourceRevokeIntent
+export type AlicizationPersonaTrainingSourceRevokeIntentListPayload = SharedMemoryWorkbench.AlicizationPersonaTrainingSourceRevokeIntentListPayload
+export type AlicizationPersonaTrainingSourceRevokeIntentRetryPayload = SharedMemoryWorkbench.AlicizationPersonaTrainingSourceRevokeIntentRetryPayload
+export type AlicizationPersonaTrainingSourceRevokeIntentResult = SharedMemoryWorkbench.AlicizationPersonaTrainingSourceRevokeIntentResult
 export type AlicizationPersonaTrainingPipelineIncrementState = SharedMemoryWorkbench.AlicizationPersonaTrainingPipelineIncrementState
 export type AlicizationPersonaTrainingPipelineIncrement = SharedMemoryWorkbench.AlicizationPersonaTrainingPipelineIncrement
 export type AlicizationPersonaTrainingPipelineFailureReason = SharedMemoryWorkbench.AlicizationPersonaTrainingPipelineFailureReason
@@ -1052,7 +1106,7 @@ export interface AlicizationMemoryEmbeddingReindexPayload extends AlicizationCar
   limit?: number
 }
 
-export type AlicizationMemoryEmbeddingReindexJobStatus = 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
+export type AlicizationMemoryEmbeddingReindexJobStatus = 'queued' | 'running' | 'paused' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
 
 export interface AlicizationMemoryEmbeddingReindexProgress {
   jobId: string
@@ -3966,6 +4020,9 @@ export const electronAlicizationMemoryImportLegacy = defineInvokeEventa<Alicizat
 export const electronAlicizationGetOrganicMemorySnapshot = defineInvokeEventa<AlicizationOrganicMemorySnapshot, AlicizationCardScope>('eventa:invoke:electron:alicization:memory:get-organic-snapshot')
 export const electronAlicizationMemoryWorkbenchGetSnapshot = defineInvokeEventa<AlicizationMemoryWorkbenchSnapshot, AlicizationMemoryWorkbenchSnapshotPayload>('eventa:invoke:electron:alicization:memory-workbench:get-snapshot')
 export const electronAlicizationMemoryWorkbenchListLongTerm = defineInvokeEventa<AlicizationMemoryWorkbenchListResult, AlicizationMemoryWorkbenchListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-long-term')
+export const electronAlicizationMemoryWorkbenchListTombstones = defineInvokeEventa<AlicizationMemoryWorkbenchTombstoneListResult, AlicizationMemoryWorkbenchTombstoneListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-tombstones')
+export const electronAlicizationMemoryWorkbenchRestoreTombstone = defineInvokeEventa<AlicizationMemoryWorkbenchTombstoneRestoreResult, AlicizationMemoryWorkbenchTombstoneRestorePayload>('eventa:invoke:electron:alicization:memory-workbench:restore-tombstone')
+export const electronAlicizationMemoryWorkbenchListReview = defineInvokeEventa<AlicizationMemoryWorkbenchReviewListResult, AlicizationMemoryWorkbenchReviewListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-review')
 export const electronAlicizationMemoryWorkbenchApplyLongTermAction = defineInvokeEventa<AlicizationMemoryWorkbenchItem | null, AlicizationMemoryLongTermActionPayload>('eventa:invoke:electron:alicization:memory-workbench:apply-long-term-action')
 export const electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue = defineInvokeEventa<AlicizationWorkingMemoryCleaningQueueResult, AlicizationWorkingMemoryCleaningQueuePayload>('eventa:invoke:electron:alicization:memory-workbench:working-memory-cleaning-queue')
 export const electronAlicizationMemoryWorkbenchApplyReviewAction = defineInvokeEventa<AlicizationLongTermMemoryReviewItem | null, AlicizationMemoryReviewActionPayload>('eventa:invoke:electron:alicization:memory-workbench:apply-review-action')
@@ -3979,6 +4036,8 @@ export const electronAlicizationMemoryWorkbenchActivatePersonaTrainingDataset = 
 export const electronAlicizationMemoryWorkbenchRollbackPersonaTrainingDataset = defineInvokeEventa<AlicizationPersonaTrainingDatasetVersion | null, Required<AlicizationPersonaTrainingDatasetVersionPayload>>('eventa:invoke:electron:alicization:memory-workbench:rollback-persona-training-dataset')
 export const electronAlicizationMemoryWorkbenchSetPersonaTrainingDatasetExamplePolicy = defineInvokeEventa<AlicizationPersonaTrainingDatasetExample | null, AlicizationPersonaTrainingDatasetExamplePolicyPayload>('eventa:invoke:electron:alicization:memory-workbench:set-persona-training-dataset-example-policy')
 export const electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource = defineInvokeEventa<{ affected: number }, AlicizationPersonaTrainingDatasetRevokePayload>('eventa:invoke:electron:alicization:memory-workbench:revoke-persona-training-dataset-source')
+export const electronAlicizationMemoryWorkbenchListPersonaTrainingSourceRevokeIntents = defineInvokeEventa<AlicizationPersonaTrainingSourceRevokeIntentResult, AlicizationPersonaTrainingSourceRevokeIntentListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-persona-training-source-revoke-intents')
+export const electronAlicizationMemoryWorkbenchRetryPersonaTrainingSourceRevokeIntent = defineInvokeEventa<AlicizationPersonaTrainingSourceRevokeIntentResult, AlicizationPersonaTrainingSourceRevokeIntentRetryPayload>('eventa:invoke:electron:alicization:memory-workbench:retry-persona-training-source-revoke-intent')
 export const electronAlicizationMemoryWorkbenchRunPersonaTraining = defineInvokeEventa<AlicizationPersonaTrainingStartResult, AlicizationPersonaTrainingRunPayload>('eventa:invoke:electron:alicization:memory-workbench:run-persona-training')
 export const electronAlicizationMemoryWorkbenchGetPersonaTrainingRun = defineInvokeEventa<AlicizationPersonaTrainingPipelineRunRecord | null, AlicizationPersonaTrainingRunLookupPayload>('eventa:invoke:electron:alicization:memory-workbench:get-persona-training-run')
 export const electronAlicizationMemoryWorkbenchListPersonaTrainingRuns = defineInvokeEventa<AlicizationPersonaTrainingRunsResult, AlicizationCardScope & { limit?: number }>('eventa:invoke:electron:alicization:memory-workbench:list-persona-training-runs')

@@ -271,6 +271,10 @@ export type AlicizationMemoryWorkbenchKind
 export type AlicizationMemoryWorkbenchSensitivity = 'public' | 'personal' | 'private' | 'secret'
 export type AlicizationMemoryWorkbenchVisibility = 'explicit' | 'inward-only'
 export type AlicizationMemoryWorkbenchTrainingState = 'allowed' | 'blocked'
+export type AlicizationMemoryWorkbenchReviewKind = Extract<
+  AlicizationMemoryWorkbenchKind,
+  'episode' | 'preference' | 'relationship' | 'procedure' | 'correction'
+>
 export type AlicizationMemoryWorkbenchReviewDecision = 'approve' | 'reject' | 'tombstone' | 'inward-only' | 'no-training'
 export type AlicizationMemoryLongTermActionDecision = 'tombstone' | 'inward-only' | 'no-training'
 export type AlicizationMemoryRecallProbeMode = 'none' | 'episodic' | 'relationship' | 'preference' | 'procedure' | 'task' | 'mixed'
@@ -413,6 +417,50 @@ export interface AlicizationMemoryWorkbenchListResult {
   nextCursor: string | null
 }
 
+export interface AlicizationMemoryWorkbenchTombstoneItem {
+  id: string
+  sourceId: string
+  source: string
+  reason: string | null
+  deletedAt: number
+  memory: AlicizationMemoryWorkbenchItem | null
+}
+
+export interface AlicizationMemoryWorkbenchTombstoneListPayload extends AlicizationCardScope {
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationMemoryWorkbenchTombstoneListResult {
+  items: AlicizationMemoryWorkbenchTombstoneItem[]
+  nextCursor: string | null
+}
+
+export interface AlicizationMemoryWorkbenchTombstoneRestorePayload extends AlicizationCardScope {
+  tombstoneId: string
+}
+
+export interface AlicizationMemoryWorkbenchTombstoneRestoreResult {
+  restored: boolean
+  item: AlicizationMemoryWorkbenchItem | null
+  reindexJobId: string | null
+}
+
+export interface AlicizationMemoryWorkbenchReviewListPayload extends AlicizationCardScope {
+  query?: string
+  kind?: AlicizationMemoryWorkbenchReviewKind | 'all'
+  sensitivity?: AlicizationMemoryWorkbenchSensitivity | 'all'
+  visibility?: AlicizationMemoryWorkbenchVisibility | 'all'
+  training?: AlicizationMemoryWorkbenchTrainingState | 'all'
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationMemoryWorkbenchReviewListResult {
+  items: AlicizationLongTermMemoryReviewItem[]
+  nextCursor: string | null
+}
+
 export interface AlicizationMemoryReviewActionPayload extends AlicizationCardScope {
   reviewItemId: string
   decision: AlicizationMemoryWorkbenchReviewDecision
@@ -421,6 +469,7 @@ export interface AlicizationMemoryReviewActionPayload extends AlicizationCardSco
 
 export interface AlicizationMemoryLongTermActionPayload extends AlicizationCardScope {
   memoryItemId: string
+  source?: string
   decision: AlicizationMemoryLongTermActionDecision
   reason?: string | null
 }
@@ -544,6 +593,11 @@ export interface AlicizationPersonaTrainingDatasetExamplePolicyPayload extends A
 }
 
 export type AlicizationPersonaTrainingDatasetRevokePayload = SharedMemoryWorkbench.AlicizationPersonaTrainingDatasetRevokePayload
+export type AlicizationPersonaTrainingSourceRevokeIntentStatus = SharedMemoryWorkbench.AlicizationPersonaTrainingSourceRevokeIntentStatus
+export type AlicizationPersonaTrainingSourceRevokeIntent = SharedMemoryWorkbench.AlicizationPersonaTrainingSourceRevokeIntent
+export type AlicizationPersonaTrainingSourceRevokeIntentListPayload = SharedMemoryWorkbench.AlicizationPersonaTrainingSourceRevokeIntentListPayload
+export type AlicizationPersonaTrainingSourceRevokeIntentRetryPayload = SharedMemoryWorkbench.AlicizationPersonaTrainingSourceRevokeIntentRetryPayload
+export type AlicizationPersonaTrainingSourceRevokeIntentResult = SharedMemoryWorkbench.AlicizationPersonaTrainingSourceRevokeIntentResult
 
 export interface AlicizationPersonaCandidateWorkbenchItem {
   id: string
@@ -635,7 +689,7 @@ export interface AlicizationMemoryEmbeddingReindexPayload extends AlicizationCar
   limit?: number
 }
 
-export type AlicizationMemoryEmbeddingReindexJobStatus = 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
+export type AlicizationMemoryEmbeddingReindexJobStatus = 'queued' | 'running' | 'paused' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
 
 export interface AlicizationMemoryEmbeddingProgress {
   jobId: string
@@ -2548,6 +2602,9 @@ interface AlicizationBridge {
   importLegacyMemory: (payload: AlicizationMemoryLegacySnapshot) => Promise<AlicizationMemoryMigrationResult>
   memoryWorkbenchGetSnapshot?: (payload?: { sessionId?: string | null }) => Promise<AlicizationMemoryWorkbenchSnapshot>
   memoryWorkbenchListLongTerm?: (payload: Omit<AlicizationMemoryWorkbenchListPayload, 'cardId'>) => Promise<AlicizationMemoryWorkbenchListResult>
+  memoryWorkbenchListTombstones?: (payload: Omit<AlicizationMemoryWorkbenchTombstoneListPayload, 'cardId'>) => Promise<AlicizationMemoryWorkbenchTombstoneListResult>
+  memoryWorkbenchRestoreTombstone?: (payload: Omit<AlicizationMemoryWorkbenchTombstoneRestorePayload, 'cardId'>) => Promise<AlicizationMemoryWorkbenchTombstoneRestoreResult>
+  memoryWorkbenchListReview?: (payload: Omit<AlicizationMemoryWorkbenchReviewListPayload, 'cardId'>) => Promise<AlicizationMemoryWorkbenchReviewListResult>
   memoryWorkbenchApplyLongTermAction?: (payload: Omit<AlicizationMemoryLongTermActionPayload, 'cardId'>) => Promise<AlicizationMemoryWorkbenchItem | null>
   memoryWorkbenchManageWorkingMemoryCleaningQueue?: (payload: Omit<AlicizationWorkingMemoryCleaningQueuePayload, 'cardId'>) => Promise<AlicizationWorkingMemoryCleaningQueueResult>
   memoryWorkbenchListReplaySessions?: (payload: Omit<AlicizationMemoryReplaySessionListPayload, 'cardId'>) => Promise<AlicizationMemoryReplaySessionListResult>
@@ -2562,6 +2619,8 @@ interface AlicizationBridge {
   memoryWorkbenchRollbackPersonaTrainingDataset?: (payload: Omit<Required<AlicizationPersonaTrainingDatasetVersionPayload>, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetVersion | null>
   memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy?: (payload: Omit<AlicizationPersonaTrainingDatasetExamplePolicyPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetExample | null>
   memoryWorkbenchRevokePersonaTrainingDatasetSource?: (payload: Omit<AlicizationPersonaTrainingDatasetRevokePayload, 'cardId'>) => Promise<{ affected: number }>
+  memoryWorkbenchListPersonaTrainingSourceRevokeIntents?: (payload: Omit<AlicizationPersonaTrainingSourceRevokeIntentListPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingSourceRevokeIntentResult>
+  memoryWorkbenchRetryPersonaTrainingSourceRevokeIntent?: (payload: Omit<AlicizationPersonaTrainingSourceRevokeIntentRetryPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingSourceRevokeIntentResult>
   memoryWorkbenchRunPersonaTraining?: (payload: Omit<AlicizationPersonaTrainingRunPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingStartResult>
   memoryWorkbenchGetPersonaTrainingRun?: (payload: Omit<AlicizationPersonaTrainingRunLookupPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingPipelineRunRecord | null>
   memoryWorkbenchListPersonaTrainingRuns?: (payload?: { limit?: number }) => Promise<AlicizationPersonaTrainingRunsResult>

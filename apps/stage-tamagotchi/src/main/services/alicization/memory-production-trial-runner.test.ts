@@ -319,13 +319,17 @@ describe('memory production trial runner', () => {
           lesson: '不要把 provider 失败伪装成人格回复。',
           sensitivity: 'personal',
           allowTraining: true,
+          consent: { granted: true, policyVersion: 'v1', scope: 'persona-dataset', capturedAt: now },
           provenance: {
             kind: 'working-memory-cleaning',
             cleaningTransactionId: 'cleaning-provider-failure',
             cleanedAt: now - 100,
           },
         }],
-        expectedExportedSourceIds: ['reflection-provider-failure'],
+        expectedExportedSourceRefs: [{
+          sourceId: 'reflection-provider-failure',
+          sourceKind: 'cleaned-long-term-reflection',
+        }],
       }],
     })
 

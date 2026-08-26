@@ -1,13 +1,19 @@
+import type {
+  AlicizationPersonaTrainingSourceKind,
+  AlicizationPersonaTrainingSourceRef,
+} from '@proj-alicization/stage-shared'
+
 import { createHash } from 'node:crypto'
 
 import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
+
+import { detectPersonaTrainingPii } from './persona-training-pii'
 
 export const PERSONA_TRAINING_DATASET_SCHEMA_VERSION = 'persona-training-dataset-v1'
 export const PERSONA_TRAINING_EXAMPLE_SCHEMA_VERSION = 'persona-training-example-v1'
 
 export type PersonaTrainingDatasetSourceKind
-  = | 'cleaned-long-term-reflection'
-    | 'persona-reinforcement'
+  = | AlicizationPersonaTrainingSourceKind
     | 'raw-transcript'
     | 'review-queue'
     | 'failure-artifact'
@@ -51,7 +57,7 @@ export interface PersonaTrainingDatasetExample {
   cardId: string
   schemaVersion: string
   sourceId: string
-  sourceKind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+  sourceKind: AlicizationPersonaTrainingSourceKind
   contentHash: string
   behaviorLesson: string
   positiveExample: string
@@ -116,6 +122,10 @@ export interface PersonaTrainingDatasetRepository {
   atomicTrainingGovernance?: boolean
   listVersions: (cardId: string) => Promise<PersonaTrainingDatasetVersion[]>
   createVersion: (input: Omit<PersonaTrainingDatasetVersion, 'exportedAt' | 'activeAt' | 'rolledBackAt'>) => Promise<PersonaTrainingDatasetVersion>
+  createVersionWithExamples?: (input: {
+    dataset: Omit<PersonaTrainingDatasetVersion, 'exportedAt' | 'activeAt' | 'rolledBackAt'>
+    examples: PersonaTrainingDatasetExample[]
+  }) => Promise<PersonaTrainingDatasetVersion>
   insertExamples: (examples: PersonaTrainingDatasetExample[]) => Promise<PersonaTrainingDatasetExample[]>
   listExamples: (cardId: string, datasetId: string) => Promise<PersonaTrainingDatasetExample[]>
   appendExport: (input: {
@@ -126,15 +136,25 @@ export interface PersonaTrainingDatasetRepository {
     manifestJson: string
     exportedAt: number
   }) => Promise<void>
+  appendExportAndMarkExported?: (input: {
+    id: string
+    datasetId: string
+    cardId: string
+    manifestHash: string
+    manifestJson: string
+    exportedAt: number
+  }) => Promise<void>
   markExported?: (cardId: string, datasetId: string, exportedAt: number) => Promise<void>
   setActiveVersion: (cardId: string, datasetId: string, at: number) => Promise<PersonaTrainingDatasetVersion | null>
   rollbackToVersion: (cardId: string, datasetId: string, at: number) => Promise<PersonaTrainingDatasetVersion | null>
-  revokeSource: (cardId: string, sourceId: string, at: number) => Promise<number>
+  revokeSource: (cardId: string, sourceRef: AlicizationPersonaTrainingSourceRef, at: number) => Promise<number>
   updateExamplePolicy: (input: {
     cardId: string
     exampleId: string
     allowTraining: boolean
     consentSnapshot: PersonaTrainingDatasetConsentSnapshot
+    state: PersonaTrainingDatasetExampleState
+    piiReason: string | null
   }) => Promise<PersonaTrainingDatasetExample | null>
 }
 
@@ -160,7 +180,7 @@ export interface PersonaTrainingDatasetRuntime {
   }>
   activateVersion: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
   rollbackVersion: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
-  revokeSource: (input: { cardId: string, sourceId: string }) => Promise<{ affected: number }>
+  revokeSource: (input: { cardId: string } & AlicizationPersonaTrainingSourceRef) => Promise<{ affected: number }>
   setExamplePolicy: (input: {
     cardId: string
     exampleId: string
@@ -184,6 +204,28 @@ function normalizeConsent(input: PersonaTrainingDatasetConsentSnapshot | null | 
   } satisfies PersonaTrainingDatasetConsentSnapshot
 }
 
+function normalizeSourceConsent(
+  input: PersonaTrainingDatasetConsentSnapshot | null | undefined,
+  now: number,
+) {
+  if (input == null) {
+    return {
+      granted: false,
+      policyVersion: '',
+      scope: '',
+      capturedAt: now,
+    } satisfies PersonaTrainingDatasetConsentSnapshot
+  }
+  return {
+    granted: input.granted === true,
+    policyVersion: normalizePersonaTrainingDatasetText(input.policyVersion, 120),
+    scope: normalizePersonaTrainingDatasetText(input.scope, 160),
+    capturedAt: Number.isFinite(input.capturedAt)
+      ? Math.max(0, Math.floor(Number(input.capturedAt)))
+      : now,
+  } satisfies PersonaTrainingDatasetConsentSnapshot
+}
+
 function contentHash(input: {
   schemaVersion: string
   behaviorLesson: string
@@ -202,14 +244,35 @@ function contentHash(input: {
     .digest('hex')
 }
 
+function personaTrainingExampleContentHash(
+  example: Pick<
+    PersonaTrainingDatasetExample,
+    'schemaVersion' | 'behaviorLesson' | 'positiveExample' | 'negativeExample' | 'sourceKind'
+  >,
+) {
+  return contentHash({
+    schemaVersion: example.schemaVersion,
+    behaviorLesson: example.behaviorLesson,
+    positiveExample: example.positiveExample,
+    negativeExample: example.negativeExample,
+    sourceKind: example.sourceKind,
+  })
+}
+
+function personaTrainingManifestExampleContentHash(
+  example: PersonaTrainingDatasetManifest['examples'][number],
+) {
+  return contentHash({
+    schemaVersion: example.schemaVersion,
+    behaviorLesson: example.behaviorLesson,
+    positiveExample: example.positiveExample,
+    negativeExample: example.negativeExample,
+    sourceKind: example.sourceKind,
+  })
+}
+
 function containsPii(...values: string[]) {
-  const text = values.join(' ')
-  return /\b[\w.%+-]+@[\w.-]+\.[A-Z]{2,}\b/i.test(text)
-    || /(?:\+?86[-\s]?)?1[3-9]\d{9}\b/u.test(text)
-    || /\b(?:sk|api|key|token)[-_]?[\dA-Z]{12,}\b/iu.test(text)
-    || /\b(?:\d{1,3}\.){3}\d{1,3}\b/u.test(text)
-    || /\b\d{17}[\dXx]\b/u.test(text)
-    || /\b(?:\d[ -]?){13,19}\b/u.test(text)
+  return detectPersonaTrainingPii(...values).detected
 }
 
 function containsFixedTemplateResidue(...values: string[]) {
@@ -234,6 +297,43 @@ function normalizeCleaningProvenance(
 function isSensitivePersonaTrainingSource(source: PersonaTrainingDatasetSource) {
   const sensitivity = normalizePersonaTrainingDatasetText(source.sensitivity, 40).toLowerCase()
   return sensitivity === 'private' || sensitivity === 'secret'
+}
+
+function isSupportedPersonaTrainingSourceKind(
+  sourceKind: string,
+): sourceKind is PersonaTrainingDatasetExample['sourceKind'] {
+  return sourceKind === 'cleaned-long-term-reflection'
+    || sourceKind === 'persona-reinforcement'
+}
+
+function personaTrainingConsentMatches(
+  left: PersonaTrainingDatasetConsentSnapshot,
+  right: PersonaTrainingDatasetConsentSnapshot,
+) {
+  return left.granted === true
+    && right.granted === true
+    && left.policyVersion === right.policyVersion
+    && left.scope === right.scope
+}
+
+function personaTrainingManifestHash(input: {
+  datasetId: string
+  cardId: string
+  version: number
+  schemaVersion: string
+  consentSnapshot: PersonaTrainingDatasetConsentSnapshot
+  exampleCount: number
+  examples: PersonaTrainingDatasetManifest['examples']
+}) {
+  return createHash('sha256').update(JSON.stringify({
+    datasetId: input.datasetId,
+    cardId: input.cardId,
+    version: input.version,
+    schemaVersion: input.schemaVersion,
+    consentSnapshot: input.consentSnapshot,
+    exampleCount: input.exampleCount,
+    examples: input.examples,
+  })).digest('hex')
 }
 
 export function classifyPersonaTrainingDatasetSource(source: PersonaTrainingDatasetSource): {
@@ -278,10 +378,17 @@ export function classifyPersonaTrainingDatasetSource(source: PersonaTrainingData
     [source.summary, source.lesson, positiveExample, negativeExample].filter(Boolean).join(' '),
     { provenance: 'internal-structured-fact' },
   ) || containsFixedTemplateResidue(source.summary, source.lesson, positiveExample, negativeExample ?? '')
-  const hasPii = containsPii(source.summary, source.lesson, positiveExample, negativeExample ?? '')
+  const piiDetection = detectPersonaTrainingPii(
+    source.summary,
+    source.lesson,
+    positiveExample,
+    negativeExample ?? '',
+  )
+  const hasPii = piiDetection.detected
   const sensitive = isSensitivePersonaTrainingSource(source)
+  const sourceConsentMissing = source.consent?.granted !== true
   const piiStatus: PersonaTrainingDatasetPiiStatus = hasPii ? 'detected' : 'clear'
-  const quarantined = templateResidue || hasPii || sensitive
+  const quarantined = templateResidue || hasPii || sensitive || sourceConsentMissing
   const hash = contentHash({
     schemaVersion: PERSONA_TRAINING_EXAMPLE_SCHEMA_VERSION,
     behaviorLesson,
@@ -296,12 +403,14 @@ export function classifyPersonaTrainingDatasetSource(source: PersonaTrainingData
     allowTraining: quarantined ? false : source.allowTraining === true,
     piiStatus,
     piiReason: hasPii
-      ? 'possible personal identifier detected'
+      ? piiDetection.reason
       : templateResidue
         ? 'fixed-template residue detected'
         : sensitive
           ? 'sensitive source requires quarantine'
-          : null,
+          : sourceConsentMissing
+            ? 'source consent is not granted'
+            : null,
     sourceKind,
     behaviorLesson,
     positiveExample,
@@ -318,30 +427,42 @@ export function buildPersonaTrainingDatasetManifest(input: {
   const datasetConsentGranted = input.dataset.consentSnapshot.granted === true
   const datasetSchemaSupported = input.dataset.schemaVersion === PERSONA_TRAINING_DATASET_SCHEMA_VERSION
   const eligibleExamples = input.examples
-    .filter(example =>
+    .map(example => ({
+      example,
+      recalculatedContentHash: personaTrainingExampleContentHash(example),
+    }))
+    .filter(({ example, recalculatedContentHash }) =>
       datasetConsentGranted
       && datasetSchemaSupported
       && example.cardId === input.dataset.cardId
       && example.datasetId === input.dataset.id
       && example.schemaVersion === PERSONA_TRAINING_EXAMPLE_SCHEMA_VERSION
+      && isSupportedPersonaTrainingSourceKind(example.sourceKind)
       && example.state === 'staged'
       && example.allowTraining
       && example.piiStatus === 'clear'
-      && example.consentSnapshot.granted
+      && personaTrainingConsentMatches(example.consentSnapshot, input.dataset.consentSnapshot)
+      && !containsPii(example.behaviorLesson, example.positiveExample, example.negativeExample ?? '')
+      && !containsFixedTemplateResidue(example.behaviorLesson, example.positiveExample, example.negativeExample ?? '')
+      && !containsAlicizationFixedTemplateResidue(
+        [example.behaviorLesson, example.positiveExample, example.negativeExample].filter(Boolean).join(' '),
+        { provenance: 'internal-structured-fact' },
+      )
+      && example.contentHash === recalculatedContentHash
       && normalizeCleaningProvenance(example.provenance) != null,
     )
     .sort((left, right) =>
-      left.contentHash.localeCompare(right.contentHash)
-      || left.sourceId.localeCompare(right.sourceId),
+      left.recalculatedContentHash.localeCompare(right.recalculatedContentHash)
+      || left.example.sourceId.localeCompare(right.example.sourceId),
     )
-    .map((example) => {
+    .map(({ example, recalculatedContentHash }) => {
       const provenance = normalizeCleaningProvenance(example.provenance)!
       return {
         id: example.id,
         sourceId: example.sourceId,
         sourceKind: example.sourceKind,
         schemaVersion: example.schemaVersion,
-        contentHash: example.contentHash,
+        contentHash: recalculatedContentHash,
         provenance,
         behaviorLesson: example.behaviorLesson,
         positiveExample: example.positiveExample,
@@ -357,7 +478,7 @@ export function buildPersonaTrainingDatasetManifest(input: {
     exampleCount: eligibleExamples.length,
     examples: eligibleExamples,
   }
-  const manifestHash = createHash('sha256').update(JSON.stringify(base)).digest('hex')
+  const manifestHash = personaTrainingManifestHash(base)
   return {
     ...base,
     exportedAt: Math.max(0, Math.floor(input.exportedAt)),
@@ -378,13 +499,60 @@ export function evaluatePersonaTrainingDatasetManifestQualityGate(input: {
     add('critical', 'schema-mismatch', 'Persona/LoRA dataset schema is not supported.')
   if (input.manifest.datasetId !== input.dataset.id || input.manifest.cardId !== input.dataset.cardId)
     add('critical', 'manifest-dataset-mismatch', 'Persona/LoRA manifest does not belong to the resolved dataset.')
+  if (
+    input.manifest.version !== input.dataset.version
+    || input.manifest.schemaVersion !== input.dataset.schemaVersion
+  ) {
+    add('critical', 'manifest-version-mismatch', 'Persona/LoRA manifest version does not match the resolved dataset.')
+  }
+  if (
+    input.manifest.consentSnapshot.granted !== input.dataset.consentSnapshot.granted
+    || input.manifest.consentSnapshot.policyVersion !== input.dataset.consentSnapshot.policyVersion
+    || input.manifest.consentSnapshot.scope !== input.dataset.consentSnapshot.scope
+  ) {
+    add('critical', 'manifest-consent-mismatch', 'Persona/LoRA manifest consent does not match the resolved dataset.')
+  }
   if (input.manifest.exampleCount !== input.manifest.examples.length)
     add('critical', 'manifest-count-mismatch', 'Persona/LoRA manifest example count does not match exported examples.')
+  if (input.manifest.manifestHash !== personaTrainingManifestHash(input.manifest))
+    add('critical', 'manifest-hash-mismatch', 'Persona/LoRA manifest hash does not match its contents.')
   if (input.manifest.examples.length > 0 && !input.dataset.consentSnapshot.granted)
     add('critical', 'dataset-consent-missing', 'Persona/LoRA manifest contains examples without dataset consent.')
 
   const examplesById = new Map(input.examples.map(example => [example.id, example]))
   const contentHashes = new Set<string>()
+  const contentHashMismatchIds = new Set<string>()
+  const addContentHashMismatch = (exampleId: string) => {
+    if (contentHashMismatchIds.has(exampleId))
+      return
+    contentHashMismatchIds.add(exampleId)
+    add('critical', 'example-content-hash-mismatch', `Persona/LoRA example content hash does not match its current text: ${exampleId}`)
+  }
+  for (const example of input.examples) {
+    if (
+      example.cardId !== input.dataset.cardId
+      || example.datasetId !== input.dataset.id
+      || example.state !== 'staged'
+      || !example.allowTraining
+    ) {
+      continue
+    }
+    if (!isSupportedPersonaTrainingSourceKind(example.sourceKind))
+      add('critical', 'example-source-kind-unsupported', `Persona/LoRA staged example has an unsupported source kind: ${example.id}`)
+    if (example.contentHash !== personaTrainingExampleContentHash(example))
+      addContentHashMismatch(example.id)
+    if (containsPii(example.behaviorLesson, example.positiveExample, example.negativeExample ?? ''))
+      add('critical', 'pii-content-leak', `Persona/LoRA staged example text contains PII: ${example.id}`)
+    if (
+      containsFixedTemplateResidue(example.behaviorLesson, example.positiveExample, example.negativeExample ?? '')
+      || containsAlicizationFixedTemplateResidue(
+        [example.behaviorLesson, example.positiveExample, example.negativeExample].filter(Boolean).join(' '),
+        { provenance: 'internal-structured-fact' },
+      )
+    ) {
+      add('critical', 'template-content-leak', `Persona/LoRA staged example text contains fixed-template residue: ${example.id}`)
+    }
+  }
   for (const manifestExample of input.manifest.examples) {
     const source = examplesById.get(manifestExample.id)
     if (!source) {
@@ -398,12 +566,30 @@ export function evaluatePersonaTrainingDatasetManifestQualityGate(input: {
       add('critical', 'cross-dataset-example', `Persona/LoRA manifest leaked an example from another card or dataset: ${source.id}`)
     if (source.schemaVersion !== PERSONA_TRAINING_EXAMPLE_SCHEMA_VERSION || manifestExample.schemaVersion !== PERSONA_TRAINING_EXAMPLE_SCHEMA_VERSION)
       add('critical', 'example-schema-mismatch', `Persona/LoRA example schema is not supported: ${source.id}`)
+    if (!isSupportedPersonaTrainingSourceKind(source.sourceKind) || !isSupportedPersonaTrainingSourceKind(manifestExample.sourceKind))
+      add('critical', 'example-source-kind-unsupported', `Persona/LoRA example source kind is not supported: ${source.id}`)
+    const recalculatedContentHash = personaTrainingExampleContentHash(source)
+    if (source.contentHash !== recalculatedContentHash || manifestExample.contentHash !== recalculatedContentHash)
+      addContentHashMismatch(source.id)
+    if (manifestExample.contentHash !== personaTrainingManifestExampleContentHash(manifestExample))
+      addContentHashMismatch(source.id)
     if (source.state !== 'staged' || !source.allowTraining)
       add('critical', 'inactive-example-exported', `Persona/LoRA manifest exported a non-staged or no-training example: ${source.id}`)
     if (source.piiStatus !== 'clear')
       add('critical', 'pii-example-exported', `Persona/LoRA manifest exported a PII-tainted example: ${source.id}`)
+    if (containsPii(source.behaviorLesson, source.positiveExample, source.negativeExample ?? ''))
+      add('critical', 'pii-content-leak', `Persona/LoRA manifest exported an example whose text contains PII: ${source.id}`)
+    if (containsFixedTemplateResidue(source.behaviorLesson, source.positiveExample, source.negativeExample ?? '')
+      || containsAlicizationFixedTemplateResidue(
+        [source.behaviorLesson, source.positiveExample, source.negativeExample].filter(Boolean).join(' '),
+        { provenance: 'internal-structured-fact' },
+      )) {
+      add('critical', 'template-content-leak', `Persona/LoRA manifest exported an example whose text contains fixed-template residue: ${source.id}`)
+    }
     if (!source.consentSnapshot.granted)
       add('critical', 'example-consent-missing', `Persona/LoRA manifest exported an example without example consent: ${source.id}`)
+    if (!personaTrainingConsentMatches(source.consentSnapshot, input.dataset.consentSnapshot))
+      add('critical', 'example-consent-mismatch', `Persona/LoRA example consent does not match its dataset: ${source.id}`)
     if (!normalizeCleaningProvenance(source.provenance))
       add('critical', 'cleaning-provenance-missing', `Persona/LoRA manifest exported an example without cleaning provenance: ${source.id}`)
   }
@@ -499,14 +685,14 @@ export function createPersonaTrainingDatasetRuntime(input: {
     const consent = normalizeConsent(stageInput.consent, now)
     const versions = await listScopedVersions(cardId)
     const version = (versions.reduce((max, item) => Math.max(max, item.version), 0) || 0) + 1
-    const dataset = await input.repository.createVersion({
+    const datasetInput = {
       id: `persona-dataset:${cardId}:${version}`,
       cardId,
       version,
       schemaVersion: PERSONA_TRAINING_DATASET_SCHEMA_VERSION,
       consentSnapshot: consent,
       createdAt: now,
-    })
+    } satisfies Omit<PersonaTrainingDatasetVersion, 'exportedAt' | 'activeAt' | 'rolledBackAt'>
     const sourceResults = (await input.listSources(cardId))
       .filter(source => normalizePersonaTrainingDatasetText(source.cardId, 120) === cardId)
       .map(source => ({ source, result: classifyPersonaTrainingDatasetSource(source) }))
@@ -516,35 +702,53 @@ export function createPersonaTrainingDatasetRuntime(input: {
         || normalizePersonaTrainingDatasetText(left.source.sourceId, 240)
           .localeCompare(normalizePersonaTrainingDatasetText(right.source.sourceId, 240)),
       )
-    const seenHashes = new Set<string>()
-    const examples = sourceResults
-      .filter(({ result }) => {
-        if (!result.contentHash || seenHashes.has(result.contentHash))
-          return false
-        seenHashes.add(result.contentHash)
-        return true
+    const buildExamples = (datasetId: string) => {
+      const seenHashes = new Set<string>()
+      return sourceResults
+        .filter(({ result }) => {
+          if (!result.contentHash || seenHashes.has(result.contentHash))
+            return false
+          seenHashes.add(result.contentHash)
+          return true
+        })
+        .map(({ source, result }) => {
+          const sourceConsent = normalizeSourceConsent(source.consent, now)
+          const sourceConsentMatches = personaTrainingConsentMatches(sourceConsent, consent)
+          return {
+            id: `persona-example:${datasetId}:${result.contentHash}`,
+            datasetId,
+            cardId,
+            schemaVersion: PERSONA_TRAINING_EXAMPLE_SCHEMA_VERSION,
+            sourceId: normalizePersonaTrainingDatasetText(source.sourceId, 240),
+            sourceKind: result.sourceKind!,
+            contentHash: result.contentHash!,
+            behaviorLesson: result.behaviorLesson,
+            positiveExample: result.positiveExample,
+            negativeExample: result.negativeExample,
+            sensitivity: normalizePersonaTrainingDatasetText(source.sensitivity, 40) || 'personal',
+            piiStatus: result.piiStatus,
+            consentSnapshot: sourceConsent,
+            provenance: normalizeCleaningProvenance(source.provenance),
+            allowTraining: result.allowTraining && consent.granted && sourceConsentMatches,
+            state: sourceConsentMatches ? result.state : 'quarantined',
+            createdAt: now,
+            revokedAt: null,
+            piiReason: sourceConsentMatches
+              ? result.piiReason
+              : sourceConsent.granted !== true
+                ? 'source consent is not granted'
+                : 'source consent does not match dataset policy',
+          } satisfies PersonaTrainingDatasetExample
+        })
+    }
+    if (input.repository.createVersionWithExamples) {
+      return await input.repository.createVersionWithExamples({
+        dataset: datasetInput,
+        examples: buildExamples(datasetInput.id),
       })
-      .map(({ source, result }) => ({
-        id: `persona-example:${dataset.id}:${result.contentHash}`,
-        datasetId: dataset.id,
-        cardId,
-        schemaVersion: PERSONA_TRAINING_EXAMPLE_SCHEMA_VERSION,
-        sourceId: normalizePersonaTrainingDatasetText(source.sourceId, 240),
-        sourceKind: result.sourceKind!,
-        contentHash: result.contentHash!,
-        behaviorLesson: result.behaviorLesson,
-        positiveExample: result.positiveExample,
-        negativeExample: result.negativeExample,
-        sensitivity: normalizePersonaTrainingDatasetText(source.sensitivity, 40) || 'personal',
-        piiStatus: result.piiStatus,
-        piiReason: result.piiReason,
-        consentSnapshot: consent,
-        provenance: normalizeCleaningProvenance(source.provenance),
-        allowTraining: result.allowTraining && consent.granted,
-        state: result.state,
-        createdAt: now,
-        revokedAt: null,
-      } satisfies PersonaTrainingDatasetExample))
+    }
+    const dataset = await input.repository.createVersion(datasetInput)
+    const examples = buildExamples(dataset.id)
     if (examples.length > 0)
       await input.repository.insertExamples(examples)
     return dataset
@@ -581,15 +785,21 @@ export function createPersonaTrainingDatasetRuntime(input: {
     const { manifest, qualityGate } = await buildCurrentManifest(dataset, input.now())
     if (!qualityGate.passed)
       throw new Error(`persona training dataset quality gate failed: ${qualityGate.findings.map(finding => finding.code).join(', ')}`)
-    await input.repository.appendExport({
+    const persistedExport = {
       id: `persona-export:${dataset.id}:${manifest.manifestHash}`,
       datasetId: dataset.id,
       cardId: dataset.cardId,
       manifestHash: manifest.manifestHash,
       manifestJson: JSON.stringify(manifest),
       exportedAt: manifest.exportedAt,
-    })
-    await input.repository.markExported?.(dataset.cardId, dataset.id, manifest.exportedAt)
+    }
+    if (input.repository.appendExportAndMarkExported) {
+      await input.repository.appendExportAndMarkExported(persistedExport)
+    }
+    else {
+      await input.repository.appendExport(persistedExport)
+      await input.repository.markExported?.(dataset.cardId, dataset.id, manifest.exportedAt)
+    }
     return { dataset, manifest, qualityGate }
   }
 
@@ -605,14 +815,19 @@ export function createPersonaTrainingDatasetRuntime(input: {
     return await input.repository.rollbackToVersion(cardId, dataset.id, input.now())
   }
 
-  async function revokeSource(revokeInput: { cardId: string, sourceId: string }) {
+  async function revokeSource(revokeInput: { cardId: string } & AlicizationPersonaTrainingSourceRef) {
     const cardId = normalizeCardId(revokeInput.cardId)
     const sourceId = normalizePersonaTrainingDatasetText(revokeInput.sourceId, 240)
     if (!sourceId)
       throw new Error('persona training dataset source revoke requires sourceId')
+    if (!isSupportedPersonaTrainingSourceKind(revokeInput.sourceKind))
+      throw new Error('persona training dataset source revoke requires a supported sourceKind')
     const affected = await input.repository.revokeSource(
       cardId,
-      sourceId,
+      {
+        sourceId,
+        sourceKind: revokeInput.sourceKind,
+      },
       input.now(),
     )
     return { affected }
@@ -636,15 +851,27 @@ export function createPersonaTrainingDatasetRuntime(input: {
     const example = examples.find(item => item.id === exampleId)
     if (!example)
       return null
-    const canEnable = example.state === 'staged'
+    const dataset = versions.find(version => version.id === example.datasetId)
+    const consentOnlyQuarantine = example.piiReason === null
+      || example.piiReason === 'source consent is not granted'
+      || example.piiReason === 'source consent does not match dataset policy'
+    const canEnable = (example.state === 'staged' || example.state === 'quarantined')
       && example.piiStatus === 'clear'
       && normalizeCleaningProvenance(example.provenance) != null
-      && consent.granted
+      && dataset != null
+      && example.sensitivity !== 'private'
+      && example.sensitivity !== 'secret'
+      && consentOnlyQuarantine
+      && personaTrainingConsentMatches(consent, dataset.consentSnapshot)
     return await input.repository.updateExamplePolicy({
       cardId,
       exampleId,
       allowTraining: policyInput.allowTraining && canEnable,
       consentSnapshot: consent,
+      state: dataset && canEnable
+        ? 'staged'
+        : 'quarantined',
+      piiReason: canEnable ? null : example.piiReason,
     })
   }
 

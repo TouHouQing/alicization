@@ -529,6 +529,7 @@ pages:
       tabs:
         working: Current Working Memory
         long_term: Long-Term Memory
+        tombstones: Recycle Bin
         review: Review Queue
         probe: Recall Probe
         persona: Persona Candidates
@@ -540,6 +541,7 @@ pages:
         approve: Approve
         reject: Reject
         tombstone: Delete and Block
+        restore: Restore
         cancel: Cancel
         confirm: Confirm
         inward_only: Inward Only
@@ -584,11 +586,17 @@ pages:
         test_persona_runtime: Test Persona Runtime
         save_persona_runtime: Save Persona Runtime
         clear_persona_runtime: Clear Persona Runtime
+        refresh_persona_source_revoke_intents: Refresh Revocation State
+        retry_persona_source_revoke: Retry Source Revocation
       confirm_tombstone_title: Delete and block this memory?
       confirm_tombstone_description: 'She will stop recalling this memory, and it will not enter persona training. Current content: {summary}'
       states:
         empty_working: No working memory snapshot yet. Send one dialogue turn and refresh.
+        loading_long_term: Loading long-term memory...
+        loading_tombstones: Loading recycle bin...
+        loading_review: Loading memories awaiting review...
         empty_long_term: No matching long-term memory yet.
+        empty_tombstones: The recycle bin is empty.
         empty_review: No memories currently need your review.
         empty_probe: Enter a sentence to see what she would recall.
         empty_persona: No persona candidates ready for review yet.
@@ -645,6 +653,9 @@ pages:
         persona_training_increment_available: Available
         persona_training_increment_rolled_back: Rolled back
         persona_training_increment_revoked: Revoked
+        persona_source_revoke_pending: Pending
+        persona_source_revoke_failed: Failed
+        persona_source_revoke_completed: Completed
         persona_training_cleanup_pending: Cleanup pending
         persona_training_cleanup_stage_unload: Unloading adapter
         persona_training_cleanup_stage_discard: Discarding artifact
@@ -675,6 +686,7 @@ pages:
         cancelled_by_user: Embedding reindex cancelled by user
         reindex_queued: Queued
         reindex_running: Reindexing
+        reindex_paused: Paused until the embedding service is available
         reindex_cancel_requested: Cancelling
         reindex_completed: Completed
         reindex_cancelled: Cancelled
@@ -684,6 +696,7 @@ pages:
         reindex_stage_embedding: Indexing embeddings
         empty_embedding_models: Fill the service base URL and API key, then discover embedding models. If the service does not list models, enter the model name manually.
         embedding_config_saved: Embedding config saved. Refreshing memory health.
+        embedding_config_save_unavailable: Embedding configuration saving is unavailable in this runtime.
         loading: Loading memory state...
         quality_passed: Passed
         quality_failed: Needs Work
@@ -746,8 +759,13 @@ pages:
         failed: Failed
         policy: Policy
         source: Source
+        long_term_list_error: Long-term memory loading failed
+        tombstone_list_error: Recycle bin loading failed
+        review_list_error: Review memory loading failed
         status: Status
         updated_at: Updated At
+        deleted_at: Deleted At
+        deleted_reason: Deletion Reason
         confidence: Confidence
         salience: Salience
         behavior_lesson: Behavior Lesson
@@ -769,6 +787,9 @@ pages:
         dataset_versions: Dataset Versions
         dataset_examples: Dataset Examples
         persona_dataset_description: Only cleaned long-term reflections or persona reinforcement may enter. Training is blocked by default; every action only writes governance policy and never starts training automatically.
+        persona_source_revoke_intents: Source Revocation Tasks
+        persona_source_revoke_intents_description: Revoking long-term memory also revokes its persona-training source. Failed tasks stay here and can be retried manually.
+        attempts: Attempts
         dataset_example_state: Example State
         pii_status: PII Status
         quarantined: Quarantined
@@ -994,6 +1015,11 @@ pages:
           episode: Episode
           reflection: Reflection
           consolidation: Consolidated Memory
+          procedure: Procedure
+          relationship: Relationship
+          preference: Preference
+          correction: Correction
+          candidate: Candidate
         sensitivity:
           all: All Sensitivity
           public: Public
@@ -1008,12 +1034,19 @@ pages:
           all: All Training
           allowed: Training Allowed
           blocked: No Training
+        source:
+          all: All Sources
+          memory_facts: Facts
+          memory_reflections: Reflections
+          episodic_events: Episodes
+          memory_consolidations: Consolidated Memories
       placeholders:
         persona_runtime_executable: For example /opt/homebrew/bin/llama-server or mlx_lm.server
         persona_runtime_model_path: For example /Models/base-model.gguf
         persona_runtime_model_directory: For example /Models/Qwen2.5-0.5B-Instruct-4bit
         long_term_search: Search summaries, evidence, or source IDs...
         long_term_source: Filter by source, for example memory_reflections
+        review_search: Search review summaries or reasons...
         embedding_provider: openai-compatible
         embedding_base_url: https://api.siliconflow.cn
         embedding_api_key: sk-...

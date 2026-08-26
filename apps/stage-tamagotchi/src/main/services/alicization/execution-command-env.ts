@@ -12,6 +12,7 @@ interface LocateAlicizationExecutionBinaryOptions {
   readdirImpl?: ReaddirImpl
   homeDir?: string
   pathValue?: string
+  explicitPath?: string
   platform?: NodeJS.Platform
 }
 
@@ -31,6 +32,7 @@ function buildKnownExecutionRootEntries(homeDir: string) {
     join(homeDir, '.bun', 'bin'),
     join(homeDir, 'bin'),
     '/Applications/Codex.app/Contents/Resources',
+    '/Applications/ChatGPT.app/Contents/Resources',
     '/opt/homebrew/bin',
     '/opt/homebrew/sbin',
     '/usr/local/bin',
@@ -46,6 +48,7 @@ function buildKnownExecutionBinaryCandidates(binary: string, homeDir: string) {
   if (binary === 'codex') {
     return normalizeEntries([
       '/Applications/Codex.app/Contents/Resources/codex',
+      '/Applications/ChatGPT.app/Contents/Resources/codex',
       join(homeDir, '.local', 'bin', 'codex'),
       join(homeDir, 'bin', 'codex'),
       join(homeDir, '.nvm', 'current', 'bin', 'codex'),
@@ -139,7 +142,11 @@ export async function locateAlicizationExecutionBinary(
     : []
   const fallbackPathEntries = buildKnownExecutionRootEntries(homeDir)
   const fallbackPathCandidates = fallbackPathEntries.flatMap(root => extensions.map(extension => join(root, `${normalizedBinary}${extension}`)))
+  const explicitPath = typeof options.explicitPath === 'string'
+    ? options.explicitPath.trim()
+    : ''
   const candidates = unique([
+    ...(explicitPath ? extensions.map(extension => explicitPath.endsWith(extension) ? explicitPath : `${explicitPath}${extension}`) : []),
     ...inheritedPathCandidates,
     ...versionManagerCandidates,
     ...buildKnownExecutionBinaryCandidates(normalizedBinary, homeDir),

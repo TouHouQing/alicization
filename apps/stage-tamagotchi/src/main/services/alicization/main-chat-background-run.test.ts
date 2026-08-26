@@ -262,8 +262,6 @@ function createInput(
     emitToolResult: vi.fn(),
     emitError: vi.fn(),
     incrementChunkStats: vi.fn(),
-    ensureMainGatewayReachable: vi.fn(async () => ({ reachable: true })),
-    recordMainGatewayGenerationTimeout: vi.fn(async () => {}),
     appendRuntimeDebugLine: vi.fn(async () => {}),
     queueScopedAuditLog: vi.fn(),
     ...overrides,

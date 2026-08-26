@@ -30,6 +30,7 @@ function createTestEmbeddingProvider(): LongTermMemoryEmbeddingProvider {
   return {
     modelId: 'semantic-scale-test-provider',
     dimensions: 12,
+    vectorSpaceId: 'semantic-scale-test-provider:12',
     embedTexts: async texts => texts.map((text) => {
       const match = text.match(/(\d{8})$/u)
       const index = match ? Number(match[1]) : 0

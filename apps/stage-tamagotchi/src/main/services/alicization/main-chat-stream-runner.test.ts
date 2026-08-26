@@ -517,6 +517,70 @@ describe('main chat stream runner', () => {
     ])
   })
 
+  it('retries after uncommitted text progress because the partial draft was never visible', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: '第二次请求完成了可见回复。',
+    })
+    let firstReadCount = 0
+    const streamTextImpl = vi.fn()
+      .mockImplementationOnce(() => ({
+        fullStream: {
+          getReader: () => ({
+            read: vi.fn(async () => {
+              firstReadCount += 1
+              if (firstReadCount === 1) {
+                return {
+                  done: false,
+                  value: {
+                    type: 'text-delta',
+                    text: '{"format":"mind-turn-v1","reply":"未完成',
+                  },
+                }
+              }
+              throw Object.assign(new Error('temporary provider failure'), {
+                status: 503,
+              })
+            }),
+            cancel: vi.fn(async () => {}),
+            releaseLock: vi.fn(),
+          }),
+        },
+      }))
+      .mockImplementationOnce(() => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text-delta', text: providerText })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+            controller.close()
+          },
+        }),
+      }))
+
+    await expect(runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-retry-uncommitted-text',
+      } as any,
+      prepared: createPrepared(),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      streamTextImpl,
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        sleep: vi.fn(async () => {}),
+      },
+    })).resolves.toMatchObject({
+      kind: 'reply',
+      fullText: providerText,
+    })
+    expect(streamTextImpl).toHaveBeenCalledTimes(2)
+  })
+
   it('bounds reader cancellation before retrying a failed Provider attempt', async () => {
     vi.useFakeTimers()
     const providerText = createProviderResponsePayload({

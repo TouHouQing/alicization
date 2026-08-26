@@ -1,24 +1,7 @@
-import type {
-  AlicizationMainGatewayHealthCacheEntry,
-  AlicizationMainGatewayReachabilitySnapshot,
-} from './main-gateway-health'
 import type { MainGatewayResolvedConfig } from './runtime-soul'
 
 import { createOpenAI } from '@xsai-ext/providers/create'
 
-import {
-  buildAlicizationMainGatewayHealthCacheKey,
-  createAlicizationMainGatewayChatTimeoutResult,
-  formatAlicizationMainGatewayHealthFailure,
-  mainGatewayChatTimeoutFailureCode,
-  mainGatewayChatTimeoutFailureTtlMs,
-  mainGatewayReachabilityFailureTtlMs,
-  mainGatewayReachabilityProbeTimeoutMs,
-  mainGatewayReachabilitySuccessTtlMs,
-  probeAlicizationMainGatewayReachability,
-  readAlicizationMainGatewayHealthCache,
-  writeAlicizationMainGatewayHealthCache,
-} from './main-gateway-health'
 import { defaultAlicizationCardId, normalizeCardId } from './runtime-soul'
 
 interface AlicizationRememberedMainGatewayRoute {
@@ -43,7 +26,6 @@ interface CreateAlicizationMainGatewayConfigRuntimeOptions {
 }
 
 export function createAlicizationMainGatewayConfigRuntime(options: CreateAlicizationMainGatewayConfigRuntimeOptions) {
-  const mainGatewayHealthCache = new Map<string, AlicizationMainGatewayHealthCacheEntry>()
   const rememberedRoutesByCard = new Map<string, AlicizationRememberedMainGatewayRoute>()
 
   function normalizeProviderCredentialsMap(raw: unknown) {
@@ -159,84 +141,10 @@ export function createAlicizationMainGatewayConfigRuntime(options: CreateAliciza
     }
   }
 
-  async function ensureMainGatewayReachable(
-    mainGateway: MainGatewayResolvedConfig,
-    options?: {
-      bypassCache?: boolean
-      ignoreChatTimeoutCache?: boolean
-    },
-  ): Promise<AlicizationMainGatewayReachabilitySnapshot> {
-    const now = Date.now()
-    const cachedEntry = options?.bypassCache
-      ? null
-      : readAlicizationMainGatewayHealthCache(mainGatewayHealthCache, mainGateway.baseUrl, now)
-    const shouldIgnoreCachedChatTimeout = Boolean(
-      options?.ignoreChatTimeoutCache
-      && cachedEntry
-      && !cachedEntry.reachable
-      && String(cachedEntry.code ?? '').toUpperCase() === mainGatewayChatTimeoutFailureCode,
-    )
-    if (cachedEntry && !shouldIgnoreCachedChatTimeout) {
-      return {
-        reachable: cachedEntry.reachable,
-        cached: true,
-        code: cachedEntry.code,
-        reason: cachedEntry.reason,
-        formattedReason: cachedEntry.reachable
-          ? undefined
-          : formatAlicizationMainGatewayHealthFailure(mainGateway.baseUrl, cachedEntry),
-      }
-    }
-    if (shouldIgnoreCachedChatTimeout) {
-      const cacheKey = buildAlicizationMainGatewayHealthCacheKey(mainGateway.baseUrl)
-      mainGatewayHealthCache.delete(cacheKey)
-    }
-
-    const result = await probeAlicizationMainGatewayReachability({
-      baseUrl: mainGateway.baseUrl,
-      headers: mainGateway.probeHeaders,
-      timeoutMs: mainGatewayReachabilityProbeTimeoutMs,
-    })
-    writeAlicizationMainGatewayHealthCache(
-      mainGatewayHealthCache,
-      mainGateway.baseUrl,
-      result,
-      now,
-      {
-        successTtlMs: mainGatewayReachabilitySuccessTtlMs,
-        failureTtlMs: mainGatewayReachabilityFailureTtlMs,
-      },
-    )
-    return {
-      ...result,
-      cached: false,
-      formattedReason: result.reachable
-        ? undefined
-        : formatAlicizationMainGatewayHealthFailure(mainGateway.baseUrl, result),
-    }
-  }
-
-  function recordMainGatewayGenerationTimeout(
-    mainGateway: MainGatewayResolvedConfig,
-    reason: unknown,
-  ) {
-    writeAlicizationMainGatewayHealthCache(
-      mainGatewayHealthCache,
-      mainGateway.baseUrl,
-      createAlicizationMainGatewayChatTimeoutResult(reason),
-      Date.now(),
-      {
-        failureTtlMs: mainGatewayChatTimeoutFailureTtlMs,
-      },
-    )
-  }
-
   return {
     normalizeProviderCredentialsMap,
     normalizeProviderConfig,
     rememberMainGatewayRoute,
     resolveMainGatewayConfig,
-    ensureMainGatewayReachable,
-    recordMainGatewayGenerationTimeout,
   }
 }

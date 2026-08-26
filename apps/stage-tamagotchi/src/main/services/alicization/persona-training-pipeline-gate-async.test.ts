@@ -843,6 +843,7 @@ describe('persona training pipeline asynchronous lifecycle', () => {
       await gate.revokeSource({
         cardId: 'card-a',
         sourceId: 'reflection-1',
+        sourceKind: 'cleaned-long-term-reflection',
       })
     }
     catch (error) {
@@ -876,6 +877,7 @@ describe('persona training pipeline asynchronous lifecycle', () => {
     await gate.revokeSource({
       cardId: 'card-a',
       sourceId: 'reflection-1',
+      sourceKind: 'cleaned-long-term-reflection',
     })
 
     expect(discardArtifact).toHaveBeenCalledWith(artifact)
@@ -908,6 +910,7 @@ describe('persona training pipeline asynchronous lifecycle', () => {
     await expect(gate.revokeSource({
       cardId: 'card-a',
       sourceId: 'reflection-1',
+      sourceKind: 'cleaned-long-term-reflection',
     })).rejects.toThrow('forced source revoke audit failure')
 
     expect(discardArtifact).not.toHaveBeenCalled()
@@ -938,7 +941,11 @@ describe('persona training pipeline asynchronous lifecycle', () => {
 
     await gate.start({ cardId: 'card-a' })
     await vi.waitFor(() => expect(storage.runs.get('run-revoked')?.status).toBe('running'))
-    await gate.revokeSource({ cardId: 'card-a', sourceId: 'reflection-1' })
+    await gate.revokeSource({
+      cardId: 'card-a',
+      sourceId: 'reflection-1',
+      sourceKind: 'cleaned-long-term-reflection',
+    })
 
     await vi.waitFor(() => expect(storage.runs.get('run-revoked')).toMatchObject({
       status: 'failed',

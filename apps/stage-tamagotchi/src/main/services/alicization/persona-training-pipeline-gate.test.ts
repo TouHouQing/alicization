@@ -16,6 +16,8 @@ import type {
   PersonaTrainingPipelineRunRecord,
 } from './persona-training-pipeline-gate'
 
+import { createHash } from 'node:crypto'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import { buildPersonaTrainingDatasetManifest } from './persona-training-dataset-runtime'
@@ -114,6 +116,23 @@ function createQualityGate(passed: boolean): PersonaTrainingDatasetQualityGateRe
   }
 }
 
+function personaTrainingExampleHash(
+  example: Pick<
+    PersonaTrainingDatasetExample,
+    'schemaVersion' | 'behaviorLesson' | 'positiveExample' | 'negativeExample' | 'sourceKind'
+  >,
+) {
+  return createHash('sha256')
+    .update(JSON.stringify({
+      schemaVersion: example.schemaVersion,
+      behaviorLesson: example.behaviorLesson,
+      negativeExample: example.negativeExample,
+      positiveExample: example.positiveExample,
+      sourceKind: example.sourceKind,
+    }))
+    .digest('hex')
+}
+
 function createDatasetRuntime(input: {
   dataset?: PersonaTrainingDatasetVersion
   manifest?: PersonaTrainingDatasetManifest
@@ -155,19 +174,21 @@ function createPersistenceRecorder() {
   const runs: PersonaTrainingPipelineRunRecord[] = []
   const increments: PersonaTrainingPipelineIncrement[] = []
   const events: PersonaTrainingPipelineAuditEvent[] = []
+  const cloneSourceRefs = (sourceRefs: PersonaTrainingPipelineRunRecord['sourceRefs']) =>
+    sourceRefs.map(sourceRef => ({ ...sourceRef }))
   return {
     runs,
     increments,
     events,
     persistence: {
       createRun: async (run: PersonaTrainingPipelineRunRecord) => {
-        runs.push({ ...run, sourceIds: [...run.sourceIds] })
+        runs.push({ ...run, sourceRefs: cloneSourceRefs(run.sourceRefs) })
       },
       updateRun: async (input: Partial<PersonaTrainingPipelineRunRecord> & Pick<PersonaTrainingPipelineRunRecord, 'runId'>) => {
         const run = runs.find(item => item.runId === input.runId)
         if (!run || !['queued', 'running', 'cancel_requested'].includes(run.status))
           return false
-        Object.assign(run, input, input.sourceIds ? { sourceIds: [...input.sourceIds] } : {})
+        Object.assign(run, input, input.sourceRefs ? { sourceRefs: cloneSourceRefs(input.sourceRefs) } : {})
         return true
       },
       completeRunWithIncrement: async (input: {
@@ -180,8 +201,8 @@ function createPersistenceRecorder() {
           return { completed: false }
         Object.assign(run, input.run)
         const increment = input.increment
-        increments.push({ ...increment, sourceIds: [...increment.sourceIds] })
-        events.push({ ...input.event, sourceIds: [...input.event.sourceIds] })
+        increments.push({ ...increment, sourceRefs: cloneSourceRefs(increment.sourceRefs) })
+        events.push({ ...input.event, sourceRefs: cloneSourceRefs(input.event.sourceRefs) })
         return { completed: true }
       },
       finishRun: async (input: {
@@ -192,7 +213,7 @@ function createPersistenceRecorder() {
         if (!run || run.status !== 'terminalizing')
           return false
         Object.assign(run, input.run)
-        events.push({ ...input.event, sourceIds: [...input.event.sourceIds] })
+        events.push({ ...input.event, sourceRefs: cloneSourceRefs(input.event.sourceRefs) })
         return true
       },
       updateIncrementState: async (input: { incrementId: string, state: PersonaTrainingPipelineIncrement['state'] }) => {
@@ -201,9 +222,12 @@ function createPersistenceRecorder() {
           increment.state = input.state
       },
       appendEvent: async (event: PersonaTrainingPipelineAuditEvent) => {
-        events.push({ ...event, sourceIds: [...event.sourceIds] })
+        events.push({ ...event, sourceRefs: cloneSourceRefs(event.sourceRefs) })
       },
-      listIncrements: async () => increments.map(increment => ({ ...increment, sourceIds: [...increment.sourceIds] })),
+      listIncrements: async () => increments.map(increment => ({
+        ...increment,
+        sourceRefs: cloneSourceRefs(increment.sourceRefs),
+      })),
     },
   }
 }
@@ -509,7 +533,11 @@ describe('persona training pipeline gate', () => {
     const result = await gate.train({ cardId: 'card-a' })
     const incrementId = result.status === 'succeeded' ? result.increment.id : ''
     await gate.rollbackIncrement({ incrementId })
-    await gate.revokeSource({ cardId: 'card-a', sourceId: 'reflection-1' })
+    await gate.revokeSource({
+      cardId: 'card-a',
+      sourceId: 'reflection-1',
+      sourceKind: 'cleaned-long-term-reflection',
+    })
 
     expect(recorder.increments[0]).toMatchObject({
       id: incrementId,
@@ -1144,6 +1172,7 @@ describe('persona training pipeline gate', () => {
     await expect(gate.revokeSource({
       cardId: 'card-a',
       sourceId: 'reflection-1',
+      sourceKind: 'cleaned-long-term-reflection',
     })).rejects.toThrow('revoked artifact discard unavailable')
     expect(gate.listIncrements()).toEqual([
       expect.objectContaining({
@@ -1155,6 +1184,7 @@ describe('persona training pipeline gate', () => {
     await expect(gate.revokeSource({
       cardId: 'card-a',
       sourceId: 'reflection-1',
+      sourceKind: 'cleaned-long-term-reflection',
     })).resolves.toMatchObject({
       affected: 1,
     })
@@ -1200,7 +1230,11 @@ describe('persona training pipeline gate', () => {
 
     const training = gate.train({ cardId: 'card-a' })
     await vi.waitFor(() => expect(resolveTraining).toBeTypeOf('function'))
-    await gate.revokeSource({ cardId: 'card-a', sourceId: 'reflection-1' })
+    await gate.revokeSource({
+      cardId: 'card-a',
+      sourceId: 'reflection-1',
+      sourceKind: 'cleaned-long-term-reflection',
+    })
     resolveTraining({ artifact: createArtifact('run-revoked', 'artifact-must-not-be-used') })
 
     await expect(training).resolves.toMatchObject({
@@ -1210,6 +1244,65 @@ describe('persona training pipeline gate', () => {
     })
     expect(executorSignal?.aborted).toBe(true)
     expect(gate.listIncrements()).toEqual([])
+  })
+
+  it('keeps a reinforcement run and artifact active when the reflection with the same source id is revoked', async () => {
+    let resolveTraining!: (value: { artifact: AlicizationPersonaTrainingArtifact }) => void
+    let executorSignal: AbortSignal | undefined
+    const reinforcementManifest = createManifest({
+      examples: [{
+        ...createManifest().examples[0],
+        sourceId: 'shared-source',
+        sourceKind: 'persona-reinforcement',
+      }],
+    })
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime({
+        manifest: reinforcementManifest,
+      }),
+      trainingExecutor: async (input) => {
+        executorSignal = input.signal
+        return await new Promise<{ artifact: AlicizationPersonaTrainingArtifact }>((resolve) => {
+          resolveTraining = resolve
+        })
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+      now: () => 200,
+      randomUUID: () => 'run-shared-reinforcement',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    const training = gate.train({ cardId: 'card-a' })
+    await vi.waitFor(() => expect(resolveTraining).toBeTypeOf('function'))
+    const reflectionRef = {
+      cardId: 'card-a',
+      sourceId: 'shared-source',
+      sourceKind: 'cleaned-long-term-reflection' as const,
+    }
+    await gate.revokeSource(reflectionRef)
+    resolveTraining({
+      artifact: createArtifact('run-shared-reinforcement', 'artifact-shared-reinforcement'),
+    })
+
+    await expect(training).resolves.toMatchObject({
+      status: 'succeeded',
+      increment: {
+        state: 'available',
+      },
+    })
+    expect(executorSignal?.aborted).toBe(false)
+    expect(gate.listUsableIncrements()).toEqual([
+      expect.objectContaining({
+        sourceRefs: [{
+          sourceId: 'shared-source',
+          sourceKind: 'persona-reinforcement',
+        }],
+        state: 'available',
+      }),
+    ])
   })
 
   it('marks a completed increment rolled back so it cannot be used again', async () => {
@@ -1245,7 +1338,10 @@ describe('persona training pipeline gate', () => {
       cardId: 'card-a',
       datasetId: 'dataset-1',
       manifestHash: 'manifest-hash-1',
-      sourceIds: ['reflection-1'],
+      sourceRefs: [{
+        sourceId: 'reflection-1',
+        sourceKind: 'cleaned-long-term-reflection',
+      }],
       basePersonaRevision: 'persona-core-v1',
       artifact,
       state: 'available',
@@ -1331,7 +1427,10 @@ describe('persona training pipeline gate', () => {
       cardId: 'card-a',
       datasetId: 'dataset-1',
       manifestHash: 'manifest-hash-1',
-      sourceIds: ['reflection-1'],
+      sourceRefs: [{
+        sourceId: 'reflection-1',
+        sourceKind: 'cleaned-long-term-reflection',
+      }],
       basePersonaRevision: 'persona-core-v1',
       artifact,
       state: 'available',
@@ -1344,7 +1443,10 @@ describe('persona training pipeline gate', () => {
       cardId: 'card-a',
       datasetId: 'dataset-1',
       manifestHash: 'manifest-hash-1',
-      sourceIds: ['reflection-1'],
+      sourceRefs: [{
+        sourceId: 'reflection-1',
+        sourceKind: 'cleaned-long-term-reflection',
+      }],
       basePersonaRevision: 'persona-core-v1',
       status: 'completed',
       stage: 'finalizing',
@@ -1440,14 +1542,13 @@ describe('persona training pipeline gate', () => {
   it('bounds restart loader recovery and preserves the pending activation intent', async () => {
     const recorder = createPersistenceRecorder()
     const dataset = createDataset()
-    const examples: PersonaTrainingDatasetExample[] = [{
+    const restartExample = {
       id: 'example-restart-timeout',
       datasetId: dataset.id,
       cardId: dataset.cardId,
       schemaVersion: 'persona-training-example-v1',
       sourceId: 'reflection-1',
       sourceKind: 'cleaned-long-term-reflection',
-      contentHash: 'restart-timeout-hash',
       behaviorLesson: '重启恢复超时时保持激活意图可重试。',
       positiveExample: '我会等待加载器恢复完成。',
       negativeExample: null,
@@ -1464,13 +1565,20 @@ describe('persona training pipeline gate', () => {
       state: 'staged',
       createdAt: 100,
       revokedAt: null,
+    } satisfies Omit<PersonaTrainingDatasetExample, 'contentHash'>
+    const examples: PersonaTrainingDatasetExample[] = [{
+      ...restartExample,
+      contentHash: personaTrainingExampleHash(restartExample),
     }]
     const manifest = buildPersonaTrainingDatasetManifest({
       dataset,
       examples,
       exportedAt: 200,
     })
-    const sourceIds = manifest.examples.map(example => example.sourceId)
+    const sourceRefs = manifest.examples.map(example => ({
+      sourceId: example.sourceId,
+      sourceKind: example.sourceKind,
+    }))
     const artifact = {
       ...createArtifact('run-restart-timeout', 'artifact-restart-timeout'),
       activation: {
@@ -1487,7 +1595,7 @@ describe('persona training pipeline gate', () => {
       cardId: 'card-a',
       datasetId: 'dataset-1',
       manifestHash: manifest.manifestHash,
-      sourceIds,
+      sourceRefs,
       basePersonaRevision: 'persona-core-v1',
       artifact,
       state: 'available',
@@ -1500,7 +1608,7 @@ describe('persona training pipeline gate', () => {
       cardId: 'card-a',
       datasetId: 'dataset-1',
       manifestHash: manifest.manifestHash,
-      sourceIds,
+      sourceRefs,
       basePersonaRevision: 'persona-core-v1',
       status: 'completed',
       stage: 'finalizing',

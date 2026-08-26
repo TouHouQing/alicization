@@ -2,7 +2,7 @@ import type { AlicizationTaskThreadRecord } from '@proj-alicization/stage-shared
 
 import { Buffer } from 'node:buffer'
 import { EventEmitter } from 'node:events'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 
@@ -18,6 +18,13 @@ const { homedirMock, processKillMock, spawnMock } = vi.hoisted(() => ({
 const originalCodexHome = process.env.CODEX_HOME
 const createdCodexHomes: string[] = []
 const nativeSetTimeout = globalThis.setTimeout
+
+async function createCodexHome(prefix = 'alicization-codex-home-') {
+  const codexHome = await mkdtemp(resolve(tmpdir(), prefix))
+  createdCodexHomes.push(codexHome)
+  await writeFile(resolve(codexHome, 'auth.json'), '{"test":"credential"}\n')
+  return codexHome
+}
 
 vi.mock('node:child_process', () => ({
   spawn: spawnMock,
@@ -130,7 +137,7 @@ async function advanceFakeTimersAndFlush(milliseconds: number) {
 }
 
 describe('codex executor adapter', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     spawnMock.mockReset()
     processKillMock.mockReset()
     processKillMock.mockImplementation(() => {
@@ -141,7 +148,8 @@ describe('codex executor adapter', () => {
     })
     homedirMock.mockReset()
     homedirMock.mockReturnValue(resolve(tmpdir(), 'alicization-codex-tests-home'))
-    process.env.CODEX_HOME = resolve(tmpdir(), 'alicization-codex-tests-no-config')
+    const codexHome = await createCodexHome('alicization-codex-tests-home-')
+    process.env.CODEX_HOME = codexHome
   })
 
   afterEach(async () => {
@@ -194,6 +202,181 @@ describe('codex executor adapter', () => {
       ok: true,
       finalStatus: 'completed',
       output: 'JSONL assistant result',
+    })
+  })
+
+  it('runs each Codex task in an isolated home with only user authentication copied', async () => {
+    const sourceCodexHome = process.env.CODEX_HOME!
+    await writeFile(resolve(sourceCodexHome, 'state_5.sqlite'), 'shared-state')
+    await mkdir(resolve(sourceCodexHome, 'sessions'), { recursive: true })
+    await writeFile(resolve(sourceCodexHome, 'sessions', 'shared.jsonl'), 'shared-session')
+
+    let child: ReturnType<typeof createMockCodexChild> | undefined
+    spawnMock.mockImplementation(() => {
+      child = createMockCodexChild()
+      return child
+    })
+
+    const resultPromise = executeCodexTaskThread({
+      thread: createThread(),
+      command: {
+        prompt: 'Inspect the current codebase issue.',
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    await waitForSpawnMock()
+    const [, , options] = spawnMock.mock.calls[0] ?? []
+    const isolatedCodexHome = options?.env?.CODEX_HOME as string
+    expect(isolatedCodexHome).toBeTruthy()
+    expect(isolatedCodexHome).not.toBe(sourceCodexHome)
+    await expect(
+      readFile(resolve(isolatedCodexHome, 'auth.json'), 'utf8'),
+    ).resolves.toBe('{"test":"credential"}\n')
+    await expect(access(resolve(isolatedCodexHome, 'state_5.sqlite'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    })
+    await expect(access(resolve(isolatedCodexHome, 'sessions'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    })
+
+    emitCodexAssistantResult(child!, 'isolated Codex result')
+    child!.emit('close', 0, null)
+    await expect(resultPromise).resolves.toMatchObject({
+      ok: true,
+      output: 'isolated Codex result',
+    })
+    await expect(access(isolatedCodexHome)).rejects.toMatchObject({
+      code: 'ENOENT',
+    })
+  })
+
+  it('scavenges expired dead-owner Codex homes without deleting active, fresh, or unrelated directories', async () => {
+    const now = Date.now()
+    const staleAgeMs = 6 * 60 * 60_000
+    const ownerFileName = '.alicization-owner.json'
+    const expiredDeadHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-home-'))
+    const expiredActiveHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-home-'))
+    const freshDeadHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-home-'))
+    const unownedPrefixedHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-home-'))
+    const unrelatedHome = await mkdtemp(resolve(tmpdir(), 'other-codex-home-'))
+    createdCodexHomes.push(expiredDeadHome, expiredActiveHome, freshDeadHome, unownedPrefixedHome, unrelatedHome)
+    await Promise.all([
+      writeFile(resolve(expiredDeadHome, ownerFileName), JSON.stringify({
+        pid: 410_001,
+        createdAt: now - staleAgeMs - 1,
+      })),
+      writeFile(resolve(expiredActiveHome, ownerFileName), JSON.stringify({
+        pid: 410_002,
+        createdAt: now - staleAgeMs - 1,
+      })),
+      writeFile(resolve(freshDeadHome, ownerFileName), JSON.stringify({
+        pid: 410_003,
+        createdAt: now,
+      })),
+      writeFile(resolve(unrelatedHome, ownerFileName), JSON.stringify({
+        pid: 410_004,
+        createdAt: now - staleAgeMs - 1,
+      })),
+    ])
+    const staleUnownedAt = new Date(now - staleAgeMs - 1)
+    await utimes(unownedPrefixedHome, staleUnownedAt, staleUnownedAt)
+    processKillMock.mockImplementation((pid: number, signal: NodeJS.Signals | number) => {
+      if (pid === 410_002 && signal === 0)
+        return true
+      const error = Object.assign(new Error('process not found'), {
+        code: 'ESRCH',
+      })
+      throw error
+    })
+    spawnMock.mockImplementation(() => {
+      const child = createMockCodexChild()
+      queueMicrotask(() => {
+        emitCodexAssistantResult(child, 'scavenger completed')
+        child.emit('close', 0, null)
+      })
+      return child
+    })
+
+    await expect(executeCodexTaskThread({
+      thread: createThread(),
+      command: {
+        prompt: 'Inspect the workspace after startup cleanup.',
+      },
+      workspaceRoot: process.cwd(),
+    })).resolves.toMatchObject({
+      ok: true,
+      output: 'scavenger completed',
+    })
+
+    await expect(access(expiredDeadHome)).rejects.toMatchObject({
+      code: 'ENOENT',
+    })
+    await expect(access(expiredActiveHome)).resolves.toBeUndefined()
+    await expect(access(freshDeadHome)).resolves.toBeUndefined()
+    await expect(access(unownedPrefixedHome)).resolves.toBeUndefined()
+    await expect(access(unrelatedHome)).resolves.toBeUndefined()
+  })
+
+  it('fails transparently before spawn when Codex authentication is unavailable', async () => {
+    const codexHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-no-auth-'))
+    createdCodexHomes.push(codexHome)
+    process.env.CODEX_HOME = codexHome
+
+    const result = await executeCodexTaskThread({
+      thread: createThread(),
+      command: {
+        prompt: 'Inspect the current codebase issue.',
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(spawnMock).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'failed',
+      errorCode: 'CODEX_PROVIDER_AUTH_FAILED',
+    })
+  })
+
+  it('allows an explicitly unauthenticated local Codex provider without auth.json', async () => {
+    const codexHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-local-provider-'))
+    createdCodexHomes.push(codexHome)
+    process.env.CODEX_HOME = codexHome
+    await writeFile(resolve(codexHome, 'config.toml'), [
+      'model_provider = "local-provider"',
+      'model = "local-model"',
+      '',
+      '[model_providers.local-provider]',
+      'name = "local-provider"',
+      'wire_api = "responses"',
+      'base_url = "http://127.0.0.1:8080/v1"',
+      'requires_openai_auth = false',
+    ].join('\n'))
+    spawnMock.mockImplementation(() => {
+      const child = createMockCodexChild()
+      queueMicrotask(() => {
+        emitCodexAssistantResult(child, 'local provider output')
+        child.emit('close', 0, null)
+      })
+      return child
+    })
+
+    const result = await executeCodexTaskThread({
+      thread: createThread(),
+      command: {
+        prompt: 'Inspect the current codebase issue.',
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      output: 'local provider output',
+    })
+    const [, , options] = spawnMock.mock.calls[0] ?? []
+    await expect(access(resolve(options.env.CODEX_HOME, 'auth.json'))).rejects.toMatchObject({
+      code: 'ENOENT',
     })
   })
 
@@ -1015,7 +1198,7 @@ describe('codex executor adapter', () => {
     expect(child?.kill).toHaveBeenCalledWith('SIGTERM')
   })
 
-  it('treats repeated updates of the same Codex item as liveness and does not expire the active step', async () => {
+  it('does not extend the active-step deadline for duplicate Codex item updates', async () => {
     vi.useFakeTimers()
     let child: ReturnType<typeof createMockCodexChild> | undefined
     let repeatedProgressTimer: ReturnType<typeof setInterval> | undefined
@@ -1049,6 +1232,7 @@ describe('codex executor adapter', () => {
             type: 'command_execution',
             command: 'long-running-command',
             status: 'in_progress',
+            aggregated_output: 'unchanged output',
           },
         })}\n`))
       }, 100)
@@ -1071,18 +1255,177 @@ describe('codex executor adapter', () => {
 
     await waitForSpawnMock()
     await advanceFakeTimersAndFlush(450)
-    expect(child?.kill).not.toHaveBeenCalledWith('SIGTERM')
 
     if (repeatedProgressTimer)
       clearInterval(repeatedProgressTimer)
-    emitCodexAssistantResult(child!, 'long-running command completed')
-    child?.emit('close', 0, null)
+
+    await expect(resultPromise).resolves.toMatchObject({
+      ok: false,
+      finalStatus: 'failed',
+      errorCode: 'CODEX_ACTIVE_STEP_TIMEOUT',
+    })
+    expect(child?.kill).toHaveBeenCalledWith('SIGTERM')
+  })
+
+  it('refreshes the active-step deadline when long aggregated output only changes after its preview prefix', async () => {
+    vi.useFakeTimers()
+    let child: ReturnType<typeof createMockCodexChild> | undefined
+    let progressTimer: ReturnType<typeof setInterval> | undefined
+    let updateCount = 0
+    const stablePrefix = 'x'.repeat(1_200)
+
+    spawnMock.mockImplementation(() => {
+      child = createMockCodexChild()
+      child.kill.mockImplementation((signal) => {
+        if (signal === 'SIGTERM')
+          queueMicrotask(() => child?.emit('close', null, 'SIGTERM'))
+      })
+      queueMicrotask(() => {
+        child?.stdout.emit('data', Buffer.from([
+          JSON.stringify({ type: 'turn.started' }),
+          JSON.stringify({
+            type: 'item.started',
+            item: {
+              id: 'long-output-command',
+              type: 'command_execution',
+              command: 'stream-long-output',
+            },
+          }),
+          '',
+        ].join('\n')))
+      })
+      progressTimer = setInterval(() => {
+        updateCount += 1
+        child?.stdout.emit('data', Buffer.from(`${JSON.stringify({
+          type: 'item.updated',
+          item: {
+            id: 'long-output-command',
+            type: 'command_execution',
+            command: 'stream-long-output',
+            status: 'in_progress',
+            aggregated_output: `${stablePrefix}tail-${updateCount}`,
+          },
+        })}\n`))
+        if (updateCount < 6)
+          return
+        clearInterval(progressTimer)
+        progressTimer = undefined
+        emitCodexAssistantResult(child!, 'long output completed')
+        child?.emit('close', 0, null)
+      }, 100)
+      return child
+    })
+
+    const resultPromise = executeCodexTaskThread({
+      thread: createThread(),
+      command: {
+        prompt: 'Run a command that produces long incremental output.',
+        timeoutMs: 2_000,
+      },
+      lifecycle: {
+        startupTimeoutMs: 1_000,
+        activeStepTimeoutMs: 300,
+        totalTimeoutMs: 2_000,
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    await waitForSpawnMock()
+    try {
+      await advanceFakeTimersAndFlush(800)
+      await expect(resultPromise).resolves.toMatchObject({
+        ok: true,
+        finalStatus: 'completed',
+        output: 'long output completed',
+      })
+      expect(child?.kill).not.toHaveBeenCalledWith('SIGTERM')
+    }
+    finally {
+      if (progressTimer)
+        clearInterval(progressTimer)
+    }
+  })
+
+  it('bounds semantic-key history and treats an evicted old key as fresh progress', async () => {
+    vi.useFakeTimers()
+    let child: ReturnType<typeof createMockCodexChild> | undefined
+    const retainedSemanticKeyCapacity = 256
+
+    spawnMock.mockImplementation(() => {
+      child = createMockCodexChild()
+      child.kill.mockImplementation((signal) => {
+        if (signal === 'SIGTERM')
+          queueMicrotask(() => child?.emit('close', null, 'SIGTERM'))
+      })
+      queueMicrotask(() => {
+        child?.stdout.emit('data', Buffer.from([
+          JSON.stringify({ type: 'turn.started' }),
+          JSON.stringify({
+            type: 'item.started',
+            item: {
+              id: 'bounded-history-command',
+              type: 'command_execution',
+              command: 'stream-many-updates',
+            },
+          }),
+          '',
+        ].join('\n')))
+      })
+      setTimeout(() => {
+        const updates = Array.from({ length: retainedSemanticKeyCapacity + 1 }, (_, index) => JSON.stringify({
+          type: 'item.updated',
+          item: {
+            id: 'bounded-history-command',
+            type: 'command_execution',
+            command: 'stream-many-updates',
+            status: 'in_progress',
+            aggregated_output: `unique-progress-${index}`,
+          },
+        }))
+        child?.stdout.emit('data', Buffer.from(`${updates.join('\n')}\n`))
+      }, 100)
+      setTimeout(() => {
+        child?.stdout.emit('data', Buffer.from(`${JSON.stringify({
+          type: 'item.updated',
+          item: {
+            id: 'bounded-history-command',
+            type: 'command_execution',
+            command: 'stream-many-updates',
+            status: 'in_progress',
+            aggregated_output: 'unique-progress-0',
+          },
+        })}\n`))
+      }, 250)
+      setTimeout(() => {
+        emitCodexAssistantResult(child!, 'bounded semantic history completed')
+        child?.emit('close', 0, null)
+      }, 500)
+      return child
+    })
+
+    const resultPromise = executeCodexTaskThread({
+      thread: createThread(),
+      command: {
+        prompt: 'Process a large stream of distinct command updates.',
+        timeoutMs: 2_000,
+      },
+      lifecycle: {
+        startupTimeoutMs: 1_000,
+        activeStepTimeoutMs: 300,
+        totalTimeoutMs: 2_000,
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    await waitForSpawnMock()
+    await advanceFakeTimersAndFlush(700)
 
     await expect(resultPromise).resolves.toMatchObject({
       ok: true,
       finalStatus: 'completed',
-      output: 'long-running command completed',
+      output: 'bounded semantic history completed',
     })
+    expect(child?.kill).not.toHaveBeenCalledWith('SIGTERM')
   })
 
   it('enforces a total execution deadline even while distinct semantic events continue', async () => {
@@ -1373,6 +1716,8 @@ describe('codex executor adapter', () => {
     await flushNativeIo()
     await vi.advanceTimersByTimeAsync(1_000)
     await flushNativeIo()
+    await vi.advanceTimersByTimeAsync(1_000)
+    await flushNativeIo()
 
     await expect(resultPromise).resolves.toMatchObject({
       ok: true,
@@ -1380,6 +1725,75 @@ describe('codex executor adapter', () => {
       output: 'observe retry success 2',
     })
     expect(spawnMock).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    ['command_execution', { command: 'curl https://example.test/action' }],
+    ['mcp_tool_call', { tool: 'remote_action' }],
+    ['file_change', { changes: [{ path: 'changed.txt', kind: 'update' }] }],
+    ['web_search', { query: 'provider status' }],
+    ['collab_tool_call', { tool: 'delegate_task' }],
+  ])('does not retry an observe-only Provider failure after %s activity', async (itemType, itemPayload) => {
+    let attempt = 0
+
+    spawnMock.mockImplementation(() => {
+      attempt += 1
+      const child = createMockCodexChild()
+      queueMicrotask(() => {
+        if (attempt === 1) {
+          child.stdout.emit('data', Buffer.from([
+            JSON.stringify({ type: 'turn.started' }),
+            JSON.stringify({
+              type: 'item.completed',
+              item: {
+                id: `unsafe-${itemType}`,
+                type: itemType,
+                status: 'completed',
+                ...itemPayload,
+              },
+            }),
+            JSON.stringify({
+              type: 'turn.failed',
+              error: {
+                message: 'stream disconnected before completion: idle timeout waiting for SSE',
+              },
+            }),
+            '',
+          ].join('\n')))
+          child.emit('close', 1, null)
+          return
+        }
+        emitCodexAssistantResult(child, 'unexpected retry result')
+        child.emit('close', 0, null)
+      })
+      return child
+    })
+
+    const resultPromise = executeCodexTaskThread({
+      thread: createThread({
+        metadata: {
+          task: {
+            permissionMode: 'implicit',
+            effect: 'observe',
+          },
+        },
+      }),
+      command: {
+        prompt: 'Inspect without repeating completed external activity.',
+      },
+      lifecycle: {
+        startupTimeoutMs: 1_000,
+        totalTimeoutMs: 5_000,
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    await expect(resultPromise).resolves.toMatchObject({
+      ok: false,
+      finalStatus: 'failed',
+      errorCode: 'CODEX_PROVIDER_UNAVAILABLE',
+    })
+    expect(spawnMock).toHaveBeenCalledTimes(1)
   })
 
   it('parses stderr transport diagnostics and enters Provider recovery before the total timeout', async () => {
@@ -1539,8 +1953,7 @@ describe('codex executor adapter', () => {
   })
 
   it('disables nested custom-provider reconnect retries when the user has not configured them', async () => {
-    const codexHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-default-retry-home-'))
-    createdCodexHomes.push(codexHome)
+    const codexHome = await createCodexHome('alicization-codex-default-retry-home-')
     process.env.CODEX_HOME = codexHome
     await writeFile(resolve(codexHome, 'config.toml'), [
       'model_provider = "custom"',
@@ -1961,6 +2374,7 @@ describe('codex executor adapter', () => {
     vi.useFakeTimers()
     let child: ReturnType<typeof createMockCodexChild> | undefined
     let updateTimer: ReturnType<typeof setInterval> | undefined
+    let updateCount = 0
 
     spawnMock.mockImplementation(() => {
       child = createMockCodexChild()
@@ -1987,6 +2401,7 @@ describe('codex executor adapter', () => {
         ].join('\n')))
       })
       updateTimer = setInterval(() => {
+        updateCount += 1
         child?.stdout.emit('data', Buffer.from(`${JSON.stringify({
           type: 'item.updated',
           item: {
@@ -1994,6 +2409,7 @@ describe('codex executor adapter', () => {
             type: 'command_execution',
             command: 'recovered-command',
             status: 'in_progress',
+            aggregated_output: `progress-${updateCount}`,
           },
         })}\n`))
       }, 100)
@@ -2031,8 +2447,7 @@ describe('codex executor adapter', () => {
   })
 
   it('inherits the user Codex model provider without loading user MCP or plugin configuration', async () => {
-    const codexHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-home-'))
-    createdCodexHomes.push(codexHome)
+    const codexHome = await createCodexHome()
     process.env.CODEX_HOME = codexHome
     await writeFile(resolve(codexHome, 'config.toml'), [
       'model_provider = "custom"',
@@ -2126,8 +2541,7 @@ describe('codex executor adapter', () => {
   })
 
   it('uses task-level medium reasoning for observe-only work instead of inheriting global max effort', async () => {
-    const codexHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-observe-home-'))
-    createdCodexHomes.push(codexHome)
+    const codexHome = await createCodexHome('alicization-codex-observe-home-')
     process.env.CODEX_HOME = codexHome
     await writeFile(resolve(codexHome, 'config.toml'), [
       'model_provider = "custom"',
@@ -2176,6 +2590,7 @@ describe('codex executor adapter', () => {
     homedirMock.mockReturnValue(homeDir)
     delete process.env.CODEX_HOME
     await mkdir(resolve(homeDir, '.codex'), { recursive: true })
+    await writeFile(resolve(homeDir, '.codex', 'auth.json'), '{"test":"credential"}\n')
     await writeFile(resolve(homeDir, '.codex', 'config.toml'), [
       'model_provider = "home-provider"',
       'model = "home-model"',
@@ -2212,8 +2627,7 @@ describe('codex executor adapter', () => {
   })
 
   it('applies only whitelisted model settings from an explicit profile', async () => {
-    const codexHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-profile-home-'))
-    createdCodexHomes.push(codexHome)
+    const codexHome = await createCodexHome('alicization-codex-profile-home-')
     process.env.CODEX_HOME = codexHome
     await writeFile(resolve(codexHome, 'config.toml'), 'model = "base-model"\n')
     await writeFile(resolve(codexHome, 'fast.config.toml'), [
@@ -2266,8 +2680,7 @@ describe('codex executor adapter', () => {
   })
 
   it('keeps an explicit command model ahead of the inherited default', async () => {
-    const codexHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-explicit-model-home-'))
-    createdCodexHomes.push(codexHome)
+    const codexHome = await createCodexHome('alicization-codex-explicit-model-home-')
     process.env.CODEX_HOME = codexHome
     await writeFile(resolve(codexHome, 'config.toml'), 'model = "inherited-model"\n')
     spawnMock.mockImplementation((_command: string, _args: string[]) => {
@@ -2294,8 +2707,7 @@ describe('codex executor adapter', () => {
   })
 
   it('does not copy credentials embedded in a provider base URL into argv', async () => {
-    const codexHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-credential-url-home-'))
-    createdCodexHomes.push(codexHome)
+    const codexHome = await createCodexHome('alicization-codex-credential-url-home-')
     process.env.CODEX_HOME = codexHome
     await writeFile(resolve(codexHome, 'config.toml'), [
       'model_provider = "credential-provider"',
@@ -2328,8 +2740,7 @@ describe('codex executor adapter', () => {
   })
 
   it('fails transparently before spawn when the user TOML is invalid', async () => {
-    const codexHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-invalid-home-'))
-    createdCodexHomes.push(codexHome)
+    const codexHome = await createCodexHome('alicization-codex-invalid-home-')
     process.env.CODEX_HOME = codexHome
     await writeFile(resolve(codexHome, 'config.toml'), 'model_provider = [invalid')
 
@@ -2350,8 +2761,7 @@ describe('codex executor adapter', () => {
   })
 
   it('fails transparently before spawn when an explicit profile is missing', async () => {
-    const codexHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-missing-profile-home-'))
-    createdCodexHomes.push(codexHome)
+    const codexHome = await createCodexHome('alicization-codex-missing-profile-home-')
     process.env.CODEX_HOME = codexHome
     await writeFile(resolve(codexHome, 'config.toml'), 'model = "base-model"\n')
 

@@ -1,4 +1,7 @@
+import type { AlicizationPersonaTrainingArtifact } from '@proj-alicization/stage-shared'
+
 import type { AlicizationAuditLogInput, AlicizationVisualPresenceStateSnapshot } from '../../../shared/eventa'
+import type { PersonaTrainingArtifactLoader } from './persona-training-pipeline-gate'
 
 interface CreateAlicizationRuntimeCardScopeLifecycleOptions {
   now: () => number
@@ -28,9 +31,12 @@ interface CreateAlicizationRuntimeCardScopeLifecycleOptions {
   turnWriteAbortControllers: Map<string, AbortController>
   alicizationDb: {
     clearConversationData: () => Promise<void>
+    listActivePersonaTrainingArtifacts: (input: { cardId: string }) => Promise<AlicizationPersonaTrainingArtifact[]>
     setMetaValue: (key: string, value: string) => Promise<void>
+    stopPersonaTraining: (reason: string) => Promise<void>
     close: () => Promise<void>
   }
+  unloadPersonaTrainingArtifact: PersonaTrainingArtifactLoader['unload']
   activeSessionIdByCard: Map<string, string>
   subconsciousStateByCard: Map<string, unknown>
   proactiveLoopStateByCard: Map<string, unknown>
@@ -42,6 +48,7 @@ interface CreateAlicizationRuntimeCardScopeLifecycleOptions {
   foregroundProbeTimeoutStreakByPid: Map<number, number>
   resetSubconsciousTickInFlight: () => void
   resetSoulLifecycleState: () => void
+  removeCardScopeRoot: (cardId: string) => Promise<void>
   removeAlicizationsRoot: () => Promise<void>
   resetProviderConfig: () => void
   resetKillSwitches: () => void
@@ -62,6 +69,123 @@ interface CreateAlicizationRuntimeCardScopeLifecycleOptions {
 export function createAlicizationRuntimeCardScopeLifecycle(
   options: CreateAlicizationRuntimeCardScopeLifecycleOptions,
 ) {
+  async function preparePersonaTrainingDataClear(cardId: string, reason: string) {
+    await options.alicizationDb.stopPersonaTraining(`persona-data-clear:${reason}`)
+    const activeArtifacts = await options.alicizationDb.listActivePersonaTrainingArtifacts({ cardId })
+    for (const artifact of activeArtifacts) {
+      const receipt = artifact.activation.status === 'active'
+        ? {
+            loaderId: artifact.activation.loaderId,
+            receiptId: artifact.activation.receiptId,
+            activatedAt: artifact.activation.activatedAt,
+            reason: artifact.activation.reason,
+          }
+        : null
+      await options.unloadPersonaTrainingArtifact({
+        cardId,
+        artifact,
+        reason: `persona-data-clear:${reason}`,
+        operationId: [
+          'persona-training-data-clear',
+          cardId,
+          artifact.runId,
+          artifact.artifactId,
+          'unload',
+        ].map(encodeURIComponent).join(':'),
+        receipt,
+      })
+    }
+  }
+
+  function clearCardRuntimeState(cardId: string) {
+    options.activeSessionIdByCard.delete(cardId)
+    options.subconsciousStateByCard.delete(cardId)
+    options.proactiveLoopStateByCard.delete(cardId)
+    options.perceptionStateByCard.delete(cardId)
+    options.visualPresenceStateByCard.delete(cardId)
+    options.visualPresenceCapturePersistMetaByCard.delete(cardId)
+    options.emitVisualPresenceState(cardId, null)
+    options.screenSemanticCacheByCard.delete(cardId)
+    options.pendingDurabilityPulseByCard.delete(cardId)
+    options.clearDialogueDeliveryCardState(cardId)
+    options.clearDialogueSessionMirrorCard(cardId)
+    options.clearExecutionDeliveryStateCard(cardId)
+    options.clearPendingDialogueDeliveriesByCard(cardId)
+  }
+
+  function quiesceActiveCardRuntime() {
+    options.clearReminderDueTimer()
+    options.stopWatch()
+    options.stopSensoryBus('manual')
+    options.clearPruneTimer()
+    options.clearSubconsciousTimer()
+    options.clearDreamTimer()
+    options.clearAllPendingDialogueDeliveries()
+    options.clearQueuedSubconsciousWake()
+    options.turnWriteAbortControllers.clear()
+    options.clearMainChatRunsAll()
+    options.resetSubconsciousTickInFlight()
+    options.resetSoulLifecycleState()
+  }
+
+  async function deleteCardScopeData(cardIdRaw: string, reason: string) {
+    const startedAt = options.now()
+    const targetCardId = options.normalizeCardId(cardIdRaw)
+    const previousCardId = options.normalizeCardId(options.getActiveCardId())
+    await options.appendRuntimeDebugLine('delete-card-scope.started', {
+      reason,
+      previousCardId,
+      targetCardId,
+    })
+
+    await options.abortAllTurnWrites(`delete-card-scope:${targetCardId}:${reason}`).catch(() => {})
+    let personaDataPrepared = false
+    try {
+      await options.switchCardScope(targetCardId)
+      await preparePersonaTrainingDataClear(targetCardId, `delete-card-scope:${reason}`)
+      personaDataPrepared = true
+    }
+    finally {
+      if (!personaDataPrepared)
+        await options.switchCardScope(previousCardId).catch(() => {})
+    }
+
+    if (targetCardId === options.defaultAlicizationCardId) {
+      quiesceActiveCardRuntime()
+      await options.alicizationDb.close()
+      await options.removeCardScopeRoot(targetCardId)
+      clearCardRuntimeState(targetCardId)
+      options.resetKillSwitches()
+      await options.reinitializeDefaultScope()
+    }
+    else {
+      const restoreCardId = previousCardId === targetCardId
+        ? options.defaultAlicizationCardId
+        : previousCardId
+      await options.switchCardScope(restoreCardId)
+      await options.removeCardScopeRoot(targetCardId)
+      clearCardRuntimeState(targetCardId)
+    }
+
+    await options.appendAuditLog({
+      level: 'notice',
+      category: 'alicization.runtime',
+      action: 'delete-card-scope-completed',
+      message: 'Deleted Alicization card scope after stopping persona training and unloading active artifacts.',
+      payload: {
+        reason,
+        targetCardId,
+        elapsedMs: options.now() - startedAt,
+      },
+    }, options.getActiveCardId())
+    await options.appendRuntimeDebugLine('delete-card-scope.finished', {
+      reason,
+      targetCardId,
+      elapsedMs: options.now() - startedAt,
+      activeCardId: options.getActiveCardId(),
+    })
+  }
+
   async function clearAllConversationData(reason: string) {
     const startedAt = options.now()
     const previousCardId = options.normalizeCardId(options.getActiveCardId())
@@ -83,6 +207,7 @@ export function createAlicizationRuntimeCardScopeLifecycle(
     try {
       for (const cardId of cardIds) {
         await options.switchCardScope(cardId)
+        await preparePersonaTrainingDataClear(cardId, `conversation-clear-all:${reason}`)
         await options.alicizationDb.clearConversationData()
         await options.alicizationDb.setMetaValue(options.activeSessionMetaKey, '').catch(() => {})
         await options.alicizationDb.setMetaValue(options.dialogueAckStateMetaKey, '{}').catch(() => {})
@@ -126,12 +251,31 @@ export function createAlicizationRuntimeCardScopeLifecycle(
 
   async function deleteAllAlicizationData(reason: string) {
     const startedAt = options.now()
+    const previousCardId = options.normalizeCardId(options.getActiveCardId())
+    const cardIds = [...new Set([
+      previousCardId,
+      ...await options.listKnownCardIds(),
+    ].map(options.normalizeCardId))]
     await options.appendRuntimeDebugLine('delete-all-data.started', {
       reason,
       activeCardId: options.getActiveCardId(),
+      cardCount: cardIds.length,
+      cardIds,
     })
 
     await options.abortAllTurnWrites(`delete-all-data:${reason}`).catch(() => {})
+    let personaDataPrepared = false
+    try {
+      for (const cardId of cardIds) {
+        await options.switchCardScope(cardId)
+        await preparePersonaTrainingDataClear(cardId, `delete-all-data:${reason}`)
+      }
+      personaDataPrepared = true
+    }
+    finally {
+      if (!personaDataPrepared)
+        await options.switchCardScope(previousCardId).catch(() => {})
+    }
     options.clearReminderDueTimer()
     options.stopWatch()
     options.stopSensoryBus('manual')
@@ -183,6 +327,7 @@ export function createAlicizationRuntimeCardScopeLifecycle(
 
   return {
     clearAllConversationData,
+    deleteCardScopeData,
     deleteAllAlicizationData,
   }
 }

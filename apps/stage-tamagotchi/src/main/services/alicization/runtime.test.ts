@@ -451,6 +451,8 @@ const dbStub = {
   appendExecutionEvents: vi.fn().mockResolvedValue(undefined),
   listExecutionEvents: vi.fn().mockResolvedValue([]),
   clearConversationData: vi.fn().mockResolvedValue(undefined),
+  listActivePersonaTrainingArtifacts: vi.fn().mockResolvedValue([]),
+  stopPersonaTraining: vi.fn().mockResolvedValue(undefined),
   readMindHead: vi.fn(async (cardId: string, key: string) => {
     const raw = metaStore.get(buildMindHeadMetaKey(cardId, key))
     if (!raw)
@@ -11321,7 +11323,7 @@ describe('alicization runtime audit helpers', () => {
       expect(streamTextMock.mock.calls.length).toBeGreaterThan(1)
       expect(chunkEvents).toHaveLength(0)
       expect(finishEvents[0]).toMatchObject({
-        status: 'aborted',
+        status: 'timed-out',
         origin: 'failure-surface',
         learningPolicy: {
           allowLongTermCondensation: false,
@@ -11401,7 +11403,7 @@ describe('alicization runtime audit helpers', () => {
         .filter(([event, payload]) => event === alicizationChatStreamChunk && payload.turnId === turnId)
         .map(([, payload]) => payload)
 
-      expect(finishEvents[0]?.status).toBe('aborted')
+      expect(finishEvents[0]?.status).toBe('timed-out')
       expect(String(finishEvents[0]?.finishReason ?? '')).toContain('chat-provider-retry-deadline')
       expect(chunkEvents).toHaveLength(0)
       expect(dbStub.appendAuditLog).not.toBeCalledWith(expect.objectContaining({

@@ -19,6 +19,7 @@ import { errorMessageFrom } from '@moeru/std'
 
 import sqlite from './sqlite3-runtime'
 
+import { resolveLongTermMemoryVectorSpaceId } from './long-term-memory-embedding-provider'
 import { hashLongTermMemoryEmbeddingText } from './long-term-memory-embedding-text'
 import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
 import { createSqliteVecLongTermMemoryVectorBackend } from './long-term-memory-sqlite-vec-backend'
@@ -899,6 +900,9 @@ export const executeMemorySemanticScaleJob: MemorySemanticScaleJobExecutor = asy
       foreignCardId: `semantic-scale-foreign:${input.jobId}`,
       modelId: input.embeddingProvider?.modelId ?? 'deterministic-semantic-scale-v1',
       dimensions,
+      vectorSpaceId: input.embeddingProvider
+        ? resolveLongTermMemoryVectorSpaceId(input.embeddingProvider)
+        : `semantic-scale:deterministic:v1:${dimensions}`,
       corpusSizes: [input.corpusSize],
       queryCount: 24,
       batchSize: 500,

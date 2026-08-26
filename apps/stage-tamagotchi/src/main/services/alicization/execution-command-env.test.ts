@@ -15,6 +15,25 @@ describe('execution command env', () => {
     expect(entries).toContain('/Users/tester/.local/bin')
     expect(entries).toContain('/opt/homebrew/bin')
     expect(entries).toContain('/Applications/Codex.app/Contents/Resources')
+    expect(entries).toContain('/Applications/ChatGPT.app/Contents/Resources')
+  })
+
+  it('prefers an explicitly configured Codex CLI path from the app environment', async () => {
+    const accessImpl = vi.fn(async (candidate: string) => {
+      if (candidate === '/Applications/ChatGPT.app/Contents/Resources/codex')
+        return
+      throw new Error('ENOENT')
+    })
+
+    await expect(locateAlicizationExecutionBinary('codex', {
+      accessImpl,
+      homeDir: '/Users/tester',
+      pathValue: '/usr/bin:/bin',
+      platform: 'darwin',
+      explicitPath: '/Applications/ChatGPT.app/Contents/Resources/codex',
+    })).resolves.toBe('/Applications/ChatGPT.app/Contents/Resources/codex')
+
+    expect(accessImpl).toHaveBeenCalledWith('/Applications/ChatGPT.app/Contents/Resources/codex', expect.any(Number))
   })
 
   it('locates bundled codex and local claude binaries outside inherited PATH', async () => {

@@ -44,6 +44,7 @@ function createEmbeddingProvider(): LongTermMemoryEmbeddingProvider {
   return {
     modelId: 'memory-scale-governance-model',
     dimensions: 3,
+    vectorSpaceId: 'memory-scale-governance-model:3',
     embedTexts: async texts => texts.map((text, index) => ({
       text,
       vector: [
@@ -120,7 +121,7 @@ async function admitReviewedRelationship(input: {
   const reviewItem = (await input.db.listMemoryWorkbenchReviewItems({
     cardId: input.cardId,
     limit: 32,
-  })).find(item => item.summary === input.summary)
+  })).items.find(item => item.summary === input.summary)
   expect(reviewItem).toBeTruthy()
   await input.db.applyMemoryWorkbenchReviewAction({
     cardId: input.cardId,
@@ -418,7 +419,7 @@ describe('memory scale governance end-to-end', () => {
       const reviewItem = (await db.listMemoryWorkbenchReviewItems({
         cardId: 'card-life-loop',
         limit: 16,
-      })).find(item => item.summary === summary)
+      })).items.find(item => item.summary === summary)
       expect(reviewItem).toBeTruthy()
       await db.applyMemoryWorkbenchReviewAction({
         cardId: 'card-life-loop',
@@ -499,7 +500,7 @@ describe('memory scale governance end-to-end', () => {
       )
       expect(example).toMatchObject({
         allowTraining: false,
-        state: 'staged',
+        state: 'quarantined',
       })
       expect((await db.exportPersonaTrainingDataset({
         cardId: 'card-life-loop',

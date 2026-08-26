@@ -4,7 +4,6 @@ import type {
   AlicizationChatStartPayload,
   AlicizationChatStartResult,
 } from '../../../shared/eventa'
-import type { AlicizationMainGatewayReachabilitySnapshot } from './main-gateway-health'
 import type {
   ChatRunState,
   MainGatewayResolvedConfig,
@@ -57,10 +56,6 @@ interface AcceptAlicizationMainChatStartOptions {
     activeModelId: string
     persistedConfigKeys: string[]
   }>
-  ensureMainGatewayReachable: (mainGateway: MainGatewayResolvedConfig, options?: {
-    bypassCache?: boolean
-    ignoreChatTimeoutCache?: boolean
-  }) => Promise<AlicizationMainGatewayReachabilitySnapshot>
   appendRuntimeDebugLine: (event: string, payload: Record<string, unknown>) => Promise<void>
   normalizeCardId: (raw: unknown) => string
   sanitizeText: (raw: unknown, fallback?: string) => string

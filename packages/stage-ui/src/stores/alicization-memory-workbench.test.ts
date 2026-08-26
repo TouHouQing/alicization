@@ -23,6 +23,140 @@ describe('alicization memory workbench store', () => {
     expect(store.lastError).toBeNull()
   })
 
+  it('keeps the long-term source namespace when applying a governance action', async () => {
+    const applyLongTermAction = vi.fn(async () => null)
+    setAlicizationBridge({
+      memoryWorkbenchApplyLongTermAction: applyLongTermAction,
+      memoryWorkbenchListLongTerm: vi.fn(async () => ({
+        items: [],
+        nextCursor: null,
+      })),
+      memoryWorkbenchGetSnapshot: vi.fn(async () => ({
+        cardId: 'default',
+        sessionId: null,
+        updatedAt: 1,
+        workingMemory: null,
+        longTerm: { total: 0, byKind: {}, items: [] },
+        review: { pending: 0, items: [] },
+        health: {
+          status: 'ok',
+          queue: { pending: 0, review: 0, applied: 0, failed: 0, deadLettered: 0 },
+          recall: { lastLatencyMs: null, p95LatencyMs: null, lastError: null },
+          embedding: {
+            providerConfigured: false,
+            modelId: null,
+            dimensions: null,
+            vectorSpaceId: null,
+            reindexRequired: false,
+            indexMode: 'brute-force',
+            approximate: false,
+            degraded: false,
+            nativeIndexReady: false,
+            searchReady: false,
+            lastError: null,
+            canonicalCount: 0,
+            indexedCount: 0,
+            missingCount: 0,
+            textHashMismatchCount: 0,
+            staleOrFailedCount: 0,
+            orphanedCount: 0,
+            coverageRatio: null,
+            reindexJob: null,
+          },
+          errors: [],
+        },
+      })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.applyLongTermAction(
+      'shared-source-id',
+      'no-training',
+      'memory_facts',
+    )
+
+    expect(applyLongTermAction).toHaveBeenCalledWith({
+      memoryItemId: 'shared-source-id',
+      source: 'memory_facts',
+      decision: 'no-training',
+    })
+  })
+
+  it('paginates and restores long-term memory tombstones through the bridge', async () => {
+    const listTombstones = vi.fn()
+      .mockResolvedValueOnce({
+        items: [{
+          id: 'tombstone-newer',
+          sourceId: 'memory-newer',
+          source: 'memory_reflections',
+          reason: '误删除',
+          deletedAt: 20,
+          memory: null,
+        }],
+        nextCursor: 'tombstone-cursor',
+      })
+      .mockResolvedValueOnce({
+        items: [{
+          id: 'tombstone-older',
+          sourceId: 'memory-older',
+          source: 'memory_reflections',
+          reason: null,
+          deletedAt: 10,
+          memory: null,
+        }],
+        nextCursor: null,
+      })
+      .mockResolvedValueOnce({
+        items: [{
+          id: 'tombstone-older',
+          sourceId: 'memory-older',
+          source: 'memory_reflections',
+          reason: null,
+          deletedAt: 10,
+          memory: null,
+        }],
+        nextCursor: null,
+      })
+    const restoreTombstone = vi.fn(async () => ({
+      restored: true,
+      item: null,
+      reindexJobId: 'reindex-memory-newer',
+    }))
+    setAlicizationBridge({
+      memoryWorkbenchListTombstones: listTombstones,
+      memoryWorkbenchRestoreTombstone: restoreTombstone,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore() as ReturnType<typeof useAlicizationMemoryWorkbenchStore> & {
+      tombstoneItems?: Array<{ id: string }>
+      tombstoneNextCursor?: string | null
+      refreshTombstones?: () => Promise<unknown>
+      loadMoreTombstones?: () => Promise<unknown>
+      restoreTombstone?: (id: string) => Promise<unknown>
+    }
+    expect(store.refreshTombstones).toBeTypeOf('function')
+    expect(store.loadMoreTombstones).toBeTypeOf('function')
+    expect(store.restoreTombstone).toBeTypeOf('function')
+    if (!store.refreshTombstones || !store.loadMoreTombstones || !store.restoreTombstone)
+      return
+
+    await store.refreshTombstones()
+    expect(store.tombstoneItems?.map(item => item.id)).toEqual(['tombstone-newer'])
+    expect(store.tombstoneNextCursor).toBe('tombstone-cursor')
+
+    await store.loadMoreTombstones()
+    expect(store.tombstoneItems?.map(item => item.id)).toEqual([
+      'tombstone-newer',
+      'tombstone-older',
+    ])
+
+    await store.restoreTombstone('tombstone-newer')
+    expect(restoreTombstone).toHaveBeenCalledWith({
+      tombstoneId: 'tombstone-newer',
+    })
+    expect(store.tombstoneItems?.map(item => item.id)).toEqual(['tombstone-older'])
+  })
+
   it('loads snapshot and recall probe through bridge', async () => {
     setAlicizationBridge({
       memoryWorkbenchGetSnapshot: vi.fn(async () => ({
@@ -286,6 +420,395 @@ describe('alicization memory workbench store', () => {
       cursor: 'cursor-a',
       query: '游戏',
     }))
+  })
+
+  it('keeps pagination bound to the last successfully applied long-term filters', async () => {
+    const memoryWorkbenchListLongTerm = vi.fn()
+      .mockResolvedValueOnce({ items: [], nextCursor: 'cursor-a' })
+      .mockResolvedValueOnce({ items: [], nextCursor: null })
+    setAlicizationBridge({ memoryWorkbenchListLongTerm } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.refreshLongTerm({ query: '已应用查询', kind: 'reflection' })
+    store.longTermFilters.query = '尚未应用查询'
+    store.longTermFilters.kind = 'fact'
+
+    await store.loadMoreLongTerm()
+
+    expect(memoryWorkbenchListLongTerm).toHaveBeenLastCalledWith(expect.objectContaining({
+      cursor: 'cursor-a',
+      query: '已应用查询',
+      kind: 'reflection',
+    }))
+  })
+
+  it('preserves the previous long-term page and cursor when a refreshed filter request fails', async () => {
+    const firstItem = {
+      id: 'memory-a',
+      kind: 'reflection',
+      summary: '已经加载的长期记忆。',
+      evidenceSnippets: [],
+      sourceIds: ['memory-a'],
+      confidence: 0.8,
+      salience: 0.7,
+      sensitivity: 'personal',
+      visibility: 'explicit',
+      training: 'blocked',
+      source: 'memory_reflections',
+      createdAt: 1,
+      updatedAt: 2,
+      lastAccessedAt: null,
+      tombstoned: false,
+    } as const
+    const memoryWorkbenchListLongTerm = vi.fn()
+      .mockResolvedValueOnce({ items: [firstItem], nextCursor: 'cursor-a' })
+      .mockRejectedValueOnce(new Error('refresh-failed'))
+    setAlicizationBridge({ memoryWorkbenchListLongTerm } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.refreshLongTerm({ query: '旧查询' })
+    await store.refreshLongTerm({ query: '新查询' })
+
+    expect(store.longTermItems).toEqual([firstItem])
+    expect(store.longTermNextCursor).toBe('cursor-a')
+    expect(store.longTermLoaded).toBe(true)
+    expect(store.longTermError).toBe('refresh-failed')
+  })
+
+  it('loads the real paginated long-term list on first entry and reloads it after card scope reset', async () => {
+    const memoryWorkbenchListLongTerm = vi.fn(async () => ({
+      items: [],
+      nextCursor: null,
+    }))
+    setAlicizationBridge({
+      memoryWorkbenchListLongTerm,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.selectTab('long-term')
+    await store.selectTab('working')
+    await store.selectTab('long-term')
+
+    expect(memoryWorkbenchListLongTerm).toHaveBeenCalledTimes(1)
+
+    store.resetCardScope()
+    await store.selectTab('long-term')
+
+    expect(memoryWorkbenchListLongTerm).toHaveBeenCalledTimes(2)
+    expect(memoryWorkbenchListLongTerm).toHaveBeenLastCalledWith(expect.objectContaining({
+      cursor: null,
+      limit: 50,
+    }))
+  })
+
+  it('does not let snapshot refresh overwrite the real paginated long-term list or cursor', async () => {
+    const paginatedItem = {
+      id: 'memory-paginated',
+      kind: 'relationship',
+      summary: '用户希望她记得长期陪伴关系。',
+      evidenceSnippets: [],
+      sourceIds: ['relationship-1'],
+      confidence: 0.9,
+      salience: 0.8,
+      sensitivity: 'personal',
+      visibility: 'explicit',
+      training: 'blocked',
+      source: 'relationship_memories',
+      createdAt: 1,
+      updatedAt: 2,
+      lastAccessedAt: null,
+      tombstoned: false,
+    } as const
+    const snapshotPreviewItem = {
+      ...paginatedItem,
+      id: 'memory-snapshot-preview',
+      sourceIds: ['preview-1'],
+      summary: '这只是 snapshot 预览，不应覆盖分页列表。',
+    } as const
+    setAlicizationBridge({
+      memoryWorkbenchListLongTerm: vi.fn(async () => ({
+        items: [paginatedItem],
+        nextCursor: 'cursor-next-page',
+      })),
+      memoryWorkbenchGetSnapshot: vi.fn(async () => ({
+        cardId: 'default',
+        sessionId: null,
+        updatedAt: 3,
+        workingMemory: null,
+        longTerm: {
+          total: 2,
+          byKind: { relationship: 1, reflection: 1 },
+          items: [snapshotPreviewItem],
+        },
+        review: { pending: 0, items: [] },
+        health: {
+          status: 'ok',
+          queue: { pending: 0, review: 0, applied: 0, failed: 0, deadLettered: 0 },
+          recall: { lastLatencyMs: null, p95LatencyMs: null, lastError: null },
+          embedding: {
+            providerConfigured: false,
+            modelId: null,
+            dimensions: null,
+            vectorSpaceId: null,
+            reindexRequired: false,
+            indexMode: 'brute-force',
+            approximate: false,
+            degraded: false,
+            nativeIndexReady: false,
+            searchReady: false,
+            lastError: null,
+            canonicalCount: 0,
+            indexedCount: 0,
+            missingCount: 0,
+            textHashMismatchCount: 0,
+            staleOrFailedCount: 0,
+            orphanedCount: 0,
+            coverageRatio: null,
+            reindexJob: null,
+          },
+          errors: [],
+        },
+      })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.refreshLongTerm()
+    await store.refreshSnapshot()
+
+    expect(store.snapshot?.longTerm.total).toBe(2)
+    expect(store.longTermItems.map(item => item.id)).toEqual(['memory-paginated'])
+    expect(store.longTermNextCursor).toBe('cursor-next-page')
+  })
+
+  it('keeps long-term list failures visible when snapshot refresh succeeds', async () => {
+    setAlicizationBridge({
+      memoryWorkbenchListLongTerm: vi.fn(async () => {
+        throw new Error('long-term-list-failed')
+      }),
+      memoryWorkbenchGetSnapshot: vi.fn(async () => ({
+        cardId: 'default',
+        sessionId: null,
+        updatedAt: 3,
+        workingMemory: null,
+        longTerm: { total: 0, byKind: {}, items: [] },
+        review: { pending: 0, items: [] },
+        health: {
+          status: 'ok',
+          queue: { pending: 0, review: 0, applied: 0, failed: 0, deadLettered: 0 },
+          recall: { lastLatencyMs: null, p95LatencyMs: null, lastError: null },
+          embedding: {
+            providerConfigured: false,
+            modelId: null,
+            dimensions: null,
+            vectorSpaceId: null,
+            reindexRequired: false,
+            indexMode: 'brute-force',
+            approximate: false,
+            degraded: false,
+            nativeIndexReady: false,
+            searchReady: false,
+            lastError: null,
+            canonicalCount: 0,
+            indexedCount: 0,
+            missingCount: 0,
+            textHashMismatchCount: 0,
+            staleOrFailedCount: 0,
+            orphanedCount: 0,
+            coverageRatio: null,
+            reindexJob: null,
+          },
+          errors: [],
+        },
+      })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.refreshLongTerm()
+    await store.refreshSnapshot()
+
+    expect(store.longTermError).toBe('long-term-list-failed')
+  })
+
+  it('ignores a stale long-term search response after a newer filter request starts', async () => {
+    let resolveOldRequest: ((value: { items: any[], nextCursor: string | null }) => void) | undefined
+    let resolveNewRequest: ((value: { items: any[], nextCursor: string | null }) => void) | undefined
+    const memoryWorkbenchListLongTerm = vi.fn((payload: { query?: string }) => {
+      if (payload.query === '旧查询') {
+        return new Promise<{ items: any[], nextCursor: string | null }>((resolve) => {
+          resolveOldRequest = resolve
+        })
+      }
+      return new Promise<{ items: any[], nextCursor: string | null }>((resolve) => {
+        resolveNewRequest = resolve
+      })
+    })
+    setAlicizationBridge({ memoryWorkbenchListLongTerm } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const oldRequest = store.refreshLongTerm({ query: '旧查询' })
+    const newRequest = store.refreshLongTerm({ query: '新查询' })
+    resolveNewRequest?.({
+      items: [],
+      nextCursor: 'new-cursor',
+    })
+    await newRequest
+    resolveOldRequest?.({
+      items: [{
+        id: 'stale-memory',
+        kind: 'fact',
+        summary: '旧请求的结果',
+        evidenceSnippets: [],
+        sourceIds: ['stale'],
+        confidence: 0.5,
+        salience: 0.5,
+        sensitivity: 'personal',
+        visibility: 'explicit',
+        training: 'blocked',
+        source: 'memory_facts',
+        createdAt: 1,
+        updatedAt: 1,
+        lastAccessedAt: null,
+        tombstoned: false,
+      }],
+      nextCursor: 'stale-cursor',
+    })
+    await oldRequest
+
+    expect(store.longTermItems).toEqual([])
+    expect(store.longTermNextCursor).toBe('new-cursor')
+    expect(memoryWorkbenchListLongTerm).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      query: '新查询',
+    }))
+  })
+
+  it('loads, filters, and paginates the real review queue independently from snapshot previews', async () => {
+    const firstReview = {
+      id: 'review:one',
+      transactionId: 'transaction-one',
+      status: 'needs-user-review',
+      kind: 'relationship',
+      summary: '用户希望长期陪伴关系保持连续。',
+      evidenceSnippets: ['长期陪伴关系保持连续。'],
+      reviewReasons: ['relationship-boundary'],
+      sensitivity: 'personal',
+      visibleMode: 'explicit',
+      allowTraining: false,
+      createdAt: 1,
+      updatedAt: 3,
+    } as const
+    const secondReview = {
+      ...firstReview,
+      id: 'review:two',
+      transactionId: 'transaction-two',
+      summary: '用户设置了私人边界。',
+      sensitivity: 'private',
+      visibleMode: 'inward-only',
+      updatedAt: 2,
+    } as const
+    const memoryWorkbenchListReview = vi.fn()
+      .mockResolvedValueOnce({ items: [firstReview], nextCursor: 'review-cursor-a' })
+      .mockResolvedValueOnce({ items: [secondReview], nextCursor: null })
+    setAlicizationBridge({
+      memoryWorkbenchListReview,
+      memoryWorkbenchGetSnapshot: vi.fn(async () => ({
+        cardId: 'default',
+        sessionId: null,
+        updatedAt: 4,
+        workingMemory: null,
+        longTerm: { total: 0, byKind: {}, items: [] },
+        review: {
+          pending: 99,
+          items: [{
+            ...firstReview,
+            id: 'review:snapshot-preview',
+            transactionId: 'snapshot-preview',
+          }],
+        },
+        health: {
+          status: 'ok',
+          queue: { pending: 0, review: 99, applied: 0, failed: 0, deadLettered: 0 },
+          recall: { lastLatencyMs: null, p95LatencyMs: null, lastError: null },
+          embedding: {
+            providerConfigured: false,
+            modelId: null,
+            dimensions: null,
+            vectorSpaceId: null,
+            reindexRequired: false,
+            indexMode: 'brute-force',
+            approximate: false,
+            degraded: false,
+            nativeIndexReady: false,
+            searchReady: false,
+            lastError: null,
+            canonicalCount: 0,
+            indexedCount: 0,
+            missingCount: 0,
+            textHashMismatchCount: 0,
+            staleOrFailedCount: 0,
+            orphanedCount: 0,
+            coverageRatio: null,
+            reindexJob: null,
+          },
+          errors: [],
+        },
+      })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.refreshReview({ query: '陪伴', kind: 'relationship' })
+    await store.refreshSnapshot()
+    await store.loadMoreReview()
+
+    expect(store.reviewItems.map(item => item.id)).toEqual(['review:one', 'review:two'])
+    expect(store.pendingReviewCount).toBe(99)
+    expect(store.reviewNextCursor).toBeNull()
+    expect(memoryWorkbenchListReview).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      cursor: 'review-cursor-a',
+      query: '陪伴',
+      kind: 'relationship',
+    }))
+  })
+
+  it('keeps review pagination bound to the last successfully applied filters', async () => {
+    const memoryWorkbenchListReview = vi.fn()
+      .mockResolvedValueOnce({ items: [], nextCursor: 'review-cursor-a' })
+      .mockResolvedValueOnce({ items: [], nextCursor: null })
+    setAlicizationBridge({ memoryWorkbenchListReview } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.refreshReview({ query: '已应用审核', kind: 'relationship' })
+    store.reviewFilters.query = '尚未应用审核'
+    store.reviewFilters.kind = 'correction'
+
+    await store.loadMoreReview()
+
+    expect(memoryWorkbenchListReview).toHaveBeenLastCalledWith(expect.objectContaining({
+      cursor: 'review-cursor-a',
+      query: '已应用审核',
+      kind: 'relationship',
+    }))
+  })
+
+  it('refreshes the snapshot and the active paginated memory tab together', async () => {
+    const memoryWorkbenchGetSnapshot = vi.fn(async () => null)
+    const memoryWorkbenchListLongTerm = vi.fn(async () => ({ items: [], nextCursor: null }))
+    const memoryWorkbenchListReview = vi.fn(async () => ({ items: [], nextCursor: null }))
+    setAlicizationBridge({
+      memoryWorkbenchGetSnapshot,
+      memoryWorkbenchListLongTerm,
+      memoryWorkbenchListReview,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.selectTab('long-term')
+    memoryWorkbenchGetSnapshot.mockClear()
+    memoryWorkbenchListLongTerm.mockClear()
+
+    await store.refreshActiveTab()
+
+    expect(memoryWorkbenchGetSnapshot).toHaveBeenCalledTimes(1)
+    expect(memoryWorkbenchListLongTerm).toHaveBeenCalledTimes(1)
+    expect(memoryWorkbenchListReview).not.toHaveBeenCalled()
   })
 
   it('loads persona candidates and records embedding reindex result', async () => {
@@ -1417,7 +1940,10 @@ describe('alicization memory workbench store', () => {
       allowTraining: true,
       consent: { granted: true, policyVersion: 'v2', scope: 'persona-dataset' },
     })
-    await store.revokePersonaTrainingDatasetSource('reflection-1')
+    await store.revokePersonaTrainingDatasetSource({
+      sourceId: 'reflection-1',
+      sourceKind: 'cleaned-long-term-reflection',
+    })
 
     expect(memoryWorkbenchStagePersonaTrainingDataset).toHaveBeenCalledWith(expect.objectContaining({
       consent: { granted: false, policyVersion: 'v1', scope: 'persona-dataset' },
@@ -1430,6 +1956,7 @@ describe('alicization memory workbench store', () => {
     }))
     expect(memoryWorkbenchRevokePersonaTrainingDatasetSource).toHaveBeenCalledWith({
       sourceId: 'reflection-1',
+      sourceKind: 'cleaned-long-term-reflection',
     })
     expect(store.personaTrainingDatasetExport?.manifest.manifestHash).toBe('hash')
   })
@@ -1451,7 +1978,10 @@ describe('alicization memory workbench store', () => {
       action: 'revokePersonaTrainingDatasetSource' as const,
       bridgeAction: 'memoryWorkbenchRevokePersonaTrainingDatasetSource' as const,
       id: 'source-revoke',
-      payload: { sourceId: 'source-revoke' },
+      payload: {
+        sourceId: 'source-revoke',
+        sourceKind: 'cleaned-long-term-reflection' as const,
+      },
     },
   ])('refreshes persona dataset, runs, and increments after $action succeeds', async ({
     action,
@@ -1476,7 +2006,15 @@ describe('alicization memory workbench store', () => {
     } as any)
 
     const store = useAlicizationMemoryWorkbenchStore()
-    await store[action](id)
+    if (action === 'revokePersonaTrainingDatasetSource') {
+      await store.revokePersonaTrainingDatasetSource({
+        sourceId: id,
+        sourceKind: 'cleaned-long-term-reflection',
+      })
+    }
+    else {
+      await store[action](id)
+    }
 
     expect(mutation).toHaveBeenCalledWith(payload)
     expect(memoryWorkbenchGetPersonaTrainingDataset).toHaveBeenCalledOnce()
@@ -1527,7 +2065,13 @@ describe('alicization memory workbench store', () => {
     } as any)
 
     const store = useAlicizationMemoryWorkbenchStore()
-    await expect(store[action](id)).resolves.toBeNull()
+    const operation = action === 'revokePersonaTrainingDatasetSource'
+      ? store.revokePersonaTrainingDatasetSource({
+          sourceId: id,
+          sourceKind: 'cleaned-long-term-reflection',
+        })
+      : store[action](id)
+    await expect(operation).resolves.toBeNull()
 
     expect(memoryWorkbenchGetPersonaTrainingDataset).toHaveBeenCalledOnce()
     expect(memoryWorkbenchListPersonaTrainingRuns).toHaveBeenCalledOnce()
@@ -1562,7 +2106,10 @@ describe('alicization memory workbench store', () => {
       cardId: 'default',
       datasetId: 'dataset-1',
       manifestHash: 'manifest-1',
-      sourceIds: ['reflection-1'],
+      sourceRefs: [{
+        sourceId: 'reflection-1',
+        sourceKind: 'cleaned-long-term-reflection',
+      }],
       basePersonaRevision: 'persona-core-v1',
       status: 'queued',
       stage: 'writing-input',
@@ -1643,7 +2190,10 @@ describe('alicization memory workbench store', () => {
       cardId: 'old-card',
       datasetId: 'dataset-old',
       manifestHash: 'manifest-old',
-      sourceIds: ['reflection-old'],
+      sourceRefs: [{
+        sourceId: 'reflection-old',
+        sourceKind: 'cleaned-long-term-reflection',
+      }],
       basePersonaRevision: 'persona-core-v1',
       status: 'queued',
       stage: 'writing-input',

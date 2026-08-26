@@ -311,16 +311,20 @@ describe('memory quality harness', () => {
             cleanedAt: 9100,
           },
         }],
-        expectedExportedSourceIds: ['reflection-clean'],
+        expectedExportedSourceRefs: [{
+          sourceId: 'reflection-clean',
+          sourceKind: 'cleaned-long-term-reflection',
+        }],
       }],
     })
 
     expect(report.passed).toBe(false)
     expect(report.summary.personaTrainingFixtureCount).toBe(1)
-    expect(report.summary.optimizationFindingCount).toBe(2)
+    expect(report.summary.optimizationFindingCount).toBe(3)
     expect(report.summary.failingFixtureIds).toContain('persona-dataset-gap')
     expect(report.personaTraining[0]?.findings.map(item => item.code)).toEqual(expect.arrayContaining([
       'persona-dataset-expected-export-miss',
+      'persona-dataset-consent-leak',
       'persona-dataset-schema-mismatch',
     ]))
     expect(report.recommendedNextActions).toEqual(expect.arrayContaining([

@@ -228,6 +228,135 @@ describe('openai-compatible long-term memory embedding provider', () => {
     expect(embeddings[32]).toEqual({ text: 'memory-32', vector: [0, 0, 0] })
   })
 
+  it('aborts an in-flight embedding request when the caller cancels it', async () => {
+    let observedSignal: AbortSignal | undefined
+    let releaseFetch: (() => void) | undefined
+    let fetchStarted: (() => void) | undefined
+    const fetchStartedPromise = new Promise<void>((resolve) => {
+      fetchStarted = resolve
+    })
+    const fetchImpl = vi.fn(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      observedSignal = init?.signal ?? undefined
+      fetchStarted?.()
+      await new Promise<void>((resolve, reject) => {
+        releaseFetch = resolve
+        observedSignal?.addEventListener('abort', () => {
+          reject(observedSignal?.reason ?? new Error('embedding request aborted'))
+        }, { once: true })
+      })
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [{ index: 0, embedding: [1, 0, 0] }],
+        }),
+        text: async () => '',
+      } as Response
+    })
+    const provider = createOpenAICompatibleLongTermMemoryEmbeddingProvider({
+      baseUrl: 'https://api.siliconflow.cn',
+      dimensions: 3,
+      fetch: fetchImpl,
+      model: 'BAAI/bge-m3',
+      timeoutMs: 60_000,
+    })
+    const controller = new AbortController()
+    const embeddingPromise = provider.embedTexts(['取消中的记忆'], controller.signal)
+
+    await fetchStartedPromise
+    try {
+      controller.abort(new Error('用户取消 embedding 重建'))
+      await Promise.resolve()
+
+      expect(observedSignal?.aborted).toBe(true)
+      await expect(embeddingPromise).rejects.toThrow('用户取消 embedding 重建')
+    }
+    finally {
+      releaseFetch?.()
+      await embeddingPromise.catch(() => {})
+    }
+  })
+
+  it('rejects incomplete or dimensionally invalid provider batches instead of dropping rows', async () => {
+    const incompleteProvider = createOpenAICompatibleLongTermMemoryEmbeddingProvider({
+      baseUrl: 'https://api.siliconflow.cn',
+      dimensions: 3,
+      fetch: vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [{ index: 0, embedding: [1, 0, 0] }],
+        }),
+        text: async () => '',
+      } as Response)),
+      model: 'BAAI/bge-m3',
+    })
+
+    await expect(incompleteProvider.embedTexts(['记忆一', '记忆二']))
+      .rejects
+      .toThrow('returned 1 embeddings for 2 texts')
+
+    const invalidDimensionsProvider = createOpenAICompatibleLongTermMemoryEmbeddingProvider({
+      baseUrl: 'https://api.siliconflow.cn',
+      dimensions: 3,
+      fetch: vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            { index: 0, embedding: [1, 0, 0] },
+            { index: 1, embedding: [0, 1] },
+          ],
+        }),
+        text: async () => '',
+      } as Response)),
+      model: 'BAAI/bge-m3',
+    })
+
+    await expect(invalidDimensionsProvider.embedTexts(['记忆一', '记忆二']))
+      .rejects
+      .toThrow('invalid vector dimensions')
+  })
+
+  it.each([
+    {
+      label: 'missing',
+      rows: [{ embedding: [1, 0, 0] }],
+    },
+    {
+      label: 'non-integer',
+      rows: [{ index: 0.5, embedding: [1, 0, 0] }],
+    },
+    {
+      label: 'out-of-range',
+      rows: [{ index: 1, embedding: [1, 0, 0] }],
+    },
+    {
+      label: 'duplicate',
+      rows: [
+        { index: 0, embedding: [1, 0, 0] },
+        { index: 0, embedding: [0, 1, 0] },
+      ],
+      texts: ['第一条记忆', '第二条记忆'],
+    },
+  ])('rejects $label embedding indexes instead of guessing array positions', async ({ rows, texts = ['第一条记忆'] }) => {
+    const provider = createOpenAICompatibleLongTermMemoryEmbeddingProvider({
+      baseUrl: 'https://api.siliconflow.cn',
+      dimensions: 3,
+      fetch: vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: rows }),
+        text: async () => '',
+      } as Response)),
+      model: 'BAAI/bge-m3',
+    })
+
+    await expect(provider.embedTexts(texts))
+      .rejects
+      .toThrow(/invalid embedding index|duplicate embedding index/)
+  })
+
   it('tests embedding connectivity and returns transparent provider failures', async () => {
     const okFetch = vi.fn(async () => ({
       ok: true,
@@ -293,6 +422,27 @@ describe('openai-compatible long-term memory embedding provider', () => {
       error: null,
       modelId: 'BAAI/bge-m3',
       ok: true,
+    })
+  })
+
+  it('does not report connectivity success when the probe response has no index', async () => {
+    await expect(testOpenAICompatibleLongTermMemoryEmbeddingConnection({
+      apiKey: 'test-key',
+      baseUrl: 'https://api.siliconflow.cn',
+      dimensions: 3,
+      fetch: vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [{ embedding: [1, 0, 0] }],
+        }),
+        text: async () => '',
+      } as Response)),
+      model: 'BAAI/bge-m3',
+    })).resolves.toMatchObject({
+      dimensions: 3,
+      error: expect.stringContaining('invalid embedding index'),
+      ok: false,
     })
   })
 })

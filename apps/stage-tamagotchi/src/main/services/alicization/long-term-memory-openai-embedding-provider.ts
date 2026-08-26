@@ -134,10 +134,18 @@ async function requestOpenAICompatibleEmbeddings(input: {
   fetch: typeof fetch
   headers?: Record<string, string>
   modelId: string
+  signal?: AbortSignal
   texts: string[]
   timeoutMs?: number
 }) {
   const controller = new AbortController()
+  const abortFromCaller = () => {
+    controller.abort(input.signal?.reason ?? new Error('embedding provider request aborted'))
+  }
+  if (input.signal?.aborted)
+    abortFromCaller()
+  else
+    input.signal?.addEventListener('abort', abortFromCaller, { once: true })
   const timeout = setTimeout(() => controller.abort(new Error('embedding provider timeout')), Math.max(1_000, input.timeoutMs ?? 15_000))
   try {
     const response = await input.fetch(embeddingsEndpoint(input.baseUrl), {
@@ -157,13 +165,14 @@ async function requestOpenAICompatibleEmbeddings(input: {
 
     const payload = await response.json() as { data?: Array<{ embedding?: unknown, index?: unknown }> }
     const rows = Array.isArray(payload.data) ? payload.data : []
-    return rows.map((row, fallbackIndex) => ({
-      index: Number.isFinite(Number(row.index)) ? Math.floor(Number(row.index)) : fallbackIndex,
+    return rows.map(row => ({
+      index: row.index,
       vector: row.embedding,
     }))
   }
   finally {
     clearTimeout(timeout)
+    input.signal?.removeEventListener('abort', abortFromCaller)
   }
 }
 
@@ -301,6 +310,10 @@ export async function testOpenAICompatibleLongTermMemoryEmbeddingConnection(inpu
       texts: ['Alicization memory embedding connectivity probe'],
       timeoutMs: input.timeoutMs,
     })
+    if (rows.length !== 1)
+      throw new Error(`embedding provider returned ${rows.length} embeddings for 1 texts`)
+    if (rows[0]?.index !== 0)
+      throw new Error(`embedding provider returned invalid embedding index (${String(rows[0]?.index)})`)
     const vector: unknown = rows[0]?.vector
     const dimensions = configuredDimensions ?? (Array.isArray(vector) ? vector.length : 0)
     if (!isVector(vector, dimensions)) {
@@ -358,7 +371,7 @@ export function createOpenAICompatibleLongTermMemoryEmbeddingProvider(
       modelId,
       dimensions,
     }),
-    embedTexts: async (texts) => {
+    embedTexts: async (texts, signal) => {
       const input = texts.map(text => normalizeText(text, 2000)).filter(Boolean)
       if (input.length === 0)
         return []
@@ -372,17 +385,35 @@ export function createOpenAICompatibleLongTermMemoryEmbeddingProvider(
           fetch: fetchImpl,
           headers: config.headers,
           modelId,
+          signal,
           texts: batch,
           timeoutMs: config.timeoutMs,
         })
-        embeddings.push(...rows
-          .filter((row): row is { index: number, vector: number[] } =>
-            row.index >= 0 && row.index < batch.length && isVector(row.vector, dimensions))
-          .sort((left, right) => left.index - right.index)
-          .map(row => ({
+        if (rows.length !== batch.length) {
+          throw new Error(
+            `embedding provider returned ${rows.length} embeddings for ${batch.length} texts`,
+          )
+        }
+        const ordered = new Array<{ text: string, vector: number[] } | undefined>(batch.length)
+        for (const row of rows) {
+          if (typeof row.index !== 'number' || !Number.isInteger(row.index) || row.index < 0 || row.index >= batch.length)
+            throw new Error(`embedding provider returned invalid embedding index (${String(row.index)})`)
+          if (ordered[row.index])
+            throw new Error(`embedding provider returned duplicate embedding index (${row.index})`)
+          if (!isVector(row.vector, dimensions)) {
+            const actualDimensions = Array.isArray(row.vector) ? row.vector.length : 'none'
+            throw new Error(
+              `embedding provider returned invalid vector dimensions (${actualDimensions}; expected ${dimensions})`,
+            )
+          }
+          ordered[row.index] = {
             text: batch[row.index] ?? '',
             vector: [...row.vector],
-          })))
+          }
+        }
+        if (ordered.some(item => !item))
+          throw new Error(`embedding provider returned incomplete embedding indexes for ${batch.length} texts`)
+        embeddings.push(...ordered as Array<{ text: string, vector: number[] }>)
       }
       return embeddings
     },

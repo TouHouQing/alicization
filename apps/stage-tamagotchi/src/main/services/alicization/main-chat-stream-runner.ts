@@ -508,6 +508,7 @@ export async function runAlicizationMainChatProviderStep(
   let idleTimeout: ReturnType<typeof setTimeout> | undefined
   let continuationTimeout: ReturnType<typeof setTimeout> | undefined
   let providerRetryDeadlineTimeout: ReturnType<typeof setTimeout> | undefined
+  let pendingAction: AlicizationModelAction | null = null
 
   const clearFirstEventWatchdog = () => {
     if (firstEventTimeout) {
@@ -721,7 +722,6 @@ export async function runAlicizationMainChatProviderStep(
     const fullTextParts: string[] = []
     let finishReason: string | null = null
     let finishObserved = false
-    let pendingAction: AlicizationModelAction | null = null
 
     const handleEvent = (rawEvent: unknown): AlicizationMainChatProviderStepResult | null => {
       const event = rawEvent && typeof rawEvent === 'object'
@@ -925,8 +925,11 @@ export async function runAlicizationMainChatProviderStep(
         signal: input.signal ?? input.controller.signal,
         deadlineAt: providerRetryDeadlineAt,
         replayState: {
-          hasVisibleProgress: outputObserved,
-          hasToolCall: false,
+          // Provider-step text is still provisional. The EventLoop settles and
+          // publishes it only after the complete payload passes visible-reply
+          // validation, so a partial delta has not become user-visible yet.
+          hasVisibleProgress: false,
+          hasToolCall: pendingAction !== null,
           hasToolSideEffect: false,
         },
       },

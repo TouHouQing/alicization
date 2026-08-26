@@ -11,6 +11,16 @@ import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-pe
 
 const sandboxDirs: string[] = []
 
+const modelAVectorSpaceId = 'model-a:3'
+const modelTransactionVectorSpaceId = 'model-transaction:3'
+const modelLongTextVectorSpaceId = 'model-long-text:3'
+const modelOrphanCleanupVectorSpaceId = 'model-orphan-cleanup:3'
+const oldModelVectorSpaceId = 'old-model:3'
+const newModelVectorSpaceId = 'new-model:3'
+const sameModel3dVectorSpaceId = 'same-model:3'
+const sameModel2dVectorSpaceId = 'same-model:2'
+const modelSharedSourceIdVectorSpaceId = 'model-shared-source-id:3'
+
 function run(database: sqlite3.Database, sql: string, params: unknown[] = []) {
   return new Promise<void>((resolve, reject) => {
     database.run(sql, params, (error) => {
@@ -108,6 +118,7 @@ describe('persistent long-term memory vector store', () => {
       vector: [1, 0, 0],
       modelId: 'model-a',
       dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
       updatedAt: 10,
       metadata: {},
     }])
@@ -128,12 +139,14 @@ describe('persistent long-term memory vector store', () => {
       cardId: 'card-1',
       modelId: 'model-a',
       dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
       limit: 4,
     })).toHaveLength(1)
     expect(await restartedStore.searchVectors([1, 0], {
       cardId: 'card-1',
       modelId: 'model-b',
       dimensions: 2,
+      vectorSpaceId: 'model-b:2',
       limit: 4,
     })).toHaveLength(0)
 
@@ -171,6 +184,7 @@ describe('persistent long-term memory vector store', () => {
       vector: [1, 0, 0],
       modelId: 'model-transaction',
       dimensions: 3,
+      vectorSpaceId: modelTransactionVectorSpaceId,
       updatedAt: 10,
       metadata: {},
     }])
@@ -181,6 +195,7 @@ describe('persistent long-term memory vector store', () => {
       cardId: 'card-transaction',
       modelId: 'model-transaction',
       dimensions: 3,
+      vectorSpaceId: modelTransactionVectorSpaceId,
       limit: 1,
     })).resolves.toHaveLength(1)
     database.close()
@@ -214,6 +229,7 @@ describe('persistent long-term memory vector store', () => {
       vector: [1, 0, 0],
       modelId: 'model-long-text',
       dimensions: 3,
+      vectorSpaceId: modelLongTextVectorSpaceId,
       updatedAt: 10,
       metadata: {},
     }])
@@ -222,6 +238,7 @@ describe('persistent long-term memory vector store', () => {
       cardId: 'card-long-text',
       activeModelId: 'model-long-text',
       dimensions: 3,
+      vectorSpaceId: modelLongTextVectorSpaceId,
     })).resolves.toMatchObject({
       canonicalCount: 1,
       indexedCount: 1,
@@ -261,6 +278,7 @@ describe('persistent long-term memory vector store', () => {
         vector: [1, 0, 0],
         modelId: 'model-orphan-cleanup',
         dimensions: 3,
+        vectorSpaceId: modelOrphanCleanupVectorSpaceId,
         updatedAt: 10,
         metadata: {},
       },
@@ -273,6 +291,7 @@ describe('persistent long-term memory vector store', () => {
         vector: [0, 1, 0],
         modelId: 'model-orphan-cleanup',
         dimensions: 3,
+        vectorSpaceId: modelOrphanCleanupVectorSpaceId,
         updatedAt: 10,
         metadata: {},
       },
@@ -282,6 +301,7 @@ describe('persistent long-term memory vector store', () => {
       cardId: 'card-orphan-cleanup',
       activeModelId: 'model-orphan-cleanup',
       dimensions: 3,
+      vectorSpaceId: modelOrphanCleanupVectorSpaceId,
     })).resolves.toMatchObject({
       canonicalCount: 1,
       indexedCount: 1,
@@ -296,7 +316,7 @@ describe('persistent long-term memory vector store', () => {
       spaces: [{
         modelId: 'model-orphan-cleanup',
         dimensions: 3,
-        vectorSpaceId: 'legacy:model-orphan-cleanup:3',
+        vectorSpaceId: modelOrphanCleanupVectorSpaceId,
       }],
     })
 
@@ -304,6 +324,7 @@ describe('persistent long-term memory vector store', () => {
       cardId: 'card-orphan-cleanup',
       activeModelId: 'model-orphan-cleanup',
       dimensions: 3,
+      vectorSpaceId: modelOrphanCleanupVectorSpaceId,
     })).resolves.toMatchObject({
       canonicalCount: 1,
       indexedCount: 1,
@@ -340,6 +361,7 @@ describe('persistent long-term memory vector store', () => {
       vector: [1, 0, 0],
       modelId: 'old-model',
       dimensions: 3,
+      vectorSpaceId: oldModelVectorSpaceId,
       updatedAt: 10,
       metadata: {},
     }])
@@ -348,6 +370,7 @@ describe('persistent long-term memory vector store', () => {
       cardId: 'card-1',
       activeModelId: 'new-model',
       dimensions: 3,
+      vectorSpaceId: newModelVectorSpaceId,
     })).resolves.toMatchObject({
       providerConfigured: true,
       modelId: 'new-model',
@@ -385,6 +408,7 @@ describe('persistent long-term memory vector store', () => {
         vector: [1, 0, 0],
         modelId: 'same-model',
         dimensions: 3,
+        vectorSpaceId: sameModel3dVectorSpaceId,
         updatedAt: 10,
         metadata: {},
       },
@@ -397,6 +421,7 @@ describe('persistent long-term memory vector store', () => {
         vector: [1, 0],
         modelId: 'same-model',
         dimensions: 2,
+        vectorSpaceId: sameModel2dVectorSpaceId,
         updatedAt: 20,
         metadata: {},
       },
@@ -406,6 +431,7 @@ describe('persistent long-term memory vector store', () => {
       cardId: 'card-1',
       modelId: 'same-model',
       dimensions: 3,
+      vectorSpaceId: sameModel3dVectorSpaceId,
       limit: 4,
     })).resolves.toHaveLength(1)
     await upsertCanonicalDocument(database, {
@@ -418,6 +444,7 @@ describe('persistent long-term memory vector store', () => {
       cardId: 'card-1',
       modelId: 'same-model',
       dimensions: 2,
+      vectorSpaceId: sameModel2dVectorSpaceId,
       limit: 4,
     })).resolves.toHaveLength(1)
   })
@@ -457,6 +484,7 @@ describe('persistent long-term memory vector store', () => {
       vector: [1, 0, 0],
       modelId: 'model-a',
       dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
       updatedAt: 10,
       metadata: {},
     }])
@@ -477,6 +505,7 @@ describe('persistent long-term memory vector store', () => {
       cardId: 'card-1',
       modelId: 'model-a',
       dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
       limit: 4,
     })).resolves.toHaveLength(1)
 
@@ -488,7 +517,73 @@ describe('persistent long-term memory vector store', () => {
       cardId: 'card-1',
       modelId: 'model-a',
       dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
       limit: 4,
     })).resolves.toEqual([])
+  })
+
+  it('deletes only the requested source namespace when source ids are reused', async () => {
+    const database = await createSandboxDatabase()
+    const store = createPersistentLongTermMemoryVectorStore({
+      database,
+      run,
+      all,
+      enqueueWrite: task => task(),
+      now: () => 10,
+    })
+    await store.initialize()
+    await upsertCanonicalDocument(database, {
+      cardId: 'card-shared-source-id',
+      sourceId: 'shared-id',
+      source: 'memory_reflections',
+      text: '反思来源的长期记忆。',
+    })
+    await upsertCanonicalDocument(database, {
+      cardId: 'card-shared-source-id',
+      sourceId: 'shared-id',
+      source: 'episodic_events',
+      text: '事件来源的长期记忆。',
+    })
+    await store.upsertVectors([
+      {
+        id: 'vector-reflection-shared-id',
+        cardId: 'card-shared-source-id',
+        sourceId: 'shared-id',
+        source: 'memory_reflections',
+        text: '反思来源的长期记忆。',
+        vector: [1, 0, 0],
+        modelId: 'model-shared-source-id',
+        dimensions: 3,
+        vectorSpaceId: modelSharedSourceIdVectorSpaceId,
+        updatedAt: 10,
+      },
+      {
+        id: 'vector-episode-shared-id',
+        cardId: 'card-shared-source-id',
+        sourceId: 'shared-id',
+        source: 'episodic_events',
+        text: '事件来源的长期记忆。',
+        vector: [1, 0, 0],
+        modelId: 'model-shared-source-id',
+        dimensions: 3,
+        vectorSpaceId: modelSharedSourceIdVectorSpaceId,
+        updatedAt: 10,
+      },
+    ])
+
+    await expect(store.deleteVectorsBySource({
+      cardId: 'card-shared-source-id',
+      sourceIds: ['shared-id'],
+      source: 'memory_reflections',
+    })).resolves.toBe(1)
+
+    await expect(store.searchVectors([1, 0, 0], {
+      cardId: 'card-shared-source-id',
+      modelId: 'model-shared-source-id',
+      dimensions: 3,
+      vectorSpaceId: modelSharedSourceIdVectorSpaceId,
+      source: 'episodic_events',
+      limit: 4,
+    })).resolves.toHaveLength(1)
   })
 })

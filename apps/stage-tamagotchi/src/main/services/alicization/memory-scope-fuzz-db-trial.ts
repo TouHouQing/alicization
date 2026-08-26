@@ -74,6 +74,8 @@ function deterministicVector(seed: string) {
   return [first, first / 2, 1]
 }
 
+const vectorSpaceId = 'scope-model:3'
+
 async function createVectorScopeAdapter() {
   const database = new sqlite3Runtime.Database(':memory:')
   await run(database, `
@@ -189,7 +191,7 @@ async function stageScopePersonaDataset(input: {
   const reviewItem = (await input.db.listMemoryWorkbenchReviewItems({
     cardId: input.cardId,
     limit: 64,
-  })).find(item => item.summary === summary)
+  })).items.find(item => item.summary === summary)
   if (reviewItem) {
     await input.db.applyMemoryWorkbenchReviewAction({
       cardId: input.cardId,
@@ -352,6 +354,7 @@ export async function runMemoryScopeFuzzDbTrial(input: {
               vector: deterministicVector(query.sourceId),
               modelId: 'scope-model',
               dimensions: 3,
+              vectorSpaceId,
               updatedAt: 10,
               metadata: {},
             },
@@ -364,6 +367,7 @@ export async function runMemoryScopeFuzzDbTrial(input: {
               vector: deterministicVector(query.sourceId),
               modelId: 'scope-model',
               dimensions: 3,
+              vectorSpaceId,
               updatedAt: 10,
               metadata: {},
             },
@@ -373,6 +377,7 @@ export async function runMemoryScopeFuzzDbTrial(input: {
             cardId: query.cardId,
             modelId: 'scope-model',
             dimensions: 3,
+            vectorSpaceId,
             limit: 16,
           })
           return found
@@ -406,14 +411,12 @@ export async function runMemoryScopeFuzzDbTrial(input: {
             sourceId: query.sourceId,
             kind: 'correction',
           })
-          return (await db.listMemoryWorkbenchReviewItems({ cardId: query.cardId, limit: 8 }))
-            .filter(item => item.summary.includes(query.sourceId))
-            .map(item => scopeRecord({
-              id: item.id,
-              cardId: item.summary.includes(`[${foreignCardId}]`) ? foreignCardId : query.cardId,
-              userId: query.userId,
-              sourceId: query.sourceId,
-            }))
+          return (await db.listMemoryWorkbenchReviewItems({ cardId: query.cardId, limit: 8 })).items.filter(item => item.summary.includes(query.sourceId)).map(item => scopeRecord({
+            id: item.id,
+            cardId: item.summary.includes(`[${foreignCardId}]`) ? foreignCardId : query.cardId,
+            userId: query.userId,
+            sourceId: query.sourceId,
+          }))
         },
         persona_dataset: async ({ query }) => {
           await stageScopePersonaDataset({

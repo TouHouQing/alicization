@@ -433,7 +433,7 @@ describe('main chat EventLoop participant', () => {
     }))
   })
 
-  it('classifies metadata-only Provider completion as a first-event timeout', async () => {
+  it('classifies metadata-only Provider activity as a liveness timeout', async () => {
     const prepared = {
       chatConfig: {
         model: 'gpt-test',
@@ -468,7 +468,7 @@ describe('main chat EventLoop participant', () => {
       }),
     })).rejects.toMatchObject({
       name: 'AbortError',
-      message: expect.stringContaining('chat-first-event-timeout'),
+      message: expect.stringContaining('chat-provider-liveness-timeout'),
     })
   })
 

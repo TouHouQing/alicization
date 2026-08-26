@@ -38,6 +38,17 @@ function executeRawSql(database: sqlite3.Database, sql: string, params: unknown[
   })
 }
 
+function queryRawRows<T>(database: sqlite3.Database, sql: string, params: unknown[] = []) {
+  return new Promise<T[]>((resolve, reject) => {
+    database.all(sql, params, (error, rows) => {
+      if (error)
+        reject(error)
+      else
+        resolve(rows as T[])
+    })
+  })
+}
+
 function closeRawDatabase(database: sqlite3.Database) {
   return new Promise<void>((resolve, reject) => {
     database.close((error) => {
@@ -154,6 +165,68 @@ describe('long-term memory search index', () => {
         limit: 10,
       })
       expect(listedAfterTombstone.items.map(row => row.id)).not.toContain(item!.id)
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('applies direct governance to the selected source when source ids overlap', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryFacts([{
+        subject: '用户',
+        predicate: '喜欢',
+        object: '在事实来源里保留',
+        confidence: 0.9,
+      }], 'rule')
+      const [fact] = await db.listMemoryFacts()
+      expect(fact).toBeTruthy()
+      await db.upsertMemoryReflections([{
+        id: fact!.id,
+        cardId: 'default',
+        sourceKind: 'reply',
+        targetScope: 'task',
+        summary: '反思来源里的重叠 ID',
+        lesson: '操作必须绑定用户选中的来源。',
+        status: 'confirmed',
+        confidence: 0.9,
+        createdAt: 10,
+        updatedAt: 20,
+      }])
+
+      const reflections = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        source: 'memory_reflections',
+        limit: 10,
+      })
+      const reflection = reflections.items.find(item => item.id === fact!.id)
+      expect(reflection).toBeTruthy()
+
+      const updated = await db.applyMemoryWorkbenchLongTermAction({
+        cardId: 'default',
+        memoryItemId: reflection!.id,
+        source: reflection!.source,
+        decision: 'inward-only',
+        reason: 'selected-reflection',
+      })
+
+      expect(updated).toMatchObject({
+        id: fact!.id,
+        source: 'memory_reflections',
+        visibility: 'inward-only',
+      })
+      await expect(db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        source: 'memory_facts',
+        limit: 10,
+      })).resolves.toMatchObject({
+        items: [{
+          id: fact!.id,
+          source: 'memory_facts',
+          visibility: 'explicit',
+        }],
+      })
     }
     finally {
       await db.close()
@@ -303,11 +376,41 @@ describe('long-term memory search index', () => {
     }
   })
 
+  it.each(['猫', '妈妈', '长期', '陪伴'])('searches short Chinese queries without relying on a three-character trigram', async (query) => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryReflections([{
+        id: `short-query-${query}`,
+        cardId: 'default',
+        sourceKind: 'reply',
+        targetScope: 'relationship',
+        summary: `她记得用户说过${query}。`,
+        lesson: '短中文查询也必须能找到长期记忆。',
+        status: 'confirmed',
+        confidence: 0.9,
+        createdAt: 10,
+        updatedAt: 20,
+      }])
+
+      const page = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query,
+        limit: 10,
+      })
+
+      expect(page.items.map(item => item.id)).toContain(`short-query-${query}`)
+    }
+    finally {
+      await db.close()
+    }
+  })
+
   it('lets semantic recall return an indexed distant memory outside the lexical source window', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const embeddingProvider = {
       modelId: 'test-semantic-model',
       dimensions: 3,
+      vectorSpaceId: 'test-semantic-model:3',
       embedTexts: async (texts: string[]) => texts.map(text => ({
         text,
         vector: [1, 0, 0],
@@ -381,6 +484,7 @@ describe('long-term memory search index', () => {
       embeddingProvider: {
         modelId: 'test-semantic-model',
         dimensions: 3,
+        vectorSpaceId: 'test-semantic-model:3',
         embedTexts: async (texts: string[]) => {
           embeddedTexts.push(...texts)
           return texts.map(text => ({
@@ -435,13 +539,97 @@ describe('long-term memory search index', () => {
         updatedAt: 20,
       }])
 
-      const health = await db.getMemoryWorkbenchEmbeddingHealth({
+      let health = await db.getMemoryWorkbenchEmbeddingHealth({
         cardId: 'card-canonical-embedding',
       })
-      expect(health.reindexRequired).toBe(true)
-      expect(health.searchReady).toBe(false)
+      for (let attempt = 0; attempt < 40 && health.reindexRequired; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 5))
+        health = await db.getMemoryWorkbenchEmbeddingHealth({
+          cardId: 'card-canonical-embedding',
+        })
+      }
+      expect(embeddedTexts).toContain('用户现在更喜欢在周末游泳。 游泳会让用户放松。')
+      expect(health.reindexRequired).toBe(false)
+      expect(health.searchReady).toBe(true)
     }
     finally {
+      await db.close()
+    }
+  })
+
+  it('updates only the changed projection and replaces its FTS row', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'card-incremental-projection',
+    })
+    const rawDatabase = await openRawDatabase(db.dbPath)
+    try {
+      await db.upsertMemoryReflections([
+        {
+          id: 'projection-a',
+          cardId: 'card-incremental-projection',
+          sourceKind: 'reply',
+          targetScope: 'habit',
+          summary: '第一条长期记忆。',
+          lesson: '只更新这一条。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 10,
+          updatedAt: 10,
+        },
+        {
+          id: 'projection-b',
+          cardId: 'card-incremental-projection',
+          sourceKind: 'reply',
+          targetScope: 'habit',
+          summary: '第二条长期记忆。',
+          lesson: '不应被重建。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 11,
+          updatedAt: 11,
+        },
+      ])
+      const [before] = await queryRawRows<{ rowid: number }>(
+        rawDatabase,
+        `SELECT rowid
+         FROM long_term_memory_search_documents
+         WHERE card_id = ? AND source = 'memory_reflections' AND source_id = ?`,
+        ['card-incremental-projection', 'projection-b'],
+      )
+
+      await db.upsertMemoryReflections([{
+        id: 'projection-a',
+        cardId: 'card-incremental-projection',
+        sourceKind: 'reply',
+        targetScope: 'habit',
+        summary: '第一条长期记忆已更新。',
+        lesson: '只替换目标 projection。',
+        status: 'confirmed',
+        confidence: 0.9,
+        createdAt: 10,
+        updatedAt: 20,
+      }])
+
+      const [after] = await queryRawRows<{ rowid: number }>(
+        rawDatabase,
+        `SELECT rowid
+         FROM long_term_memory_search_documents
+         WHERE card_id = ? AND source = 'memory_reflections' AND source_id = ?`,
+        ['card-incremental-projection', 'projection-b'],
+      )
+      const ftsRows = await queryRawRows<{ count: number }>(
+        rawDatabase,
+        `SELECT COUNT(*) AS count
+         FROM long_term_memory_search_documents_fts
+         WHERE card_id = ? AND source = 'memory_reflections' AND source_id = ?`,
+        ['card-incremental-projection', 'projection-a'],
+      )
+
+      expect(after?.rowid).toBe(before?.rowid)
+      expect(ftsRows[0]?.count).toBe(1)
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
       await db.close()
     }
   })
@@ -453,6 +641,7 @@ describe('long-term memory search index', () => {
       embeddingProvider: {
         modelId: 'test-semantic-model',
         dimensions: 3,
+        vectorSpaceId: 'test-semantic-model:3',
         embedTexts: async (texts: string[]) => {
           embeddedTexts.push(...texts)
           return texts.map(text => ({
@@ -549,6 +738,7 @@ describe('long-term memory search index', () => {
       embeddingProvider: {
         modelId: 'test-semantic-model',
         dimensions: 3,
+        vectorSpaceId: 'test-semantic-model:3',
         embedTexts: async (texts: string[]) => texts.map(text => ({
           text,
           vector: [1, 0, 0],
@@ -606,6 +796,188 @@ describe('long-term memory search index', () => {
         orphanedCount: 0,
         reindexRequired: false,
       })
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('paginates tombstoned memories and restores search, embedding, and audit state', async () => {
+    const embeddedTexts: string[] = []
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'card-memory-trash',
+      embeddingProvider: {
+        modelId: 'trash-restore-model',
+        dimensions: 3,
+        vectorSpaceId: 'trash-restore-model:3',
+        embedTexts: async (texts: string[]) => {
+          embeddedTexts.push(...texts)
+          return texts.map(text => ({
+            text,
+            vector: [1, 0, 0],
+          }))
+        },
+      },
+    })
+    const listTombstones = (db as unknown as {
+      listMemoryWorkbenchTombstones?: (input: {
+        cardId: string
+        limit?: number
+        cursor?: string | null
+      }) => Promise<{
+        items: Array<{
+          id: string
+          sourceId: string
+          source: string
+          reason: string | null
+          deletedAt: number
+          memory: { id: string, summary: string } | null
+        }>
+        nextCursor: string | null
+      }>
+    }).listMemoryWorkbenchTombstones
+    const restoreTombstone = (db as unknown as {
+      restoreMemoryWorkbenchTombstone?: (input: {
+        cardId: string
+        tombstoneId: string
+      }) => Promise<{
+        restored: boolean
+        item: { id: string } | null
+        reindexJobId: string | null
+      }>
+    }).restoreMemoryWorkbenchTombstone
+    expect(listTombstones).toBeTypeOf('function')
+    expect(restoreTombstone).toBeTypeOf('function')
+    if (!listTombstones || !restoreTombstone) {
+      await db.close()
+      return
+    }
+
+    try {
+      await db.upsertMemoryReflections([
+        {
+          id: 'trash-reflection-newer',
+          cardId: 'card-memory-trash',
+          sourceKind: 'reply',
+          targetScope: 'habit',
+          summary: '用户周末喜欢散步。',
+          lesson: '恢复后应重新进入长期搜索和向量召回。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 10,
+          updatedAt: 20,
+        },
+        {
+          id: 'trash-reflection-older',
+          cardId: 'card-memory-trash',
+          sourceKind: 'reply',
+          targetScope: 'habit',
+          summary: '用户晚上喜欢听轻音乐。',
+          lesson: '回收站必须支持真实分页。',
+          status: 'confirmed',
+          confidence: 0.88,
+          createdAt: 5,
+          updatedAt: 10,
+        },
+      ])
+
+      await db.tombstoneLongTermMemorySources({
+        sourceIds: ['trash-reflection-older'],
+        source: 'memory_reflections',
+        reason: '较早删除',
+      })
+      await new Promise(resolve => setTimeout(resolve, 2))
+      await db.tombstoneLongTermMemorySources({
+        sourceIds: ['trash-reflection-newer'],
+        source: 'memory_reflections',
+        reason: '误删除',
+      })
+
+      const firstPage = await listTombstones.call(db, {
+        cardId: 'card-memory-trash',
+        limit: 1,
+      })
+      expect(firstPage.items).toEqual([expect.objectContaining({
+        sourceId: 'trash-reflection-newer',
+        source: 'memory_reflections',
+        reason: '误删除',
+        memory: expect.objectContaining({
+          id: 'trash-reflection-newer',
+          summary: expect.stringContaining('用户周末喜欢散步。'),
+        }),
+      })])
+      expect(firstPage.nextCursor).toBeTruthy()
+
+      const secondPage = await listTombstones.call(db, {
+        cardId: 'card-memory-trash',
+        limit: 1,
+        cursor: firstPage.nextCursor,
+      })
+      expect(secondPage.items.map(item => item.sourceId)).toEqual(['trash-reflection-older'])
+
+      const restored = await restoreTombstone.call(db, {
+        cardId: 'card-memory-trash',
+        tombstoneId: firstPage.items[0]!.id,
+      })
+      expect(restored).toMatchObject({
+        restored: true,
+        item: {
+          id: 'trash-reflection-newer',
+        },
+      })
+      expect(restored.reindexJobId).toBeTruthy()
+
+      await expect(db.listMemoryWorkbenchLongTermItems({
+        cardId: 'card-memory-trash',
+        query: '周末',
+        limit: 5,
+      })).resolves.toMatchObject({
+        items: [expect.objectContaining({
+          id: 'trash-reflection-newer',
+        })],
+      })
+      await expect(listTombstones.call(db, {
+        cardId: 'card-memory-trash',
+        limit: 10,
+      })).resolves.toMatchObject({
+        items: [expect.not.objectContaining({
+          sourceId: 'trash-reflection-newer',
+        })],
+      })
+
+      let progress = await db.reindexMemoryWorkbenchEmbeddings({
+        cardId: 'card-memory-trash',
+        action: 'status',
+        jobId: restored.reindexJobId!,
+      })
+      for (let attempt = 0; attempt < 40 && progress.status !== 'completed'; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 5))
+        progress = await db.reindexMemoryWorkbenchEmbeddings({
+          cardId: 'card-memory-trash',
+          action: 'status',
+          jobId: restored.reindexJobId!,
+        })
+      }
+      expect(progress.status).toBe('completed')
+      expect(embeddedTexts).toContain('用户周末喜欢散步。 恢复后应重新进入长期搜索和向量召回。')
+
+      const rawDatabase = await openRawDatabase(db.dbPath)
+      try {
+        const auditRows = await queryRawRows<{ action: string, payload_json: string }>(
+          rawDatabase,
+          `SELECT action, payload_json
+           FROM audit_logs
+           WHERE action = 'long-term-memory-restored'
+           ORDER BY created_at DESC`,
+        )
+        expect(auditRows[0]).toMatchObject({
+          action: 'long-term-memory-restored',
+          payload_json: expect.stringContaining('trash-reflection-newer'),
+        })
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
     }
     finally {
       await db.close()

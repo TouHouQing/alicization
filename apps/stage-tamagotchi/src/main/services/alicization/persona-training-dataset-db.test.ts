@@ -1,4 +1,7 @@
-import type { AlicizationPersonaTrainingArtifact } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationPersonaTrainingArtifact,
+  AlicizationPersonaTrainingSourceRef,
+} from '@proj-alicization/stage-shared'
 
 import type {
   PersonaTrainingDatasetExample,
@@ -6,6 +9,7 @@ import type {
 } from './persona-training-dataset-runtime'
 import type { PersonaTrainingExecutorInput } from './persona-training-pipeline-gate'
 
+import { createHash } from 'node:crypto'
 import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -98,7 +102,22 @@ function runRaw(database: sqlite3.Database, sql: string, params: unknown[] = [])
 interface RawPersonaTrainingScope {
   datasetId: string
   manifestHash: string
-  sourceIds: string[]
+  sourceRefs: AlicizationPersonaTrainingSourceRef[]
+}
+
+function personaTrainingContentHashForTest(input: Pick<
+  PersonaTrainingDatasetExample,
+  'schemaVersion' | 'behaviorLesson' | 'positiveExample' | 'negativeExample' | 'sourceKind'
+>) {
+  return createHash('sha256')
+    .update(JSON.stringify({
+      schemaVersion: input.schemaVersion,
+      behaviorLesson: input.behaviorLesson,
+      negativeExample: input.negativeExample,
+      positiveExample: input.positiveExample,
+      sourceKind: input.sourceKind,
+    }))
+    .digest('hex')
 }
 
 function personaTrainingActivationOperationIdForTest(input: {
@@ -158,14 +177,13 @@ async function insertRawEligiblePersonaTrainingScope(
     activeAt: 100,
     rolledBackAt: null,
   } satisfies PersonaTrainingDatasetVersion
-  const example = {
+  const exampleInput = {
     id: `example-${runId}`,
     datasetId: dataset.id,
     cardId: dataset.cardId,
     schemaVersion: 'persona-training-example-v1',
     sourceId: `source-${runId}`,
     sourceKind: 'cleaned-long-term-reflection',
-    contentHash: `content-${runId}`,
     behaviorLesson: '重启后只加载仍有资格的人格增量。',
     positiveExample: '我会先核对数据集和来源资格，再恢复人格增量。',
     negativeExample: null,
@@ -182,6 +200,10 @@ async function insertRawEligiblePersonaTrainingScope(
     state: 'staged',
     createdAt: 95,
     revokedAt: null,
+  } satisfies Omit<PersonaTrainingDatasetExample, 'contentHash'>
+  const example = {
+    ...exampleInput,
+    contentHash: personaTrainingContentHashForTest(exampleInput),
   } satisfies PersonaTrainingDatasetExample
   const manifest = buildPersonaTrainingDatasetManifest({
     dataset,
@@ -243,7 +265,10 @@ async function insertRawEligiblePersonaTrainingScope(
   return {
     datasetId: dataset.id,
     manifestHash: manifest.manifestHash,
-    sourceIds: manifest.examples.map(item => item.sourceId),
+    sourceRefs: manifest.examples.map(item => ({
+      sourceId: item.sourceId,
+      sourceKind: item.sourceKind,
+    })),
   }
 }
 
@@ -259,13 +284,16 @@ async function insertRawPersonaTrainingRun(
   const scope = input.scope ?? {
     datasetId: `dataset-${input.runId}`,
     manifestHash: `manifest-${input.runId}`,
-    sourceIds: [`source-${input.runId}`],
+    sourceRefs: [{
+      sourceId: `source-${input.runId}`,
+      sourceKind: 'cleaned-long-term-reflection',
+    }],
   }
   await runRaw(
     database,
     `
     INSERT INTO persona_training_runs (
-      run_id, card_id, dataset_id, manifest_hash, source_ids_json,
+      run_id, card_id, dataset_id, manifest_hash, source_refs_json,
       base_persona_revision, status, stage, progress, progress_message,
       failure_reason, config_snapshot_json, artifact_json, error,
       queued_at, started_at, updated_at, finished_at, cancellation_requested_at
@@ -276,7 +304,7 @@ async function insertRawPersonaTrainingRun(
       'card-a',
       scope.datasetId,
       scope.manifestHash,
-      JSON.stringify(scope.sourceIds),
+      JSON.stringify(scope.sourceRefs),
       'persona-core-v1',
       input.status,
       input.status === 'completed' ? 'finalizing' : 'training',
@@ -307,13 +335,16 @@ async function insertRawPersonaTrainingIncrement(
   const scope = input.scope ?? {
     datasetId: `dataset-${input.runId}`,
     manifestHash: `manifest-${input.runId}`,
-    sourceIds: [`source-${input.runId}`],
+    sourceRefs: [{
+      sourceId: `source-${input.runId}`,
+      sourceKind: 'cleaned-long-term-reflection',
+    }],
   }
   await runRaw(
     database,
     `
     INSERT INTO persona_training_increments (
-      id, run_id, card_id, dataset_id, manifest_hash, source_ids_json,
+      id, run_id, card_id, dataset_id, manifest_hash, source_refs_json,
       base_persona_revision, artifact_json, state, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
@@ -323,7 +354,7 @@ async function insertRawPersonaTrainingIncrement(
       'card-a',
       scope.datasetId,
       scope.manifestHash,
-      JSON.stringify(scope.sourceIds),
+      JSON.stringify(scope.sourceRefs),
       'persona-core-v1',
       JSON.stringify(input.artifact),
       input.state ?? 'available',
@@ -492,6 +523,526 @@ async function stageActivatablePersonaDataset(
 }
 
 describe('persona training dataset database provenance', () => {
+  it('keeps same-id reflection and reinforcement examples distinct when revoking one source kind', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const db = await setupAlicizationDb(userDataPath)
+    const consent = {
+      granted: true,
+      policyVersion: 'persona-training-consent-v1',
+      scope: 'persona-dataset',
+    }
+    try {
+      const dataset = await db.stagePersonaTrainingDataset({
+        cardId: 'card-a',
+        consent,
+      })
+      const rawDatabase = await openRawDatabase(databasePath)
+      try {
+        for (const [index, sourceKind] of [
+          'cleaned-long-term-reflection',
+          'persona-reinforcement',
+        ].entries()) {
+          const exampleInput = {
+            id: `example-composite-${index}`,
+            datasetId: dataset.id,
+            cardId: 'card-a',
+            schemaVersion: 'persona-training-example-v1',
+            sourceId: 'shared-source',
+            sourceKind,
+            behaviorLesson: `复合来源 ${sourceKind} 保持独立。`,
+            positiveExample: `只处理 ${sourceKind} 的来源。`,
+            negativeExample: null,
+            sensitivity: 'personal',
+            piiStatus: 'clear' as const,
+            piiReason: null,
+            consentSnapshot: { ...dataset.consentSnapshot },
+            provenance: {
+              kind: 'working-memory-cleaning' as const,
+              cleaningTransactionId: `cleaning-composite-${index}`,
+              cleanedAt: 10 + index,
+            },
+            allowTraining: true,
+            state: 'staged' as const,
+            createdAt: 20 + index,
+            revokedAt: null,
+          }
+          await runRaw(
+            rawDatabase,
+            `
+            INSERT INTO persona_training_dataset_examples (
+              id, dataset_id, card_id, schema_version, source_id, source_kind,
+              content_hash, behavior_lesson, positive_example, negative_example,
+              sensitivity, pii_status, pii_reason, consent_snapshot_json, provenance_json,
+              allow_training, state, created_at, revoked_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `,
+            [
+              exampleInput.id,
+              exampleInput.datasetId,
+              exampleInput.cardId,
+              exampleInput.schemaVersion,
+              exampleInput.sourceId,
+              exampleInput.sourceKind,
+              personaTrainingContentHashForTest(exampleInput as PersonaTrainingDatasetExample),
+              exampleInput.behaviorLesson,
+              exampleInput.positiveExample,
+              exampleInput.negativeExample,
+              exampleInput.sensitivity,
+              exampleInput.piiStatus,
+              exampleInput.piiReason,
+              JSON.stringify(exampleInput.consentSnapshot),
+              JSON.stringify(exampleInput.provenance),
+              1,
+              exampleInput.state,
+              exampleInput.createdAt,
+              exampleInput.revokedAt,
+            ],
+          )
+        }
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+
+      await expect(db.revokePersonaTrainingDatasetSource({
+        cardId: 'card-a',
+        sourceId: 'shared-source',
+        sourceKind: 'cleaned-long-term-reflection',
+      })).resolves.toEqual({ affected: 1 })
+
+      const examples = (await db.getPersonaTrainingDataset({ cardId: 'card-a' })).examples
+      expect(examples).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'shared-source',
+          sourceKind: 'cleaned-long-term-reflection',
+          state: 'revoked',
+        }),
+        expect.objectContaining({
+          sourceId: 'shared-source',
+          sourceKind: 'persona-reinforcement',
+          state: 'staged',
+        }),
+      ]))
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('keeps a same-id reinforcement increment available when only the reflection source is revoked', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const discardArtifact = vi.fn(async () => {})
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-reinforcement-only'),
+      }),
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+    })
+    const consent = {
+      granted: true,
+      policyVersion: 'persona-training-consent-v1',
+      scope: 'persona-dataset',
+    }
+    try {
+      const dataset = await db.stagePersonaTrainingDataset({
+        cardId: 'card-a',
+        consent,
+      })
+      const reinforcementInput = {
+        id: 'example-reinforcement-only',
+        datasetId: dataset.id,
+        cardId: 'card-a',
+        schemaVersion: 'persona-training-example-v1',
+        sourceId: 'shared-artifact-source',
+        sourceKind: 'persona-reinforcement' as const,
+        behaviorLesson: '人格强化来源必须按 kind 独立治理。',
+        positiveExample: '只由人格强化来源训练这个增量。',
+        negativeExample: null,
+        sensitivity: 'personal',
+        piiStatus: 'clear' as const,
+        piiReason: null,
+        consentSnapshot: { ...dataset.consentSnapshot },
+        provenance: {
+          kind: 'working-memory-cleaning' as const,
+          cleaningTransactionId: 'cleaning-reinforcement-only',
+          cleanedAt: 10,
+        },
+        allowTraining: true,
+        state: 'staged' as const,
+        createdAt: 20,
+        revokedAt: null,
+      }
+      const rawDatabase = await openRawDatabase(databasePath)
+      try {
+        await runRaw(
+          rawDatabase,
+          `
+          INSERT INTO persona_training_dataset_examples (
+            id, dataset_id, card_id, schema_version, source_id, source_kind,
+            content_hash, behavior_lesson, positive_example, negative_example,
+            sensitivity, pii_status, pii_reason, consent_snapshot_json, provenance_json,
+            allow_training, state, created_at, revoked_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+            reinforcementInput.id,
+            reinforcementInput.datasetId,
+            reinforcementInput.cardId,
+            reinforcementInput.schemaVersion,
+            reinforcementInput.sourceId,
+            reinforcementInput.sourceKind,
+            personaTrainingContentHashForTest(reinforcementInput),
+            reinforcementInput.behaviorLesson,
+            reinforcementInput.positiveExample,
+            reinforcementInput.negativeExample,
+            reinforcementInput.sensitivity,
+            reinforcementInput.piiStatus,
+            reinforcementInput.piiReason,
+            JSON.stringify(reinforcementInput.consentSnapshot),
+            JSON.stringify(reinforcementInput.provenance),
+            1,
+            reinforcementInput.state,
+            reinforcementInput.createdAt,
+            reinforcementInput.revokedAt,
+          ],
+        )
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      await expect(db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })).resolves.toMatchObject({
+        status: 'succeeded',
+        increment: {
+          sourceRefs: [{
+            sourceId: 'shared-artifact-source',
+            sourceKind: 'persona-reinforcement',
+          }],
+        },
+      })
+
+      const reflectionInput = {
+        ...reinforcementInput,
+        id: 'example-reflection-same-id',
+        sourceKind: 'cleaned-long-term-reflection' as const,
+        behaviorLesson: '长期反思来源独立撤销。',
+        positiveExample: '只撤销长期反思来源。',
+        provenance: {
+          ...reinforcementInput.provenance,
+          cleaningTransactionId: 'cleaning-reflection-same-id',
+        },
+        createdAt: 30,
+      }
+      const rawDatabaseAfterTraining = await openRawDatabase(databasePath)
+      try {
+        await runRaw(
+          rawDatabaseAfterTraining,
+          `
+          INSERT INTO persona_training_dataset_examples (
+            id, dataset_id, card_id, schema_version, source_id, source_kind,
+            content_hash, behavior_lesson, positive_example, negative_example,
+            sensitivity, pii_status, pii_reason, consent_snapshot_json, provenance_json,
+            allow_training, state, created_at, revoked_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+            reflectionInput.id,
+            reflectionInput.datasetId,
+            reflectionInput.cardId,
+            reflectionInput.schemaVersion,
+            reflectionInput.sourceId,
+            reflectionInput.sourceKind,
+            personaTrainingContentHashForTest(reflectionInput),
+            reflectionInput.behaviorLesson,
+            reflectionInput.positiveExample,
+            reflectionInput.negativeExample,
+            reflectionInput.sensitivity,
+            reflectionInput.piiStatus,
+            reflectionInput.piiReason,
+            JSON.stringify(reflectionInput.consentSnapshot),
+            JSON.stringify(reflectionInput.provenance),
+            1,
+            reflectionInput.state,
+            reflectionInput.createdAt,
+            reflectionInput.revokedAt,
+          ],
+        )
+      }
+      finally {
+        await closeRawDatabase(rawDatabaseAfterTraining)
+      }
+
+      await expect(db.revokePersonaTrainingDatasetSource({
+        cardId: 'card-a',
+        sourceId: 'shared-artifact-source',
+        sourceKind: 'cleaned-long-term-reflection',
+      })).resolves.toEqual({ affected: 1 })
+      await expect(db.listPersonaTrainingIncrements({ cardId: 'card-a' })).resolves.toEqual([
+        expect.objectContaining({
+          state: 'available',
+          sourceRefs: [{
+            sourceId: 'shared-artifact-source',
+            sourceKind: 'persona-reinforcement',
+          }],
+        }),
+      ])
+      expect(discardArtifact).not.toHaveBeenCalled()
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('migrates legacy sourceIds-only persona lifecycle tables without guessing source kinds', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databaseDir = join(userDataPath, 'alicizations')
+    const databasePath = join(databaseDir, 'alicization.db')
+    await mkdir(databaseDir, { recursive: true })
+    const legacyDatabase = await openRawDatabase(databasePath)
+    try {
+      await runRaw(legacyDatabase, `
+        CREATE TABLE persona_training_runs (
+          run_id TEXT PRIMARY KEY,
+          card_id TEXT NOT NULL,
+          dataset_id TEXT NOT NULL,
+          manifest_hash TEXT NOT NULL,
+          source_ids_json TEXT NOT NULL,
+          base_persona_revision TEXT NOT NULL,
+          status TEXT NOT NULL,
+          stage TEXT NOT NULL DEFAULT 'writing-input',
+          progress REAL NOT NULL DEFAULT 0,
+          progress_message TEXT,
+          failure_reason TEXT,
+          config_snapshot_json TEXT,
+          artifact_json TEXT,
+          error TEXT,
+          queued_at INTEGER NOT NULL DEFAULT 0,
+          started_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL DEFAULT 0,
+          finished_at INTEGER,
+          cancellation_requested_at INTEGER
+        )
+      `)
+      await runRaw(legacyDatabase, `
+        CREATE TABLE persona_training_increments (
+          id TEXT PRIMARY KEY,
+          run_id TEXT NOT NULL UNIQUE,
+          card_id TEXT NOT NULL,
+          dataset_id TEXT NOT NULL,
+          manifest_hash TEXT NOT NULL,
+          source_ids_json TEXT NOT NULL,
+          base_persona_revision TEXT NOT NULL,
+          artifact_json TEXT,
+          state TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        )
+      `)
+      await runRaw(legacyDatabase, `
+        CREATE TABLE audit_logs (
+          id TEXT PRIMARY KEY,
+          level TEXT NOT NULL,
+          category TEXT NOT NULL,
+          action TEXT NOT NULL,
+          message TEXT NOT NULL,
+          payload_json TEXT,
+          created_at INTEGER NOT NULL
+        )
+      `)
+      await runRaw(legacyDatabase, `
+        INSERT INTO persona_training_runs (
+          run_id, card_id, dataset_id, manifest_hash, source_ids_json,
+          base_persona_revision, status, stage, progress, progress_message,
+          failure_reason, config_snapshot_json, artifact_json, error,
+          queued_at, started_at, updated_at, finished_at, cancellation_requested_at
+        ) VALUES (
+          'legacy-run', 'card-a', 'legacy-dataset', 'legacy-manifest', '["shared-source"]',
+          'persona-revision-1', 'failed', 'training', 0.4, 'legacy progress',
+          'provider-failed', NULL, NULL, 'legacy failure', 1, 2, 3, 4, NULL
+        )
+      `)
+      await runRaw(legacyDatabase, `
+        INSERT INTO persona_training_increments (
+          id, run_id, card_id, dataset_id, manifest_hash, source_ids_json,
+          base_persona_revision, artifact_json, state, created_at
+        ) VALUES (
+          'legacy-increment', 'legacy-run', 'card-a', 'legacy-dataset',
+          'legacy-manifest', '["shared-source"]', 'persona-revision-1',
+          NULL, 'revoked', 5
+        )
+      `)
+      await runRaw(
+        legacyDatabase,
+        `INSERT INTO audit_logs VALUES ('legacy-audit', 'notice', 'persona-training',
+          'training-started', 'legacy', '{"sourceIds":["shared-source"]}', 1)`,
+      )
+    }
+    finally {
+      await closeRawDatabase(legacyDatabase)
+    }
+
+    const migrated = await setupAlicizationDb(userDataPath)
+    await migrated.close()
+
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      const runColumns = await queryRawRows<{ name: string }>(
+        rawDatabase,
+        'PRAGMA table_info(persona_training_runs)',
+      )
+      const incrementColumns = await queryRawRows<{ name: string }>(
+        rawDatabase,
+        'PRAGMA table_info(persona_training_increments)',
+      )
+      expect(runColumns.map(column => column.name)).toContain('source_refs_json')
+      expect(runColumns.map(column => column.name)).toContain('source_ids_json')
+      expect(incrementColumns.map(column => column.name)).toContain('source_refs_json')
+      expect(incrementColumns.map(column => column.name)).toContain('source_ids_json')
+      await expect(queryRawRows<{ count: number }>(
+        rawDatabase,
+        `
+        SELECT COUNT(*) AS count FROM persona_training_runs
+        UNION ALL SELECT COUNT(*) FROM persona_training_increments
+        UNION ALL SELECT COUNT(*) FROM persona_training_artifact_activation_intents
+        UNION ALL SELECT COUNT(*) FROM persona_training_artifact_cleanup_intents
+        UNION ALL SELECT COUNT(*) FROM audit_logs WHERE category = 'persona-training'
+        `,
+      )).resolves.toEqual([
+        { count: 1 },
+        { count: 1 },
+        { count: 0 },
+        { count: 0 },
+        { count: 1 },
+      ])
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+  })
+
+  it('recovers pending source revoke intents on startup and exposes failed intents for manual retry', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const initialized = await setupAlicizationDb(userDataPath)
+    await initialized.close()
+
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      await runRaw(rawDatabase, `
+        INSERT INTO persona_training_source_revoke_intents (
+          id, card_id, source_id, source_kind, reason, status, attempts,
+          last_error, created_at, updated_at, completed_at
+        ) VALUES
+          ('revoke-pending', 'card-a', 'pending-source', 'cleaned-long-term-reflection',
+           'startup recovery', 'pending', 0, NULL, 10, 10, NULL),
+          ('revoke-failed', 'card-a', 'failed-source', 'persona-reinforcement',
+           'manual retry', 'failed', 1, 'provider unavailable', 10, 11, NULL)
+      `)
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+
+    const reopened = await setupAlicizationDb(userDataPath)
+    try {
+      await expect(reopened.listPersonaTrainingSourceRevokeIntents({
+        cardId: 'card-a',
+        status: 'all',
+      })).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          id: 'revoke-pending',
+          status: 'completed',
+          attempts: 1,
+          lastError: null,
+        }),
+        expect.objectContaining({
+          id: 'revoke-failed',
+          status: 'failed',
+          attempts: 1,
+          lastError: 'provider unavailable',
+        }),
+      ]))
+
+      await expect(reopened.retryPersonaTrainingSourceRevokeIntent({
+        cardId: 'card-a',
+        intentId: 'revoke-failed',
+      })).resolves.toMatchObject({
+        id: 'revoke-failed',
+        status: 'completed',
+        attempts: 2,
+        lastError: null,
+      })
+    }
+    finally {
+      await reopened.close()
+    }
+  })
+
+  it('persists a failed state when revoke intent completion cannot be committed', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const initialized = await setupAlicizationDb(userDataPath)
+    await initialized.close()
+
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      await runRaw(rawDatabase, `
+        INSERT INTO persona_training_source_revoke_intents (
+          id, card_id, source_id, source_kind, reason, status, attempts,
+          last_error, created_at, updated_at, completed_at
+        ) VALUES (
+          'revoke-completion-failure', 'card-a', 'completion-failure',
+          'cleaned-long-term-reflection', 'test failure', 'pending', 0,
+          NULL, 10, 10, NULL
+        )
+      `)
+      await runRaw(rawDatabase, `
+        CREATE TRIGGER fail_revoke_intent_completion
+        BEFORE UPDATE OF status ON persona_training_source_revoke_intents
+        WHEN NEW.status = 'completed'
+        BEGIN
+          SELECT RAISE(ABORT, 'forced revoke completion failure');
+        END
+      `)
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+
+    const reopened = await setupAlicizationDb(userDataPath)
+    try {
+      await expect(reopened.retryPersonaTrainingSourceRevokeIntent({
+        cardId: 'card-a',
+        intentId: 'revoke-completion-failure',
+      })).rejects.toThrow('forced revoke completion failure')
+      await expect(reopened.listPersonaTrainingSourceRevokeIntents({
+        cardId: 'card-a',
+        status: 'failed',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          id: 'revoke-completion-failure',
+          status: 'failed',
+          attempts: 2,
+          lastError: expect.stringContaining('forced revoke completion failure'),
+        }),
+      ])
+    }
+    finally {
+      await reopened.close()
+    }
+  })
+
   it('routes production training through the gated manifest and persists run, increment, rollback, and revoke audit state', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const executions: Array<{
@@ -510,7 +1061,7 @@ describe('persona training dataset database provenance', () => {
       },
     })
     let incrementId = ''
-    let sourceId = ''
+    let sourceRef: AlicizationPersonaTrainingSourceRef | null = null
     try {
       const dataset = await stageActivatablePersonaDataset(db, {
         cardId: 'card-a',
@@ -521,7 +1072,11 @@ describe('persona training dataset database provenance', () => {
         datasetId: dataset.id,
       })
       const snapshot = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
-      sourceId = snapshot.examples.find(example => example.datasetId === dataset.id)?.sourceId ?? ''
+      const source = snapshot.examples.find(example => example.datasetId === dataset.id)
+      sourceRef = source
+        ? { sourceId: source.sourceId, sourceKind: source.sourceKind }
+        : null
+      expect(sourceRef).toBeTruthy()
       const result = await db.runPersonaTraining({
         cardId: 'card-a',
         datasetId: dataset.id,
@@ -561,6 +1116,12 @@ describe('persona training dataset database provenance', () => {
           expect.objectContaining({
             id: incrementId,
             state: 'available',
+            sourceRefs: expect.arrayContaining([
+              expect.objectContaining({
+                sourceId: sourceRef!.sourceId,
+                sourceKind: sourceRef!.sourceKind,
+              }),
+            ]),
             artifact: expect.objectContaining({
               artifactId: 'artifact-production',
               runId: incrementId.replace('persona-training-increment:', ''),
@@ -576,7 +1137,7 @@ describe('persona training dataset database provenance', () => {
         })
         await expect(reopened.revokePersonaTrainingDatasetSource({
           cardId: 'card-a',
-          sourceId,
+          ...sourceRef!,
         })).resolves.toMatchObject({ affected: 1 })
       }
       finally {
@@ -610,10 +1171,10 @@ describe('persona training dataset database provenance', () => {
       )
       expect(increments).toEqual([{ state: 'revoked' }])
 
-      const auditEvents = await queryRawRows<{ action: string }>(
+      const auditEvents = await queryRawRows<{ action: string, payload_json: string | null }>(
         rawDatabase,
         `
-        SELECT action
+        SELECT action, payload_json
         FROM audit_logs
         WHERE category = 'persona-training'
         ORDER BY created_at ASC, id ASC
@@ -627,6 +1188,15 @@ describe('persona training dataset database provenance', () => {
         'training-artifact-cleanup-requested',
         'training-artifact-cleanup-completed',
       ].sort())
+      const trainingStartedPayload = JSON.parse(
+        auditEvents.find(event => event.action === 'training-started')?.payload_json ?? '{}',
+      )
+      expect(trainingStartedPayload).toMatchObject({
+        sourceRefs: expect.arrayContaining([
+          expect.objectContaining(sourceRef!),
+        ]),
+      })
+      expect(trainingStartedPayload).not.toHaveProperty('sourceIds')
     }
     finally {
       await closeRawDatabase(rawDatabase)
@@ -1316,6 +1886,87 @@ describe('persona training dataset database provenance', () => {
     }
   })
 
+  it('keeps the active dataset and exported manifest unchanged when training fails', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async () => {
+        throw new Error('trainer process failed without mutating dataset state')
+      },
+    })
+    let beforeManifestHash = ''
+    let beforeActiveVersionId: string | null = null
+    let afterActiveVersionId: string | null = null
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'failed-keeps-manifest',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const beforeSnapshot = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
+      const beforeExport = await db.exportPersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      beforeActiveVersionId = beforeSnapshot.activeVersionId
+      beforeManifestHash = beforeExport.manifest.manifestHash
+
+      await expect(db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })).resolves.toMatchObject({
+        status: 'failed',
+        reason: 'executor-failed',
+      })
+
+      const afterSnapshot = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
+      afterActiveVersionId = afterSnapshot.activeVersionId
+      expect(afterActiveVersionId).toBe(beforeActiveVersionId)
+      expect(afterSnapshot.versions.find(version => version.id === dataset.id)).toMatchObject({
+        activeAt: beforeSnapshot.versions.find(version => version.id === dataset.id)?.activeAt,
+        rolledBackAt: null,
+      })
+    }
+    finally {
+      await db.close()
+    }
+
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      const exports = await queryRawRows<{ manifest_hash: string, dataset_id: string }>(
+        rawDatabase,
+        `
+        SELECT manifest_hash, dataset_id
+        FROM persona_training_dataset_exports
+        WHERE card_id = 'card-a'
+        ORDER BY exported_at ASC, id ASC
+        `,
+      )
+      expect(exports).toEqual([{
+        manifest_hash: beforeManifestHash,
+        dataset_id: `persona-dataset:card-a:1`,
+      }])
+      expect(await queryRawRows<{ active_at: number | null, rolled_back_at: number | null }>(
+        rawDatabase,
+        `
+        SELECT active_at, rolled_back_at
+        FROM persona_training_datasets
+        WHERE card_id = 'card-a' AND id = 'persona-dataset:card-a:1'
+        `,
+      )).toEqual([expect.objectContaining({
+        active_at: expect.any(Number),
+        rolled_back_at: null,
+      })])
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+    expect(afterActiveVersionId).toBe(beforeActiveVersionId)
+  })
+
   it('rolls back run completion and increment persistence when the completion audit cannot commit', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
@@ -1466,8 +2117,8 @@ describe('persona training dataset database provenance', () => {
       })
       expect(result.status).toBe('succeeded')
       const snapshotBefore = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
-      const sourceId = snapshotBefore.examples.find(example => example.datasetId === dataset.id)?.sourceId
-      expect(sourceId).toBeTruthy()
+      const source = snapshotBefore.examples.find(example => example.datasetId === dataset.id)
+      expect(source).toBeTruthy()
       await installFailingPersonaAuditTrigger(databasePath, {
         name: 'fail_persona_increment_revoke_audit',
         action: 'training-increment-revoked',
@@ -1475,11 +2126,14 @@ describe('persona training dataset database provenance', () => {
 
       await expect(db.revokePersonaTrainingDatasetSource({
         cardId: 'card-a',
-        sourceId: sourceId!,
+        sourceId: source!.sourceId,
+        sourceKind: source!.sourceKind,
       })).rejects.toThrow('forced persona audit failure')
 
       const snapshotAfter = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
-      expect(snapshotAfter.examples.find(example => example.sourceId === sourceId)).toMatchObject({
+      expect(snapshotAfter.examples.find(example =>
+        example.sourceId === source!.sourceId && example.sourceKind === source!.sourceKind,
+      )).toMatchObject({
         state: 'revoked',
         allowTraining: false,
         revokedAt: expect.any(Number),
@@ -1540,15 +2194,15 @@ describe('persona training dataset database provenance', () => {
         cardId: 'card-a',
         datasetId: dataset.id,
       })).resolves.toMatchObject({ status: 'succeeded' })
-      const sourceId = (await db.getPersonaTrainingDataset({ cardId: 'card-a' }))
+      const source = (await db.getPersonaTrainingDataset({ cardId: 'card-a' }))
         .examples
         .find(example => example.datasetId === dataset.id)
-        ?.sourceId
-      expect(sourceId).toBeTruthy()
+      expect(source).toBeTruthy()
 
       await expect(db.revokePersonaTrainingDatasetSource({
         cardId: 'card-a',
-        sourceId: sourceId!,
+        sourceId: source!.sourceId,
+        sourceKind: source!.sourceKind,
       })).rejects.toThrow('artifact cleanup unavailable')
     }
     finally {
@@ -1836,6 +2490,7 @@ describe('persona training dataset database provenance', () => {
       await expect(db.revokePersonaTrainingDatasetSource({
         cardId: 'card-a',
         sourceId: source!.sourceId,
+        sourceKind: source!.sourceKind,
       })).rejects.toThrow('forced governance cleanup intent failure')
 
       const snapshotAfter = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
@@ -2564,12 +3219,12 @@ describe('persona training dataset database provenance', () => {
           sourceId: reflection!.id,
           sourceKind: 'cleaned-long-term-reflection',
           allowTraining: false,
-          state: 'staged',
+          state: 'quarantined',
         }),
         expect.objectContaining({
           sourceKind: 'persona-reinforcement',
           allowTraining: false,
-          state: 'staged',
+          state: 'quarantined',
         }),
       ]))
     }
@@ -2638,6 +3293,291 @@ describe('persona training dataset database provenance', () => {
         cardId: 'card-b',
         datasetId: dataset.id,
       })).rejects.toThrow('persona training dataset version not found')
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('clears persona dataset versions, examples, exports, and provenance with conversation data', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const db = await setupAlicizationDb(userDataPath)
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'clear-persona-dataset',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      await db.exportPersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+
+      await db.clearConversationData()
+
+      await expect(db.getPersonaTrainingDataset({ cardId: 'card-a' })).resolves.toEqual({
+        activeVersionId: null,
+        versions: [],
+        examples: [],
+      })
+    }
+    finally {
+      await db.close()
+    }
+
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      const rows = await queryRawRows<{ table_name: string, count: number }>(
+        rawDatabase,
+        `
+        SELECT 'datasets' AS table_name, COUNT(*) AS count FROM persona_training_datasets
+        UNION ALL SELECT 'examples', COUNT(*) FROM persona_training_dataset_examples
+        UNION ALL SELECT 'exports', COUNT(*) FROM persona_training_dataset_exports
+        UNION ALL SELECT 'provenance', COUNT(*) FROM persona_training_source_provenance
+        `,
+      )
+      expect(rows).toEqual([
+        { table_name: 'datasets', count: 0 },
+        { table_name: 'examples', count: 0 },
+        { table_name: 'exports', count: 0 },
+        { table_name: 'provenance', count: 0 },
+      ])
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+  })
+
+  it('clears Persona activation and cleanup intents without letting the old pipeline Map revive them', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-clear-lifecycle'),
+      }),
+      personaTrainingArtifactLoader: {
+        load: async () => ({
+          loaderId: 'clear-lifecycle-loader',
+          receiptId: 'clear-lifecycle-receipt',
+          activatedAt: 250,
+        }),
+        unload: async () => {},
+      },
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+    })
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'clear-lifecycle',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const result = await db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      expect(result.status).toBe('succeeded')
+      const incrementId = result.status === 'succeeded' ? result.increment.id : ''
+
+      const rawDatabase = await openRawDatabase(databasePath)
+      try {
+        await runRaw(
+          rawDatabase,
+          `
+          INSERT INTO persona_training_artifact_cleanup_intents (
+            id, card_id, run_id, increment_id, artifact_id, artifact_json,
+            loader_receipt_json, unload_operation_id, reason, stage,
+            finalize_increment_state, status, attempts, last_error,
+            created_at, updated_at, completed_at
+          )
+          SELECT
+            'cleanup-clear-lifecycle', card_id, run_id, increment_id, artifact_id,
+            artifact_json, loader_receipt_json, 'cleanup-clear-lifecycle:unload',
+            'clear-lifecycle-test', 'finalize', NULL, 'completed', 1, NULL,
+            created_at, updated_at, updated_at
+          FROM persona_training_artifact_activation_intents
+          WHERE artifact_id = 'artifact-clear-lifecycle'
+          `,
+        )
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+
+      await db.clearConversationData()
+
+      await expect(db.rollbackPersonaTrainingIncrement({
+        cardId: 'card-a',
+        incrementId,
+      })).resolves.toBeNull()
+    }
+    finally {
+      await db.close()
+    }
+
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      const rows = await queryRawRows<{ table_name: string, count: number }>(
+        rawDatabase,
+        `
+        SELECT 'activation' AS table_name, COUNT(*) AS count
+        FROM persona_training_artifact_activation_intents
+        UNION ALL
+        SELECT 'cleanup', COUNT(*)
+        FROM persona_training_artifact_cleanup_intents
+        `,
+      )
+      expect(rows).toEqual([
+        { table_name: 'activation', count: 0 },
+        { table_name: 'cleanup', count: 0 },
+      ])
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+  })
+
+  it('does not leave an empty staged dataset when inserting its examples fails', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const db = await setupAlicizationDb(userDataPath)
+    try {
+      await admitConfirmedPersonaSource(db, {
+        cardId: 'default',
+        sourceSuffix: 'stage-atomicity',
+      })
+      const rawDatabase = await openRawDatabase(databasePath)
+      try {
+        await runRaw(
+          rawDatabase,
+          `
+          CREATE TRIGGER fail_persona_dataset_example_insert
+          BEFORE INSERT ON persona_training_dataset_examples
+          BEGIN
+            SELECT RAISE(ABORT, 'forced persona dataset example failure');
+          END
+          `,
+        )
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+
+      await expect(db.stagePersonaTrainingDataset({
+        cardId: 'default',
+        consent: {
+          granted: true,
+          policyVersion: 'persona-training-consent-v1',
+          scope: 'persona-dataset',
+        },
+      })).rejects.toThrow('forced persona dataset example failure')
+    }
+    finally {
+      await db.close()
+    }
+
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      await expect(queryRawRows<{ count: number }>(
+        rawDatabase,
+        'SELECT COUNT(*) AS count FROM persona_training_datasets',
+      )).resolves.toEqual([{ count: 0 }])
+      await expect(queryRawRows<{ count: number }>(
+        rawDatabase,
+        'SELECT COUNT(*) AS count FROM persona_training_dataset_examples',
+      )).resolves.toEqual([{ count: 0 }])
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+  })
+
+  it('rolls back the manifest append when marking the dataset exported fails', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const db = await setupAlicizationDb(userDataPath)
+    let dataset: PersonaTrainingDatasetVersion | null = null
+    try {
+      dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'default',
+        sourceSuffix: 'export-atomicity',
+      })
+      const rawDatabase = await openRawDatabase(databasePath)
+      try {
+        await runRaw(
+          rawDatabase,
+          `
+          CREATE TRIGGER fail_persona_dataset_exported_at
+          BEFORE UPDATE OF exported_at ON persona_training_datasets
+          WHEN NEW.exported_at IS NOT NULL
+          BEGIN
+            SELECT RAISE(ABORT, 'forced persona dataset export marker failure');
+          END
+          `,
+        )
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+
+      await expect(db.exportPersonaTrainingDataset({
+        cardId: 'default',
+        datasetId: dataset.id,
+      })).rejects.toThrow('forced persona dataset export marker failure')
+    }
+    finally {
+      await db.close()
+    }
+
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      await expect(queryRawRows<{ count: number }>(
+        rawDatabase,
+        'SELECT COUNT(*) AS count FROM persona_training_dataset_exports',
+      )).resolves.toEqual([{ count: 0 }])
+      await expect(queryRawRows<{ exported_at: number | null }>(
+        rawDatabase,
+        'SELECT exported_at FROM persona_training_datasets WHERE id = ?',
+        [dataset!.id],
+      )).resolves.toEqual([{ exported_at: null }])
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+  })
+
+  it('preserves the current active version when activation or rollback targets a missing version', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const active = await stageActivatablePersonaDataset(db, {
+        cardId: 'default',
+        sourceSuffix: 'missing-target-preserves-active',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'default',
+        datasetId: active.id,
+      })
+
+      await expect(db.activatePersonaTrainingDataset({
+        cardId: 'default',
+        datasetId: 'missing-dataset',
+      })).rejects.toThrow('persona training dataset version not found')
+      expect((await db.getPersonaTrainingDataset({ cardId: 'default' })).activeVersionId).toBe(active.id)
+
+      await expect(db.rollbackPersonaTrainingDataset({
+        cardId: 'default',
+        datasetId: 'missing-dataset',
+      })).rejects.toThrow('persona training dataset version not found')
+      expect((await db.getPersonaTrainingDataset({ cardId: 'default' })).activeVersionId).toBe(active.id)
     }
     finally {
       await db.close()
@@ -2778,7 +3718,7 @@ describe('persona training dataset database provenance', () => {
         rawDatabase,
         `
         INSERT INTO persona_training_runs (
-          run_id, card_id, dataset_id, manifest_hash, source_ids_json,
+          run_id, card_id, dataset_id, manifest_hash, source_refs_json,
           base_persona_revision, status, stage, progress, progress_message,
           failure_reason, config_snapshot_json, artifact_json, error,
           queued_at, started_at, updated_at, finished_at, cancellation_requested_at
@@ -3671,11 +4611,10 @@ setInterval(() => {}, 1000)
         cardId: 'card-a',
         datasetId: dataset.id,
       })
-      const sourceId = (await db.getPersonaTrainingDataset({ cardId: 'card-a' }))
+      const source = (await db.getPersonaTrainingDataset({ cardId: 'card-a' }))
         .examples
         .find(example => example.datasetId === dataset.id)
-        ?.sourceId
-      expect(sourceId).toBeTruthy()
+      expect(source).toBeTruthy()
       const { run } = await db.startPersonaTraining({
         cardId: 'card-a',
         datasetId: dataset.id,
@@ -3696,7 +4635,8 @@ setInterval(() => {}, 1000)
 
       await db.revokePersonaTrainingDatasetSource({
         cardId: 'card-a',
-        sourceId: sourceId!,
+        sourceId: source!.sourceId,
+        sourceKind: source!.sourceKind,
       })
 
       await vi.waitFor(async () => {
@@ -3852,7 +4792,7 @@ setInterval(() => {}, 1000)
         rawDatabase,
         `
         INSERT INTO persona_training_runs (
-          run_id, card_id, dataset_id, manifest_hash, source_ids_json,
+          run_id, card_id, dataset_id, manifest_hash, source_refs_json,
           base_persona_revision, status, stage, progress, progress_message,
           failure_reason, config_snapshot_json, artifact_json, error,
           queued_at, started_at, updated_at, finished_at, cancellation_requested_at
@@ -3863,7 +4803,7 @@ setInterval(() => {}, 1000)
           'card-a',
           'dataset-invalid-artifact',
           'manifest-invalid-artifact',
-          '["source-invalid-artifact"]',
+          '[{"sourceId":"source-invalid-artifact","sourceKind":"cleaned-long-term-reflection"}]',
           'persona-core-v1',
           'completed',
           'finalizing',
@@ -3884,7 +4824,7 @@ setInterval(() => {}, 1000)
         rawDatabase,
         `
         INSERT INTO persona_training_increments (
-          id, run_id, card_id, dataset_id, manifest_hash, source_ids_json,
+          id, run_id, card_id, dataset_id, manifest_hash, source_refs_json,
           base_persona_revision, artifact_json, state, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
@@ -3894,7 +4834,7 @@ setInterval(() => {}, 1000)
           'card-a',
           'dataset-invalid-artifact',
           'manifest-invalid-artifact',
-          '["source-invalid-artifact"]',
+          '[{"sourceId":"source-invalid-artifact","sourceKind":"cleaned-long-term-reflection"}]',
           'persona-core-v1',
           invalidArtifact,
           'available',

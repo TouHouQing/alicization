@@ -1,3 +1,7 @@
+import type {
+  AlicizationPersonaTrainingSourceKind,
+  AlicizationPersonaTrainingSourceRef,
+} from '@proj-alicization/stage-shared'
 import type sqlite3 from 'sqlite3'
 
 import type {
@@ -11,6 +15,7 @@ export type MemoryWorkbenchReviewState = 'none' | 'approved' | 'rejected' | 'tom
 export interface MemoryWorkbenchPolicyOverride {
   sourceId: string
   source: string
+  sourceKind: AlicizationPersonaTrainingSourceKind | null
   visibleMode: AlicizationMemoryWorkbenchVisibility
   allowTraining: boolean
   reviewState: MemoryWorkbenchReviewState
@@ -29,6 +34,7 @@ export interface MemoryWorkbenchMergedPolicy {
 interface MemoryWorkbenchPolicyOverrideRow {
   source_id: string
   source: string
+  source_kind: string
   visible_mode: string
   allow_training: number
   review_state: string
@@ -41,16 +47,25 @@ export interface MemoryWorkbenchPolicyStoreRuntime {
     cardId: string
     sourceId: string
     source: string
+    sourceKind?: AlicizationPersonaTrainingSourceKind | null
     visibleMode: AlicizationMemoryWorkbenchVisibility
     allowTraining: boolean
     reviewState: MemoryWorkbenchReviewState
     reason?: string | null
   }) => Promise<MemoryWorkbenchPolicyOverride>
-  listPolicyOverrides: (input: { cardId: string, sourceIds?: string[] }) => Promise<MemoryWorkbenchPolicyOverride[]>
+  listPolicyOverrides: (input: {
+    cardId: string
+    sourceIds?: string[]
+    sourceRefs?: AlicizationPersonaTrainingSourceRef[]
+  }) => Promise<MemoryWorkbenchPolicyOverride[]>
   inheritCandidatePolicies: (input: {
     cardId: string
     candidateSourceIds: string[]
-    projectedSources: Array<{ sourceId: string, source: string }>
+    projectedSources: Array<{
+      sourceId: string
+      source: string
+      sourceKind?: AlicizationPersonaTrainingSourceKind | null
+    }>
   }) => Promise<MemoryWorkbenchPolicyOverride[]>
 }
 
@@ -78,9 +93,24 @@ function normalizeVisibleMode(raw: unknown): AlicizationMemoryWorkbenchVisibilit
   return raw === 'inward-only' ? 'inward-only' : 'explicit'
 }
 
+function normalizePersonaTrainingSourceKind(raw: unknown): AlicizationPersonaTrainingSourceKind | null {
+  return raw === 'cleaned-long-term-reflection' || raw === 'persona-reinforcement'
+    ? raw
+    : null
+}
+
+function sourceForPersonaTrainingSourceKind(
+  sourceKind: AlicizationPersonaTrainingSourceKind,
+) {
+  return sourceKind === 'cleaned-long-term-reflection'
+    ? 'memory_reflections'
+    : 'persona_reinforcement_events'
+}
+
 export function deriveMemoryWorkbenchPolicyForSource(input: {
   sourceId: string
   source: string
+  sourceKind?: AlicizationPersonaTrainingSourceKind | null
   visibleMode: AlicizationMemoryWorkbenchVisibility
   allowTraining: boolean
   reviewState: MemoryWorkbenchReviewState
@@ -90,6 +120,10 @@ export function deriveMemoryWorkbenchPolicyForSource(input: {
   return {
     sourceId: normalizeText(input.sourceId),
     source: normalizeText(input.source, 120),
+    sourceKind: input.sourceKind === 'cleaned-long-term-reflection'
+      || input.sourceKind === 'persona-reinforcement'
+      ? input.sourceKind
+      : null,
     visibleMode: input.visibleMode,
     allowTraining: input.allowTraining === true,
     reviewState: input.reviewState,
@@ -127,7 +161,11 @@ export function mergeMemoryWorkbenchPolicy(input: {
 export function inheritPreAdmissionMemoryWorkbenchPolicies(input: {
   candidatePolicies: MemoryWorkbenchPolicyOverride[]
   candidateSourceIds: string[]
-  projectedSources: Array<{ sourceId: string, source: string }>
+  projectedSources: Array<{
+    sourceId: string
+    source: string
+    sourceKind?: AlicizationPersonaTrainingSourceKind | null
+  }>
   now: number
 }): MemoryWorkbenchPolicyOverride[] {
   const candidateIds = new Set(input.candidateSourceIds.map(id => normalizeText(id)).filter(Boolean))
@@ -139,6 +177,7 @@ export function inheritPreAdmissionMemoryWorkbenchPolicies(input: {
     .map(source => deriveMemoryWorkbenchPolicyForSource({
       sourceId: source.sourceId,
       source: source.source,
+      sourceKind: source.sourceKind,
       visibleMode: sourcePolicy.visibleMode,
       allowTraining: sourcePolicy.allowTraining,
       reviewState: sourcePolicy.reviewState,
@@ -152,6 +191,7 @@ function mapPolicyRow(row: MemoryWorkbenchPolicyOverrideRow): MemoryWorkbenchPol
   return deriveMemoryWorkbenchPolicyForSource({
     sourceId: row.source_id,
     source: row.source,
+    sourceKind: normalizePersonaTrainingSourceKind(row.source_kind),
     visibleMode: normalizeVisibleMode(row.visible_mode),
     allowTraining: row.allow_training === 1,
     reviewState: normalizeReviewState(row.review_state),
@@ -172,6 +212,7 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
     cardId: string
     sourceId: string
     source: string
+    sourceKind?: AlicizationPersonaTrainingSourceKind | null
     visibleMode: AlicizationMemoryWorkbenchVisibility
     allowTraining: boolean
     reviewState: MemoryWorkbenchReviewState
@@ -181,6 +222,7 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
     const policy = deriveMemoryWorkbenchPolicyForSource({
       sourceId: policyInput.sourceId,
       source: policyInput.source,
+      sourceKind: policyInput.sourceKind,
       visibleMode: policyInput.visibleMode,
       allowTraining: policyInput.allowTraining,
       reviewState: policyInput.reviewState,
@@ -190,7 +232,8 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
     if (!cardId || !policy.sourceId || !policy.source)
       return policy
 
-    const id = `ltm-policy:${cardId}:${policy.source}:${policy.sourceId}`
+    const sourceKind = policy.sourceKind ?? ''
+    const id = `ltm-policy:${cardId}:${policy.source}:${sourceKind || 'generic'}:${policy.sourceId}`
     await input.enqueueWrite(async () => {
       await input.run(
         input.database,
@@ -200,14 +243,15 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
           card_id,
           source_id,
           source,
+          source_kind,
           visible_mode,
           allow_training,
           review_state,
           reason,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(card_id, source_id, source) DO UPDATE SET
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(card_id, source_id, source, source_kind) DO UPDATE SET
           visible_mode = excluded.visible_mode,
           allow_training = excluded.allow_training,
           review_state = excluded.review_state,
@@ -219,6 +263,7 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
           cardId,
           policy.sourceId,
           policy.source,
+          sourceKind,
           policy.visibleMode,
           policy.allowTraining ? 1 : 0,
           policy.reviewState,
@@ -231,16 +276,28 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
     return policy
   }
 
-  async function listPolicyOverrides(listInput: { cardId: string, sourceIds?: string[] }) {
+  async function listPolicyOverrides(listInput: {
+    cardId: string
+    sourceIds?: string[]
+    sourceRefs?: AlicizationPersonaTrainingSourceRef[]
+  }) {
     const cardId = normalizeText(listInput.cardId, 120)
     if (!cardId)
       return []
 
     const sourceIds = new Set((listInput.sourceIds ?? []).map(id => normalizeText(id)).filter(Boolean))
+    const sourceRefs = (listInput.sourceRefs ?? [])
+      .map(sourceRef => ({
+        sourceId: normalizeText(sourceRef.sourceId),
+        sourceKind: sourceRef.sourceKind,
+      }))
+      .filter(sourceRef => sourceRef.sourceId)
+    const sourceRefKeys = new Set(sourceRefs
+      .map(sourceRef => `${sourceRef.sourceKind}\0${sourceRef.sourceId}`))
     const rows = await input.all<MemoryWorkbenchPolicyOverrideRow>(
       input.database,
       `
-      SELECT source_id, source, visible_mode, allow_training, review_state, reason, updated_at
+      SELECT source_id, source, source_kind, visible_mode, allow_training, review_state, reason, updated_at
       FROM long_term_memory_policy_overrides
       WHERE card_id = ?
       ORDER BY updated_at DESC
@@ -249,13 +306,24 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
     )
     return rows
       .map(mapPolicyRow)
-      .filter(policy => sourceIds.size === 0 || sourceIds.has(policy.sourceId))
+      .filter((policy) => {
+        if (sourceRefKeys.size > 0) {
+          return policy.sourceKind != null
+            && sourceRefKeys.has(`${policy.sourceKind}\0${policy.sourceId}`)
+            && policy.source === sourceForPersonaTrainingSourceKind(policy.sourceKind)
+        }
+        return sourceIds.size === 0 || sourceIds.has(policy.sourceId)
+      })
   }
 
   async function inheritCandidatePolicies(inheritInput: {
     cardId: string
     candidateSourceIds: string[]
-    projectedSources: Array<{ sourceId: string, source: string }>
+    projectedSources: Array<{
+      sourceId: string
+      source: string
+      sourceKind?: AlicizationPersonaTrainingSourceKind | null
+    }>
   }) {
     const candidatePolicies = (await listPolicyOverrides({
       cardId: inheritInput.cardId,
@@ -270,7 +338,8 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
     await input.enqueueWrite(async () => {
       await input.runInTransaction(input.database, async () => {
         for (const policy of inherited) {
-          const id = `ltm-policy:${normalizeText(inheritInput.cardId, 120)}:${policy.source}:${policy.sourceId}`
+          const sourceKind = policy.sourceKind ?? ''
+          const id = `ltm-policy:${normalizeText(inheritInput.cardId, 120)}:${policy.source}:${sourceKind || 'generic'}:${policy.sourceId}`
           await input.run(
             input.database,
             `
@@ -279,14 +348,15 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
               card_id,
               source_id,
               source,
+              source_kind,
               visible_mode,
               allow_training,
               review_state,
               reason,
               created_at,
               updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(card_id, source_id, source) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(card_id, source_id, source, source_kind) DO UPDATE SET
               visible_mode = excluded.visible_mode,
               allow_training = excluded.allow_training,
               review_state = excluded.review_state,
@@ -298,6 +368,7 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
               normalizeText(inheritInput.cardId, 120),
               policy.sourceId,
               policy.source,
+              sourceKind,
               policy.visibleMode,
               policy.allowTraining ? 1 : 0,
               policy.reviewState,

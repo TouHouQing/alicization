@@ -7,7 +7,6 @@ import {
   handleAlicizationMainChatRunFailure,
   isProviderSchemaUnsupportedError,
   normalizeAlicizationMainChatAbortReason,
-  shouldRecordAlicizationMainGatewayGenerationTimeout,
 } from './main-chat-run-lifecycle'
 import { createAlicizationRuntimeAbortError } from './turn-os/runtime-errors'
 import { AlicizationVisibleReplySettlementBlockedError } from './visible-reply/settlement'
@@ -40,7 +39,6 @@ function createBaseInput(
     },
     dispatchBound: false,
     nonProgressEventTypes: new Set<string>(),
-    recordMainGatewayGenerationTimeout: vi.fn(async () => {}),
     emitError: vi.fn(),
     finish: vi.fn(),
     appendRuntimeDebugLine: vi.fn(async () => {}),
@@ -96,65 +94,6 @@ describe('main chat run lifecycle', () => {
     const error = new DOMException('chat-preparation-timeout', 'AbortError')
 
     expect(normalizeAlicizationMainChatAbortReason(error)).toBe('abort')
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(error)).toBe(false)
-  })
-
-  it('recognizes explicit external transport timeouts without classifying invalid request errors as timeouts', () => {
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
-      Object.assign(new Error('request timed out after 12000ms'), {
-        code: 'ETIMEDOUT',
-      }),
-    )).toBe(true)
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
-      Object.assign(new Error('fetch failed while connecting to the Provider'), {
-        code: 'UND_ERR_CONNECT_TIMEOUT',
-      }),
-    )).toBe(true)
-    const wrappedTransportError = Object.assign(new TypeError('fetch failed'), {
-      cause: {
-        code: 'UND_ERR_HEADERS_TIMEOUT',
-        message: 'headers timeout',
-      },
-    })
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
-      wrappedTransportError,
-    )).toBe(true)
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
-      new Error('request timed out while contacting the Provider'),
-    )).toBe(true)
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
-      new DOMException('manual', 'AbortError'),
-    )).toBe(false)
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
-      new Error('Remote sent 400 response: invalid_tool_choice'),
-    )).toBe(false)
-  })
-
-  it('does not promote arbitrary timeout tokens in ordinary Provider or tool errors', () => {
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
-      new Error('Provider rejected the request; timeout is only diagnostic text'),
-    )).toBe(false)
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
-      new Error('Tool failed while replaying a previous timed out operation'),
-    )).toBe(false)
-  })
-
-  it('records only Provider-generation watchdog timeouts in Provider health', () => {
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
-      createAlicizationRuntimeAbortError('chat-preparation-timeout'),
-    )).toBe(false)
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
-      createAlicizationRuntimeAbortError('chat-tool-result-handoff-timeout'),
-    )).toBe(false)
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
-      createAlicizationRuntimeAbortError('chat-provider-retry-deadline'),
-    )).toBe(true)
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
-      createAlicizationRuntimeAbortError('chat-provider-liveness-timeout'),
-    )).toBe(true)
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
-      createAlicizationRuntimeAbortError('chat-provider-idle-timeout'),
-    )).toBe(true)
   })
 
   it('preserves the main watchdog timeout descriptor on the transparent failure surface', async () => {
@@ -200,18 +139,17 @@ describe('main chat run lifecycle', () => {
     }))
   })
 
-  it('uses structured Turn OS timeout metadata as the authority for runtime timeout health', () => {
+  it('uses structured Turn OS timeout metadata as the authority for runtime timeout classification', () => {
     const error = createAlicizationRuntimeAbortError('chat-provider-retry-deadline')
 
     expect(normalizeAlicizationMainChatAbortReason(error)).toBe('chat-provider-retry-deadline')
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(error)).toBe(true)
-    expect(shouldRecordAlicizationMainGatewayGenerationTimeout(
+    expect(normalizeAlicizationMainChatAbortReason(
       Object.assign(new Error('ordinary Provider failure'), {
         errorCode: 'ALICIZATION_RUNTIME_TIMEOUT',
         timeoutOrigin: 'provider',
         timeoutReason: 'chat-provider-retry-deadline',
       }),
-    )).toBe(false)
+    )).toBe('abort')
   })
 
   it('surfaces first-event timeout directly without generating a recovery reply', async () => {
@@ -232,7 +170,6 @@ describe('main chat run lifecycle', () => {
 
     await handleAlicizationMainChatRunFailure(input)
 
-    expect(input.recordMainGatewayGenerationTimeout).toHaveBeenCalledOnce()
     expect(input.emitError).toHaveBeenCalledWith(failureSurface.reply, metadata)
     expect(input.finish).toHaveBeenCalledWith({
       status: 'timed-out',
@@ -260,14 +197,12 @@ describe('main chat run lifecycle', () => {
       providerId: 'openai',
       model: 'gpt-test',
       phase: 'provider-first-event',
+      transportCode: 'ETIMEDOUT',
+      transportMessage: 'fetch failed',
     })
 
     await handleAlicizationMainChatRunFailure(input)
 
-    expect(input.recordMainGatewayGenerationTimeout).toHaveBeenCalledWith(
-      input.mainGateway,
-      error,
-    )
     expect(input.emitError).toHaveBeenCalledWith(failureSurface.reply, metadata)
     expect(input.finish).toHaveBeenCalledWith({
       status: 'timed-out',
@@ -277,12 +212,18 @@ describe('main chat run lifecycle', () => {
     })
     expect(input.queueScopedAuditLog).toHaveBeenCalledWith('card-1', expect.objectContaining({
       action: 'stream-timeout-failed',
+      payload: expect.objectContaining({
+        transportCode: 'ETIMEDOUT',
+        transportMessage: 'fetch failed',
+      }),
     }))
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.timeout-failed', {
       cardId: 'card-1',
       turnId: 'turn-1',
       dispatchBound: false,
       nonProgressEventTypes: [],
+      transportCode: 'ETIMEDOUT',
+      transportMessage: 'fetch failed',
     })
   })
 
@@ -329,7 +270,6 @@ describe('main chat run lifecycle', () => {
 
     await handleAlicizationMainChatRunFailure(input)
 
-    expect(input.recordMainGatewayGenerationTimeout).toHaveBeenCalledOnce()
     expect(input.emitError).toHaveBeenCalledWith(failureSurface.reply, metadata)
     expect(input.finish).toHaveBeenCalledWith({
       status: 'timed-out',
@@ -359,7 +299,6 @@ describe('main chat run lifecycle', () => {
 
     await handleAlicizationMainChatRunFailure(input)
 
-    expect(input.recordMainGatewayGenerationTimeout).toHaveBeenCalledOnce()
     expect(input.emitError).toHaveBeenCalledWith(failureSurface.reply, metadata)
     expect(input.finish).toHaveBeenCalledWith({
       status: 'timed-out',
@@ -475,7 +414,6 @@ describe('main chat run lifecycle', () => {
 
     await handleAlicizationMainChatRunFailure(input)
 
-    expect(input.recordMainGatewayGenerationTimeout).not.toHaveBeenCalled()
     expect(input.emitError).toHaveBeenCalledWith(failureSurface.reply, metadata)
     expect(input.finish).toHaveBeenCalledWith({
       status: 'timed-out',
@@ -490,10 +428,9 @@ describe('main chat run lifecycle', () => {
         turnId: 'turn-1',
       }),
     )
-    expect(input.recordMainGatewayGenerationTimeout).not.toHaveBeenCalled()
   })
 
-  it('does not record Provider generation health for a tool-result handoff timeout', async () => {
+  it('surfaces a tool-result handoff timeout without treating it as a Provider continuation', async () => {
     const controller = new AbortController()
     const timeoutError = createAlicizationRuntimeAbortError('chat-tool-result-handoff-timeout')
     controller.abort(timeoutError)
@@ -505,7 +442,6 @@ describe('main chat run lifecycle', () => {
 
     await handleAlicizationMainChatRunFailure(input)
 
-    expect(input.recordMainGatewayGenerationTimeout).not.toHaveBeenCalled()
     expect(input.finish).toHaveBeenCalledWith(expect.objectContaining({
       status: 'timed-out',
       finishReason: 'chat-tool-result-handoff-timeout',

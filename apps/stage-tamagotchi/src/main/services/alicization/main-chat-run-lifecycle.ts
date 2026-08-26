@@ -13,6 +13,7 @@ import {
   extractAlicizationToolExecutionFailure,
   isAlicizationProviderSchemaUnsupportedError,
   resolveAlicizationChatFailureSurface,
+  sanitizeAlicizationMemoryEvidenceText,
 } from '@proj-alicization/stage-shared'
 
 import { readTransportContentAsText } from './runtime-transport-content'
@@ -71,29 +72,39 @@ function isExplicitExternalTransportTimeout(reason: unknown) {
   return false
 }
 
+function readExternalTransportTimeoutDiagnostic(reason: unknown) {
+  const visited = new Set<object>()
+  let current: unknown = reason
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (!current || typeof current !== 'object' || visited.has(current))
+      break
+    visited.add(current)
+    const record = current as Record<string, unknown>
+    const code = String(record.code ?? record.errorCode ?? '').trim().toUpperCase()
+    const message = sanitizeAlicizationMemoryEvidenceText(
+      current instanceof Error ? current.message : String(record.message ?? ''),
+      180,
+    )
+    if (externalTransportTimeoutCodes.has(code) || message) {
+      return {
+        code: externalTransportTimeoutCodes.has(code) ? code : 'TRANSPORT_TIMEOUT',
+        message: message || 'transport request timed out',
+      }
+    }
+    current = record.cause
+  }
+  return {
+    code: 'TRANSPORT_TIMEOUT',
+    message: 'transport request timed out',
+  }
+}
+
 export function normalizeAlicizationMainChatAbortReason(reason: unknown) {
   const timeoutReason = resolveMainChatBoundaryTimeoutReason(reason)
   if (timeoutReason)
     return timeoutReason
 
   return 'abort'
-}
-
-export function shouldRecordAlicizationMainGatewayGenerationTimeout(reason: unknown) {
-  const normalizedTimeoutReason = normalizeAlicizationMainChatAbortReason(reason)
-  if (normalizedTimeoutReason !== 'abort') {
-    return normalizedTimeoutReason === 'chat-first-event-timeout'
-      || normalizedTimeoutReason === 'chat-provider-liveness-timeout'
-      || normalizedTimeoutReason === 'chat-provider-idle-timeout'
-      || normalizedTimeoutReason === 'chat-provider-continuation-timeout'
-      || normalizedTimeoutReason === 'chat-provider-retry-deadline'
-      || normalizedTimeoutReason === 'main-gateway-attempt-timeout'
-      || normalizedTimeoutReason === 'main-gateway-timeout'
-      || normalizedTimeoutReason === 'main-gateway-timeout-recovery'
-      || normalizedTimeoutReason === 'main-gateway-visual-one-shot-timeout'
-  }
-
-  return isExplicitExternalTransportTimeout(reason)
 }
 
 export function isProviderSchemaUnsupportedError(error: unknown) {
@@ -139,10 +150,6 @@ interface HandleAlicizationMainChatRunFailureOptions {
   payload: Pick<AlicizationChatStartPayload, 'cardId' | 'turnId' | 'providerId' | 'model' | 'messages'>
   dispatchBound: boolean
   nonProgressEventTypes: Set<string>
-  recordMainGatewayGenerationTimeout: (
-    mainGateway: MainGatewayResolvedConfig,
-    reason: unknown,
-  ) => void | Promise<void>
   emitError: (
     reason: string,
     metadata?: Pick<AlicizationChatErrorEvent, 'origin' | 'learningPolicy' | 'failureSurface'>,
@@ -271,11 +278,6 @@ export async function handleAlicizationMainChatRunFailure(
           : {}),
       },
     })
-    if (shouldRecordAlicizationMainGatewayGenerationTimeout(abortReason)) {
-      await Promise.resolve(
-        input.recordMainGatewayGenerationTimeout(input.mainGateway, abortReason),
-      )
-    }
     const retryDeadlineFailure = retryDeadlineTimeout
     await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
       level: 'warning',
@@ -371,6 +373,7 @@ export async function handleAlicizationMainChatRunFailure(
   }
 
   if (!aborted && !toolExecution && isExplicitExternalTransportTimeout(input.error)) {
+    const transportDiagnostic = readExternalTransportTimeoutDiagnostic(input.error)
     const failureSurface = resolveAlicizationChatFailureSurface({
       kind: 'timeout',
       userText: currentUserText,
@@ -378,11 +381,10 @@ export async function handleAlicizationMainChatRunFailure(
         providerId: input.payload.providerId || input.mainGateway.providerId,
         model: input.payload.model || input.mainGateway.model,
         phase: 'provider-first-event',
+        transportCode: transportDiagnostic.code,
+        transportMessage: transportDiagnostic.message,
       },
     })
-    await Promise.resolve(
-      input.recordMainGatewayGenerationTimeout(input.mainGateway, input.error),
-    )
     await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
       level: 'warning',
       category: 'alicization.main-gateway',
@@ -395,6 +397,8 @@ export async function handleAlicizationMainChatRunFailure(
         model: input.payload.model,
         dispatchBound: input.dispatchBound,
         nonProgressEventTypes: [...input.nonProgressEventTypes],
+        transportCode: transportDiagnostic.code,
+        transportMessage: transportDiagnostic.message,
       },
     }))
     await input.appendRuntimeDebugLine('chat-stream.timeout-failed', {
@@ -402,6 +406,8 @@ export async function handleAlicizationMainChatRunFailure(
       turnId: input.payload.turnId,
       dispatchBound: input.dispatchBound,
       nonProgressEventTypes: [...input.nonProgressEventTypes],
+      transportCode: transportDiagnostic.code,
+      transportMessage: transportDiagnostic.message,
     })
     await emitFailureSurface({
       failureSurface,

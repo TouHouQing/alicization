@@ -23,6 +23,26 @@ function normalizeText(raw: unknown, maxChars = 240) {
     : ''
 }
 
+export function formatMemoryWorkbenchRecallDegradation(
+  channels: Array<{
+    channel: 'index' | 'episodic' | 'semantic'
+    error: string
+  }>,
+) {
+  if (channels.length === 0)
+    return null
+  const separatorLength = Math.max(0, channels.length - 1) * 3
+  const labelLength = channels.reduce((sum, item) => sum + item.channel.length + 2, 0)
+  const perChannelBudget = Math.max(
+    24,
+    Math.floor((240 - separatorLength - labelLength) / channels.length),
+  )
+  return channels
+    .map(item => `${item.channel}: ${normalizeText(item.error, perChannelBudget) || 'unknown error'}`)
+    .join(' | ')
+    .slice(0, 240)
+}
+
 export function summarizeMemoryWorkbenchQueueRows(rows: Array<{ status: string }>): AlicizationMemoryWorkbenchHealth['queue'] {
   return rows.reduce<AlicizationMemoryWorkbenchHealth['queue']>((summary, row) => {
     if (row.status === 'pending' || row.status === 'pending-cleaning' || row.status === 'admitted') {
@@ -146,7 +166,7 @@ export function createMemoryWorkbenchHealthRuntime(input: {
       SELECT latency_ms, error
       FROM memory_workbench_recall_metrics
       WHERE card_id = ?
-      ORDER BY created_at DESC
+      ORDER BY created_at DESC, rowid DESC
       LIMIT 50
       `,
       [cardId],
