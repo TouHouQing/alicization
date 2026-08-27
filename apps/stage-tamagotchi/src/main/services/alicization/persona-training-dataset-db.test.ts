@@ -3107,6 +3107,53 @@ describe('persona training dataset database provenance', () => {
     }
   })
 
+  it('keeps dataset state readable after restart when consent and provenance JSON are malformed', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const db = await setupAlicizationDb(userDataPath)
+    let dataset: PersonaTrainingDatasetVersion
+    try {
+      dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'default',
+        sourceSuffix: 'malformed-dataset-json',
+      })
+      await db.exportPersonaTrainingDataset({
+        cardId: 'default',
+        datasetId: dataset.id,
+      })
+    }
+    finally {
+      await db.close()
+    }
+
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      await runRaw(
+        rawDatabase,
+        'UPDATE persona_training_datasets SET consent_snapshot_json = ? WHERE id = ?',
+        ['{', dataset!.id],
+      )
+      await runRaw(
+        rawDatabase,
+        'UPDATE persona_training_dataset_examples SET provenance_json = ? WHERE dataset_id = ?',
+        ['{', dataset!.id],
+      )
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+
+    const reopened = await setupAlicizationDb(userDataPath)
+    try {
+      const snapshot = await reopened.getPersonaTrainingDataset({ cardId: 'default' })
+      expect(snapshot.versions.find(version => version.id === dataset!.id)?.consentSnapshot.granted).toBe(false)
+      expect(snapshot.examples.find(example => example.datasetId === dataset!.id)?.provenance).toBeNull()
+    }
+    finally {
+      await reopened.close()
+    }
+  })
+
   it('excludes a directly confirmed reflection that did not pass WorkingMemory cleaning', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
