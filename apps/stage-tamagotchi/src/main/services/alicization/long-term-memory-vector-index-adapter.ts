@@ -168,7 +168,7 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
   }
 
   function nativeErrorFor(key: string) {
-    return nativeLastErrors.get(key) ?? nativeUnscopedLastError ?? nativeInitializationError
+    return nativeLastErrors.get(key) ?? nativeInitializationError
   }
 
   async function getNativeHealth(healthInput: {
@@ -219,27 +219,38 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
   async function upsertNative(records: PersistentLongTermMemoryVectorRecord[]) {
     if (!input.native || !nativeInitialized)
       return
-    try {
-      await input.native.upsert(records)
-      if (records.length === 0) {
+    if (records.length === 0) {
+      try {
+        await input.native.upsert(records)
         nativeUnscopedLastError = null
         clearNativeHealthCache()
       }
-      else {
-        for (const key of new Set(records.map(vectorSpaceKeyForRecord)))
-          clearNativeError(key)
-      }
-    }
-    catch (error) {
-      if (records.length === 0) {
+      catch (error) {
         nativeUnscopedLastError = error instanceof Error ? error.message : String(error)
         clearNativeHealthCache()
       }
-      else {
-        for (const key of new Set(records.map(vectorSpaceKeyForRecord)))
-          setNativeError(key, error)
-      }
+      return
     }
+
+    const recordsByVectorSpace = new Map<string, PersistentLongTermMemoryVectorRecord[]>()
+    for (const record of records) {
+      const key = vectorSpaceKeyForRecord(record)
+      const spaceRecords = recordsByVectorSpace.get(key)
+      if (spaceRecords)
+        spaceRecords.push(record)
+      else
+        recordsByVectorSpace.set(key, [record])
+    }
+
+    await Promise.all([...recordsByVectorSpace.entries()].map(async ([key, spaceRecords]) => {
+      try {
+        await input.native!.upsert(spaceRecords)
+        clearNativeError(key)
+      }
+      catch (error) {
+        setNativeError(key, error)
+      }
+    }))
   }
 
   async function deleteVectors(inputDelete: PersistentLongTermMemoryVectorDeleteInput) {
