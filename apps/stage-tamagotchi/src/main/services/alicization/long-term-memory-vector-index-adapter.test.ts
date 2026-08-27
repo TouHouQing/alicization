@@ -798,32 +798,34 @@ describe('long-term memory vector index adapter', () => {
     })
     await adapter.initialize()
 
-    const mixedUpsert = adapter.upsertNative([{
-      id: 'vector-a',
-      cardId: 'card-a',
-      sourceId: 'source-a',
-      source: 'memory_reflections',
-      text: 'a',
-      textHash: 'hash-a',
-      updatedAt: 1,
-      vector: [1, 0, 0],
-      modelId: 'model-a',
-      dimensions: 3,
-      vectorSpaceId: modelAVectorSpaceId,
-    }])
-    const successfulModelBUpsert = adapter.upsertNative([{
-      id: 'vector-b',
-      cardId: 'card-a',
-      sourceId: 'source-b',
-      source: 'memory_reflections',
-      text: 'b',
-      textHash: 'hash-b',
-      updatedAt: 1,
-      vector: [0, 1],
-      modelId: 'model-b',
-      dimensions: 2,
-      vectorSpaceId: modelBVectorSpaceId,
-    }])
+    const mixedUpsert = adapter.upsertNative([
+      {
+        id: 'vector-a',
+        cardId: 'card-a',
+        sourceId: 'source-a',
+        source: 'memory_reflections',
+        text: 'a',
+        textHash: 'hash-a',
+        updatedAt: 1,
+        vector: [1, 0, 0],
+        modelId: 'model-a',
+        dimensions: 3,
+        vectorSpaceId: modelAVectorSpaceId,
+      },
+      {
+        id: 'vector-b',
+        cardId: 'card-a',
+        sourceId: 'source-b',
+        source: 'memory_reflections',
+        text: 'b',
+        textHash: 'hash-b',
+        updatedAt: 1,
+        vector: [0, 1],
+        modelId: 'model-b',
+        dimensions: 2,
+        vectorSpaceId: modelBVectorSpaceId,
+      },
+    ])
 
     await modelBCompleted
     releaseModelA?.()
