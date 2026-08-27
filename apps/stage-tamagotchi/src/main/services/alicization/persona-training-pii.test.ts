@@ -119,4 +119,22 @@ describe('persona training PII detection', () => {
       reason: null,
     })
   })
+
+  it.each([
+    ['password', 'password=123456'],
+    ['secret', 'secret: foo'],
+    ['token', 'token="abc123"'],
+  ])('detects short %s values when explicitly assigned', (_label, text) => {
+    expect(detectPersonaTrainingPii(text)).toEqual({
+      detected: true,
+      categories: ['credential'],
+      reason: 'possible personal identifier detected: credential',
+    })
+  })
+
+  it('checks every payment-card candidate instead of stopping at the first number', () => {
+    expect(detectPersonaTrainingPii(
+      '银行卡号 1234567890123，备用卡 4111 1111 1111 1111。',
+    ).categories).toContain('payment-card')
+  })
 })

@@ -71,15 +71,17 @@ const credentialPatterns = [
   /\bAuthorization\s*:\s*Bearer\s+[\w.~+/=-]{16,}/iu,
   /\bBearer\s+[\w.~+/=-]{20,}/iu,
   /\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}\b/u,
-  /\b(?:gh[pousr]_|github_pat_)\w{20,}\b/iu,
+  /\b(?:gh[pousr]_|github_pat_)[\w-]{20,}\b/iu,
   /\bxox[baprs]-[\w-]{20,}\b/iu,
-  /\bAKIA[0-9A-Z]{16}\b/u,
+  /\b[AS]KIA[0-9A-Z]{16}\b/u,
+  /\baws[_-]?secret[_-]?access[_-]?key\s*[=:]\s*["'`]?[\w/+=]{40}["'`]?\b/iu,
   /\b(?:sk|api|key|token)[-_]?[\dA-Z]{12,}\b/iu,
-  /\b(?:password|passwd|secret|api[_-]?key|api[_-]?token|access[_-]?token|client[_-]?secret)\s*(?:is|[=:为是])\s*["']?[\w./+=!@#$%^&*?~-]{12,}/iu,
+  /\b(?:password|passwd|passcode|secret|token|api[_-]?key|api[_-]?token|access[_-]?token|client[_-]?secret|private[_-]?key)\b\s*(?:is|[=:])\s*(?:"[^"\r\n]{2,256}"|'[^'\r\n]{2,256}'|`[^`\r\n]{2,256}`|[\w./+=!@#$%^&*?~-]{2,256})/iu,
+  /(?:密码|口令|密钥|令牌)\s*[是为=：:]\s*(?:"[^"\r\n]{2,256}"|'[^'\r\n]{2,256}'|`[^`\r\n]{2,256}`|[\w./+=!@#$%^&*?~-]{2,256})/u,
 ]
 
 const paymentContextPattern = /银行卡号|信用卡|借记卡|卡号|bank\s*card|credit\s*card|debit\s*card|card\s*number/iu
-const paymentCardPattern = /\b\d[\d -]{11,25}\d\b/u
+const paymentCardPattern = /\b\d[\d -]{11,25}\d\b/gu
 const negatedPaymentCardContextPattern = /(?:订单号|订单编号|流水号|交易号|order\s*(?:number|no\.?|id)|reference)\s*[^。！？!?;；\n]{0,48}(?:不是|并非|不代表|不属于|非|not|isn't|is\s+not)\s*[^。！？!?;；\n]{0,48}(?:银行卡|信用卡|借记卡|卡号|bank\s*card|credit\s*card|debit\s*card|card\s*number)/iu
 
 function hasValidLuhnChecksum(value: string) {
@@ -130,8 +132,9 @@ export function detectPersonaTrainingPii(...values: string[]): PersonaTrainingPi
     categories.push('credential')
 
   if (paymentContextPattern.test(text)) {
-    const cardNumber = paymentCardPattern.exec(text)?.[0]
-    if (cardNumber && hasValidLuhnChecksum(cardNumber) && !negatedPaymentCardContextPattern.test(text))
+    const hasValidPaymentCard = [...text.matchAll(paymentCardPattern)]
+      .some(match => hasValidLuhnChecksum(match[0]))
+    if (hasValidPaymentCard && !negatedPaymentCardContextPattern.test(text))
       categories.push('payment-card')
   }
 
