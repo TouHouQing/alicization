@@ -16,6 +16,7 @@ export function createScreenService(params: { context: ReturnType<typeof createC
       const dipPos = screen.getCursorScreenPoint()
       params.context.emit(cursorScreenPoint, dipPos)
     },
+    autoStart: true,
   })
 
   onAppWindowAllClosed(() => stop())

@@ -7,7 +7,7 @@ import { useElectronWindowBounds } from './use-electron-window-bounds'
 
 export function useElectronRelativeMouse(options?: UseMouseOptions) {
   const mouse = useElectronMouse(options)
-  const { x: windowX, y: windowY } = useElectronWindowBounds()
+  const { x: windowX, y: windowY, isReady: windowBoundsReady } = useElectronWindowBounds()
 
   // Transform screen coordinates to window-relative coordinates
   const x = computed(() => mouse.x.value - windowX.value)
@@ -17,5 +17,6 @@ export function useElectronRelativeMouse(options?: UseMouseOptions) {
     ...mouse,
     x,
     y,
+    isReady: computed(() => mouse.isReady.value && windowBoundsReady.value),
   }
 }

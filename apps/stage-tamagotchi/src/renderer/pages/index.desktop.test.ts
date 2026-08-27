@@ -61,6 +61,7 @@ describe('stage desktop page helpers', () => {
 
     it('keeps the desktop click-through on blank areas', () => {
       expect(resolveDesktopMouseCaptureState({
+        desktopInputReady: true,
         fadeOnHoverEnabled: true,
         hearingDialogOpen: false,
         insideControls: false,
@@ -74,6 +75,26 @@ describe('stage desktop page helpers', () => {
         stagePaused: false,
       })).toEqual({
         shouldCaptureMouse: false,
+        shouldFadeOnCursorWithin: false,
+      })
+    })
+
+    it('keeps the window interactive until desktop hit testing is ready', () => {
+      expect(resolveDesktopMouseCaptureState({
+        desktopInputReady: false,
+        fadeOnHoverEnabled: true,
+        hearingDialogOpen: false,
+        insideControls: false,
+        insideDialogueOverlay: false,
+        insideStageRecoveryPanel: false,
+        emergencyPanelHovered: false,
+        isOutsideWindow: true,
+        stageCharacterHovered: false,
+        stageInteractionActive: false,
+        stageCapturePixel: false,
+        stagePaused: false,
+      })).toEqual({
+        shouldCaptureMouse: true,
         shouldFadeOnCursorWithin: false,
       })
     })

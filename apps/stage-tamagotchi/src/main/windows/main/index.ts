@@ -298,9 +298,9 @@ export async function setupMainWindow(params: {
   // https://stackoverflow.com/questions/39835282/set-browserwindow-always-on-top-even-other-app-is-in-fullscreen-electron-mac
   promoteStageWindowAboveDesktop(window)
   window.setFullScreenable(false)
-  // NOTICE: start in click-through mode to avoid desktop hard-blocking if renderer-side
-  // mouse-capture sync has not been initialized yet.
-  window.setIgnoreMouseEvents(true, { forward: true })
+  // Keep the window interactive until the renderer has a valid cursor and bounds sample.
+  // The renderer then enables click-through only after hit testing is ready.
+  window.setIgnoreMouseEvents(false, { forward: false })
   if (isMacOS) {
     window.setWindowButtonVisibility(false)
   }

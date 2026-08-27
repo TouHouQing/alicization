@@ -37,6 +37,7 @@ export function createWindowService(params: { context: ReturnType<typeof createC
     run: () => {
       params.context.emit(bounds, params.window.getBounds())
     },
+    autoStart: true,
   })
 
   onAppWindowAllClosed(() => stop())

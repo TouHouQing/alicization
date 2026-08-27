@@ -24,7 +24,7 @@ export function useElectronMouseInElement(
   } = options
   const type = options.type || 'page'
 
-  const { x, y, sourceType } = useElectronRelativeMouse(options)
+  const { x, y, sourceType, isReady } = useElectronRelativeMouse(options)
 
   const targetRef = shallowRef(target ?? window?.document.body)
   const elementX = shallowRef(0)
@@ -121,6 +121,7 @@ export function useElectronMouseInElement(
     x,
     y,
     sourceType,
+    isReady,
     elementX,
     elementY,
     elementPositionX,

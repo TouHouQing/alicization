@@ -9,6 +9,7 @@ const windowBoundsX = ref(0)
 const windowBoundsY = ref(0)
 const windowBoundsWidth = ref(0)
 const windowBoundsHeight = ref(0)
+const windowBoundsReady = ref(false)
 
 let initialized = false
 
@@ -28,6 +29,7 @@ function initializeWindowBoundsTracking() {
     windowBoundsY.value = event.body.y
     windowBoundsWidth.value = event.body.width
     windowBoundsHeight.value = event.body.height
+    windowBoundsReady.value = event.body.width > 0 && event.body.height > 0
   })
 
   tryOnMounted(() => {
@@ -45,5 +47,6 @@ export function useElectronWindowBounds() {
     y: windowBoundsY,
     width: windowBoundsWidth,
     height: windowBoundsHeight,
+    isReady: windowBoundsReady,
   }
 }

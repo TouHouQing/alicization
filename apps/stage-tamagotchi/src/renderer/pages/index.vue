@@ -83,7 +83,7 @@ const { isOutside: isOutsideDialogueOverlay } = useElectronMouseInElement(stageD
 const isOutsideFor250Ms = refDebounced(isOutside, 250)
 const isOutsideDialogueOverlayFor250Ms = refDebounced(isOutsideDialogueOverlay, 250)
 const { focused: isDialogueOverlayFocused } = useFocusWithin(stageDialogueOverlay)
-const { x: relativeMouseX, y: relativeMouseY } = useElectronRelativeMouse()
+const { x: relativeMouseX, y: relativeMouseY, isReady: desktopInputReady } = useElectronRelativeMouse()
 const desktopCaptureHitTestOptions = {
   regionRadius: 0,
   threshold: 16,
@@ -183,6 +183,7 @@ function resolveDesktopCaptureStateNow() {
   const insideControls = !isOutsideFor250Ms.value
   const insideDialogueOverlay = !isOutsideDialogueOverlayFor250Ms.value || isDialogueOverlayFocused.value
   return resolveDesktopMouseCaptureState({
+    desktopInputReady: desktopInputReady.value,
     startupInteractionActive: startupInteractionActive.value,
     fadeOnHoverEnabled: fadeOnHoverEnabled.value,
     hearingDialogOpen: hearingDialogOpen.value,
@@ -296,7 +297,7 @@ async function syncRecentDrivingEventFromMindTrace(
   })
 }
 
-watch([startupInteractionActive, isOutsideFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, stageCharacterHovered, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
+watch([desktopInputReady, startupInteractionActive, isOutsideFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, stageCharacterHovered, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
   syncDesktopMouseCaptureState()
 }, { immediate: true })
 
