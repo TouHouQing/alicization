@@ -11,6 +11,8 @@ import type {
   AlicizationPreparedMainChatPrelude,
 } from './main-chat-session-runtime'
 
+import { readFileSync } from 'node:fs'
+
 import {
   buildAlicizationProviderFactBlock,
   resolveAlicizationChatFailureSurface,
@@ -42,6 +44,15 @@ type WorkingMemoryLongTermQueueEnqueue = NonNullable<
 type WorkingMemoryLongTermQueueScopedDrain = NonNullable<
   Parameters<typeof createAlicizationMainChatSessionRuntime>[0]['drainWorkingMemoryLongTermQueueScoped']
 >
+
+describe('main chat runtime architecture', () => {
+  it('does not derive Coding Agent authority from the old dialogue encounter projection', () => {
+    const source = readFileSync(new URL('./main-chat-session-runtime.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('buildAlicizationCodingAgentDelegationAuthority')
+    expect(source).not.toContain('codingAgentDelegation')
+  })
+})
 
 function createWorkingMemoryLongTermEvidence(input: {
   kind: 'episode' | 'preference' | 'relationship' | 'procedure' | 'correction'
@@ -170,15 +181,6 @@ function createPrelude(overrides?: {
     reasonCodes: string[]
     source: 'dialogue-governance'
     summary: string
-  }
-  codingAgentDelegation?: {
-    confidence: number
-    intentKind: 'capability-query' | 'execute'
-    requestedAgent: 'auto' | 'codex' | 'claude-code' | 'cli' | null
-    scope: 'none' | 'investigation' | 'edit' | 'command'
-    sourceTurnId: string
-    source: 'heuristic' | 'structured-cognition' | 'fallback'
-    verdict: 'respond-directly' | 'clarify' | 'delegate-coding-agent'
   }
   messages?: Message[]
 }): PreparedPreludeWithRuntimeSurface {
@@ -335,11 +337,7 @@ function createPrelude(overrides?: {
         },
         dialogue: {
           discourseState: null,
-          dialogueEncounter: overrides?.codingAgentDelegation
-            ? {
-                codingAgentDelegation: overrides.codingAgentDelegation,
-              } as any
-            : null,
+          dialogueEncounter: null,
           mindSynthesis: null,
           conversationState: null,
           dialogueWorldThread: null,
@@ -603,15 +601,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           role: 'user',
           content: '继续这个 Codex 线程',
         } as Message],
-        codingAgentDelegation: {
-          confidence: 0.92,
-          intentKind: 'execute',
-          requestedAgent: 'codex',
-          scope: 'investigation',
-          source: 'structured-cognition',
-          sourceTurnId: 'turn-resume-signal',
-          verdict: 'delegate-coding-agent',
-        },
       }),
       abortSignal: outerController.signal,
     })
@@ -1319,15 +1308,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         role: 'user',
         content: '继续沿着这个记忆项目闭环往下，直接帮我用 Codex 查一下现在这个目录的情况，不要用 CLI，也别把当前任务线弄丢。',
       } as Message],
-      codingAgentDelegation: {
-        confidence: 0.94,
-        intentKind: 'execute',
-        requestedAgent: 'auto',
-        scope: 'investigation',
-        source: 'structured-cognition',
-        sourceTurnId: 'turn-main-session-direct-execution-project-briefing',
-        verdict: 'delegate-coding-agent',
-      },
     })
     const result = await runtime.prepareExecution({
       payload: {
@@ -1364,7 +1344,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       ?.find((entry: any) => entry.function?.name === 'coding_agent') as any
     expect(codingAgentTool.function.parameters.properties.agent).toEqual({
       type: 'string',
-      const: 'codex',
+      enum: ['cli', 'codex', 'claude-code'],
     })
     const providerStreamingId = result.toolCallIdentity.resolveProviderToolCall({
       phase: 'streaming-start',
@@ -1401,15 +1381,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           role: 'user',
           content: capabilityQuestion,
         } as Message],
-        codingAgentDelegation: {
-          confidence: 0.98,
-          intentKind: 'execute',
-          requestedAgent: 'codex',
-          scope: 'investigation',
-          source: 'structured-cognition',
-          sourceTurnId: 'turn-main-session-codex-capability-question',
-          verdict: 'delegate-coding-agent',
-        },
       }),
     })
 
@@ -1417,9 +1388,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const capabilityToolNames = capabilityResult.tools
       ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean) ?? []
-    expect(capabilityToolNames.filter(toolName => ['cli', 'local_visual'].includes(toolName))).toEqual([
+    expect(capabilityToolNames).toEqual(expect.arrayContaining([
+      'coding_agent',
+      'cli',
       'local_visual',
-    ])
+    ]))
 
     const localDirectoryQuery = '你看看桌面的git文件夹有哪些项目，列举给我'
     const localDirectoryResult = await runtime.prepareExecution({

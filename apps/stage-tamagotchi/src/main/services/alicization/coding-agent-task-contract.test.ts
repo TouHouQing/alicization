@@ -1,14 +1,21 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import {
   buildAlicizationCodingAgentDelegationAuthority,
-  isAlicizationCodingAgentCapabilityQuestion,
   normalizeAlicizationCodingAgentTask,
   resolveAlicizationExplicitCodingAgentConstraint,
   validateAlicizationCodingAgentInvocation,
 } from './coding-agent-task-contract'
 
 describe('coding agent task contract', () => {
+  it('does not classify execution from natural-language capability cues', () => {
+    const source = readFileSync(new URL('./coding-agent-task-contract.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('isAlicizationCodingAgentCapabilityQuestion')
+  })
+
   it.each([
     ['用 Codex 帮我总结这个项目', 'codex'],
     ['请使用 Claude Code 检查这个仓库', 'claude-code'],
@@ -25,23 +32,6 @@ describe('coding agent task contract', () => {
       kind: 'single',
       agent: 'codex',
     })
-  })
-
-  it.each([
-    'Codex 能做什么？',
-    '我想了解你可以用 Codex 做哪些事。',
-    '你可以介绍一下 Claude Code 有什么能力吗？',
-    'Can you tell me what Codex can do?',
-  ])('recognizes a Coding Agent capability question without treating it as execution: %s', (userText) => {
-    expect(isAlicizationCodingAgentCapabilityQuestion(userText)).toBe(true)
-  })
-
-  it.each([
-    '请用 Codex 检查这个项目。',
-    '请用 Claude Code 修改这个文件。',
-    '请通过 CLI 执行 pnpm test。',
-  ])('does not classify an explicit Coding Agent task as a capability question: %s', (userText) => {
-    expect(isAlicizationCodingAgentCapabilityQuestion(userText)).toBe(false)
   })
 
   it('ignores a negatively mentioned alternative channel', () => {
@@ -187,21 +177,6 @@ describe('coding agent task contract', () => {
     })
   })
 
-  it('does not create execution authority for a capability question', () => {
-    expect(buildAlicizationCodingAgentDelegationAuthority({
-      contextTurnId: 'turn-capability',
-      delegation: {
-        confidence: 0.98,
-        intentKind: 'capability-query',
-        requestedAgent: 'codex',
-        scope: 'investigation',
-        source: 'structured-cognition',
-        sourceTurnId: 'turn-capability',
-        verdict: 'delegate-coding-agent',
-      } as any,
-    })).toBeNull()
-  })
-
   it('allows an investigation only when the delegation contract matches the turn', () => {
     expect(validateAlicizationCodingAgentInvocation({
       agent: 'codex',
@@ -295,22 +270,6 @@ describe('coding agent task contract', () => {
         scope: 'investigation',
         source: 'structured-cognition',
         sourceTurnId: 'turn-previous',
-        verdict: 'delegate-coding-agent',
-      },
-    })).toBeNull()
-  })
-
-  it('blocks an execution verdict when the user turn is only asking about Coding Agent capabilities', () => {
-    expect(buildAlicizationCodingAgentDelegationAuthority({
-      contextTurnId: 'turn-capability-misclassified',
-      userText: '你可以使用 Codex 做什么？',
-      delegation: {
-        confidence: 0.98,
-        intentKind: 'execute',
-        requestedAgent: 'codex',
-        scope: 'investigation',
-        source: 'structured-cognition',
-        sourceTurnId: 'turn-capability-misclassified',
         verdict: 'delegate-coding-agent',
       },
     })).toBeNull()

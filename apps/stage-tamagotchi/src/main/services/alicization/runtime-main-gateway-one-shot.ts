@@ -416,7 +416,6 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
   const trustedCallerSystemFactTypes = new Set([
     'alicization-autobiographical-synthesis-context',
     'alicization-core-reforge-context',
-    'alicization-dialogue-turn-semantics-context',
     'alicization-dream-metabolism-context',
     'alicization-execution-settlement-context',
     'alicization-memory-consolidation-context',

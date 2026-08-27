@@ -2,22 +2,11 @@ import type {
   AlicizationRuntimeEventEnvelope,
 } from '@proj-alicization/stage-shared'
 
-import type {
-  AlicizationDialogueTurnSemantics,
-} from '../dialogue-turn-semantics'
-
 import { describe, expect, it, vi } from 'vitest'
 
 import {
-  mergeDialogueTurnSemantics,
-  parseDialogueTurnSemanticsCandidate,
-} from '../dialogue-turn-semantics'
-import {
   runAlicizationMainChatProviderStep,
 } from '../main-chat-stream-runner'
-import {
-  alicizationDialogueTurnSemanticsJsonSchema,
-} from '../runtime-mind-state-provider-contract'
 import { createAlicizationEventLoop } from './event-loop'
 import {
   createAlicizationMainChatParticipant,
@@ -72,23 +61,6 @@ function createTurnInput(overrides?: {
     },
     conversationId: scope.conversationId,
     prepare: vi.fn(async () => prepared),
-  }
-}
-
-function createBaseSemantics(): AlicizationDialogueTurnSemantics {
-  return {
-    act: 'ask-help',
-    responseNeed: 'answer',
-    truthExpectation: 'normal',
-    affectiveTone: 'neutral',
-    subjectPreference: 'general',
-    taskAnchor: null,
-    sharedAttentionDemand: 0,
-    personaSuppression: 0,
-    confidence: 0.7,
-    summary: '',
-    source: 'heuristic',
-    reasonTags: [],
   }
 }
 
@@ -215,48 +187,6 @@ describe('main chat EventLoop participant', () => {
       expect.arrayContaining(['provider.failed', 'turn.failed']),
     )
     expect(persistence.events.map(event => event.eventType)).not.toContain('model.text.delta')
-  })
-
-  it('does not require model-created sourceTurnId', () => {
-    expect(
-      alicizationDialogueTurnSemanticsJsonSchema
-        .properties
-        .codingAgentDelegation,
-    ).toMatchObject({
-      type: ['object', 'null'],
-    })
-    expect(
-      alicizationDialogueTurnSemanticsJsonSchema
-        .properties
-        .codingAgentDelegation
-        .properties,
-    ).not.toHaveProperty('sourceTurnId')
-
-    const candidate = parseDialogueTurnSemanticsCandidate(JSON.stringify({
-      act: 'ask-help',
-      codingAgentDelegation: {
-        intentKind: 'execute',
-        requestedAgent: 'codex',
-        verdict: 'delegate-coding-agent',
-        scope: 'investigation',
-        confidence: 0.92,
-      },
-    }))
-    const merged = mergeDialogueTurnSemantics(
-      createBaseSemantics(),
-      candidate,
-      { sourceTurnId: scope.turnId },
-    )
-
-    expect(merged.codingAgentDelegation).toEqual({
-      intentKind: 'execute',
-      requestedAgent: 'codex',
-      verdict: 'delegate-coding-agent',
-      scope: 'investigation',
-      confidence: 0.92,
-      sourceTurnId: scope.turnId,
-      source: 'structured-cognition',
-    })
   })
 
   it('rejects stale prelude turn identity before tool execution', async () => {

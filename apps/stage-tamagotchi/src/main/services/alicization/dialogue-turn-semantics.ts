@@ -1,9 +1,4 @@
 import type {
-  AlicizationCodingAgentDelegationIntentKind,
-  AlicizationCodingAgentDelegationRequestedAgent,
-  AlicizationCodingAgentDelegationScope,
-  AlicizationCodingAgentDelegationSnapshot,
-  AlicizationCodingAgentDelegationVerdict,
   AlicizationDialogueAnswerSubject,
   AlicizationPrivateThoughtSnapshot,
   AlicizationRelationshipModelSnapshot,
@@ -21,12 +16,6 @@ function clamp01(value: number) {
   return Math.max(0, Math.min(1, Number(value.toFixed(2))))
 }
 
-function sanitizeText(raw: unknown, maxChars = 220) {
-  if (typeof raw !== 'string')
-    return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-}
-
 function normalizeShortLabel(raw: unknown, maxChars = 48) {
   if (typeof raw !== 'string')
     return ''
@@ -40,10 +29,6 @@ function normalizeShortLabel(raw: unknown, maxChars = 48) {
 
 function uniqueLabels(items: unknown[]) {
   return [...new Set(items.map(item => normalizeShortLabel(item)).filter(Boolean))].slice(0, 10)
-}
-
-function interpolate01(base: number, override: number, weight: number) {
-  return clamp01(base * (1 - weight) + override * weight)
 }
 
 export type AlicizationDialogueAct
@@ -89,7 +74,6 @@ export interface AlicizationDialogueTurnSemantics {
   confidence: number
   summary: string
   source: 'heuristic' | 'structured-cognition' | 'hybrid'
-  codingAgentDelegation?: AlicizationCodingAgentDelegationSnapshot | null
   reasonTags: string[]
 }
 
@@ -110,14 +94,6 @@ function isDialogueFirstPreference(subjectPreference?: AlicizationDialogueAnswer
     || subjectPreference === 'relationship'
     || subjectPreference === 'host-state'
     || subjectPreference === 'general'
-}
-
-export function shouldAttemptDialogueTurnSemanticsRefinement(input: {
-  heuristic: AlicizationDialogueTurnSemantics
-  inspectionRequested?: boolean
-  groundedThisTurn?: boolean
-}) {
-  return input.groundedThisTurn !== true
 }
 
 function codingAnchor(
@@ -349,253 +325,5 @@ export function buildDialogueTurnSemantics(input: {
       ...reasonTags,
       taskAnchor ? 'task-anchor' : '',
     ]),
-  }
-}
-
-export interface AlicizationDialogueTurnSemanticsCandidate {
-  act?: AlicizationDialogueAct
-  responseNeed?: AlicizationDialogueResponseNeed
-  truthExpectation?: AlicizationDialogueTruthExpectation
-  affectiveTone?: AlicizationDialogueAffectiveTone
-  subjectPreference?: AlicizationDialogueAnswerSubject | null
-  taskAnchor?: string
-  sharedAttentionDemand?: number
-  personaSuppression?: number
-  confidence?: number
-  reasonTags?: string[]
-  codingAgentDelegation?: {
-    intentKind?: AlicizationCodingAgentDelegationIntentKind
-    requestedAgent?: AlicizationCodingAgentDelegationRequestedAgent
-    verdict?: AlicizationCodingAgentDelegationVerdict
-    scope?: AlicizationCodingAgentDelegationScope
-    confidence?: number
-    sourceTurnId?: string
-  }
-}
-
-function normalizeAct(raw: unknown): AlicizationDialogueAct | undefined {
-  return raw === 'ask-help'
-    || raw === 'ask-teach'
-    || raw === 'verify-grounding'
-    || raw === 'correct'
-    || raw === 'challenge'
-    || raw === 'share-state'
-    || raw === 'seek-care'
-    || raw === 'social-bid'
-    || raw === 'continue-thread'
-    || raw === 'close-thread'
-    || raw === 'unknown'
-    ? raw
-    : undefined
-}
-
-function normalizeResponseNeed(raw: unknown): AlicizationDialogueResponseNeed | undefined {
-  return raw === 'repair'
-    || raw === 'guide'
-    || raw === 'teach'
-    || raw === 'answer'
-    || raw === 'care'
-    || raw === 'accompany'
-    || raw === 'clarify'
-    ? raw
-    : undefined
-}
-
-function normalizeTruthExpectation(raw: unknown): AlicizationDialogueTruthExpectation | undefined {
-  return raw === 'strict' || raw === 'normal' || raw === 'light' ? raw : undefined
-}
-
-function normalizeAffectiveTone(raw: unknown): AlicizationDialogueAffectiveTone | undefined {
-  return raw === 'frustrated'
-    || raw === 'tired'
-    || raw === 'urgent'
-    || raw === 'warm'
-    || raw === 'neutral'
-    ? raw
-    : undefined
-}
-
-function normalizeSubjectPreference(raw: unknown): AlicizationDialogueAnswerSubject | null | undefined {
-  return raw === 'alicization-self'
-    || raw === 'relationship'
-    || raw === 'host-state'
-    || raw === 'task-knot'
-    || raw === 'visible-scene'
-    || raw === 'general'
-    ? raw
-    : raw === null
-      ? null
-      : undefined
-}
-
-function normalizeCodingAgentDelegationVerdict(raw: unknown): AlicizationCodingAgentDelegationVerdict | undefined {
-  return raw === 'respond-directly'
-    || raw === 'clarify'
-    || raw === 'delegate-coding-agent'
-    ? raw
-    : undefined
-}
-
-function normalizeCodingAgentDelegationIntentKind(raw: unknown): AlicizationCodingAgentDelegationIntentKind | undefined {
-  return raw === 'capability-query' || raw === 'execute' ? raw : undefined
-}
-
-function normalizeCodingAgentDelegationRequestedAgent(raw: unknown): AlicizationCodingAgentDelegationRequestedAgent | undefined {
-  return raw === 'auto'
-    || raw === 'codex'
-    || raw === 'claude-code'
-    || raw === 'cli'
-    || raw === null
-    ? raw
-    : undefined
-}
-
-function normalizeCodingAgentDelegationScope(raw: unknown): AlicizationCodingAgentDelegationScope | undefined {
-  return raw === 'none'
-    || raw === 'investigation'
-    || raw === 'edit'
-    || raw === 'command'
-    ? raw
-    : undefined
-}
-
-export function parseDialogueTurnSemanticsCandidate(raw: string): AlicizationDialogueTurnSemanticsCandidate | null {
-  const text = raw.trim()
-  if (!text.startsWith('{') || !text.endsWith('}'))
-    return null
-
-  let parsed: Record<string, unknown>
-  try {
-    parsed = JSON.parse(text) as Record<string, unknown>
-  }
-  catch {
-    return null
-  }
-
-  const candidate: AlicizationDialogueTurnSemanticsCandidate = {
-    act: normalizeAct(parsed.act),
-    responseNeed: normalizeResponseNeed(parsed.responseNeed),
-    truthExpectation: normalizeTruthExpectation(parsed.truthExpectation),
-    affectiveTone: normalizeAffectiveTone(parsed.affectiveTone),
-    subjectPreference: normalizeSubjectPreference(parsed.subjectPreference),
-    taskAnchor: sanitizeText(parsed.taskAnchor, 160) || undefined,
-    sharedAttentionDemand: Number.isFinite(Number(parsed.sharedAttentionDemand))
-      ? clamp01(Number(parsed.sharedAttentionDemand))
-      : undefined,
-    personaSuppression: Number.isFinite(Number(parsed.personaSuppression))
-      ? clamp01(Number(parsed.personaSuppression))
-      : undefined,
-    confidence: Number.isFinite(Number(parsed.confidence))
-      ? clamp01(Number(parsed.confidence))
-      : undefined,
-    reasonTags: Array.isArray(parsed.reasonTags) ? uniqueLabels(parsed.reasonTags) : undefined,
-    codingAgentDelegation: parsed.codingAgentDelegation && typeof parsed.codingAgentDelegation === 'object'
-      && !Array.isArray(parsed.codingAgentDelegation)
-      ? {
-          intentKind: normalizeCodingAgentDelegationIntentKind((parsed.codingAgentDelegation as Record<string, unknown>).intentKind),
-          requestedAgent: normalizeCodingAgentDelegationRequestedAgent((parsed.codingAgentDelegation as Record<string, unknown>).requestedAgent),
-          verdict: normalizeCodingAgentDelegationVerdict((parsed.codingAgentDelegation as Record<string, unknown>).verdict),
-          scope: normalizeCodingAgentDelegationScope((parsed.codingAgentDelegation as Record<string, unknown>).scope),
-          confidence: Number.isFinite(Number((parsed.codingAgentDelegation as Record<string, unknown>).confidence))
-            ? clamp01(Number((parsed.codingAgentDelegation as Record<string, unknown>).confidence))
-            : undefined,
-          sourceTurnId: sanitizeText((parsed.codingAgentDelegation as Record<string, unknown>).sourceTurnId, 160) || undefined,
-        }
-      : undefined,
-  }
-
-  const hasSignal = Boolean(
-    candidate.act
-    || candidate.responseNeed
-    || candidate.truthExpectation
-    || candidate.affectiveTone
-    || candidate.subjectPreference
-    || candidate.taskAnchor
-    || candidate.codingAgentDelegation?.verdict
-    || candidate.codingAgentDelegation?.scope
-    || (candidate.reasonTags && candidate.reasonTags.length > 0),
-  )
-
-  return hasSignal ? candidate : null
-}
-
-export function mergeDialogueTurnSemantics(
-  base: AlicizationDialogueTurnSemantics,
-  candidate: AlicizationDialogueTurnSemanticsCandidate | null | undefined,
-  options?: {
-    sourceTurnId?: string
-  },
-): AlicizationDialogueTurnSemantics {
-  if (!candidate) {
-    return {
-      ...base,
-      codingAgentDelegation: null,
-    }
-  }
-
-  const overrideConfidence = candidate.confidence ?? base.confidence
-  const weight = clamp01(0.34 + overrideConfidence * 0.4)
-  const candidatePullsDialogueFirst = isDialogueFirstPreference(candidate.subjectPreference)
-    || candidate.act === 'social-bid'
-    || candidate.responseNeed === 'accompany'
-    || candidate.responseNeed === 'care'
-  const preserveInspectionBase = base.reasonTags.includes('inspection-owned-turn')
-    && candidatePullsDialogueFirst
-  const candidateSubjectPreference = candidate.subjectPreference !== undefined
-    ? candidate.subjectPreference
-    : base.subjectPreference ?? null
-  const expectedSourceTurnId = sanitizeText(options?.sourceTurnId, 160)
-  const codingAgentDelegation = candidate.codingAgentDelegation
-    && expectedSourceTurnId
-    && (
-      !candidate.codingAgentDelegation.sourceTurnId
-      || candidate.codingAgentDelegation.sourceTurnId === expectedSourceTurnId
-    )
-    ? candidate.codingAgentDelegation
-    : null
-
-  return {
-    act: preserveInspectionBase ? base.act : candidate.act ?? base.act,
-    responseNeed: preserveInspectionBase ? base.responseNeed : candidate.responseNeed ?? base.responseNeed,
-    truthExpectation: preserveInspectionBase ? base.truthExpectation : candidate.truthExpectation ?? base.truthExpectation,
-    affectiveTone: preserveInspectionBase ? base.affectiveTone : candidate.affectiveTone ?? base.affectiveTone,
-    subjectPreference: preserveInspectionBase
-      ? base.subjectPreference ?? null
-      : candidateSubjectPreference,
-    taskAnchor: preserveInspectionBase
-      ? base.taskAnchor
-      : candidatePullsDialogueFirst
-        ? null
-        : candidate.taskAnchor ?? base.taskAnchor,
-    sharedAttentionDemand: interpolate01(
-      base.sharedAttentionDemand,
-      candidate.sharedAttentionDemand ?? base.sharedAttentionDemand,
-      weight,
-    ),
-    personaSuppression: interpolate01(
-      base.personaSuppression,
-      candidate.personaSuppression ?? base.personaSuppression,
-      weight,
-    ),
-    confidence: interpolate01(base.confidence, overrideConfidence, weight),
-    summary: base.summary,
-    source: 'hybrid',
-    reasonTags: uniqueLabels([
-      ...(candidate.reasonTags ?? []),
-      ...base.reasonTags,
-      preserveInspectionBase ? 'preserve-inspection-base' : '',
-      'structured-dialogue-cognition',
-    ]),
-    codingAgentDelegation: codingAgentDelegation
-      ? {
-          intentKind: codingAgentDelegation.intentKind ?? 'capability-query',
-          requestedAgent: codingAgentDelegation.requestedAgent ?? null,
-          verdict: codingAgentDelegation.verdict ?? 'respond-directly',
-          scope: codingAgentDelegation.scope ?? 'none',
-          confidence: codingAgentDelegation.confidence ?? overrideConfidence,
-          sourceTurnId: expectedSourceTurnId,
-          source: 'structured-cognition',
-        }
-      : null,
   }
 }

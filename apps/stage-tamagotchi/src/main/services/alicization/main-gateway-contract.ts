@@ -15,7 +15,6 @@ export type AlicizationMainGatewaySource
     | 'scene-appraisal'
     | 'subjective-inference'
     | 'counterfactual-deliberation'
-    | 'dialogue-turn-semantics'
     | 'memory-quality-trial'
 
 export interface AlicizationMainGatewayBaseGenerateTextInput<
@@ -50,7 +49,7 @@ export function resolveAlicizationMainGatewayAuditFamilyForSource(
     return 'background-life'
   if (source === 'counterfactual-deliberation' || source === 'memory-quality-trial')
     return 'memory-planning'
-  if (source === 'subjective-inference' || source === 'dialogue-turn-semantics')
+  if (source === 'subjective-inference')
     return 'mind-state'
   if (source === 'execution-callback')
     return 'execution-callback'

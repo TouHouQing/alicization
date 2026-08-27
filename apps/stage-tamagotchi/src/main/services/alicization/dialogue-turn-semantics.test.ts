@@ -11,9 +11,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildDialogueTurnSemantics,
-  mergeDialogueTurnSemantics,
-  parseDialogueTurnSemanticsCandidate,
-  shouldAttemptDialogueTurnSemanticsRefinement,
 } from './dialogue-turn-semantics'
 
 const neutralContext = {
@@ -153,6 +150,15 @@ function visiblePosture(userText: string) {
 }
 
 describe('dialogue-turn-semantics', () => {
+  it('does not retain a Provider candidate parser or Coding Agent delegation payload', () => {
+    const source = readFileSync(new URL('./dialogue-turn-semantics.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('AlicizationDialogueTurnSemanticsCandidate')
+    expect(source).not.toContain('parseDialogueTurnSemanticsCandidate')
+    expect(source).not.toContain('mergeDialogueTurnSemantics')
+    expect(source).not.toContain('codingAgentDelegation')
+  })
+
   it('does not contain natural-language cue tables or lexical reply-posture branches', () => {
     const source = readFileSync(new URL('./dialogue-turn-semantics.ts', import.meta.url), 'utf8')
 
@@ -189,24 +195,6 @@ describe('dialogue-turn-semantics', () => {
     ]) {
       expect(visiblePosture(userText), userText).toEqual(expected)
     }
-  })
-
-  it('requests structured semantics refinement for every non-grounded fallback', () => {
-    const semantics = buildDialogueTurnSemantics({
-      userText: '你好呀',
-      context: codingContext,
-      currentScene: null,
-      worldModel: buildWorldModel(),
-    })
-
-    expect(semantics.reasonTags).toEqual(['structured-fallback'])
-    expect(shouldAttemptDialogueTurnSemanticsRefinement({
-      heuristic: semantics,
-    })).toBe(true)
-    expect(shouldAttemptDialogueTurnSemanticsRefinement({
-      heuristic: semantics,
-      groundedThisTurn: true,
-    })).toBe(false)
   })
 
   it('derives inspection posture only from the structured inspection flag', () => {
@@ -313,222 +301,5 @@ describe('dialogue-turn-semantics', () => {
       ]),
     })
     expect(semantics.taskAnchor).toContain('runtime.ts')
-  })
-
-  it('parses only valid structured cognition fields', () => {
-    expect(parseDialogueTurnSemanticsCandidate('not-json')).toBeNull()
-    expect(parseDialogueTurnSemanticsCandidate(JSON.stringify({
-      act: 'social-bid',
-      responseNeed: 'accompany',
-      truthExpectation: 'light',
-      affectiveTone: 'warm',
-      subjectPreference: 'relationship',
-      taskAnchor: 42,
-      sharedAttentionDemand: 2,
-      personaSuppression: -1,
-      confidence: 0.86,
-      reasonTags: ['structured relationship', 'structured relationship'],
-    }))).toEqual({
-      act: 'social-bid',
-      responseNeed: 'accompany',
-      truthExpectation: 'light',
-      affectiveTone: 'warm',
-      subjectPreference: 'relationship',
-      taskAnchor: undefined,
-      sharedAttentionDemand: 1,
-      personaSuppression: 0,
-      confidence: 0.86,
-      reasonTags: ['structured-relationship'],
-    })
-  })
-
-  it('parses a structured Coding Agent delegation verdict without reading user wording', () => {
-    const candidate = parseDialogueTurnSemanticsCandidate(JSON.stringify({
-      act: 'ask-help',
-      responseNeed: 'guide',
-      truthExpectation: 'strict',
-      affectiveTone: 'neutral',
-      subjectPreference: 'task-knot',
-      confidence: 0.9,
-      codingAgentDelegation: {
-        intentKind: 'execute',
-        requestedAgent: 'codex',
-        verdict: 'delegate-coding-agent',
-        scope: 'investigation',
-        confidence: 0.88,
-        sourceTurnId: 'turn-codex-investigation',
-      },
-    }))
-
-    expect(candidate?.codingAgentDelegation).toEqual({
-      intentKind: 'execute',
-      requestedAgent: 'codex',
-      verdict: 'delegate-coding-agent',
-      scope: 'investigation',
-      confidence: 0.88,
-      sourceTurnId: 'turn-codex-investigation',
-    })
-  })
-
-  it('lets structured cognition own ordinary reply semantics', () => {
-    const base = buildDialogueTurnSemantics({
-      userText: '你好呀',
-      context: codingContext,
-      currentScene: null,
-      worldModel: buildWorldModel(),
-    })
-    const candidate = parseDialogueTurnSemanticsCandidate(JSON.stringify({
-      act: 'social-bid',
-      responseNeed: 'accompany',
-      truthExpectation: 'light',
-      affectiveTone: 'warm',
-      subjectPreference: 'relationship',
-      confidence: 0.92,
-      reasonTags: ['model-owned-semantics'],
-    }))
-    const merged = mergeDialogueTurnSemantics(base, candidate)
-
-    expect(merged).toMatchObject({
-      act: 'social-bid',
-      responseNeed: 'accompany',
-      truthExpectation: 'light',
-      affectiveTone: 'warm',
-      subjectPreference: 'relationship',
-      taskAnchor: null,
-      source: 'hybrid',
-      reasonTags: expect.arrayContaining([
-        'model-owned-semantics',
-        'structured-dialogue-cognition',
-      ]),
-    })
-  })
-
-  it('carries structured Coding Agent delegation into merged turn semantics', () => {
-    const base = buildDialogueTurnSemantics({
-      userText: '任意文字',
-      context: codingContext,
-      currentScene: null,
-      worldModel: buildWorldModel(),
-    })
-    const candidate = parseDialogueTurnSemanticsCandidate(JSON.stringify({
-      act: 'ask-help',
-      responseNeed: 'guide',
-      codingAgentDelegation: {
-        intentKind: 'execute',
-        requestedAgent: 'codex',
-        verdict: 'delegate-coding-agent',
-        scope: 'edit',
-        confidence: 0.92,
-        sourceTurnId: 'turn-codex-edit',
-      },
-    }))
-
-    expect(mergeDialogueTurnSemantics(base, candidate, {
-      sourceTurnId: 'turn-codex-edit',
-    }).codingAgentDelegation).toEqual({
-      intentKind: 'execute',
-      requestedAgent: 'codex',
-      verdict: 'delegate-coding-agent',
-      scope: 'edit',
-      confidence: 0.92,
-      sourceTurnId: 'turn-codex-edit',
-      source: 'structured-cognition',
-    })
-  })
-
-  it('drops Coding Agent delegation that belongs to another turn', () => {
-    const base = buildDialogueTurnSemantics({
-      userText: '任意文字',
-      context: codingContext,
-      currentScene: null,
-      worldModel: buildWorldModel(),
-    })
-    const candidate = parseDialogueTurnSemanticsCandidate(JSON.stringify({
-      act: 'ask-help',
-      responseNeed: 'guide',
-      codingAgentDelegation: {
-        intentKind: 'execute',
-        requestedAgent: 'codex',
-        verdict: 'delegate-coding-agent',
-        scope: 'investigation',
-        confidence: 0.96,
-        sourceTurnId: 'turn-previous',
-      },
-    }))
-
-    expect(mergeDialogueTurnSemantics(base, candidate, {
-      sourceTurnId: 'turn-current',
-    }).codingAgentDelegation).toBeNull()
-  })
-
-  it('injects runtime-owned sourceTurnId when Provider omits it', () => {
-    const base = buildDialogueTurnSemantics({
-      userText: '任意文字',
-      context: codingContext,
-      currentScene: null,
-      worldModel: buildWorldModel(),
-    })
-    const candidate = parseDialogueTurnSemanticsCandidate(JSON.stringify({
-      act: 'ask-help',
-      codingAgentDelegation: {
-        intentKind: 'execute',
-        requestedAgent: 'codex',
-        verdict: 'delegate-coding-agent',
-        scope: 'investigation',
-        confidence: 0.91,
-      },
-    }))
-
-    expect(mergeDialogueTurnSemantics(base, candidate, {
-      sourceTurnId: 'turn-runtime-owned',
-    }).codingAgentDelegation).toMatchObject({
-      sourceTurnId: 'turn-runtime-owned',
-      source: 'structured-cognition',
-    })
-  })
-
-  it('clears a structured task anchor when cognition selects a dialogue-first subject', () => {
-    const base = buildDialogueTurnSemantics({
-      userText: '任意文字',
-      context: codingContext,
-      currentScene: null,
-      worldModel: buildWorldModel(),
-      subjectiveInference: buildSubjectiveInference({
-        goal: 'resolve-problem',
-        need: 'guidance',
-      }),
-    })
-    const candidate = parseDialogueTurnSemanticsCandidate(JSON.stringify({
-      act: 'social-bid',
-      responseNeed: 'accompany',
-      subjectPreference: 'relationship',
-      confidence: 0.9,
-    }))
-    const merged = mergeDialogueTurnSemantics(base, candidate)
-
-    expect(base.taskAnchor).toContain('runtime.ts')
-    expect(merged.subjectPreference).toBe('relationship')
-    expect(merged.taskAnchor).toBeNull()
-  })
-
-  it('preserves a structured inspection owner against unrelated cognition', () => {
-    const base = buildDialogueTurnSemantics({
-      userText: '任意文字',
-      context: neutralContext,
-      currentScene: null,
-      inspectionRequested: true,
-    })
-    const candidate = parseDialogueTurnSemanticsCandidate(JSON.stringify({
-      act: 'social-bid',
-      responseNeed: 'accompany',
-      subjectPreference: 'relationship',
-      confidence: 0.92,
-    }))
-    const merged = mergeDialogueTurnSemantics(base, candidate)
-
-    expect(merged.act).toBe('verify-grounding')
-    expect(merged.responseNeed).toBe('repair')
-    expect(merged.subjectPreference).toBe('visible-scene')
-    expect(merged.reasonTags).toContain('preserve-inspection-base')
   })
 })

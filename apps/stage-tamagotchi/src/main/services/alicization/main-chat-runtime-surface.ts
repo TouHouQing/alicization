@@ -99,8 +99,10 @@ function readAlicizationProviderFactType(content: string) {
 
 export function filterAlicizationProviderSystemMessages(messages: Message[]) {
   return messages.filter((message) => {
-    if (message.role !== 'system' || typeof message.content !== 'string')
+    if (message.role !== 'system')
       return true
+    if (typeof message.content !== 'string')
+      return false
 
     const type = readAlicizationProviderFactType(message.content)
     return Boolean(type && alicizationProviderFactTypes.has(type))

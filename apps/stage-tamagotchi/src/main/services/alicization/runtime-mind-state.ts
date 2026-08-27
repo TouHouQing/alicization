@@ -62,9 +62,6 @@ import { measureDialogueFocusAlignment } from './dialogue-focus-alignment'
 import { buildDialogueTurnEncounter } from './dialogue-turn-encounter'
 import {
   buildDialogueTurnSemantics,
-  mergeDialogueTurnSemantics,
-  parseDialogueTurnSemanticsCandidate,
-  shouldAttemptDialogueTurnSemanticsRefinement,
 } from './dialogue-turn-semantics'
 import { buildDialogueWorldThread } from './dialogue-world-thread'
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
@@ -110,13 +107,10 @@ import { buildRelationshipModel } from './relationship-model'
 import { buildRepairLedger } from './repair-ledger'
 import { buildReplyDeliberation } from './reply-deliberator'
 import {
-  alicizationDialogueTurnSemanticsResponseFormat,
   alicizationSubjectiveInferenceResponseFormat,
 } from './runtime-mind-state-provider-contract'
 import { sanitizeBriefText, uniqueCarryAnchors } from './runtime-realtime'
 import {
-  dialogueTurnSemanticsTimeoutMs,
-  interactiveDialogueTurnSemanticsTimeoutMs,
   interactiveSubjectiveInferenceTimeoutMs,
   sanitizeText,
   subjectiveInferenceTimeoutMs,
@@ -151,7 +145,7 @@ interface CreateAlicizationMindStateRuntimeOptions {
     worldModel: AlicizationVisualPresenceStateSnapshot['worldModel'] | null
   }
   generateMainGatewayText: AlicizationMainGatewayGenerateTextProvider<
-    Extract<AlicizationMainGatewaySource, 'subjective-inference' | 'dialogue-turn-semantics'>,
+    Extract<AlicizationMainGatewaySource, 'subjective-inference'>,
     Message['content'],
     {
       cardId?: string
@@ -464,7 +458,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     buildDialogueIngressContext,
     generateMainGatewayText,
     buildMainGatewayAgentTurnId,
-    readTransportContentAsText,
     retrieveMemoryFacts,
     listRelationshipOutcomes,
     listPersonaReinforcementEvents,
@@ -666,23 +659,19 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     }
   }
 
-  async function resolveDialogueTurnSemantics(input: {
-    cardId: string
-    turnId: string
+  function resolveDialogueTurnSemantics(input: {
     userText: string
-    recentMessages: Message[]
     context: AlicizationProactiveLayeredContext
     currentScene: ReturnType<typeof buildVisualHeartbeat>['scene']
     worldModel: ReturnType<typeof buildWorldModel>
     previousVisualPresenceState: AlicizationVisualPresenceStateSnapshot
     inspectionRequested?: boolean
     groundedThisTurn?: boolean
-    allowProviderRefinement?: boolean
-    timeoutMs?: number
-    agentTurn?: AlicizationAgentTurnRuntime | null
-    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) {
-    const heuristic = buildDialogueTurnSemantics({
+    // Dialogue posture is a local projection for continuity and embodiment.
+    // The foreground Provider remains the only reply mind; no hidden
+    // pre-classifier or secondary prompt may steer it.
+    return buildDialogueTurnSemantics({
       userText: input.userText,
       context: input.context,
       currentScene: input.currentScene,
@@ -694,158 +683,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       inspectionRequested: input.inspectionRequested === true,
       groundedThisTurn: input.groundedThisTurn === true,
     })
-    if (input.allowProviderRefinement === false || !shouldAttemptDialogueTurnSemanticsRefinement({
-      heuristic,
-      inspectionRequested: input.inspectionRequested,
-      groundedThisTurn: input.groundedThisTurn === true,
-    })) {
-      return heuristic
-    }
-
-    const promptSnapshot = buildDialogueTurnSemanticsPromptSnapshot({
-      userText: input.userText,
-      recentMessages: input.recentMessages,
-      currentScene: input.currentScene,
-      worldModel: input.worldModel,
-      previousVisualPresenceState: input.previousVisualPresenceState,
-      heuristic,
-      inspectionRequested: input.inspectionRequested === true,
-    })
-    const system = buildAlicizationProviderFactBlock('alicization-dialogue-turn-semantics-context', {
-      version: 'alicization-dialogue-turn-semantics-context-v1',
-      ...promptSnapshot,
-    })
-    const user = buildAlicizationProviderFactBlock('alicization-dialogue-turn-semantics-request', {
-      version: 'alicization-dialogue-turn-semantics-request-v1',
-      operation: 'derive-dialogue-turn-semantics',
-      responseSchema: 'alicization_dialogue_turn_semantics',
-    })
-    const raw = await generateMainGatewayText({
-      system,
-      user,
-      timeoutMs: input.timeoutMs ?? dialogueTurnSemanticsTimeoutMs,
-      source: 'dialogue-turn-semantics',
-      responseFormat: alicizationDialogueTurnSemanticsResponseFormat,
-      cardId: input.cardId,
-      agentTurn: input.agentTurn,
-      agentTurnInput: {
-        turnId: buildMainGatewayAgentTurnId('dialogue-turn-semantics', input.cardId, Date.now()),
-      },
-      injectCustomDirectives: false,
-      injectPerformanceManifest: false,
-      // Dialogue semantics is auxiliary cognition. It must never consume the
-      // foreground turn's full retry budget or delay the actual reply.
-      providerRetryPolicy: {
-        maxRetries: 0,
-      },
-      digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
-    })
-
-    return mergeDialogueTurnSemantics(
-      heuristic,
-      raw ? parseDialogueTurnSemanticsCandidate(raw) : null,
-      {
-        sourceTurnId: input.turnId,
-      },
-    )
-  }
-
-  function compactPromptText(raw: unknown, maxChars = 180) {
-    if (typeof raw !== 'string')
-      return ''
-    return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-  }
-
-  function readInternalMindHistoryText(message: Message, maxChars: number) {
-    if (message.role !== 'user')
-      return ''
-
-    return compactPromptText(
-      readTransportContentAsText(message.content),
-      maxChars,
-    )
-  }
-
-  function buildDialogueTurnSemanticsPromptSnapshot(input: {
-    userText: string
-    recentMessages: Message[]
-    currentScene: ReturnType<typeof buildVisualHeartbeat>['scene']
-    worldModel: ReturnType<typeof buildWorldModel>
-    previousVisualPresenceState: AlicizationVisualPresenceStateSnapshot
-    heuristic: ReturnType<typeof buildDialogueTurnSemantics>
-    inspectionRequested?: boolean
-  }) {
-    return {
-      userTurn: input.userText,
-      inspectionRequested: input.inspectionRequested === true,
-      recentDialogue: input.recentMessages
-        .slice(-4)
-        .map(message => ({
-          role: message.role,
-          content: readInternalMindHistoryText(message, 140),
-        }))
-        .filter(message => Boolean(message.content)),
-      currentScene: input.currentScene
-        ? {
-            scenario: input.currentScene.scenario,
-            workloadKind: input.currentScene.workloadKind,
-            contentKind: input.currentScene.contentKind,
-            summary: compactPromptText(input.currentScene.summary, 140) || undefined,
-            source: input.currentScene.source,
-            confidence: input.currentScene.confidence,
-            target: compactPromptTarget(input.currentScene.target),
-          }
-        : null,
-      activeThread: input.worldModel.activeThread
-        ? {
-            kind: input.worldModel.activeThread.kind,
-            source: input.worldModel.activeThread.source,
-            title: compactPromptText(input.worldModel.activeThread.title, 120) || undefined,
-            summary: compactPromptText(input.worldModel.activeThread.summary, 160) || undefined,
-            confidence: input.worldModel.activeThread.confidence,
-            unresolved: input.worldModel.activeThread.unresolved,
-          }
-        : null,
-      epistemicState: {
-        certainty: input.worldModel.epistemicState.certainty,
-        freshness: input.worldModel.epistemicState.freshness,
-        openQuestions: input.worldModel.epistemicState.openQuestions.slice(0, 3).map(question => compactPromptText(question, 120)).filter(Boolean),
-        staleRisks: input.worldModel.epistemicState.staleRisks.slice(0, 3).map(risk => compactPromptText(risk, 120)).filter(Boolean),
-      },
-      previousMind: {
-        subjectiveInference: input.previousVisualPresenceState.subjectiveInference
-          ? {
-              dominantInterpretation: compactPromptText(input.previousVisualPresenceState.subjectiveInference.dominantInterpretation, 160) || undefined,
-              situatedMeaning: compactPromptText(input.previousVisualPresenceState.subjectiveInference.situatedMeaning, 160) || undefined,
-              topIntent: input.previousVisualPresenceState.subjectiveInference.hostIntentCandidates[0]?.goal ?? undefined,
-              topNeed: input.previousVisualPresenceState.subjectiveInference.relationshipNeedCandidates[0]?.need ?? undefined,
-            }
-          : null,
-        relationshipModel: input.previousVisualPresenceState.relationshipModel
-          ? {
-              climate: input.previousVisualPresenceState.relationshipModel.climate,
-              approachVector: input.previousVisualPresenceState.relationshipModel.approachVector,
-              sharedAttentionTrust: input.previousVisualPresenceState.relationshipModel.sharedAttentionTrust,
-            }
-          : null,
-        privateThought: input.previousVisualPresenceState.privateThought
-          ? {
-              stance: input.previousVisualPresenceState.privateThought.stance,
-              shouldSpeak: input.previousVisualPresenceState.privateThought.shouldSpeak,
-              emotionalTension: input.previousVisualPresenceState.privateThought.emotionalTension,
-              thoughtText: compactPromptText(input.previousVisualPresenceState.privateThought.thoughtText, 160) || undefined,
-            }
-          : null,
-      },
-      heuristic: {
-        act: input.heuristic.act,
-        responseNeed: input.heuristic.responseNeed,
-        truthExpectation: input.heuristic.truthExpectation,
-        affectiveTone: input.heuristic.affectiveTone,
-        subjectPreference: input.heuristic.subjectPreference ?? undefined,
-        taskAnchor: compactPromptText(input.heuristic.taskAnchor, 140) || undefined,
-      },
-    }
   }
 
   function compactPromptTarget(target?: {
@@ -1234,16 +1071,10 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     if (input.cognitionMode === 'interactive' && !sanitizeText(input.turnId))
       throw new TypeError('interactive cognition requires a real turnId')
 
-    const effectiveDialogueTurnSemanticsTimeoutMs = input.cognitionMode === 'interactive'
-      ? interactiveDialogueTurnSemanticsTimeoutMs
-      : dialogueTurnSemanticsTimeoutMs
     const effectiveSubjectiveInferenceTimeoutMs = input.cognitionMode === 'interactive'
       ? interactiveSubjectiveInferenceTimeoutMs
       : subjectiveInferenceTimeoutMs
-    const allowDialogueSemanticsProviderRefinement = Boolean(input.userText?.trim())
     const allowSubjectiveInferenceProviderRefinement = input.cognitionMode !== 'interactive'
-    const dialogueSemanticsSourceTurnId = sanitizeText(input.turnId)
-      || buildMainGatewayAgentTurnId('dialogue-turn-semantics-source', input.cardId, input.now)
     const previousVisualPresenceState = projectVisualPresenceStateForMindRuntime(
       input.previousVisualPresenceState,
     )
@@ -1279,29 +1110,15 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       liveWorldModel,
       ingressWorldModel: dialogueTurnGrounding?.worldModel ?? null,
     })
-    const dialogueSemanticsRuntimeSurface = buildAlicizationProvisionalDigitalLifeRuntimeSurface({
-      now: input.now,
-      previousVisualPresenceState,
-      visualHeartbeat: input.visualHeartbeat,
-      attention: input.attention,
-      worldModel: dialogueTurnGrounding?.worldModel ?? worldModel,
-    })
     const dialogueSemantics = input.userText
-      ? await resolveDialogueTurnSemantics({
-          cardId: input.cardId,
-          turnId: dialogueSemanticsSourceTurnId,
+      ? resolveDialogueTurnSemantics({
           userText: input.userText,
-          recentMessages: input.recentMessages ?? [],
           context: dialogueTurnGrounding?.context ?? input.context,
           currentScene: dialogueTurnGrounding?.currentScene ?? input.visualHeartbeat.scene,
           worldModel: dialogueTurnGrounding?.worldModel ?? worldModel,
           previousVisualPresenceState,
           inspectionRequested: input.inspectionRequested === true,
           groundedThisTurn: input.groundedThisTurn === true,
-          allowProviderRefinement: allowDialogueSemanticsProviderRefinement,
-          timeoutMs: effectiveDialogueTurnSemanticsTimeoutMs,
-          agentTurn: input.agentTurn,
-          digitalLifeRuntimeSurface: dialogueSemanticsRuntimeSurface,
         })
       : null
     const governedWorldModel = quarantineDialogueFirstWorldModel({

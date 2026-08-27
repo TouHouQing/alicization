@@ -1195,9 +1195,10 @@ describe('main chat execution surface', () => {
     await first
   })
 
-  it('does not expose Coding Agent on a main-chat turn without structured delegation', async () => {
+  it('exposes Coding Agent on a main-chat turn when the capability is active, without pre-classifying the user text', async () => {
     const tools = await buildMainGatewayTools({
       toolSurface: 'main-chat',
+      userText: '检查一下这个项目',
       buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
       context: {
         cardId: 'default',
@@ -1227,12 +1228,11 @@ describe('main chat execution surface', () => {
     })
 
     const toolNames = tools.map((entry: any) => entry.function?.name)
-    expect(toolNames).not.toContain('coding_agent')
-    expect(toolNames).toContain('cli')
+    expect(toolNames).toContain('coding_agent')
     expect(toolNames).not.toContain('openclaw')
   })
 
-  it('keeps ordinary local command work on CLI and does not expose OpenClaw on the main-chat surface', async () => {
+  it('keeps ordinary local command work on CLI while leaving model-owned Coding Agent selection available', async () => {
     const executeTaskThread = vi.fn(async () => ({
       ok: true,
       stage: 'dispatch',
@@ -1267,7 +1267,7 @@ describe('main chat execution surface', () => {
 
     const toolNames = tools.map((entry: any) => entry.function?.name)
     expect(toolNames).toContain('cli')
-    expect(toolNames).not.toContain('coding_agent')
+    expect(toolNames).toContain('coding_agent')
     expect(toolNames).not.toContain('openclaw')
 
     const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any

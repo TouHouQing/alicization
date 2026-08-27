@@ -87,7 +87,6 @@ import {
 } from '@proj-alicization/stage-shared'
 import { applyPromptBudget } from '@proj-alicization/stage-ui/composables/alicization-guardrails'
 
-import { buildAlicizationCodingAgentDelegationAuthority } from './coding-agent-task-contract'
 import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
@@ -1842,16 +1841,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const waitForTools = allowTools
     const toolChoice = undefined
     const toolRegistry = await options.buildToolRegistry?.() ?? createCanonicalToolRegistry()
-    const codingAgentDelegation = buildAlicizationCodingAgentDelegationAuthority({
-      contextTurnId: payload.turnId,
-      decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
-      userText: readLatestUserMessageText(messages),
-      delegation: prelude.perceptionAugmentation.digitalLifeRuntimeSurface
-        ?.dialogue
-        .dialogueEncounter
-        ?.codingAgentDelegation ?? null,
-    })
-
     let executionRuntimeAffectiveResidue: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['affectiveResidue'] = null
     let executionRuntimeDerivedMindStateBundle: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['derivedMindStateBundle'] = null
     let executionRuntimeMemoryClosureTrace: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['memoryClosureTrace'] = null
@@ -2346,7 +2335,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         ? agentTurn.trackPhase('tool-registry', async () => await buildMainGatewayTools({
             toolSurface: 'main-chat',
             toolRegistry,
-            codingAgentDelegation,
             context: {
               cardId: payload.cardId,
               turnId: payload.turnId,

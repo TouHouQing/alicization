@@ -72,38 +72,11 @@ function createRuntime(generateMainGatewayText: any) {
   }
 }
 
-function buildStructuredSemantics(sourceTurnId?: string) {
-  return JSON.stringify({
-    act: 'ask-help',
-    responseNeed: 'guide',
-    truthExpectation: 'strict',
-    affectiveTone: 'neutral',
-    subjectPreference: 'task-knot',
-    taskAnchor: '总结 airi-alice 项目',
-    sharedAttentionDemand: 0.62,
-    personaSuppression: 0.24,
-    confidence: 0.96,
-    reasonTags: ['explicit-project-delegation'],
-    codingAgentDelegation: {
-      intentKind: 'execute',
-      requestedAgent: 'codex',
-      verdict: 'delegate-coding-agent',
-      scope: 'investigation',
-      confidence: 0.97,
-      ...(sourceTurnId ? { sourceTurnId } : {}),
-    },
-  })
-}
-
 async function buildInteractiveMindState(input: {
   sourceTurnId: string
-  providerSourceTurnId: string
+  cognitionMode?: 'interactive' | 'background'
 }) {
-  const generateMainGatewayText = vi.fn(async ({ source }: { source: string }) => {
-    if (source === 'dialogue-turn-semantics')
-      return buildStructuredSemantics(input.providerSourceTurnId)
-    return null
-  })
+  const generateMainGatewayText = vi.fn(async () => null)
   const { runtime, previousVisualPresenceState } = createRuntime(generateMainGatewayText)
   const userText = '用 Codex 帮我总结一下 airi-alice 这个项目'
 
@@ -125,7 +98,7 @@ async function buildInteractiveMindState(input: {
       nextSuggestedProbeMs: 30_000,
     } as any,
     attention: null as any,
-    cognitionMode: 'interactive',
+    cognitionMode: input.cognitionMode ?? 'interactive',
   })
 
   return {
@@ -135,43 +108,32 @@ async function buildInteractiveMindState(input: {
 }
 
 describe('runtime mind-state Coding Agent delegation', () => {
-  it('uses structured cognition during an interactive turn and binds delegation to the current turn', async () => {
+  it('does not block an interactive turn on an auxiliary semantics Provider request', async () => {
     const { generateMainGatewayText, result } = await buildInteractiveMindState({
       sourceTurnId: 'turn-explicit-codex',
-      providerSourceTurnId: '',
     })
 
-    expect(generateMainGatewayText).toHaveBeenCalledTimes(1)
-    expect(generateMainGatewayText).toHaveBeenCalledWith(expect.objectContaining({
-      source: 'dialogue-turn-semantics',
-      providerRetryPolicy: {
-        maxRetries: 0,
-      },
-    }))
-    const providerCall = generateMainGatewayText.mock.calls[0]?.[0] as unknown as {
-      system: string
-      user: string
-    }
-    expect(providerCall.system).not.toContain('"sourceTurnId"')
-    expect(providerCall.user).not.toContain('"sourceTurnId"')
-    expect(result.dialogueEncounter?.codingAgentDelegation).toEqual({
-      intentKind: 'execute',
-      requestedAgent: 'codex',
-      verdict: 'delegate-coding-agent',
-      scope: 'investigation',
-      confidence: 0.97,
-      sourceTurnId: 'turn-explicit-codex',
-      source: 'structured-cognition',
-    })
+    expect(generateMainGatewayText).not.toHaveBeenCalled()
+    expect(result.dialogueEncounter).not.toBeNull()
   })
 
-  it('drops a structured delegation that does not belong to the current turn', async () => {
+  it('keeps interactive cognition usable when the auxiliary Provider is unavailable', async () => {
     const { result } = await buildInteractiveMindState({
       sourceTurnId: 'turn-current',
-      providerSourceTurnId: 'turn-previous',
     })
 
-    expect(result.dialogueEncounter?.codingAgentDelegation).toBeNull()
+    expect(result.dialogueEncounter).not.toBeNull()
+  })
+
+  it('does not retain the removed dialogue semantics Provider side path in background cognition', async () => {
+    const { generateMainGatewayText } = await buildInteractiveMindState({
+      sourceTurnId: 'turn-background',
+      cognitionMode: 'background',
+    })
+
+    expect(generateMainGatewayText.mock.calls.some((call: unknown[]) => (
+      (call[0] as { source?: string } | undefined)?.source === 'dialogue-turn-semantics'
+    ))).toBe(false)
   })
 
   it('rejects interactive cognition without a real turn id', async () => {

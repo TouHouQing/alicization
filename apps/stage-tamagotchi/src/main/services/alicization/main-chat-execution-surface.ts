@@ -54,7 +54,6 @@ import { tool } from '@xsai/tool'
 import { z } from 'zod'
 
 import {
-  isAlicizationCodingAgentCapabilityQuestion,
   normalizeAlicizationCodingAgentTask,
   validateAlicizationCodingAgentInvocation,
 } from './coding-agent-task-contract'
@@ -1734,10 +1733,15 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       reinspectAfterAction: z.boolean().optional(),
     }).strict(),
     execute: async (input, toolContext, onExecutionEvent) => {
-      const invocationValidation = validateAlicizationCodingAgentInvocation(input, {
-        contextTurnId: toolContext.turnId,
-        delegation: options.codingAgentDelegation ?? null,
-      })
+      const invocationValidation = validateAlicizationCodingAgentInvocation(
+        input,
+        options.codingAgentDelegation
+          ? {
+              contextTurnId: toolContext.turnId,
+              delegation: options.codingAgentDelegation,
+            }
+          : undefined,
+      )
       if (!invocationValidation.ok) {
         if (
           invocationValidation.errorCode === 'CODING_AGENT_CHANNEL_MISMATCH'
@@ -2026,15 +2030,20 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   })
   const executorRunTools = executorRunToolSpecs.map(spec => wrapExecutorToolSpec(spec))
   const codingAgentRunTool = wrapExecutorToolSpec(codingAgentFacadeSpec)
-  const codingAgentCapabilityQuestion = isAlicizationCodingAgentCapabilityQuestion(options.userText)
-  const codingAgentDelegationAllowed = options.toolSurface !== 'main-chat'
-    || (
-      !codingAgentCapabilityQuestion
-      && Boolean(options.codingAgentDelegation?.allowed)
-    )
   const codingAgentFacadeCapabilityAvailable = Boolean(
     toolRegistry.resolveActive('coding_agent'),
   )
+  const hasTurnBoundCodingAgentDelegation = Boolean(
+    options.codingAgentDelegation?.allowed,
+  )
+  const codingAgentDelegationAllowed = options.toolSurface !== 'main-chat'
+    || (
+      codingAgentFacadeCapabilityAvailable
+      && (
+        !hasTurnBoundCodingAgentDelegation
+        || options.codingAgentDelegation?.allowedAgents.some(agent => agent !== 'cli') === true
+      )
+    )
   const mainChatCodingAgentNames = allowedCodingAgents
   const mainChatCodingAgentFacadeAllowed = options.toolSurface !== 'main-chat'
     || (
@@ -2044,8 +2053,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     )
   const mainChatCliExecutorAllowed = options.toolSurface !== 'main-chat'
     || (
-      !codingAgentCapabilityQuestion
-      && !codingAgentDelegationAllowed
+      !hasTurnBoundCodingAgentDelegation
     )
     || (
       options.codingAgentDelegation?.allowCommand === true

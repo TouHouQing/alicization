@@ -86,27 +86,6 @@ function hasNegativeCodingAgentMention(text: string, aliases: string[]) {
 }
 
 /**
- * A capability question is a conversational request, even if cognition
- * accidentally emits an executable delegation verdict for the same turn.
- * Keep this guard narrow: it only blocks Coding Agent dispatch and never
- * classifies ordinary coding requests.
- */
-export function isAlicizationCodingAgentCapabilityQuestion(userText: unknown) {
-  const text = normalizeCodingAgentMentionText(userText)
-  if (!text)
-    return false
-
-  const codingAgent = '(?:coding ?agent|codex|claude(?:-| )?code|cli|命令行)'
-  return [
-    new RegExp(`(?:你|能否|可以|能) ?(?:使用|用|调用|运行)? ?${codingAgent} ?(?:做什么|能做什么|可以做什么|能干什么|做哪些(?:事情|事)|有哪些能力|有什么能力|吗|么)`, 'iu'),
-    new RegExp(`${codingAgent} ?(?:能|可以)? ?(?:做什么|能做什么|可以做什么|能干什么|做哪些(?:事情|事)|有哪些能力|有什么能力)`, 'iu'),
-    new RegExp(`(?:介绍|说明|告诉|讲讲)[^?\\n]*${codingAgent}[^?\\n]*(?:能力|能做什么|可以做什么)`, 'iu'),
-    new RegExp(`(?:什么|哪些) ?(?:是|可以用)? ?${codingAgent} ?(?:做|完成|处理)`, 'iu'),
-    new RegExp(`\\b(?:what\\s+can|can|could|are\\s+you\\s+able\\s+to)\\b[^?\\n]*\\b${codingAgent}\\b[^?\\n]*\\?`, 'iu'),
-  ].some(pattern => pattern.test(text))
-}
-
-/**
  * Extract only an explicit channel constraint from the current user turn.
  *
  * This is deliberately narrower than a general intent classifier: it never
@@ -162,7 +141,6 @@ export function buildAlicizationCodingAgentDelegationAuthority(input: {
   const delegation = input.delegation
   if (
     !delegation
-    || isAlicizationCodingAgentCapabilityQuestion(input.userText)
     || delegation.intentKind !== 'execute'
     || delegation.verdict !== 'delegate-coding-agent'
     || delegation.source !== 'structured-cognition'

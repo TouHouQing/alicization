@@ -329,6 +329,29 @@ describe('main chat runtime surface', () => {
     expect(filtered.some(message => String(message.content).includes('unknown-sidecar'))).toBe(false)
   })
 
+  it('drops non-text system payloads instead of letting internal content bypass the fact allowlist', () => {
+    const filtered = filterAlicizationProviderSystemMessages([
+      {
+        role: 'system',
+        content: [{
+          type: 'text',
+          text: 'legacy governance cue must not reach the Provider',
+        }],
+      },
+      {
+        role: 'user',
+        content: '你好',
+      },
+    ] as any)
+
+    expect(filtered).toEqual([
+      {
+        role: 'user',
+        content: '你好',
+      },
+    ])
+  })
+
   it('does not derive hidden tool policy from the offered registry', () => {
     const result = buildAlicizationMainChatRuntimeSurface(createBaseInput({
       allowTools: true,

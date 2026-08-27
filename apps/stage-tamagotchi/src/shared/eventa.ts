@@ -2687,7 +2687,6 @@ export interface AlicizationDialogueTurnEncounterSnapshot {
   mustAnswerDirectly: boolean
   mustStayTaskBound: boolean
   shouldAskClarifyingQuestion: boolean
-  codingAgentDelegation?: AlicizationCodingAgentDelegationSnapshot | null
   personaKernelMode: AlicizationPersonaKernelMode
   confidence: number
   reasonTags: string[]
