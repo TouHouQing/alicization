@@ -3,7 +3,10 @@ import type {
   AlicizationVisibleArtifactLearningPolicy,
   AlicizationVisibleArtifactOrigin,
 } from './alicization-provider-response'
-import type { AlicizationMemoryProvenance } from './alicization-transport-contracts'
+import type {
+  AlicizationFinalReplayGateReportRecord,
+  AlicizationMemoryProvenance,
+} from './alicization-transport-contracts'
 
 export type AlicizationMemoryRecallMode
   = | 'none'
@@ -79,13 +82,14 @@ export interface AlicizationMemoryQualityEvidenceSnapshot {
 
 export interface AlicizationMemoryQualityGoldLabelPayload {
   cardId: string
+  conversationSampleId: string
   month?: string | null
   label: AlicizationSimpleRecallGoldLabel
   reason?: AlicizationSimpleRecallGoldReason | null
   query: string
   sessionId: string
   turnId: string
-  decisionTraceId?: string | null
+  decisionTraceId: string
   assistantReply: string
   retrievedEvidenceSnapshot: AlicizationMemoryQualityEvidenceSnapshot[]
   expectedMemoryIds?: string[]
@@ -94,6 +98,32 @@ export interface AlicizationMemoryQualityGoldLabelPayload {
   wrongThreadIds?: string[]
   note?: string | null
   createdAt?: number
+}
+
+export interface AlicizationMemoryQualityConversationSample {
+  id: string
+  cardId: string
+  sessionId: string
+  turnId: string
+  decisionTraceId: string | null
+  query: string
+  assistantReply: string
+  createdAt: number
+  retrievedCandidateIds: string[]
+  surfacedMemoryIds: string[]
+  traceEventKinds: string[]
+  existingGoldLabelId: string | null
+}
+
+export interface AlicizationMemoryQualityConversationSampleListPayload {
+  cardId: string
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationMemoryQualityConversationSampleListResult {
+  items: AlicizationMemoryQualityConversationSample[]
+  nextCursor: string | null
 }
 
 export interface AlicizationMemoryQualityGoldLabelItem {
@@ -156,7 +186,11 @@ export interface AlicizationMemoryQualityTrialPayload {
   cardId: string
   mode?: 'historical-replay' | 'live-provider'
   month?: string | null
-  sessionId: string
+  /**
+   * Kept as correlation metadata for old reports. The main runtime always
+   * resolves the card's canonical primary conversation session.
+   */
+  sessionId?: string | null
 }
 
 export interface AlicizationMemoryQualityTrialCancelPayload {
@@ -1285,6 +1319,7 @@ export interface AlicizationMemoryQualityTrialReport {
       | 'scope-fuzz'
       | 'gold-regression'
       | 'persona-dataset-hygiene'
+      | 'final-replay-gate'
     id: string
     passed: boolean
     status?: 'not-run'
@@ -1364,6 +1399,7 @@ export interface AlicizationMemoryQualityTrialReport {
     optimizationFindings: AlicizationMemoryQualityOptimizationFinding[]
     recommendedNextActions: string[]
   }
+  finalReplayGate?: AlicizationFinalReplayGateReportRecord | null
   goldRegressionPack: AlicizationMemoryQualityMonthlyGoldRegressionPack | null
   regression: {
     recallAt1: number
@@ -1581,6 +1617,73 @@ export interface AlicizationMemoryQualityRegressionSurface {
   embeddingCoverageRatio: number | null
 }
 
+export interface AlicizationFinalReplayGateSurfaceMetrics {
+  recallAt3: number | null
+  precisionAt3: number | null
+  wrongThreadRate: number | null
+  templateLeakageFailCount: number | null
+  authorityLeakCount: number | null
+  localHumanlikeVisibleFallbackCount: number | null
+  unsupportedSpecificityVisibleFailCount: number | null
+  turnOsTraceCoverage: number | null
+  learningOutcomeToSelfRevisionRoundtrip: number | null
+  memoryClosureCoverage: number | null
+  memoryClosureConflictClosureRate: number | null
+  memoryClosureLowQualityWithholdRate: number | null
+  memoryClosureUncertaintyLabelRate: number | null
+  claimAccuracy: number | null
+  replyAuthorityAccuracy: number | null
+  latencyBudgetPass: boolean | null
+  mindParticipation: number | null
+  memoryParticipation: number | null
+  personalityParticipation: number | null
+  relationshipParticipation: number | null
+  continuityParticipation: number | null
+  misinternalizationRate: number | null
+  sampleCount: number | null
+  minimumSampleCount: number | null
+  productionGoldSampleCount: number | null
+  minimumProductionGoldSampleCount: number | null
+  productionGoldCoverage: number | null
+  independentProductionGoldSampleCount: number | null
+  minimumIndependentProductionGoldSampleCount: number | null
+  independentProductionGoldCoverage: number | null
+}
+
+export interface AlicizationFinalReplayGateSurface {
+  version: 'final-replay-gate-v1'
+  passed: boolean
+  failingKeys: string[]
+  metrics: AlicizationFinalReplayGateSurfaceMetrics
+}
+
+export interface AlicizationMemoryQualityTraceSurface {
+  id: string
+  fixtureId: string
+  owner: 'LongTermMemoryRecall' | 'WorkingMemory' | 'PersonaTrainingDataset'
+  selectedIds: string[]
+  rejectedIds: string[]
+  forbiddenIds: string[]
+  rankReasonsById: Record<string, string[]>
+  semantic: {
+    available: boolean
+    providerId: string | null
+    modelId: string | null
+    dimensions: number | null
+    reindexRequired: boolean
+  } | null
+  metrics: Record<string, number | null>
+  error: AlicizationMemoryQualityFailureCode | null
+  createdAt: number
+}
+
+export interface AlicizationMemoryQualityFindingSurface {
+  code: AlicizationMemoryQualityOptimizationFinding['code']
+  severity: 'critical' | 'warning' | 'info'
+  fixtureId: string
+  suggestedAction: AlicizationMemoryQualityActionCode | null
+}
+
 export interface AlicizationMemoryQualityTrialReportSurface {
   version: AlicizationMemoryQualityTrialReport['version']
   id: string
@@ -1611,8 +1714,11 @@ export interface AlicizationMemoryQualityTrialReportSurface {
     passed: boolean
     createdAt: number
     summary: AlicizationMemoryQualityMetricsSurface
+    traces: AlicizationMemoryQualityTraceSurface[]
+    findings: AlicizationMemoryQualityFindingSurface[]
     recommendedNextActions: AlicizationMemoryQualityActionCode[]
   }
+  finalReplayGate?: AlicizationFinalReplayGateSurface | null
   regression: AlicizationMemoryQualityRegressionSurface
   recommendedNextActions: AlicizationMemoryQualityActionCode[]
 }
@@ -1688,6 +1794,235 @@ function projectAlicizationMemoryQualityRecommendedActionsSurface(values: string
     }
   })
   return [...new Set(actions)]
+}
+
+function projectBoundedQualityIds(values: unknown, limit = 64) {
+  if (!Array.isArray(values))
+    return []
+  return [...new Set(values
+    .filter((value): value is string => typeof value === 'string')
+    .map(value => value.trim().slice(0, 240))
+    .filter(Boolean))]
+    .slice(0, limit)
+}
+
+const stableQualityRankReasonCodes = new Set([
+  'semantic-match',
+  'lexical-match',
+  'scope-match',
+  'scope-mismatch',
+  'target-kind',
+  'entity-match',
+  'episodic-match',
+  'shared-activity',
+  'high-salience',
+  'high-confidence',
+  'temporal-fit',
+  'wrong-thread-penalty',
+  'sensitivity-limited',
+  'working-memory:retained',
+  'confirmed-evidence',
+  'query-match',
+  'rrf:lexical:query-overlap',
+  'rrf:structured:thread-fit',
+  'rrf:structured:target-kind',
+  'rrf:structured:structured-fit',
+  'rrf:semantic:semantic-score',
+  'rrf:episodic:episodic-temporal-fit',
+  'rrf:consolidation:consolidation-fit',
+])
+
+function projectBoundedQualityRankReasons(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return {}
+
+  return Object.fromEntries(Object.entries(value)
+    .slice(0, 64)
+    .flatMap(([id, reasons]) => {
+      const projectedReasons = Array.isArray(reasons)
+        ? [...new Set(reasons
+            .filter((reason): reason is string => typeof reason === 'string')
+            .map(reason => reason.trim().replace(/\s+/g, ' ').slice(0, 160))
+            .filter(reason => stableQualityRankReasonCodes.has(reason))
+            .filter(Boolean))]
+            .slice(0, 8)
+        : []
+      return projectedReasons.length > 0
+        ? [[id.trim().slice(0, 240), projectedReasons] as const]
+        : []
+    }))
+}
+
+function projectQualityNumericMetrics(
+  value: unknown,
+  keys: readonly string[],
+): Record<string, number | null> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return {}
+
+  const metrics = value as Record<string, unknown>
+  return Object.fromEntries(keys.map(key => [
+    key,
+    projectQualityNumber(metrics[key]),
+  ]))
+}
+
+function projectQualityNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function projectQualityBoolean(value: unknown) {
+  return typeof value === 'boolean' ? value : null
+}
+
+function projectAlicizationFinalReplayGateSurface(
+  report: AlicizationFinalReplayGateReportRecord | null | undefined,
+): AlicizationFinalReplayGateSurface | null {
+  if (!report || typeof report !== 'object' || !report.metrics || typeof report.metrics !== 'object')
+    return null
+
+  const metrics = report.metrics as Record<string, unknown>
+  return {
+    version: 'final-replay-gate-v1',
+    passed: report.passed === true,
+    failingKeys: projectBoundedQualityIds(report.failingKeys),
+    metrics: {
+      recallAt3: projectQualityNumber(metrics.recallAt3),
+      precisionAt3: projectQualityNumber(metrics.precisionAt3),
+      wrongThreadRate: projectQualityNumber(metrics.wrongThreadRate),
+      templateLeakageFailCount: projectQualityNumber(metrics.templateLeakageFailCount),
+      authorityLeakCount: projectQualityNumber(metrics.authorityLeakCount),
+      localHumanlikeVisibleFallbackCount: projectQualityNumber(metrics.localHumanlikeVisibleFallbackCount),
+      unsupportedSpecificityVisibleFailCount: projectQualityNumber(metrics.unsupportedSpecificityVisibleFailCount),
+      turnOsTraceCoverage: projectQualityNumber(metrics.turnOsTraceCoverage),
+      learningOutcomeToSelfRevisionRoundtrip: projectQualityNumber(metrics.learningOutcomeToSelfRevisionRoundtrip),
+      memoryClosureCoverage: projectQualityNumber(metrics.memoryClosureCoverage),
+      memoryClosureConflictClosureRate: projectQualityNumber(metrics.memoryClosureConflictClosureRate),
+      memoryClosureLowQualityWithholdRate: projectQualityNumber(metrics.memoryClosureLowQualityWithholdRate),
+      memoryClosureUncertaintyLabelRate: projectQualityNumber(metrics.memoryClosureUncertaintyLabelRate),
+      claimAccuracy: projectQualityNumber(metrics.claimAccuracy),
+      replyAuthorityAccuracy: projectQualityNumber(metrics.replyAuthorityAccuracy),
+      latencyBudgetPass: projectQualityBoolean(metrics.latencyBudgetPass),
+      mindParticipation: projectQualityNumber(metrics.mindParticipation),
+      memoryParticipation: projectQualityNumber(metrics.memoryParticipation),
+      personalityParticipation: projectQualityNumber(metrics.personalityParticipation),
+      relationshipParticipation: projectQualityNumber(metrics.relationshipParticipation),
+      continuityParticipation: projectQualityNumber(metrics.continuityParticipation),
+      misinternalizationRate: projectQualityNumber(metrics.misinternalizationRate),
+      sampleCount: projectQualityNumber(metrics.sampleCount),
+      minimumSampleCount: projectQualityNumber(metrics.minimumSampleCount),
+      productionGoldSampleCount: projectQualityNumber(metrics.productionGoldSampleCount),
+      minimumProductionGoldSampleCount: projectQualityNumber(metrics.minimumProductionGoldSampleCount),
+      productionGoldCoverage: projectQualityNumber(metrics.productionGoldCoverage),
+      independentProductionGoldSampleCount: projectQualityNumber(metrics.independentProductionGoldSampleCount),
+      minimumIndependentProductionGoldSampleCount: projectQualityNumber(metrics.minimumIndependentProductionGoldSampleCount),
+      independentProductionGoldCoverage: projectQualityNumber(metrics.independentProductionGoldCoverage),
+    },
+  }
+}
+
+function projectAlicizationMemoryQualityTraceSurface(
+  trace: AlicizationMemoryQualityTrace,
+): AlicizationMemoryQualityTraceSurface | null {
+  if (
+    !trace
+    || typeof trace !== 'object'
+    || (trace.owner !== 'LongTermMemoryRecall'
+      && trace.owner !== 'WorkingMemory'
+      && trace.owner !== 'PersonaTrainingDataset')
+    || typeof trace.id !== 'string'
+    || typeof trace.fixtureId !== 'string'
+  ) {
+    return null
+  }
+  const metricKeys = trace.owner === 'LongTermMemoryRecall'
+    ? [
+        'recallAtK',
+        'precisionAtK',
+        'mrr',
+        'ndcg',
+        'falseRecallRate',
+        'wrongThreadRate',
+        'blockedLeakCount',
+        'semanticHitRate',
+        'sourceTraceRate',
+        'latencyMs',
+      ] as const
+    : trace.owner === 'WorkingMemory'
+      ? [
+          'obligationRetentionRate',
+          'correctionRetentionRate',
+          'commitmentRetentionRate',
+          'failureTransparencyRetentionRate',
+          'candidateBoundaryViolationCount',
+          'compressionLossCount',
+        ] as const
+      : [
+          'acceptedSourceCount',
+          'stagedExampleCount',
+          'quarantinedExampleCount',
+          'rejectedSourceCount',
+          'exportedExampleCount',
+          'expectedExportMissCount',
+          'forbiddenExportLeakCount',
+          'expectedQuarantineMissCount',
+          'expectedRejectMissCount',
+          'unsafeSourceExportLeakCount',
+          'piiExportLeakCount',
+          'templateResidueExportLeakCount',
+          'consentLeakCount',
+          'defaultTrainingLeakCount',
+          'crossCardLeakCount',
+          'missingProvenanceAcceptedCount',
+          'dedupeCollisionCount',
+          'dedupeGapCount',
+          'sourceTraceRate',
+        ] as const
+  const base = {
+    id: trace.id.trim().slice(0, 240),
+    fixtureId: trace.fixtureId.trim().slice(0, 240),
+    owner: trace.owner,
+    selectedIds: projectBoundedQualityIds(trace.selectedIds),
+    rejectedIds: projectBoundedQualityIds(trace.rejectedIds),
+    forbiddenIds: projectBoundedQualityIds(trace.forbiddenIds),
+    rankReasonsById: projectBoundedQualityRankReasons(trace.rankReasonsById),
+    metrics: projectQualityNumericMetrics(trace.metrics, metricKeys),
+    error: projectAlicizationMemoryQualityFailureSurface(trace.error),
+    createdAt: Number.isFinite(trace.createdAt) ? trace.createdAt : 0,
+  }
+  if (trace.owner === 'LongTermMemoryRecall') {
+    return {
+      ...base,
+      semantic: {
+        available: trace.semantic.available === true,
+        providerId: typeof trace.semantic.providerId === 'string' ? trace.semantic.providerId.trim().slice(0, 120) || null : null,
+        modelId: typeof trace.semantic.modelId === 'string' ? trace.semantic.modelId.trim().slice(0, 160) || null : null,
+        dimensions: projectQualityNumber(trace.semantic.dimensions),
+        reindexRequired: trace.semantic.reindexRequired === true,
+      },
+    }
+  }
+  if (trace.owner === 'WorkingMemory') {
+    return {
+      ...base,
+      semantic: null,
+    }
+  }
+  return {
+    ...base,
+    semantic: null,
+  }
+}
+
+function projectAlicizationMemoryQualityFindingSurface(
+  finding: AlicizationMemoryQualityOptimizationFinding,
+): AlicizationMemoryQualityFindingSurface {
+  return {
+    code: finding.code,
+    severity: finding.severity,
+    fixtureId: finding.fixtureId.trim().slice(0, 240),
+    suggestedAction: projectAlicizationMemoryQualityRecommendedActionsSurface([finding.suggestedAction])[0] ?? null,
+  }
 }
 
 function projectAlicizationMemoryQualitySummarySurface(
@@ -1921,8 +2256,14 @@ export function projectAlicizationMemoryQualityTrialReportSurface(
       passed: report.quality.passed,
       createdAt: report.quality.createdAt,
       summary: projectAlicizationMemoryQualitySummaryMetricsSurface(report.quality.summary),
+      traces: report.quality.traces.flatMap((trace) => {
+        const projected = projectAlicizationMemoryQualityTraceSurface(trace)
+        return projected ? [projected] : []
+      }),
+      findings: report.quality.optimizationFindings.map(projectAlicizationMemoryQualityFindingSurface),
       recommendedNextActions: projectAlicizationMemoryQualityRecommendedActionsSurface(report.quality.recommendedNextActions),
     },
+    finalReplayGate: projectAlicizationFinalReplayGateSurface(report.finalReplayGate),
     regression: projectAlicizationMemoryRegressionSurface(report.regression),
     recommendedNextActions: projectAlicizationMemoryQualityRecommendedActionsSurface(report.recommendedNextActions),
   }

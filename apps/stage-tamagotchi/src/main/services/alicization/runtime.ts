@@ -665,6 +665,26 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   let activeModelId = ''
   let providerCredentials: Record<string, Record<string, unknown>> = {}
   let memoryTrialProvider: AlicizationMemoryTrialProvider | null = null
+  const llmConfigPath = join(userDataPath, 'alicizations', 'llm-config.json')
+  const restoreLlmConfigFromDisk = async () => {
+    try {
+      const raw = await readFile(llmConfigPath, 'utf-8')
+      const parsed = JSON.parse(raw) as {
+        activeProviderId?: unknown
+        activeModelId?: unknown
+        providerCredentials?: unknown
+      }
+      if (typeof parsed.activeProviderId === 'string')
+        activeProviderId = parsed.activeProviderId
+      if (typeof parsed.activeModelId === 'string')
+        activeModelId = parsed.activeModelId
+      if (parsed.providerCredentials && typeof parsed.providerCredentials === 'object')
+        providerCredentials = parsed.providerCredentials as Record<string, Record<string, unknown>>
+    }
+    catch {
+      // ignore
+    }
+  }
   const personaTrainingConfigPath = join(userDataPath, 'alicizations', 'persona-training-config.json')
   const personaRuntimeConfigPath = join(userDataPath, 'alicizations', 'persona-runtime-config.json')
   const personaRuntimeProcessStatePath = join(userDataPath, 'alicizations', 'persona-runtime-process.json')
@@ -820,6 +840,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   }
   await restorePersonaTrainingExecutorConfig()
   await restorePersonaRuntimeConfig()
+  await restoreLlmConfigFromDisk()
   personaRuntime = createPersonaRuntime()
   const resolveLongTermMemoryEmbeddingProvider = () => resolveOpenAICompatibleLongTermMemoryEmbeddingProvider({
     activeProviderId,
@@ -1060,6 +1081,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     getMetaValue: key => alicizationDb.getMetaValue(key),
     setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
     getLatestConversationSessionId: async () => await alicizationDb.getLatestConversationSessionId().catch(() => undefined),
+    migrateLegacyConversationSessionsToPrimary: async input =>
+      await alicizationDb.migrateLegacyConversationSessionsToPrimary(input),
     appendAuditLog: async (input, cardId) => await appendAuditLog(input, cardId),
     getAlicizationKillSwitchSnapshot,
     getAlicizationCardKillSwitchSnapshot,
@@ -1565,6 +1588,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   } = sessionContinuityBuildersRuntime
   const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime()
   const agentRuntime = createAlicizationAgentRuntime({
+    enforceCanonicalConversationSessionId: true,
     getSensorySnapshot: async () => sensoryBus.getSnapshot(),
     resolveConversationSessionId: async cardId => await ensureActiveOrLatestSessionId(cardId),
   })
@@ -2645,10 +2669,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const fallbackDecisionTraceId = `mind:${Date.now().toString(36)}:dispatch-runtime-context`
     const turnId = sanitizeText(input.thread?.turnId, '').slice(0, 160) || fallbackTurnId
     const decisionTraceId = sanitizeText(input.thread?.decisionTraceId, '').slice(0, 200) || fallbackDecisionTraceId
-    const sessionId = sanitizeText(input.thread?.sessionId, '').slice(0, 160) || null
+    const sessionId = await ensureActiveOrLatestSessionId(input.cardId).catch(() => '')
+    if (!sessionId)
+      throw new Error('Unable to resolve the canonical conversation session for execution context.')
     const sensorySnapshot = await sensoryBus.getSnapshot()
     const agentTurn = await agentRuntime.openTurn({
       cardId: input.cardId,
+      conversationSessionId: sessionId,
       turnId,
       decisionTraceId,
     })
@@ -2702,6 +2729,16 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   async function dispatchTaskThreadWithExecutionDelivery(invocation: Parameters<typeof taskThreadOrchestrator.dispatch>[0]) {
     const scopedCardId = activeCardId
+    const canonicalSessionId = await ensureActiveOrLatestSessionId(scopedCardId)
+    const existingThread = await invocation.port.getTaskThread(invocation.input.threadId)
+    if (existingThread && existingThread.sessionId !== canonicalSessionId) {
+      await invocation.port.upsertTaskThread({
+        ...existingThread,
+        sessionId: canonicalSessionId,
+        updatedAt: Math.max(existingThread.updatedAt, Date.now()),
+        expectedUpdatedAt: existingThread.updatedAt,
+      })
+    }
     const preparedInvocation = await ensureDispatchInvocationRuntimeContext(invocation, scopedCardId)
     const result = await taskThreadOrchestrator.dispatch({
       ...preparedInvocation,
@@ -3180,6 +3217,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
       const agentTurn = await agentRuntime.openTurn({
         cardId,
+        conversationSessionId: sessionId,
         turnId: buildMainGatewayAgentTurnId('proactive-feedback-session', source, cardId, Date.now()),
       }).catch(() => null)
       if (!agentTurn)
@@ -3277,7 +3315,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
-  const llmConfigPath = join(userDataPath, 'alicizations', 'llm-config.json')
   const runtimeDebugLogPath = join(userDataPath, 'alicizations', 'runtime-debug.log')
 
   async function appendRuntimeDebugLine(event: string, payload?: Record<string, unknown>) {
@@ -3317,26 +3354,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     catch (error) {
       await unlink(temporaryPath).catch(() => {})
       throw error
-    }
-  }
-
-  async function restoreLlmConfigFromDisk() {
-    try {
-      const raw = await readFile(llmConfigPath, 'utf-8')
-      const parsed = JSON.parse(raw) as {
-        activeProviderId?: unknown
-        activeModelId?: unknown
-        providerCredentials?: unknown
-      }
-      if (typeof parsed.activeProviderId === 'string')
-        activeProviderId = parsed.activeProviderId
-      if (typeof parsed.activeModelId === 'string')
-        activeModelId = parsed.activeModelId
-      if (parsed.providerCredentials && typeof parsed.providerCredentials === 'object')
-        providerCredentials = parsed.providerCredentials as Record<string, Record<string, unknown>>
-    }
-    catch {
-      // ignore
     }
   }
 
@@ -4116,9 +4133,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return false
     }
 
-    const normalizedSessionId = normalizeSessionId(payload.sessionId) || await ensureActiveOrLatestSessionId(activeCardId)
-    if (normalizeSessionId(payload.sessionId))
-      await persistActiveSessionId(activeCardId, normalizedSessionId)
+    const requestedSessionId = normalizeSessionId(payload.sessionId)
+    const normalizedSessionId = await ensureActiveOrLatestSessionId(activeCardId)
+    if (requestedSessionId && requestedSessionId !== normalizedSessionId) {
+      await appendRuntimeDebugLine('conversation-turn.session-id-normalized', {
+        cardId: activeCardId,
+        requestedSessionId,
+        canonicalSessionId: normalizedSessionId,
+      })
+    }
     const normalizedCreatedAt = Number.isFinite(payload.createdAt)
       ? Math.max(0, Math.floor(Number(payload.createdAt)))
       : Date.now()
@@ -6530,11 +6553,21 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     const { key, mainGateway, runState } = accepted
     const isRunActive = () => chatRuns.get(key)?.state === 'running'
+    const requestedConversationSessionId = normalizeSessionId(normalizedPayload.sessionId)
+    const conversationSessionId = await ensureActiveOrLatestSessionId(normalizedPayload.cardId)
+    if (requestedConversationSessionId && requestedConversationSessionId !== conversationSessionId) {
+      await appendRuntimeDebugLine('chat-start.session-id-normalized', {
+        cardId: normalizedPayload.cardId,
+        requestedSessionId: requestedConversationSessionId,
+        canonicalSessionId: conversationSessionId,
+      })
+    }
     let agentTurn: Awaited<ReturnType<typeof mainChatSessionRuntime.openExecutionTurn>>
     try {
       agentTurn = await raceAlicizationMainChatPreparation({
         preparationPromise: foregroundWork.run(async () => await mainChatSessionRuntime.openExecutionTurn({
           cardId: normalizedPayload.cardId,
+          conversationSessionId,
           turnId: normalizedPayload.turnId,
         })),
         signal: preparationDeadline.signal,
@@ -7026,7 +7059,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   await restoreSubconsciousState(activeCardId)
   await restoreProactiveLoopState(activeCardId)
   await restoreExecutionDeliveryState(activeCardId)
-  await restoreLlmConfigFromDisk()
   const journalMode = await alicizationDb.getJournalMode().catch(() => '')
   if (journalMode !== 'wal') {
     await appendAuditLog({

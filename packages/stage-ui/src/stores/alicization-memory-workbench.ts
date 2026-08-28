@@ -10,6 +10,7 @@ import type {
   AlicizationMemoryEmbeddingReindexPayload,
   AlicizationMemoryEmbeddingReindexResult,
   AlicizationMemoryLongTermActionDecision,
+  AlicizationMemoryQualityConversationSample,
   AlicizationMemoryQualityTrialReportRecordSurface,
   AlicizationMemoryQualityTrialReportSurface,
   AlicizationMemoryRecallProbeResult,
@@ -122,6 +123,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const workingMemoryCleaningLoading = ref(false)
   const personaCandidates = ref<AlicizationPersonaCandidateWorkbenchItem[]>([])
   const personaNextCursor = ref<string | null>(null)
+  const personaAppliedStatus = ref<AlicizationPersonaCandidateListPayload['status']>('all')
   const personaLoading = ref(false)
   const personaTrainingDataset = ref<AlicizationPersonaTrainingDatasetSnapshot | null>(null)
   const personaTrainingDatasetLoading = ref(false)
@@ -171,17 +173,26 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const qualityReplaySessions = ref<AlicizationMemoryReplaySessionSummary[]>([])
   const qualityReplaySessionsLoading = ref(false)
   const qualityReplaySessionsNextCursor = ref<string | null>(null)
+  const qualityConversationSamples = ref<AlicizationMemoryQualityConversationSample[]>([])
+  const qualityConversationSamplesNextCursor = ref<string | null>(null)
+  const qualityConversationSamplesLoading = ref(false)
+  const selectedQualityConversationSampleId = ref<string | null>(null)
   const selectedQualitySessionId = ref('')
   const qualityTrialMode = ref<'historical-replay' | 'live-provider'>('historical-replay')
   let qualityReplaySessionsRevision = 0
+  let qualityConversationSamplesRequestRevision = 0
   let qualityTrialContextRevision = 0
   let cardScopeRevision = 0
+  let snapshotRequestRevision = 0
   let longTermRequestRevision = 0
   let tombstoneRequestRevision = 0
   let reviewRequestRevision = 0
   let embeddingModelDiscoveryRevision = 0
   let embeddingConnectionTestRevision = 0
   let semanticScaleContextRevision = 0
+  let personaRequestRevision = 0
+  let goldLabelRequestRevision = 0
+  let recallProbeRequestRevision = 0
   let personaTrainingContextRevision = 0
   let personaTrainingRunLoadingCount = 0
   const goldLabelLoading = ref(false)
@@ -480,9 +491,13 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
 
   function resetCardScope() {
     cardScopeRevision += 1
+    snapshotRequestRevision += 1
     longTermRequestRevision += 1
     tombstoneRequestRevision += 1
     reviewRequestRevision += 1
+    personaRequestRevision += 1
+    goldLabelRequestRevision += 1
+    recallProbeRequestRevision += 1
     snapshot.value = null
     longTermItems.value = []
     longTermAppliedFilters.value = { ...longTermFilters.value }
@@ -508,6 +523,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     workingMemoryCleaningLoading.value = false
     personaCandidates.value = []
     personaNextCursor.value = null
+    personaAppliedStatus.value = 'all'
     personaLoading.value = false
     personaTrainingDataset.value = null
     personaTrainingDatasetExport.value = null
@@ -529,7 +545,9 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     embeddingConnectionTesting.value = false
     monthlyGoldLabels.value = []
     monthlyGoldRegressionPack.value = null
+    goldLabelLoading.value = false
     recallProbe.value = null
+    probeLoading.value = false
     resetQualityTrialContext()
     resetSemanticScaleJobContext()
     resetPersonaTrainingScope()
@@ -575,29 +593,46 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       return null
     }
     const revision = cardScopeRevision
+    const requestRevision = ++snapshotRequestRevision
     loading.value = true
     try {
       const next = await bridge.memoryWorkbenchGetSnapshot({ sessionId })
-      if (revision !== cardScopeRevision)
+      if (
+        revision !== cardScopeRevision
+        || requestRevision !== snapshotRequestRevision
+      ) {
         return null
+      }
       snapshot.value = next
       restoreReindexProgress(next.health.embedding.reindexJob, revision)
       lastError.value = next.health.embedding.reindexJob?.lastError ?? null
       if (next.health.embedding.reindexJob?.status === 'failed') {
         await restoreReindexDeadLetterItems(next.health.embedding.reindexJob.jobId, revision)
       }
-      if (revision !== cardScopeRevision)
+      if (
+        revision !== cardScopeRevision
+        || requestRevision !== snapshotRequestRevision
+      ) {
         return null
+      }
       return next
     }
     catch (error) {
-      if (revision === cardScopeRevision)
+      if (
+        revision === cardScopeRevision
+        && requestRevision === snapshotRequestRevision
+      ) {
         lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
       return null
     }
     finally {
-      if (revision === cardScopeRevision)
+      if (
+        revision === cardScopeRevision
+        && requestRevision === snapshotRequestRevision
+      ) {
         loading.value = false
+      }
     }
   }
 
@@ -619,6 +654,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       return []
     const scopeRevision = cardScopeRevision
     const requestRevision = ++longTermRequestRevision
+    const previousAppliedFilters = { ...longTermAppliedFilters.value }
     const nextFilters = {
       ...longTermFilters.value,
       ...filters,
@@ -646,6 +682,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
         scopeRevision === cardScopeRevision
         && requestRevision === longTermRequestRevision
       ) {
+        longTermFilters.value = previousAppliedFilters
         longTermError.value = errorMessageFrom(error) ?? 'unknown-error'
       }
       return []
@@ -1116,25 +1153,44 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     const normalized = query.trim()
     if (!normalized || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRecallProbe)
       return null
+    const scopeRevision = cardScopeRevision
+    const requestRevision = ++recallProbeRequestRevision
+    const sessionId = snapshot.value?.sessionId ?? null
     recallQuery.value = normalized
     probeLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchRecallProbe!({
         query: normalized,
-        sessionId: snapshot.value?.sessionId ?? null,
+        sessionId,
         includeWorkingMemory: true,
         limit: 8,
       })
+      if (
+        scopeRevision !== cardScopeRevision
+        || requestRevision !== recallProbeRequestRevision
+      ) {
+        return null
+      }
       recallProbe.value = result
       lastError.value = null
       return result
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === recallProbeRequestRevision
+      ) {
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
       return null
     }
     finally {
-      probeLoading.value = false
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === recallProbeRequestRevision
+      ) {
+        probeLoading.value = false
+      }
     }
   }
 
@@ -1142,6 +1198,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListPersonaCandidates)
       return []
     const revision = cardScopeRevision
+    const requestRevision = ++personaRequestRevision
     personaLoading.value = true
     personaNextCursor.value = null
     try {
@@ -1150,20 +1207,87 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
         limit: 50,
         cursor: null,
       })
-      if (revision !== cardScopeRevision)
+      if (
+        revision !== cardScopeRevision
+        || requestRevision !== personaRequestRevision
+      ) {
         return []
+      }
       personaCandidates.value = result.items
+      personaNextCursor.value = result.nextCursor
+      personaAppliedStatus.value = status
+      lastError.value = null
+      return result.items
+    }
+    catch (error) {
+      if (
+        revision === cardScopeRevision
+        && requestRevision === personaRequestRevision
+      ) {
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
+      return []
+    }
+    finally {
+      if (
+        revision === cardScopeRevision
+        && requestRevision === personaRequestRevision
+      ) {
+        personaLoading.value = false
+      }
+    }
+  }
+
+  async function loadMorePersonaCandidates() {
+    const cursor = personaNextCursor.value
+    if (
+      !cursor
+      || personaLoading.value
+      || !hasAlicizationBridge()
+      || !getAlicizationBridge().memoryWorkbenchListPersonaCandidates
+    ) {
+      return []
+    }
+    const revision = cardScopeRevision
+    const requestRevision = ++personaRequestRevision
+    personaLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListPersonaCandidates!({
+        status: personaAppliedStatus.value,
+        limit: 50,
+        cursor,
+      })
+      if (
+        revision !== cardScopeRevision
+        || requestRevision !== personaRequestRevision
+      ) {
+        return []
+      }
+      const knownIds = new Set(personaCandidates.value.map(item => item.id))
+      personaCandidates.value = [
+        ...personaCandidates.value,
+        ...result.items.filter(item => !knownIds.has(item.id)),
+      ]
       personaNextCursor.value = result.nextCursor
       lastError.value = null
       return result.items
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (
+        revision === cardScopeRevision
+        && requestRevision === personaRequestRevision
+      ) {
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
       return []
     }
     finally {
-      if (revision === cardScopeRevision)
+      if (
+        revision === cardScopeRevision
+        && requestRevision === personaRequestRevision
+      ) {
         personaLoading.value = false
+      }
     }
   }
 
@@ -1174,6 +1298,8 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   ) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchApplyPersonaCandidateAction)
       return null
+    const scopeRevision = cardScopeRevision
+    const requestRevision = ++personaRequestRevision
     personaLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchApplyPersonaCandidateAction!({
@@ -1181,6 +1307,12 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
         decision,
         reason,
       })
+      if (
+        scopeRevision !== cardScopeRevision
+        || requestRevision !== personaRequestRevision
+      ) {
+        return null
+      }
       if (result) {
         const index = personaCandidates.value.findIndex(item => item.id === result.id)
         if (index >= 0)
@@ -1192,11 +1324,21 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       return result
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === personaRequestRevision
+      ) {
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
       return null
     }
     finally {
-      personaLoading.value = false
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === personaRequestRevision
+      ) {
+        personaLoading.value = false
+      }
     }
   }
 
@@ -1784,6 +1926,8 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   async function loadMonthlyGoldLabels(month?: string | null) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListQualityGoldLabels)
       return []
+    const scopeRevision = cardScopeRevision
+    const requestRevision = ++goldLabelRequestRevision
     const resolvedMonth = normalizeGoldLabelMonth(month)
     goldLabelLoading.value = true
     try {
@@ -1795,20 +1939,42 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
           limit: 500,
           cursor,
         })
+        if (
+          scopeRevision !== cardScopeRevision
+          || requestRevision !== goldLabelRequestRevision
+        ) {
+          return []
+        }
         items.push(...result.items as AlicizationMemoryQualityGoldLabelItem[])
         cursor = result.nextCursor
       } while (cursor)
+      if (
+        scopeRevision !== cardScopeRevision
+        || requestRevision !== goldLabelRequestRevision
+      ) {
+        return []
+      }
       goldLabelMonth.value = resolvedMonth
       monthlyGoldLabels.value = items
       lastError.value = null
       return items
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === goldLabelRequestRevision
+      ) {
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
       return []
     }
     finally {
-      goldLabelLoading.value = false
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === goldLabelRequestRevision
+      ) {
+        goldLabelLoading.value = false
+      }
     }
   }
 
@@ -1838,6 +2004,107 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     finally {
       goldLabelLoading.value = false
     }
+  }
+
+  async function loadQualityConversationSamples() {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListQualityConversationSamples)
+      return []
+    const revision = qualityReplaySessionsRevision
+    const requestRevision = ++qualityConversationSamplesRequestRevision
+    qualityConversationSamplesLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListQualityConversationSamples!({
+        limit: 20,
+      })
+      if (
+        revision !== qualityReplaySessionsRevision
+        || requestRevision !== qualityConversationSamplesRequestRevision
+      ) {
+        return []
+      }
+      qualityConversationSamples.value = result.items
+      qualityConversationSamplesNextCursor.value = result.nextCursor
+      selectedQualityConversationSampleId.value = result.items[0]?.id ?? null
+      lastError.value = null
+      return result.items
+    }
+    catch (error) {
+      if (
+        revision === qualityReplaySessionsRevision
+        && requestRevision === qualityConversationSamplesRequestRevision
+      ) {
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
+      return []
+    }
+    finally {
+      if (
+        revision === qualityReplaySessionsRevision
+        && requestRevision === qualityConversationSamplesRequestRevision
+      ) {
+        qualityConversationSamplesLoading.value = false
+      }
+    }
+  }
+
+  async function loadMoreQualityConversationSamples() {
+    const cursor = qualityConversationSamplesNextCursor.value
+    if (
+      !cursor
+      || qualityConversationSamplesLoading.value
+      || !hasAlicizationBridge()
+      || !getAlicizationBridge().memoryWorkbenchListQualityConversationSamples
+    ) {
+      return []
+    }
+    const revision = qualityReplaySessionsRevision
+    const requestRevision = ++qualityConversationSamplesRequestRevision
+    qualityConversationSamplesLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListQualityConversationSamples!({
+        cursor,
+        limit: 20,
+      })
+      if (
+        revision !== qualityReplaySessionsRevision
+        || requestRevision !== qualityConversationSamplesRequestRevision
+      ) {
+        return []
+      }
+      qualityConversationSamples.value = [
+        ...qualityConversationSamples.value,
+        ...result.items,
+      ]
+      qualityConversationSamplesNextCursor.value = result.nextCursor
+      lastError.value = null
+      return result.items
+    }
+    catch (error) {
+      if (
+        revision === qualityReplaySessionsRevision
+        && requestRevision === qualityConversationSamplesRequestRevision
+      ) {
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
+      return []
+    }
+    finally {
+      if (
+        revision === qualityReplaySessionsRevision
+        && requestRevision === qualityConversationSamplesRequestRevision
+      ) {
+        qualityConversationSamplesLoading.value = false
+      }
+    }
+  }
+
+  function selectQualityConversationSample(sampleId: string) {
+    const sample = qualityConversationSamples.value.find(item => item.id === sampleId) ?? null
+    if (!sample)
+      return null
+    selectedQualityConversationSampleId.value = sample.id
+    selectedQualitySessionId.value = sample.sessionId
+    return sample
   }
 
   async function buildMonthlyGoldRegression(month?: string | null) {
@@ -1875,13 +2142,15 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       })
       if (revision !== qualityReplaySessionsRevision)
         return []
-      qualityReplaySessions.value = result.items
-      qualityReplaySessionsNextCursor.value = result.nextCursor
-      if (!selectedQualitySessionId.value) {
-        selectedQualitySessionId.value = result.items.find(item => item.checkpointUpdatedAt !== null)?.sessionId ?? ''
-      }
+      // The desktop product has one dialogue continuity root. Keep the
+      // renderer tolerant of stale bridge data, but never expose a second
+      // replay session to the user.
+      const primarySession = result.items[0] ?? null
+      qualityReplaySessions.value = primarySession ? [primarySession] : []
+      qualityReplaySessionsNextCursor.value = null
+      selectedQualitySessionId.value = primarySession?.sessionId ?? ''
       lastError.value = null
-      return result.items
+      return qualityReplaySessions.value
     }
     catch (error) {
       lastError.value = errorMessageFrom(error) ?? 'unknown-error'
@@ -1912,17 +2181,12 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       })
       if (revision !== qualityReplaySessionsRevision)
         return []
-      const existing = new Set(qualityReplaySessions.value.map(item => item.sessionId))
-      qualityReplaySessions.value = [
-        ...qualityReplaySessions.value,
-        ...result.items.filter(item => !existing.has(item.sessionId)),
-      ]
-      qualityReplaySessionsNextCursor.value = result.nextCursor
-      if (!selectedQualitySessionId.value) {
-        selectedQualitySessionId.value = result.items.find(item => item.checkpointUpdatedAt !== null)?.sessionId ?? ''
-      }
+      const primarySession = qualityReplaySessions.value[0] ?? result.items[0] ?? null
+      qualityReplaySessions.value = primarySession ? [primarySession] : []
+      qualityReplaySessionsNextCursor.value = null
+      selectedQualitySessionId.value = primarySession?.sessionId ?? ''
       lastError.value = null
-      return result.items
+      return qualityReplaySessions.value
     }
     catch (error) {
       lastError.value = errorMessageFrom(error) ?? 'unknown-error'
@@ -1952,12 +2216,17 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   function resetQualityTrialContext() {
     void cancelQualityTrial('质量试用上下文已重置')
     qualityReplaySessionsRevision += 1
+    qualityConversationSamplesRequestRevision += 1
     qualityTrialReports.value = []
     qualityTrialReportsNextCursor.value = null
     qualityTrialReportsLoading.value = false
     qualityReplaySessions.value = []
     qualityReplaySessionsNextCursor.value = null
     qualityReplaySessionsLoading.value = false
+    qualityConversationSamples.value = []
+    qualityConversationSamplesNextCursor.value = null
+    qualityConversationSamplesLoading.value = false
+    selectedQualityConversationSampleId.value = null
     selectedQualitySessionId.value = ''
     qualityTrialMode.value = 'historical-replay'
   }
@@ -2073,16 +2342,17 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
 
   async function runQualityTrial(
     month?: string | null,
-    sessionId: string | null = selectedQualitySessionId.value || null,
+    _sessionId: string | null = selectedQualitySessionId.value || null,
     mode: 'historical-replay' | 'live-provider' = qualityTrialMode.value,
   ) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRunQualityTrial)
       return null
     if (qualityTrialLoading.value)
       return null
-    const resolvedSessionId = sessionId?.trim() ?? ''
-    if (!resolvedSessionId)
-      return null
+    // The main process resolves the canonical primary session. Keep the
+    // positional argument only so old internal callers remain source
+    // compatible while it is no longer an authority.
+    void _sessionId
     const resolvedMonth = normalizeGoldLabelMonth(month)
     const revision = qualityTrialContextRevision
     qualityTrialLoading.value = true
@@ -2090,7 +2360,6 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       const result = await getAlicizationBridge().memoryWorkbenchRunQualityTrial!({
         mode,
         month: resolvedMonth,
-        sessionId: resolvedSessionId,
       })
       if (revision !== qualityTrialContextRevision)
         return null
@@ -2367,6 +2636,10 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     qualityReplaySessions,
     qualityReplaySessionsLoading,
     qualityReplaySessionsNextCursor,
+    qualityConversationSamples,
+    qualityConversationSamplesNextCursor,
+    qualityConversationSamplesLoading,
+    selectedQualityConversationSampleId,
     selectedQualitySessionId,
     qualityTrialMode,
     goldLabelLoading,
@@ -2402,6 +2675,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     applyReviewAction,
     runRecallProbe,
     refreshPersonaCandidates,
+    loadMorePersonaCandidates,
     applyPersonaCandidateAction,
     refreshPersonaTrainingDataset,
     stagePersonaTrainingDataset,
@@ -2437,6 +2711,9 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     buildMonthlyGoldRegression,
     loadQualityReplaySessions,
     loadMoreQualityReplaySessions,
+    loadQualityConversationSamples,
+    loadMoreQualityConversationSamples,
+    selectQualityConversationSample,
     selectQualityTrialSession,
     setQualityTrialMode,
     resetQualityTrialContext,

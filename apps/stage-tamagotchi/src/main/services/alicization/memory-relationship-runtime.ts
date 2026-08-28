@@ -89,6 +89,39 @@ interface CreateAlicizationMemoryRelationshipRuntimeOptions {
   normalizeOrganicMemoryText: (raw: unknown, maxChars: number) => string
 }
 
+interface RelationshipListCursor {
+  sortValue: number
+  id: string
+}
+
+function encodeRelationshipListCursor(cursor: RelationshipListCursor) {
+  return encodeURIComponent(JSON.stringify(cursor))
+}
+
+function decodeRelationshipListCursor(raw: string | null | undefined): RelationshipListCursor | null {
+  if (!raw?.trim())
+    return null
+
+  try {
+    const parsed = JSON.parse(decodeURIComponent(raw)) as Partial<RelationshipListCursor>
+    if (
+      typeof parsed.sortValue !== 'number'
+      || !Number.isFinite(parsed.sortValue)
+      || typeof parsed.id !== 'string'
+      || !parsed.id
+    ) {
+      return null
+    }
+    return {
+      sortValue: parsed.sortValue,
+      id: parsed.id,
+    }
+  }
+  catch {
+    return null
+  }
+}
+
 export function createAlicizationMemoryRelationshipRuntime(
   options: CreateAlicizationMemoryRelationshipRuntimeOptions,
 ) {
@@ -288,16 +321,21 @@ export function createAlicizationMemoryRelationshipRuntime(
     }))
   }
 
-  async function listMemoryReflections(input: {
+  async function listMemoryReflectionsPage(input: {
     cardId: string
     limit?: number
     query?: string
     turnId?: string
     status?: AlicizationMemoryReflectionStatus
+    cursor?: string | null
   }) {
     const cardId = input.cardId.trim()
-    if (!cardId)
-      return []
+    if (!cardId) {
+      return {
+        items: [],
+        nextCursor: null,
+      }
+    }
 
     const params: unknown[] = [cardId]
     const where = ['card_id = ?']
@@ -317,16 +355,41 @@ export function createAlicizationMemoryRelationshipRuntime(
       where.push('(lower(summary) LIKE ? OR lower(lesson) LIKE ? OR lower(target_scope) LIKE ? OR lower(source_kind) LIKE ? OR id = ?)')
       params.push(queryLike, queryLike, queryLike, queryLike, query)
     }
+    const cursor = decodeRelationshipListCursor(input.cursor)
+    if (cursor) {
+      where.push('(updated_at < ? OR (updated_at = ? AND id > ?))')
+      params.push(cursor.sortValue, cursor.sortValue, cursor.id)
+    }
     const limit = Math.max(1, Math.floor(input.limit ?? 8))
-    params.push(limit)
+    params.push(limit + 1)
 
     const rows = await options.all<DbMemoryReflectionRow>(
       options.database,
-      `SELECT * FROM memory_reflections WHERE ${where.join(' AND ')} ORDER BY updated_at DESC LIMIT ?`,
+      `SELECT * FROM memory_reflections WHERE ${where.join(' AND ')} ORDER BY updated_at DESC, id ASC LIMIT ?`,
       params,
     )
 
-    return rows.map(mapMemoryReflectionRow)
+    const pageRows = rows.slice(0, limit)
+    const lastRow = pageRows.at(-1)
+    return {
+      items: pageRows.map(mapMemoryReflectionRow),
+      nextCursor: rows.length > limit && lastRow
+        ? encodeRelationshipListCursor({
+            sortValue: lastRow.updated_at,
+            id: lastRow.id,
+          })
+        : null,
+    }
+  }
+
+  async function listMemoryReflections(input: {
+    cardId: string
+    limit?: number
+    query?: string
+    turnId?: string
+    status?: AlicizationMemoryReflectionStatus
+  }) {
+    return (await listMemoryReflectionsPage(input)).items
   }
 
   async function appendRelationshipOutcomes(entries: AlicizationRelationshipOutcomeInput[]) {
@@ -541,14 +604,19 @@ export function createAlicizationMemoryRelationshipRuntime(
     }))
   }
 
-  async function listPersonaReinforcementEvents(input: {
+  async function listPersonaReinforcementEventsPage(input: {
     cardId: string
     limit?: number
     turnId?: string
+    cursor?: string | null
   }) {
     const cardId = input.cardId.trim()
-    if (!cardId)
-      return []
+    if (!cardId) {
+      return {
+        items: [],
+        nextCursor: null,
+      }
+    }
 
     const params: unknown[] = [cardId]
     const where = ['card_id = ?']
@@ -556,14 +624,37 @@ export function createAlicizationMemoryRelationshipRuntime(
       where.push('turn_id = ?')
       params.push(input.turnId.trim())
     }
+    const cursor = decodeRelationshipListCursor(input.cursor)
+    if (cursor) {
+      where.push('(created_at < ? OR (created_at = ? AND id > ?))')
+      params.push(cursor.sortValue, cursor.sortValue, cursor.id)
+    }
     const limit = Math.max(1, Math.floor(input.limit ?? 24))
-    params.push(limit)
+    params.push(limit + 1)
     const rows = await options.all<DbPersonaReinforcementEventRow>(
       options.database,
-      `SELECT * FROM persona_reinforcement_events WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT ?`,
+      `SELECT * FROM persona_reinforcement_events WHERE ${where.join(' AND ')} ORDER BY created_at DESC, id ASC LIMIT ?`,
       params,
     )
-    return rows.map(mapPersonaReinforcementEventRow)
+    const pageRows = rows.slice(0, limit)
+    const lastRow = pageRows.at(-1)
+    return {
+      items: pageRows.map(mapPersonaReinforcementEventRow),
+      nextCursor: rows.length > limit && lastRow
+        ? encodeRelationshipListCursor({
+            sortValue: lastRow.created_at,
+            id: lastRow.id,
+          })
+        : null,
+    }
+  }
+
+  async function listPersonaReinforcementEvents(input: {
+    cardId: string
+    limit?: number
+    turnId?: string
+  }) {
+    return (await listPersonaReinforcementEventsPage(input)).items
   }
 
   async function appendRelationshipDynamics(input: {
@@ -639,10 +730,12 @@ export function createAlicizationMemoryRelationshipRuntime(
   return {
     upsertMemoryReflections,
     listMemoryReflections,
+    listMemoryReflectionsPage,
     appendRelationshipOutcomes,
     listRelationshipOutcomes,
     appendPersonaReinforcementEvents,
     listPersonaReinforcementEvents,
+    listPersonaReinforcementEventsPage,
     appendRelationshipDynamics,
     getLatestRelationshipDynamics,
   }

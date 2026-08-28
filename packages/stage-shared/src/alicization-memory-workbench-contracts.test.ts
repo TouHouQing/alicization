@@ -1,12 +1,16 @@
 import type {
   AlicizationMemoryQualityGoldLabelPayload,
   AlicizationMemoryQualityMonthlyGoldRegressionPack,
+  AlicizationMemoryQualityTrialReport,
   AlicizationPersonaTrainingPipelineIncrement,
 } from './alicization-memory-workbench-contracts'
 
 import { describe, expect, it } from 'vitest'
 
-import { parseAlicizationPersonaTrainingArtifact } from './alicization-memory-workbench-contracts'
+import {
+  parseAlicizationPersonaTrainingArtifact,
+  projectAlicizationMemoryQualityTrialReportSurface,
+} from './alicization-memory-workbench-contracts'
 
 describe('alicization persona training artifact contract', () => {
   it('exposes pending cleanup availability metadata on persona increments', () => {
@@ -292,6 +296,7 @@ describe('alicization memory quality gold contract', () => {
   it('binds a human label to the replay turn, reply, and immutable evidence snapshot', () => {
     const payload = {
       cardId: 'card-a',
+      conversationSampleId: 'memory-quality-sample:card-a:session-a:turn-a',
       month: '2026-08',
       label: 'missing',
       reason: 'expired',
@@ -348,5 +353,202 @@ describe('alicization memory quality gold contract', () => {
     expect(pack.frozenAt).toBeGreaterThan(0)
     expect(pack.contentHash).toMatch(/^sha256:/u)
     expect(pack.itemsSnapshot).toEqual([])
+  })
+})
+
+describe('alicization memory quality renderer projection', () => {
+  it('keeps bounded quality diagnostics while dropping raw report fields', () => {
+    const report = {
+      version: 'memory-production-trial-runner-v1',
+      id: 'quality-report-1',
+      cardId: 'card-a',
+      createdAt: 1,
+      passed: false,
+      summary: {
+        dialogueReplayCount: 0,
+        workingMemoryFixtureCount: 1,
+        compressedContextBehaviorFixtureCount: 0,
+        temporalConflictFixtureCount: 0,
+        semanticScaleSoakRunCount: 0,
+        experienceQualityFixtureCount: 0,
+        scopeFuzzCaseCount: 0,
+        longTermFixtureCount: 1,
+        userTrialCount: 0,
+        personaTrainingFixtureCount: 0,
+        goldLabelCount: 0,
+        goldRegressionPackId: null,
+        failingStageIds: ['long-term-recall'],
+        notRunStageIds: [],
+        optimizationFindingCount: 1,
+        recommendedActionCount: 1,
+        lastError: 'timeout',
+      },
+      stages: [],
+      dialogueReplay: null,
+      liveProviderTrial: null,
+      runtimeHealth: null,
+      quality: {
+        version: 'memory-quality-harness-v1',
+        passed: false,
+        createdAt: 1,
+        summary: {
+          longTermFixtureCount: 1,
+          workingMemoryFixtureCount: 1,
+          userTrialCount: 0,
+          personaTrainingFixtureCount: 0,
+          failingFixtureIds: ['fixture-1'],
+          recallAtK: 1,
+          recallAt1: 1,
+          recallAt3: 1,
+          recallAt5: 1,
+          wrongThreadRate: 0,
+          semanticHitRate: 1,
+          sourceTraceRate: 1,
+          abstentionPrecision: 1,
+          abstentionRecall: 1,
+          p50LatencyMs: 10,
+          p95LatencyMs: 20,
+          p99LatencyMs: 30,
+          compressionLossCount: 0,
+          blockedLeakCount: 0,
+          optimizationFindingCount: 1,
+          lastError: null,
+        },
+        traces: [{
+          id: 'trace-1',
+          fixtureId: 'fixture-1',
+          owner: 'LongTermMemoryRecall',
+          query: 'private raw user query',
+          intentMode: 'semantic',
+          queryPlan: {
+            lexicalQueries: ['private query plan'],
+            phraseQueries: [],
+            semanticQueries: [],
+            threadHints: [],
+          },
+          selectedIds: ['memory-1'],
+          rejectedIds: ['memory-2'],
+          forbiddenIds: ['memory-3'],
+          rankReasonsById: {
+            'memory-1': ['semantic-match', 'private quality query'],
+          },
+          semantic: {
+            available: true,
+            providerId: 'provider-1',
+            modelId: 'model-1',
+            dimensions: 1024,
+            reindexRequired: false,
+          },
+          metrics: {
+            recallAtK: 1,
+            precisionAtK: 1,
+            mrr: 1,
+            ndcg: 1,
+            falseRecallRate: 0,
+            wrongThreadRate: 0,
+            blockedLeakCount: 0,
+            semanticHitRate: 1,
+            sourceTraceRate: 1,
+            latencyMs: 10,
+          },
+          error: null,
+          createdAt: 1,
+          privateTraceDiagnostic: 'private-quality-trace-sentinel',
+        }],
+        longTerm: [],
+        workingMemory: [],
+        userTrials: [],
+        personaTraining: [],
+        optimizationFindings: [{
+          code: 'long-term-recall-miss',
+          severity: 'critical',
+          fixtureId: 'fixture-1',
+          message: 'private finding message',
+          suggestedAction: 'repair recall',
+        }],
+        recommendedNextActions: ['repair recall'],
+      },
+      finalReplayGate: {
+        version: 'final-replay-gate-v1',
+        passed: false,
+        failingKeys: ['long-term-recall', 'private-failing-key'],
+        metrics: {
+          recallAt3: 0.5,
+          precisionAt3: 0.5,
+          wrongThreadRate: 0.5,
+          templateLeakageFailCount: 1,
+          authorityLeakCount: 2,
+          localHumanlikeVisibleFallbackCount: 3,
+          latencyBudgetPass: false,
+          privateMetric: 'private-final-gate-metric',
+        },
+        privateFinalReplayDiagnostic: 'private-final-replay-sentinel',
+      },
+      goldRegressionPack: null,
+      regression: {
+        recallAt1: 1,
+        recallAt3: 1,
+        recallAt5: 1,
+        wrongThreadRate: 0,
+        semanticHitRate: 1,
+        sourceTraceRate: 1,
+        abstentionPrecision: 1,
+        abstentionRecall: 1,
+        p50LatencyMs: 10,
+        p95LatencyMs: 20,
+        p99LatencyMs: 30,
+        staleMemoryLeakRate: 0,
+        temporalUpdateAccuracy: 1,
+        providerFailureRate: 0,
+        queueFailureRate: 0,
+        deadLetterRate: 0,
+        embeddingCoverageRatio: 1,
+      },
+      compressedContextBehavior: null,
+      temporalConflict: null,
+      semanticScaleSoak: null,
+      experienceQuality: null,
+      scopeFuzz: null,
+      recommendedNextActions: ['repair recall'],
+    } as unknown as AlicizationMemoryQualityTrialReport
+
+    const surface = projectAlicizationMemoryQualityTrialReportSurface(report)
+
+    expect(surface.finalReplayGate).toMatchObject({
+      version: 'final-replay-gate-v1',
+      passed: false,
+      failingKeys: ['long-term-recall', 'private-failing-key'],
+      metrics: {
+        recallAt3: 0.5,
+        precisionAt3: 0.5,
+        wrongThreadRate: 0.5,
+        templateLeakageFailCount: 1,
+        authorityLeakCount: 2,
+        localHumanlikeVisibleFallbackCount: 3,
+        latencyBudgetPass: false,
+      },
+    })
+    expect(surface.quality.traces).toEqual([expect.objectContaining({
+      id: 'trace-1',
+      fixtureId: 'fixture-1',
+      owner: 'LongTermMemoryRecall',
+      selectedIds: ['memory-1'],
+      semantic: {
+        available: true,
+        providerId: 'provider-1',
+        modelId: 'model-1',
+        dimensions: 1024,
+        reindexRequired: false,
+      },
+      rankReasonsById: {
+        'memory-1': ['semantic-match'],
+      },
+    })])
+    expect(JSON.stringify(surface)).not.toContain('private raw user query')
+    expect(JSON.stringify(surface)).not.toContain('private query plan')
+    expect(JSON.stringify(surface)).not.toContain('private-quality-trace-sentinel')
+    expect(JSON.stringify(surface)).not.toContain('private-final-replay-sentinel')
+    expect(JSON.stringify(surface)).not.toContain('private-final-gate-metric')
+    expect(JSON.stringify(surface)).not.toContain('private finding message')
   })
 })

@@ -150,8 +150,23 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
   enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
   policyStore: MemoryWorkbenchPolicyStoreRuntime
-  listMemoryReflections: (payload: { cardId: string, limit?: number, status?: AlicizationMemoryReflectionRecord['status'] }) => Promise<AlicizationMemoryReflectionRecord[]>
-  listPersonaReinforcementEvents: (payload: { cardId: string, limit?: number }) => Promise<AlicizationPersonaReinforcementEventRecord[]>
+  listMemoryReflectionsPage: (payload: {
+    cardId: string
+    limit?: number
+    status?: AlicizationMemoryReflectionRecord['status']
+    cursor?: string | null
+  }) => Promise<{
+    items: AlicizationMemoryReflectionRecord[]
+    nextCursor: string | null
+  }>
+  listPersonaReinforcementEventsPage: (payload: {
+    cardId: string
+    limit?: number
+    cursor?: string | null
+  }) => Promise<{
+    items: AlicizationPersonaReinforcementEventRecord[]
+    nextCursor: string | null
+  }>
   listTombstonedLongTermMemorySourceIds: (sourceIds: string[]) => Promise<Set<string>>
 }) {
   async function listReviews(cardId: string) {
@@ -169,9 +184,37 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
   }
 
   async function buildCandidates(cardId: string) {
+    const readAllPages = async <T>(
+      readPage: (cursor: string | null) => Promise<{
+        items: T[]
+        nextCursor: string | null
+      }>,
+    ) => {
+      const items: T[] = []
+      const seenCursors = new Set<string>()
+      let cursor: string | null = null
+      while (true) {
+        const page = await readPage(cursor)
+        items.push(...page.items)
+        if (!page.nextCursor || seenCursors.has(page.nextCursor))
+          break
+        seenCursors.add(page.nextCursor)
+        cursor = page.nextCursor
+      }
+      return items
+    }
     const [reflections, reinforcements] = await Promise.all([
-      input.listMemoryReflections({ cardId, limit: 200, status: 'confirmed' }).catch(() => []),
-      input.listPersonaReinforcementEvents({ cardId, limit: 200 }).catch(() => []),
+      readAllPages(cursor => input.listMemoryReflectionsPage({
+        cardId,
+        limit: 256,
+        status: 'confirmed',
+        cursor,
+      })).catch(() => []),
+      readAllPages(cursor => input.listPersonaReinforcementEventsPage({
+        cardId,
+        limit: 256,
+        cursor,
+      })).catch(() => []),
     ])
     const tombstonedSourceIds = await input.listTombstonedLongTermMemorySourceIds([
       ...reflections.map(reflection => reflection.id),
@@ -290,8 +333,9 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     if (!cardId || !candidateId)
       return null
 
-    const existing = await listPersonaCandidates({ cardId, limit: 100 })
-    if (!existing.items.some(item => item.id === candidateId))
+    const candidates = await buildCandidates(cardId)
+    const candidate = candidates.find(item => item.candidate.id === candidateId)
+    if (!candidate)
       return null
 
     const status = statusForDecision(payload.decision)
@@ -333,9 +377,19 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       })
     })
 
-    return (await listPersonaCandidates({ cardId, status: 'all', limit: 100 }))
-      .items
-      .find(item => item.id === candidateId) ?? null
+    const reviews = await listReviews(cardId)
+    const review = reviews.get(candidateId)
+    return mergePersonaCandidateReviewState({
+      candidate: candidate.candidate,
+      review: review ?? {
+        candidateId,
+        status,
+        allowTraining: false,
+        reason,
+        updatedAt,
+      },
+      now: candidate.updatedAt,
+    })
   }
 
   return {

@@ -7,7 +7,7 @@ import type { AlicizationMemoryConsolidationRecord } from './memory-consolidatio
 import type { AlicizationRuntimeEventScope } from './turn-os/event-store'
 
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -81,6 +81,7 @@ const runtimeModulePath = fileURLToPath(new URL('./runtime.ts', import.meta.url)
 const contextEmitMock = vi.fn()
 const metaStore = new Map<string, string>()
 const runtimeEventsByTurn = new Map<string, any[]>()
+const setupDbResolvedEmbeddingProviders: Array<{ modelId: string, dimensions: number } | null> = []
 const streamTextMock = vi.fn()
 const generateTextMock = vi.fn()
 const directIpcHandlers = new Map<string, (event: any, payload?: any) => Promise<any> | any>()
@@ -534,7 +535,15 @@ vi.mock('../../libs/bootkit/lifecycle', () => ({
 }))
 
 vi.mock('./db', () => ({
-  setupAlicizationDb: vi.fn(async () => dbStub),
+  setupAlicizationDb: vi.fn(async (_userDataPath: string, options?: {
+    resolveEmbeddingProvider?: () => { modelId: string, dimensions: number } | null
+  }) => {
+    const provider = options?.resolveEmbeddingProvider?.() ?? null
+    setupDbResolvedEmbeddingProviders.push(provider
+      ? { modelId: provider.modelId, dimensions: provider.dimensions }
+      : null)
+    return dbStub
+  }),
 }))
 
 vi.mock('./llama-cpp-persona-runtime', async (importOriginal) => {
@@ -915,6 +924,7 @@ describe('alicization runtime audit helpers', () => {
     generateTextMock.mockReset()
     mockGenerateTextFromStreamText()
     metaStore.clear()
+    setupDbResolvedEmbeddingProviders.length = 0
     runtimeEventsByTurn.clear()
     screenCaptureDiagnosticsBySenderId.clear()
     foregroundWindowSample = undefined
@@ -1011,6 +1021,31 @@ describe('alicization runtime audit helpers', () => {
     expect(afterGenesis.soulPath.startsWith(sandboxPath)).toBe(true)
     expect(afterGenesis.needsGenesis).toBe(false)
     expect(afterGenesis.watching).toBe(true)
+  })
+
+  it('restores the persisted embedding provider before opening the database during startup', async () => {
+    const sandboxPath = await createSandboxPath()
+    await mkdir(join(sandboxPath, 'alicizations'), { recursive: true })
+    await writeFile(join(sandboxPath, 'alicizations', 'llm-config.json'), JSON.stringify({
+      activeProviderId: 'openai-compatible',
+      activeModelId: 'chat-model',
+      providerCredentials: {
+        __alicizationMemoryEmbedding: {
+          baseUrl: 'https://api.example.test/v1',
+          model: 'embedding-model',
+          dimensions: 3,
+        },
+      },
+    }), 'utf8')
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    expect(setupDbResolvedEmbeddingProviders).toEqual([{
+      modelId: 'embedding-model',
+      dimensions: 3,
+    }])
   })
 
   it('passes a stable user-data-scoped process state path to the local Persona runtime', async () => {
@@ -1658,7 +1693,7 @@ describe('alicization runtime audit helpers', () => {
     await appendConversationTurn!({
       cardId: 'default',
       turnId: 'turn-test-1',
-      sessionId: 'session-test',
+      sessionId: 'session:primary:default',
       userText: '你好',
       assistantText: '你好，我在。',
       structured: {
@@ -1687,7 +1722,7 @@ describe('alicization runtime audit helpers', () => {
     expect(dialogueEvent).toEqual(expect.objectContaining({
       cardId: 'default',
       turnId: 'turn-test-1',
-      sessionId: 'session-test',
+      sessionId: 'session:primary:default',
       isFallback: false,
     }))
   })
@@ -1875,7 +1910,7 @@ describe('alicization runtime audit helpers', () => {
         body: expect.objectContaining({
           cardId: 'default',
           turnId: 'turn-dialogue-dispatch',
-          sessionId: 'session-test',
+          sessionId: 'session:primary:default',
         }),
       }),
     )
@@ -3788,7 +3823,7 @@ describe('alicization runtime audit helpers', () => {
     })
     await setActiveSession!({
       cardId: 'default',
-      sessionId: 'session-task-planning-dream',
+      sessionId: 'session:primary:default',
     })
 
     const planningResult = await planTaskThread!({
@@ -3797,7 +3832,7 @@ describe('alicization runtime audit helpers', () => {
       trace: {
         decisionTraceId: 'mind:l9f3lq:plan-dream',
         turnId: 'turn-plan-dream-1',
-        sessionId: 'session-task-planning-dream',
+        sessionId: 'session:primary:default',
         origin: 'user-turn',
       },
       task: {
@@ -3843,7 +3878,7 @@ describe('alicization runtime audit helpers', () => {
         && item.payload?.reason === 'unit-task-planning-mirror',
       )
     expect(dreamAudit?.payload?.dreamHydrationSnapshot).toMatchObject({
-      conversationSessionId: 'session-task-planning-dream',
+      conversationSessionId: 'session:primary:default',
     })
     expect(dreamAudit?.payload?.agentRuntime?.recentActions).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -5127,14 +5162,14 @@ describe('alicization runtime audit helpers', () => {
     })
     await setActiveSession!({
       cardId: 'default',
-      sessionId: 'session-cli-runtime-restart',
+      sessionId: 'session:primary:default',
     })
 
     let currentThread = {
       id: 'thread-cli-runtime-restart',
       decisionTraceId: 'mind:l9f3lq:dispatch-runtime-restart',
       turnId: 'turn-cli-runtime-restart',
-      sessionId: 'session-cli-runtime-restart',
+      sessionId: 'session:primary:default',
       origin: 'user-turn',
       goal: 'Run the CLI body and keep the result across restart.',
       kind: 'run-command',
@@ -5204,7 +5239,7 @@ describe('alicization runtime audit helpers', () => {
     expect(metaStore.get('execution_delivery_state_v1')).toContain('thread-cli-runtime-restart')
     expect(getDialogueRespondedEvents().filter(event =>
       String(event.turnId).startsWith('execution-callback:')
-      && event.sessionId === 'session-cli-runtime-restart',
+      && event.sessionId === 'session:primary:default',
     )).toHaveLength(0)
 
     await runAppBeforeQuitHandlers()
@@ -5221,13 +5256,13 @@ describe('alicization runtime audit helpers', () => {
 
     expect(getDialogueRespondedEvents().filter(event =>
       String(event.turnId).startsWith('execution-callback:')
-      && event.sessionId === 'session-cli-runtime-restart',
+      && event.sessionId === 'session:primary:default',
     )).toHaveLength(1)
     expect(getDialogueRespondedEvents().find(event =>
       String(event.turnId).startsWith('execution-callback:')
-      && event.sessionId === 'session-cli-runtime-restart',
+      && event.sessionId === 'session:primary:default',
     )).toEqual(expect.objectContaining({
-      sessionId: 'session-cli-runtime-restart',
+      sessionId: 'session:primary:default',
       origin: 'subconscious-proactive',
       structured: expect.objectContaining({
         reply: expect.stringContaining('restart callback ok'),
@@ -5250,7 +5285,7 @@ describe('alicization runtime audit helpers', () => {
 
     expect(getDialogueRespondedEvents().filter(event =>
       String(event.turnId).startsWith('execution-callback:')
-      && event.sessionId === 'session-cli-runtime-restart',
+      && event.sessionId === 'session:primary:default',
     )).toHaveLength(1)
   })
 
@@ -5740,7 +5775,7 @@ describe('alicization runtime audit helpers', () => {
     await appendConversationTurn!({
       cardId: 'default',
       turnId: 'turn-provider-memory-side-failure',
-      sessionId: 'session-provider-memory-side-failure',
+      sessionId: 'session:primary:default',
       userText: '继续刚才的记忆话题',
       assistantText: 'Provider reply',
       structured: {
@@ -5772,7 +5807,7 @@ describe('alicization runtime audit helpers', () => {
     })
     expect(failureArtifact).toMatchObject({
       turnId: 'turn-provider-memory-side-failure:memory-failure:long-term-memory-recall:0',
-      sessionId: 'session-provider-memory-side-failure',
+      sessionId: 'session:primary:default',
       structured: {
         format: 'alicization-memory-side-failure-v1',
         origin: 'failure-surface',
@@ -6798,7 +6833,7 @@ describe('alicization runtime audit helpers', () => {
 
     await setActiveSession!({
       cardId: 'default',
-      sessionId: 'session-boundary-test',
+      sessionId: 'session:primary:default',
     })
 
     await appendConversationTurn!({
@@ -6815,7 +6850,7 @@ describe('alicization runtime audit helpers', () => {
     })
 
     expect(dbStub.appendConversationTurn).toBeCalledWith(expect.objectContaining({
-      sessionId: 'session-boundary-test',
+      sessionId: 'session:primary:default',
     }), expect.anything())
   })
 
@@ -6842,7 +6877,7 @@ describe('alicization runtime audit helpers', () => {
     })
 
     const call = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as { sessionId?: string } | undefined
-    expect(call?.sessionId).toContain('session:auto:default:')
+    expect(call?.sessionId).toBe('session:primary:default')
   })
 
   it('binds latest persisted session when active session is missing', async () => {
@@ -6869,7 +6904,7 @@ describe('alicization runtime audit helpers', () => {
     })
 
     const call = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as { sessionId?: string } | undefined
-    expect(call?.sessionId).toBe('session-from-latest-turn')
+    expect(call?.sessionId).toBe('session:primary:default')
   })
 
   it('flushes subconscious state to disk before card scope switch', async () => {
@@ -10567,14 +10602,14 @@ describe('alicization runtime audit helpers', () => {
     })
     await setActiveSession!({
       cardId: 'default',
-      sessionId: 'session-inline-suppressed',
+      sessionId: 'session:primary:default',
     })
 
     let currentThread = {
       id: 'thread-inline-suppressed',
       decisionTraceId: 'mind:l9f3lq:inline-suppressed',
       turnId: 'turn-inline-suppressed-source',
-      sessionId: 'session-inline-suppressed',
+      sessionId: 'session:primary:default',
       origin: 'user-turn',
       goal: 'Run the CLI body and keep the result from resurfacing twice.',
       kind: 'run-command',
@@ -10650,17 +10685,17 @@ describe('alicization runtime audit helpers', () => {
     const callbackRuntime = runtimeTestInternals.currentExecutionCallbackRuntime
     expect(callbackRuntime).toBeTruthy()
     const callbackPreviewBefore = await callbackRuntime?.buildPendingExecutionCallbackContext?.({
-      sessionId: 'session-inline-suppressed',
+      sessionId: 'session:primary:default',
       consume: false,
     }) as { callbacks?: Array<{ createdAt?: number }> } | undefined
-    const callbackCursorBefore = callbackRuntime?.peekSurfacedCursor?.('session-inline-suppressed') ?? null
+    const callbackCursorBefore = callbackRuntime?.peekSurfacedCursor?.('session:primary:default') ?? null
     expect(callbackPreviewBefore?.callbacks ?? []).toHaveLength(1)
     const persistedDeliveryBefore = JSON.parse(metaStore.get('execution_delivery_state_v1') ?? '{}') as {
       pending?: Array<{ completedAt?: number, sessionId?: string, threadId?: string }>
     }
     expect(callbackPreviewBefore?.callbacks?.[0]).toMatchObject({
       createdAt: persistedDeliveryBefore.pending?.[0]?.completedAt,
-      sessionId: 'session-inline-suppressed',
+      sessionId: 'session:primary:default',
       threadId: 'thread-inline-suppressed',
     })
     expect(Number(callbackCursorBefore ?? 0)).toBeLessThan(Number(callbackPreviewBefore?.callbacks?.[0]?.createdAt ?? Number.MAX_SAFE_INTEGER))
@@ -10708,10 +10743,10 @@ describe('alicization runtime audit helpers', () => {
       failureSurface: null,
     })
     const callbackPreviewAfter = await callbackRuntime?.buildPendingExecutionCallbackContext?.({
-      sessionId: 'session-inline-suppressed',
+      sessionId: 'session:primary:default',
       consume: false,
     }) as { callbacks?: Array<{ createdAt?: number }> } | undefined
-    const callbackCursorAfter = callbackRuntime?.peekSurfacedCursor?.('session-inline-suppressed') ?? null
+    const callbackCursorAfter = callbackRuntime?.peekSurfacedCursor?.('session:primary:default') ?? null
     expect(callbackPreviewAfter?.callbacks ?? []).toHaveLength(0)
     expect(callbackCursorAfter).toBe(callbackPreviewBefore?.callbacks?.[0]?.createdAt ?? null)
     const callbackSettlementFailures = dbStub.appendAuditLog.mock.calls
@@ -10736,7 +10771,7 @@ describe('alicization runtime audit helpers', () => {
     const repeatedCallbackEvents = getDialogueRespondedEvents()
       .filter(event =>
         String(event.turnId).startsWith('execution-callback:')
-        && event.sessionId === 'session-inline-suppressed',
+        && event.sessionId === 'session:primary:default',
       )
     expect(repeatedCallbackEvents).toHaveLength(0)
   })
@@ -11263,7 +11298,7 @@ describe('alicization runtime audit helpers', () => {
     expect(chunkEvents).toHaveLength(0)
   })
 
-  it('treats non-progress stream events as a transparent timeout failure', async () => {
+  it('treats non-progress stream events as a transparent timeout failure without retrying', async () => {
     vi.useFakeTimers()
     try {
       const sandboxPath = await createSandboxPath()
@@ -11320,7 +11355,7 @@ describe('alicization runtime audit helpers', () => {
         .filter(([event, payload]) => event === alicizationChatStreamChunk && payload.turnId === turnId)
         .map(([, payload]) => payload)
 
-      expect(streamTextMock.mock.calls.length).toBeGreaterThan(1)
+      expect(streamTextMock).toHaveBeenCalledTimes(1)
       expect(chunkEvents).toHaveLength(0)
       expect(finishEvents[0]).toMatchObject({
         status: 'timed-out',
@@ -11695,7 +11730,7 @@ describe('alicization runtime audit helpers', () => {
 
     await setActiveSession!({
       cardId: 'default',
-      sessionId: 'session-dream-loop',
+      sessionId: 'session:primary:default',
     })
 
     const firstDreamUpdatedAt = Date.now() - 15_000
@@ -11736,10 +11771,10 @@ describe('alicization runtime audit helpers', () => {
     const firstDreamAudit = dreamAudits.find((item: any) => item.payload?.reason === 'unit-dream-loop-1')
     const secondDreamAudit = dreamAudits.find((item: any) => item.payload?.reason === 'unit-dream-loop-2')
     expect(firstDreamAudit?.payload?.dreamHydrationSnapshot).toMatchObject({
-      conversationSessionId: 'session-dream-loop',
+      conversationSessionId: 'session:primary:default',
     })
     expect(secondDreamAudit?.payload?.dreamHydrationSnapshot).toMatchObject({
-      conversationSessionId: 'session-dream-loop',
+      conversationSessionId: 'session:primary:default',
     })
     const firstDreamActions = firstDreamAudit?.payload?.agentRuntime?.recentActions ?? []
     const secondDreamActions = secondDreamAudit?.payload?.agentRuntime?.recentActions ?? []
@@ -14450,7 +14485,7 @@ describe('alicization runtime audit helpers', () => {
 
       await setActiveSession!({
         cardId: 'default',
-        sessionId: 'session-proactive-ignored-dream',
+        sessionId: 'session:primary:default',
       })
       await syncLlmConfig!({
         activeProviderId: 'openai',
@@ -14469,7 +14504,7 @@ describe('alicization runtime audit helpers', () => {
         .find(event => event.origin === 'subconscious-proactive')
       expect(emittedProactiveEventAfterTick).toEqual(expect.objectContaining({
         origin: 'subconscious-proactive',
-        sessionId: 'session-proactive-ignored-dream',
+        sessionId: 'session:primary:default',
         structured: expect.objectContaining({
           proactive: expect.objectContaining({
             scenario: 'coding',
@@ -14486,7 +14521,7 @@ describe('alicization runtime audit helpers', () => {
         feedbackWindowMs?: number | null
       } | null
       expect(pendingProactiveDeliveryAfterTick).toEqual(expect.objectContaining({
-        sessionId: 'session-proactive-ignored-dream',
+        sessionId: 'session:primary:default',
         scenario: 'coding',
         feedbackWindowMs: expect.any(Number),
       }))
@@ -14578,7 +14613,7 @@ describe('alicization runtime audit helpers', () => {
           && item.payload?.reason === 'unit-proactive-ignored-dream',
         )
       expect(dreamAudit?.payload?.dreamHydrationSnapshot).toMatchObject({
-        conversationSessionId: 'session-proactive-ignored-dream',
+        conversationSessionId: 'session:primary:default',
       })
       expect(dreamAudit?.payload?.dreamHydrationSnapshot?.continuityLabels).toEqual(expect.arrayContaining([
         'proactive:coding:ignored',
@@ -14612,11 +14647,11 @@ describe('alicization runtime audit helpers', () => {
       await onEvent?.({ type: 'text-delta', text: '这次我不绕。' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
-    metaStore.set('active_session_id_v1', 'session-dialogue-feedback')
+    metaStore.set('active_session_id_v1', 'session:primary:default')
     dbStub.listConversationTurnsBySession.mockResolvedValueOnce([
       {
         turnId: 'turn-assistant-prev',
-        sessionId: 'session-dialogue-feedback',
+        sessionId: 'session:primary:default',
         userText: '你是谁',
         assistantText: '你好。你想继续聊，还是想让我做点什么，都直接说。',
         structuredJson: JSON.stringify({
@@ -14633,7 +14668,7 @@ describe('alicization runtime audit helpers', () => {
         id: 'mind-event-recall-1',
         decisionTraceId: 'mind:l9f3lq:feedfacecafe',
         turnId: 'turn-assistant-prev',
-        sessionId: 'session-dialogue-feedback',
+        sessionId: 'session:primary:default',
         origin: 'user-turn',
         kind: 'recall-attribution',
         payload: {
@@ -14662,7 +14697,7 @@ describe('alicization runtime audit helpers', () => {
         id: 'mind-event-coherence-1',
         decisionTraceId: 'mind:l9f3lq:feedfacecafe',
         turnId: 'turn-assistant-prev',
-        sessionId: 'session-dialogue-feedback',
+        sessionId: 'session:primary:default',
         origin: 'user-turn',
         kind: 'reply-memory-coherence',
         payload: {
@@ -14681,7 +14716,7 @@ describe('alicization runtime audit helpers', () => {
         cardId: 'default',
         decisionTraceId: 'mind:l9f3lq:feedfacecafe',
         turnId: 'turn-assistant-prev',
-        sessionId: 'session-dialogue-feedback',
+        sessionId: 'session:primary:default',
         sourceKind: 'dialogue-feedback',
         provenance: 'remembered',
         occurredAt: Date.now() - 12_000,
@@ -14769,7 +14804,7 @@ describe('alicization runtime audit helpers', () => {
       expect.objectContaining({
         sourceKind: 'dialogue-feedback',
         turnId: 'turn-assistant-prev',
-        sessionId: 'session-dialogue-feedback',
+        sessionId: 'session:primary:default',
       }),
     ]))
     expect(dbStub.listMindTurnEvents).toBeCalledWith({
@@ -14778,7 +14813,7 @@ describe('alicization runtime audit helpers', () => {
     })
     expect(dbStub.searchEpisodicEvents).toBeCalledWith(expect.objectContaining({
       recallSeed: expect.stringContaining('模板'),
-      sessionId: 'session-dialogue-feedback',
+      sessionId: 'session:primary:default',
       turnId: 'turn-assistant-prev',
       carryAsMemory: true,
       recollectionIntent: expect.objectContaining({
@@ -14790,7 +14825,7 @@ describe('alicization runtime audit helpers', () => {
       expect.objectContaining({
         decisionTraceId: 'mind:l9f3lq:feedfacecafe',
         turnId: 'turn-assistant-prev',
-        sessionId: 'session-dialogue-feedback',
+        sessionId: 'session:primary:default',
         kind: 'memory-reconsolidated',
         payload: expect.objectContaining({
           source: 'dialogue-feedback',
@@ -14804,7 +14839,7 @@ describe('alicization runtime audit helpers', () => {
       expect.objectContaining({
         decisionTraceId: 'mind:l9f3lq:feedfacecafe',
         turnId: 'turn-assistant-prev',
-        sessionId: 'session-dialogue-feedback',
+        sessionId: 'session:primary:default',
         kind: 'person-state-updated',
         payload: expect.objectContaining({
           version: 'person-state-update-surface-v1',

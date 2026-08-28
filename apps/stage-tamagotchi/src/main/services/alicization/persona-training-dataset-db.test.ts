@@ -523,6 +523,81 @@ async function stageActivatablePersonaDataset(
 }
 
 describe('persona training dataset database provenance', () => {
+  it('includes every confirmed reflection when the source list crosses a database page boundary', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const db = await setupAlicizationDb(userDataPath)
+    try {
+      const reflections = Array.from({ length: 257 }, (_, index) => ({
+        id: `reflection-page-boundary-${index}`,
+        cardId: 'card-a',
+        decisionTraceId: null,
+        turnId: null,
+        sessionId: 'session-persona-page-boundary',
+        sourceKind: 'reply' as const,
+        targetScope: 'relationship' as const,
+        summary: `分页边界来源 ${index}`,
+        lesson: `分页边界教训 ${index}`,
+        status: 'confirmed' as const,
+        confidence: 0.8,
+        supportingFactIds: [],
+        supportingOutcomeIds: [],
+        createdAt: 1_000 + index,
+        updatedAt: 1_000 + index,
+        confirmedAt: 1_000 + index,
+        deniedAt: null,
+      }))
+
+      await db.upsertMemoryReflections(reflections)
+      const rawDatabase = await openRawDatabase(join(
+        userDataPath,
+        'alicizations',
+        'alicization.db',
+      ))
+      try {
+        for (const reflection of reflections) {
+          await runRaw(
+            rawDatabase,
+            `
+            INSERT INTO persona_training_source_provenance (
+              card_id, source_id, source_kind, cleaning_transaction_id, cleaned_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            `,
+            [
+              reflection.cardId,
+              reflection.id,
+              'cleaned-long-term-reflection',
+              `cleaning-${reflection.id}`,
+              reflection.updatedAt!,
+              reflection.updatedAt!,
+            ],
+          )
+        }
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+
+      await db.stagePersonaTrainingDataset({
+        cardId: 'card-a',
+        consent: {
+          granted: false,
+          policyVersion: 'persona-training-consent-v1',
+          scope: 'persona-dataset',
+        },
+      })
+
+      const snapshot = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
+      const sourceIds = new Set(snapshot.examples.map(example => example.sourceId))
+
+      expect(snapshot.examples).toHaveLength(257)
+      expect(sourceIds).toContain('reflection-page-boundary-0')
+      expect(sourceIds).toContain('reflection-page-boundary-256')
+    }
+    finally {
+      await db.close()
+    }
+  })
+
   it('keeps same-id reflection and reinforcement examples distinct when revoking one source kind', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const databasePath = join(userDataPath, 'alicizations', 'alicization.db')

@@ -1066,14 +1066,44 @@ export function createMemorySemanticScaleJobRuntime(input: {
       fileMode: 0o600,
       randomId: input.randomUUID,
       now: input.now,
-      runStep: async <T>(stage: string, task: () => Promise<T>) =>
-        stopDeadline
+      runStep: async <T>(stage: string, task: () => Promise<T>) => {
+        // Once the marker has been atomically renamed, directory fsync is a
+        // durability enhancement rather than the recovery boundary itself.
+        // Keep it alive in the background so a slow filesystem cannot make a
+        // bounded runtime stop fail after the marker is already visible.
+        if (stage === 'atomic parent directory sync') {
+          void Promise.resolve()
+            .then(task)
+            .catch(async (error) => {
+              const code = (error as NodeJS.ErrnoException | null)?.code
+              const unsupported = recoveryPlatform === 'win32'
+                && ['EPERM', 'EBADF', 'EINVAL', 'ENOTSUP'].includes(String(code))
+              await Promise.resolve(appendRecoveryAuditLog({
+                level: unsupported ? 'notice' : 'warning',
+                category: 'semantic-scale-stop-recovery',
+                action: unsupported
+                  ? 'directory-fsync-degraded'
+                  : 'directory-fsync-failed-after-marker-rename',
+                message: unsupported
+                  ? 'Directory fsync is not supported for this recovery journal operation.'
+                  : 'Recovery marker was atomically renamed, but parent directory fsync did not complete.',
+                payload: {
+                  code,
+                  path,
+                  platform: recoveryPlatform,
+                },
+              })).catch(() => {})
+            })
+          return undefined as T
+        }
+        return stopDeadline
           ? await withinStopDeadline(
               stopDeadline,
               `recovery marker ${stage}`,
               task,
             )
-          : await task(),
+          : await task()
+      },
     })
     return path
   }

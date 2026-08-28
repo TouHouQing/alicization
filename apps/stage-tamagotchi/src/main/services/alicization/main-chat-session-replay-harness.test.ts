@@ -854,6 +854,27 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
     }))
   })
 
+  it('keeps one agent session across the complete replay instead of only reusing the conversation id', async () => {
+    const turns = await replayMainChatSession({
+      turns: [
+        {
+          turnId: 'turn-agent-session-1',
+          userText: '先把这条连续性留住。',
+        },
+        {
+          turnId: 'turn-agent-session-2',
+          userText: '继续沿着刚才那条线。',
+        },
+      ],
+    })
+
+    expect(turns).toHaveLength(2)
+    expect(turns[0]?.conversationSessionId).toBe('session-replay')
+    expect(turns[1]?.conversationSessionId).toBe('session-replay')
+    expect(turns[0]?.agentSessionId).toBeTruthy()
+    expect(turns[1]?.agentSessionId).toBe(turns[0]?.agentSessionId)
+  })
+
   it('replays the same phrase under different contexts and produces different memory bundles', async () => {
     const turns = await replayMainChatSession({
       turns: [

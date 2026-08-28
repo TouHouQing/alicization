@@ -49,8 +49,8 @@ describe('main chat runtime architecture', () => {
   it('does not derive Coding Agent authority from the old dialogue encounter projection', () => {
     const source = readFileSync(new URL('./main-chat-session-runtime.ts', import.meta.url), 'utf8')
 
-    expect(source).not.toContain('buildAlicizationCodingAgentDelegationAuthority')
-    expect(source).not.toContain('codingAgentDelegation')
+    expect(source).not.toContain('dialogueEncounter?.codingAgentDelegation')
+    expect(source).toContain('codingAgentExecutionIntent')
   })
 })
 
@@ -181,6 +181,15 @@ function createPrelude(overrides?: {
     reasonCodes: string[]
     source: 'dialogue-governance'
     summary: string
+  }
+  codingAgentExecutionIntent?: {
+    confidence: number
+    intentKind: 'capability-query' | 'execute'
+    requestedAgent: 'auto' | 'codex' | 'claude-code' | 'cli' | null
+    scope: 'none' | 'investigation' | 'edit' | 'command'
+    sourceTurnId: string
+    source: 'heuristic' | 'structured-cognition' | 'fallback'
+    verdict: 'respond-directly' | 'clarify' | 'delegate-coding-agent'
   }
   messages?: Message[]
 }): PreparedPreludeWithRuntimeSurface {
@@ -374,6 +383,7 @@ function createPrelude(overrides?: {
       chatGovernance: {
         turnMode: 'answer',
         personaKernelMode: 'full',
+        codingAgentExecutionIntent: overrides?.codingAgentExecutionIntent ?? null,
         mindTurnContract: null,
         mindTurnGovernance: {
           decisionTraceId: 'trace-1',
@@ -601,6 +611,15 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           role: 'user',
           content: '继续这个 Codex 线程',
         } as Message],
+        codingAgentExecutionIntent: {
+          confidence: 0.92,
+          intentKind: 'execute',
+          requestedAgent: 'codex',
+          scope: 'investigation',
+          source: 'structured-cognition',
+          sourceTurnId: 'turn-resume-signal',
+          verdict: 'delegate-coding-agent',
+        },
       }),
       abortSignal: outerController.signal,
     })
@@ -1308,6 +1327,15 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         role: 'user',
         content: '继续沿着这个记忆项目闭环往下，直接帮我用 Codex 查一下现在这个目录的情况，不要用 CLI，也别把当前任务线弄丢。',
       } as Message],
+      codingAgentExecutionIntent: {
+        confidence: 0.94,
+        intentKind: 'execute',
+        requestedAgent: 'codex',
+        scope: 'investigation',
+        source: 'structured-cognition',
+        sourceTurnId: 'turn-main-session-direct-execution-project-briefing',
+        verdict: 'delegate-coding-agent',
+      },
     })
     const result = await runtime.prepareExecution({
       payload: {
@@ -1344,7 +1372,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       ?.find((entry: any) => entry.function?.name === 'coding_agent') as any
     expect(codingAgentTool.function.parameters.properties.agent).toEqual({
       type: 'string',
-      enum: ['cli', 'codex', 'claude-code'],
+      const: 'codex',
     })
     const providerStreamingId = result.toolCallIdentity.resolveProviderToolCall({
       phase: 'streaming-start',
@@ -1388,11 +1416,9 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const capabilityToolNames = capabilityResult.tools
       ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean) ?? []
-    expect(capabilityToolNames).toEqual(expect.arrayContaining([
-      'coding_agent',
-      'cli',
-      'local_visual',
-    ]))
+    expect(capabilityToolNames).toEqual(expect.arrayContaining(['local_visual']))
+    expect(capabilityToolNames).not.toContain('coding_agent')
+    expect(capabilityToolNames).not.toContain('cli')
 
     const localDirectoryQuery = '你看看桌面的git文件夹有哪些项目，列举给我'
     const localDirectoryResult = await runtime.prepareExecution({
@@ -1410,6 +1436,15 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           role: 'user',
           content: localDirectoryQuery,
         } as Message],
+        codingAgentExecutionIntent: {
+          confidence: 0.94,
+          intentKind: 'execute',
+          requestedAgent: 'cli',
+          scope: 'command',
+          source: 'structured-cognition',
+          sourceTurnId: 'turn-main-session-local-directory-query',
+          verdict: 'delegate-coding-agent',
+        },
       }),
     })
 
@@ -2870,6 +2905,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         perceptionAugmentation: {
           ...reflectivePrelude.perceptionAugmentation,
           chatGovernance: {
+            codingAgentExecutionIntent: null,
             turnMode: 'answer',
             personaKernelMode: 'full',
             mindTurnContract: null,
@@ -3486,6 +3522,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         perceptionAugmentation: {
           ...reflectivePrelude.perceptionAugmentation,
           chatGovernance: {
+            codingAgentExecutionIntent: null,
             turnMode: 'answer',
             personaKernelMode: 'full',
             mindTurnContract: null,

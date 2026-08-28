@@ -514,6 +514,60 @@ describe('memory semantic scale job runtime', () => {
     expect(postStopJobUpdates).toBe(0)
   })
 
+  it('keeps an atomically renamed recovery marker authoritative when directory sync outlives stop', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    const recoveryJournalDir = join(tempRootDir, 'stop-recovery-journal')
+    let executionStarted: (() => void) | undefined
+    let directoryFsyncStarted: (() => void) | undefined
+    let releaseDirectoryFsync: (() => void) | undefined
+    const executionStartedPromise = new Promise<void>((resolve) => {
+      executionStarted = resolve
+    })
+    const directoryFsyncStartedPromise = new Promise<void>((resolve) => {
+      directoryFsyncStarted = resolve
+    })
+    const releaseDirectoryFsyncPromise = new Promise<void>((resolve) => {
+      releaseDirectoryFsync = resolve
+    })
+    const { runtime } = attachRuntime(harness, {
+      stopTimeoutMs: 80,
+      tempRootDir,
+      recoveryJournalDir,
+      recoveryAtomicWriteOptions: {
+        fsyncPath: async (path) => {
+          if (path === recoveryJournalDir) {
+            directoryFsyncStarted?.()
+            await releaseDirectoryFsyncPromise
+          }
+        },
+      },
+      executeJob: async () => {
+        executionStarted?.()
+        return await new Promise<ReturnType<typeof createReport>>(() => {})
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    void runtime.runNextAttempt(job.jobId)
+    await executionStartedPromise
+
+    const stopping = runtime.stop()
+    await directoryFsyncStartedPromise
+    const stopResult = await Promise.race([
+      stopping.then(() => 'resolved' as const, () => 'rejected' as const),
+      new Promise<'timed-out'>(resolve => setTimeout(() => resolve('timed-out'), 250)),
+    ])
+
+    expect(stopResult).toBe('resolved')
+    releaseDirectoryFsync?.()
+    await stopping
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'queued',
+      attemptCount: 0,
+    })
+  })
+
   it('bounds stop when a runJob executor ignores abort', async () => {
     let executionStarted: (() => void) | undefined
     const executionStartedPromise = new Promise<void>((resolve) => {

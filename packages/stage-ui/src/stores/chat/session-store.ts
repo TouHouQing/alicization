@@ -1,7 +1,7 @@
 import type { ChatHistoryItem } from '../../types/chat'
 import type { ChatSessionMeta, ChatSessionRecord, ChatSessionsExport, ChatSessionsIndex } from '../../types/chat-session'
 
-import { isStageTamagotchi } from '@proj-alicization/stage-shared'
+import { alicizationPrimaryConversationSessionId, isStageTamagotchi } from '@proj-alicization/stage-shared'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
@@ -339,9 +339,9 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     loadingSessions.delete(sessionId)
   }
 
-  async function createSession(characterId: string, options?: { setActive?: boolean, messages?: ChatHistoryItem[], title?: string }) {
+  async function createPrimarySession(characterId: string, options?: { messages?: ChatHistoryItem[], title?: string }) {
     const currentUserId = getCurrentUserId()
-    const sessionId = nanoid()
+    const sessionId = alicizationPrimaryConversationSessionId(characterId)
     const now = Date.now()
     const meta: ChatSessionMeta = {
       sessionId,
@@ -366,16 +366,14 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       sessions: {},
     }
     characterIndex.sessions[sessionId] = meta
-    if (options?.setActive !== false)
-      characterIndex.activeSessionId = sessionId
+    characterIndex.activeSessionId = sessionId
     index.value.characters[characterId] = characterIndex
 
     const record: ChatSessionRecord = { meta, messages: initialMessages }
 
-    if (options?.setActive !== false)
-      activeSessionId.value = sessionId
+    activeSessionId.value = sessionId
 
-    // NOTICE: mark just-created session as loaded to prevent async loadSession() from
+    // NOTICE: mark the primary session as loaded to prevent async loadSession() from
     // clobbering fresh in-memory messages with a stale persisted snapshot during reset races.
     loadedSessions.add(sessionId)
 
@@ -387,65 +385,16 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   }
 
   async function ensureExternalSession(sessionIdRaw: string, options?: { setActive?: boolean, title?: string }) {
-    const sessionId = sessionIdRaw.trim()
-    if (!sessionId)
+    if (!sessionIdRaw.trim())
       return ''
 
-    const currentUserId = getCurrentUserId()
-    const characterId = getCurrentCharacterId()
-    if (!index.value || index.value.userId !== currentUserId)
-      await loadIndexForUser(currentUserId)
-
-    ensureSession(sessionId)
-    ensureGeneration(sessionId)
-    await loadSession(sessionId)
-
-    const existingMeta = sessionMetas.value[sessionId]
-    if (existingMeta) {
-      if (options?.setActive)
-        setActiveSession(sessionId)
-      return sessionId
-    }
-
-    const now = Date.now()
-    const meta: ChatSessionMeta = {
-      sessionId,
-      userId: currentUserId,
-      characterId,
-      title: options?.title,
-      createdAt: now,
-      updatedAt: now,
-    }
-    sessionMetas.value[sessionId] = meta
-
-    if (!index.value)
-      index.value = { userId: currentUserId, characters: {} }
-
-    const characterIndex = index.value.characters[characterId] ?? {
-      activeSessionId: sessionId,
-      sessions: {},
-    }
-    characterIndex.sessions[sessionId] = meta
-    if (options?.setActive)
-      characterIndex.activeSessionId = sessionId
-    index.value.characters[characterId] = characterIndex
-
-    const record: ChatSessionRecord = {
-      meta,
-      messages: snapshotMessages(sessionMessages.value[sessionId] ?? []),
-    }
-
-    if (options?.setActive)
-      activeSessionId.value = sessionId
-
-    loadedSessions.add(sessionId)
-    await enqueuePersist(() => chatSessionsRepo.saveSession(sessionId, record))
-    await persistIndex()
-    scheduleSync(sessionId)
-    return sessionId
+    // Main-process delivery and replay may carry an older session id. It is
+    // an event correlation value, never permission to create another dialogue.
+    const primarySessionId = await ensureActiveSessionForCharacter(options?.title)
+    return primarySessionId
   }
 
-  async function ensureActiveSessionForCharacter() {
+  async function ensureActiveSessionForCharacter(title?: string) {
     const currentUserId = getCurrentUserId()
     const characterId = getCurrentCharacterId()
 
@@ -454,18 +403,75 @@ export const useChatSessionStore = defineStore('chat-session', () => {
 
     const characterIndex = getCharacterIndex(characterId)
     if (!characterIndex) {
-      await createSession(characterId)
-      return
+      return await createPrimarySession(characterId, { title })
     }
 
-    if (!characterIndex.activeSessionId) {
-      await createSession(characterId)
-      return
+    const primarySessionId = alicizationPrimaryConversationSessionId(characterId)
+    const legacySessionIds = Object.keys(characterIndex.sessions)
+    const sourceSessionId = characterIndex.sessions[primarySessionId]
+      ? primarySessionId
+      : characterIndex.activeSessionId && characterIndex.sessions[characterIndex.activeSessionId]
+        ? characterIndex.activeSessionId
+        : legacySessionIds
+          .map(sessionId => characterIndex.sessions[sessionId])
+          .sort((left, right) =>
+            right.updatedAt - left.updatedAt
+            || right.createdAt - left.createdAt
+            || left.sessionId.localeCompare(right.sessionId))[0]
+          ?.sessionId
+
+    if (!sourceSessionId) {
+      return await createPrimarySession(characterId, { title })
     }
 
-    activeSessionId.value = characterIndex.activeSessionId
-    await loadSession(characterIndex.activeSessionId)
-    ensureSession(characterIndex.activeSessionId)
+    const sourceRecord = loadedSessions.has(sourceSessionId)
+      ? null
+      : await chatSessionsRepo.getSession(sourceSessionId)
+    const sourceMessages = sessionMessages.value[sourceSessionId]
+      ?? sourceRecord?.messages
+      ?? []
+    const normalizedMessages = normalizeMessagesWithIds(sourceMessages).normalized
+    const sourceMeta = sourceRecord?.meta ?? characterIndex.sessions[sourceSessionId]
+    const now = Date.now()
+    const primaryMeta: ChatSessionMeta = {
+      sessionId: primarySessionId,
+      userId: currentUserId,
+      characterId,
+      ...(sourceMeta?.title || title ? { title: sourceMeta?.title || title } : {}),
+      createdAt: sourceMeta?.createdAt ?? now,
+      updatedAt: Math.max(sourceMeta?.updatedAt ?? now, now),
+    }
+
+    sessionMetas.value[primarySessionId] = primaryMeta
+    sessionMessages.value[primarySessionId] = normalizedMessages
+    ensureGeneration(primarySessionId)
+    loadedSessions.add(primarySessionId)
+
+    characterIndex.activeSessionId = primarySessionId
+    characterIndex.sessions = {
+      [primarySessionId]: primaryMeta,
+    }
+    const currentIndex = index.value
+    if (!currentIndex)
+      return primarySessionId
+    currentIndex.characters[characterId] = characterIndex
+    activeSessionId.value = primarySessionId
+    await enqueuePersist(() => chatSessionsRepo.saveSession(primarySessionId, {
+      meta: primaryMeta,
+      messages: snapshotMessages(normalizedMessages),
+    }))
+    await persistIndex()
+    for (const sessionId of legacySessionIds) {
+      if (sessionId !== primarySessionId) {
+        await enqueuePersist(() => chatSessionsRepo.deleteSession(sessionId))
+        delete sessionMessages.value[sessionId]
+        delete sessionMetas.value[sessionId]
+        delete sessionGenerations.value[sessionId]
+        loadedSessions.delete(sessionId)
+      }
+    }
+    scheduleSync(primarySessionId)
+    return primarySessionId
   }
 
   async function initialize() {
@@ -516,19 +522,20 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     },
   })
 
-  function setActiveSession(sessionId: string) {
-    activeSessionId.value = sessionId
-    ensureSession(sessionId)
+  function setActiveSession(_sessionId: string) {
+    const primarySessionId = alicizationPrimaryConversationSessionId(getCurrentCharacterId())
+    activeSessionId.value = primarySessionId
+    ensureSession(primarySessionId)
 
     const characterId = getCurrentCharacterId()
     const characterIndex = index.value?.characters[characterId]
     if (characterIndex) {
-      characterIndex.activeSessionId = sessionId
+      characterIndex.activeSessionId = primarySessionId
       void persistIndex()
     }
 
     if (ready.value)
-      void loadSession(sessionId)
+      void loadSession(primarySessionId)
   }
 
   function cleanupMessages(sessionId = activeSessionId.value) {
@@ -564,7 +571,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       characters: {},
     }
 
-    const nextActiveSessionId = await createSession(characterId)
+    const nextActiveSessionId = await createPrimarySession(characterId)
 
     for (const sessionId of sessionIds) {
       if (sessionId === nextActiveSessionId)
@@ -600,11 +607,10 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   }
 
   async function forkSession(options: { fromSessionId: string, atIndex?: number, reason?: string, hidden?: boolean }) {
-    const characterId = getCurrentCharacterId()
-    const parentMessages = getSessionMessages(options.fromSessionId)
-    const forkIndex = options.atIndex ?? parentMessages.length
-    const nextMessages = parentMessages.slice(0, forkIndex)
-    return await createSession(characterId, { setActive: false, messages: nextMessages })
+    // Forks would create a second continuity root. Keep the API as an internal
+    // compatibility surface, but route every request back to the sole session.
+    void options
+    return await ensureActiveSessionForCharacter()
   }
 
   async function exportSessions(): Promise<ChatSessionsExport> {

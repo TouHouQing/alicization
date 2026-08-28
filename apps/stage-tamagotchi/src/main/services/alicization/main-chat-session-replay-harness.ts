@@ -252,6 +252,7 @@ function createBasePrelude(input: {
         fallbackReason: null,
       },
       chatGovernance: {
+        codingAgentExecutionIntent: null,
         turnMode: input.governance?.turnMode ?? 'answer',
         personaKernelMode: input.governance?.personaKernelMode ?? 'full',
         mindTurnContract: null,
@@ -4821,6 +4822,10 @@ export async function replayMainChatSession(input: {
 }) {
   let activeTurn: AlicizationReplayTurn | null = null
   const getSensorySnapshot = async () => createSensorySnapshot()
+  const replayAgentRuntime = createAlicizationAgentRuntime({
+    getSensorySnapshot,
+    resolveConversationSessionId: async () => 'session-replay',
+  })
   const runtime = createAlicizationMainChatSessionRuntime({
     executionCapabilityChannels: executionChannels,
     buildMainRuntimeCorePromptBlocks: () => [],
@@ -4832,11 +4837,7 @@ export async function replayMainChatSession(input: {
     getSensorySnapshot,
     latestUserMessageContainsVisualInput: () => false,
     openAgentTurn: async (turnInput) => {
-      const agentRuntime = createAlicizationAgentRuntime({
-        getSensorySnapshot,
-        resolveConversationSessionId: async () => 'session-replay',
-      })
-      return await agentRuntime.openTurn(turnInput)
+      return await replayAgentRuntime.openTurn(turnInput)
     },
     resolveCardCustomDirectives: async () => ({
       text: '',

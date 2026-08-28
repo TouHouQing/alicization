@@ -83,7 +83,7 @@ export function createWindowService(params: { context: ReturnType<typeof createC
   defineInvokeHandler(params.context, electronWindowSetAlwaysOnTop, (flag, options) => {
     if (params.window.webContents.id === options?.raw.ipcMainEvent.sender.id) {
       if (flag) {
-        params.window.setAlwaysOnTop(true, 'screen-saver', 1)
+        params.window.setAlwaysOnTop(true, 'floating', 1)
       }
       else {
         params.window.setAlwaysOnTop(false)

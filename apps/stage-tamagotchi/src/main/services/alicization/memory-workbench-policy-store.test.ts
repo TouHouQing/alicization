@@ -185,4 +185,46 @@ describe('memory workbench policy store helpers', () => {
       }),
     ])
   })
+
+  it('queries only the requested persona source references', async () => {
+    const queries: Array<{ sql: string, params: unknown[] }> = []
+    const runtime = createMemoryWorkbenchPolicyStoreRuntime({
+      database: {} as never,
+      now: () => 20,
+      run: async () => {},
+      all: async <T>(_database: any, sql: string, params: unknown[] = []) => {
+        queries.push({ sql, params })
+        return [] as T[]
+      },
+      enqueueWrite: async task => await task(),
+      runInTransaction: async (_database, task) => await task(),
+    })
+
+    await runtime.listPolicyOverrides({
+      cardId: 'card-a',
+      sourceRefs: [
+        {
+          sourceId: 'reflection-1',
+          sourceKind: 'cleaned-long-term-reflection',
+        },
+        {
+          sourceId: 'reinforcement-1',
+          sourceKind: 'persona-reinforcement',
+        },
+      ],
+    })
+
+    expect(queries).toHaveLength(1)
+    expect(queries[0]).toMatchObject({
+      params: [
+        'card-a',
+        'reflection-1',
+        'cleaned-long-term-reflection',
+        'reinforcement-1',
+        'persona-reinforcement',
+      ],
+    })
+    expect(queries[0]?.sql).toContain('(source_id = ? AND source_kind = ?)')
+    expect(queries[0]?.sql).toContain('WHERE card_id = ? AND')
+  })
 })

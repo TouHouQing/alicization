@@ -23,6 +23,173 @@ describe('alicization memory workbench store', () => {
     expect(store.lastError).toBeNull()
   })
 
+  it('loads real conversation samples and binds the selected sample to the primary session', async () => {
+    const memoryWorkbenchListQualityConversationSamples = vi.fn(async () => ({
+      items: [{
+        id: 'sample-1',
+        cardId: 'card-a',
+        sessionId: 'session-primary',
+        turnId: 'turn-1',
+        decisionTraceId: 'trace-1',
+        query: '你还记得我最近在做什么吗？',
+        assistantReply: '我记得你最近在整理记忆链路。',
+        createdAt: 100,
+        retrievedCandidateIds: ['memory-1'],
+        surfacedMemoryIds: ['memory-1'],
+        traceEventKinds: ['memory-recall'],
+        existingGoldLabelId: null,
+      }],
+      nextCursor: null,
+    }))
+    setAlicizationBridge({
+      memoryWorkbenchListQualityConversationSamples,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await expect(store.loadQualityConversationSamples()).resolves.toHaveLength(1)
+
+    expect(store.selectedQualityConversationSampleId).toBe('sample-1')
+    expect(store.qualityConversationSamples[0]?.turnId).toBe('turn-1')
+
+    const selected = store.selectQualityConversationSample('sample-1')
+    expect(selected?.id).toBe('sample-1')
+    expect(store.selectedQualitySessionId).toBe('session-primary')
+    expect(memoryWorkbenchListQualityConversationSamples).toHaveBeenCalledWith({ limit: 20 })
+  })
+
+  it('paginates real conversation samples without changing the selected sample', async () => {
+    const sample = (id: string, sessionId: string) => ({
+      id,
+      cardId: 'card-a',
+      sessionId,
+      turnId: `${id}-turn`,
+      decisionTraceId: `${id}-trace`,
+      query: `${id} query`,
+      assistantReply: `${id} reply`,
+      createdAt: 100,
+      retrievedCandidateIds: [],
+      surfacedMemoryIds: [],
+      traceEventKinds: [],
+      existingGoldLabelId: null,
+    })
+    const memoryWorkbenchListQualityConversationSamples = vi.fn()
+      .mockResolvedValueOnce({
+        items: [sample('sample-1', 'session-primary')],
+        nextCursor: 'samples-page-2',
+      })
+      .mockResolvedValueOnce({
+        items: [sample('sample-2', 'session-secondary')],
+        nextCursor: null,
+      })
+    setAlicizationBridge({
+      memoryWorkbenchListQualityConversationSamples,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore() as ReturnType<typeof useAlicizationMemoryWorkbenchStore> & {
+      qualityConversationSamplesNextCursor?: string | null
+      loadMoreQualityConversationSamples?: () => Promise<unknown>
+    }
+    await store.loadQualityConversationSamples()
+
+    expect(store.qualityConversationSamplesNextCursor).toBe('samples-page-2')
+    expect(store.selectedQualityConversationSampleId).toBe('sample-1')
+    expect(store.loadMoreQualityConversationSamples).toBeTypeOf('function')
+    if (!store.loadMoreQualityConversationSamples)
+      return
+
+    await store.loadMoreQualityConversationSamples()
+
+    expect(store.qualityConversationSamples.map(item => item.id)).toEqual([
+      'sample-1',
+      'sample-2',
+    ])
+    expect(store.qualityConversationSamplesNextCursor).toBeNull()
+    expect(store.selectedQualityConversationSampleId).toBe('sample-1')
+    expect(memoryWorkbenchListQualityConversationSamples).toHaveBeenNthCalledWith(2, {
+      cursor: 'samples-page-2',
+      limit: 20,
+    })
+
+    await store.loadMoreQualityConversationSamples()
+    expect(memoryWorkbenchListQualityConversationSamples).toHaveBeenCalledTimes(2)
+  })
+
+  it('ignores repeated and stale quality sample page requests after card scope reset', async () => {
+    const sample = (id: string) => ({
+      id,
+      cardId: 'card-a',
+      sessionId: 'session-primary',
+      turnId: `${id}-turn`,
+      decisionTraceId: `${id}-trace`,
+      query: `${id} query`,
+      assistantReply: `${id} reply`,
+      createdAt: 100,
+      retrievedCandidateIds: [],
+      surfacedMemoryIds: [],
+      traceEventKinds: [],
+      existingGoldLabelId: null,
+    })
+    let resolveMore: ((value: {
+      items: ReturnType<typeof sample>[]
+      nextCursor: string | null
+    }) => void) | undefined
+    const memoryWorkbenchListQualityConversationSamples = vi.fn()
+      .mockResolvedValueOnce({
+        items: [sample('sample-1')],
+        nextCursor: 'samples-page-2',
+      })
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveMore = resolve
+      }))
+    setAlicizationBridge({
+      memoryWorkbenchListQualityConversationSamples,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore() as ReturnType<typeof useAlicizationMemoryWorkbenchStore> & {
+      loadMoreQualityConversationSamples?: () => Promise<unknown>
+    }
+    await store.loadQualityConversationSamples()
+    expect(store.loadMoreQualityConversationSamples).toBeTypeOf('function')
+    if (!store.loadMoreQualityConversationSamples)
+      return
+
+    const firstRequest = store.loadMoreQualityConversationSamples()
+    await expect(store.loadMoreQualityConversationSamples()).resolves.toEqual([])
+    expect(memoryWorkbenchListQualityConversationSamples).toHaveBeenCalledTimes(2)
+
+    store.resetCardScope()
+    resolveMore?.({
+      items: [sample('sample-2')],
+      nextCursor: null,
+    })
+    await firstRequest
+
+    expect(store.qualityConversationSamples).toEqual([])
+    expect(store.qualityConversationSamplesNextCursor).toBeNull()
+    expect(store.qualityConversationSamplesLoading).toBe(false)
+  })
+
+  it('keeps the newest snapshot failure when requests finish out of order', async () => {
+    const rejectors: Array<(reason?: unknown) => void> = []
+    const memoryWorkbenchGetSnapshot = vi.fn(() => new Promise<never>((_resolve, reject) => {
+      rejectors.push(reject)
+    }))
+    setAlicizationBridge({ memoryWorkbenchGetSnapshot } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const oldRequest = store.refreshSnapshot('old-session')
+    const newRequest = store.refreshSnapshot('new-session')
+
+    rejectors[1]?.(new Error('newer-snapshot-failed'))
+    await newRequest
+    expect(store.lastError).toBe('newer-snapshot-failed')
+
+    rejectors[0]?.(new Error('older-snapshot-failed'))
+    await oldRequest
+
+    expect(store.lastError).toBe('newer-snapshot-failed')
+  })
+
   it('keeps the long-term source namespace when applying a governance action', async () => {
     const applyLongTermAction = vi.fn(async () => null)
     setAlicizationBridge({
@@ -231,6 +398,31 @@ describe('alicization memory workbench store', () => {
 
     expect(store.snapshot?.health.status).toBe('ok')
     expect(store.recallProbe?.intent.mode).toBe('episodic')
+  })
+
+  it('drops stale recall probes after a scope reset and newer query', async () => {
+    let resolveOld: ((value: any) => void) | undefined
+    let resolveFresh: ((value: any) => void) | undefined
+    const memoryWorkbenchRecallProbe = vi.fn((payload: { query: string }) => {
+      if (payload.query === '旧查询')
+        return new Promise(resolve => resolveOld = resolve)
+      return new Promise(resolve => resolveFresh = resolve)
+    })
+    setAlicizationBridge({
+      memoryWorkbenchRecallProbe,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const oldRequest = store.runRecallProbe('旧查询')
+    store.resetCardScope()
+    const freshRequest = store.runRecallProbe('新查询')
+
+    resolveFresh?.({ query: '新查询', evidence: [] })
+    await freshRequest
+    resolveOld?.({ query: '旧查询', evidence: [] })
+    await oldRequest
+
+    expect(store.recallProbe?.query).toBe('新查询')
   })
 
   it('restores a persisted embedding reindex job from the health snapshot', async () => {
@@ -473,6 +665,7 @@ describe('alicization memory workbench store', () => {
     expect(store.longTermNextCursor).toBe('cursor-a')
     expect(store.longTermLoaded).toBe(true)
     expect(store.longTermError).toBe('refresh-failed')
+    expect(store.longTermFilters.query).toBe('旧查询')
   })
 
   it('loads the real paginated long-term list on first entry and reloads it after card scope reset', async () => {
@@ -854,6 +1047,147 @@ describe('alicization memory workbench store', () => {
     expect(store.reindexResult?.indexed).toBe(1)
   })
 
+  it('paginates persona candidates without losing the first page', async () => {
+    const candidate = (id: string) => ({
+      id,
+      sourceMemoryIds: [`reflection-${id}`],
+      behaviorLesson: `${id} lesson`,
+      positiveExample: `${id} positive`,
+      negativeExample: null,
+      privacyClass: 'personal-redacted' as const,
+      status: 'candidate' as const,
+      allowTraining: false,
+      rejectionReason: null,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    const memoryWorkbenchListPersonaCandidates = vi.fn()
+      .mockResolvedValueOnce({
+        items: [candidate('persona-candidate-1')],
+        nextCursor: 'persona-page-2',
+      })
+      .mockResolvedValueOnce({
+        items: [candidate('persona-candidate-2')],
+        nextCursor: null,
+      })
+    setAlicizationBridge({
+      memoryWorkbenchListPersonaCandidates,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore() as ReturnType<typeof useAlicizationMemoryWorkbenchStore> & {
+      loadMorePersonaCandidates?: () => Promise<unknown>
+    }
+    await store.refreshPersonaCandidates()
+
+    expect(store.personaNextCursor).toBe('persona-page-2')
+    expect(store.loadMorePersonaCandidates).toBeTypeOf('function')
+    if (!store.loadMorePersonaCandidates)
+      return
+
+    await store.loadMorePersonaCandidates()
+
+    expect(store.personaCandidates.map(item => item.id)).toEqual([
+      'persona-candidate-1',
+      'persona-candidate-2',
+    ])
+    expect(store.personaNextCursor).toBeNull()
+    expect(memoryWorkbenchListPersonaCandidates).toHaveBeenNthCalledWith(2, {
+      status: 'all',
+      cursor: 'persona-page-2',
+      limit: 50,
+    })
+  })
+
+  it('drops a stale persona page when a newer refresh starts in the same scope', async () => {
+    const candidate = (id: string) => ({
+      id,
+      sourceMemoryIds: [`reflection-${id}`],
+      behaviorLesson: `${id} lesson`,
+      positiveExample: `${id} positive`,
+      negativeExample: null,
+      privacyClass: 'personal-redacted' as const,
+      status: 'candidate' as const,
+      allowTraining: false,
+      rejectionReason: null,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    let refreshResolve: ((value: {
+      items: ReturnType<typeof candidate>[]
+      nextCursor: string | null
+    }) => void) | undefined
+    let loadMoreResolve: ((value: {
+      items: ReturnType<typeof candidate>[]
+      nextCursor: string | null
+    }) => void) | undefined
+    const memoryWorkbenchListPersonaCandidates = vi.fn((payload: { cursor?: string | null }) => {
+      if (!payload.cursor && memoryWorkbenchListPersonaCandidates.mock.calls.length === 1) {
+        return Promise.resolve({
+          items: [candidate('first')],
+          nextCursor: 'persona-page-2',
+        })
+      }
+      if (payload.cursor) {
+        return new Promise(resolve => loadMoreResolve = resolve)
+      }
+      return new Promise(resolve => refreshResolve = resolve)
+    })
+    setAlicizationBridge({
+      memoryWorkbenchListPersonaCandidates,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.refreshPersonaCandidates()
+
+    const stalePage = store.loadMorePersonaCandidates()
+    const freshPage = store.refreshPersonaCandidates()
+    refreshResolve?.({
+      items: [candidate('fresh')],
+      nextCursor: 'persona-page-fresh',
+    })
+    await freshPage
+
+    loadMoreResolve?.({
+      items: [candidate('stale')],
+      nextCursor: 'persona-page-stale',
+    })
+    await stalePage
+
+    expect(store.personaCandidates.map(item => item.id)).toEqual(['fresh'])
+    expect(store.personaNextCursor).toBe('persona-page-fresh')
+    expect(store.personaLoading).toBe(false)
+  })
+
+  it('drops a stale persona action result after a card scope reset', async () => {
+    const staleCandidate = {
+      id: 'persona-stale',
+      sourceMemoryIds: ['reflection-stale'],
+      behaviorLesson: 'stale lesson',
+      positiveExample: 'stale positive',
+      negativeExample: null,
+      privacyClass: 'personal-redacted',
+      status: 'no-training',
+      allowTraining: false,
+      rejectionReason: 'scope changed',
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    let resolveAction: ((value: typeof staleCandidate) => void) | undefined
+    const memoryWorkbenchApplyPersonaCandidateAction = vi.fn(() => new Promise(resolve => resolveAction = resolve))
+    setAlicizationBridge({
+      memoryWorkbenchApplyPersonaCandidateAction,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const action = store.applyPersonaCandidateAction('persona-stale', 'no-training')
+    store.resetCardScope()
+    resolveAction?.(staleCandidate)
+    await action
+
+    expect(store.personaCandidates).toEqual([])
+    expect(store.personaLoading).toBe(false)
+  })
+
   it('loads every gold-label page instead of silently stopping at the first page', async () => {
     const baseLabel = {
       id: 'gold-label',
@@ -868,7 +1202,8 @@ describe('alicization memory workbench store', () => {
       query: '你还记得这件事吗？',
       sessionId: 'session-gold',
       turnId: 'turn-gold',
-      decisionTraceId: null,
+      conversationSampleId: 'memory-quality-sample:default:session-gold:turn-gold',
+      decisionTraceId: 'trace-gold',
       assistantReply: '记得。',
       retrievedEvidenceSnapshot: [],
       expectedMemoryIds: ['memory-gold'],
@@ -903,6 +1238,37 @@ describe('alicization memory workbench store', () => {
       limit: 500,
       cursor: 'gold-cursor',
     })
+  })
+
+  it('drops stale gold-label results when a newer month request finishes first', async () => {
+    let resolveOld: ((value: any) => void) | undefined
+    let resolveFresh: ((value: any) => void) | undefined
+    const memoryWorkbenchListQualityGoldLabels = vi.fn((payload: { month: string }) => {
+      if (payload.month === '2026-07')
+        return new Promise(resolve => resolveOld = resolve)
+      return new Promise(resolve => resolveFresh = resolve)
+    })
+    setAlicizationBridge({
+      memoryWorkbenchListQualityGoldLabels,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const oldRequest = store.loadMonthlyGoldLabels('2026-07')
+    const freshRequest = store.loadMonthlyGoldLabels('2026-08')
+
+    resolveFresh?.({
+      items: [{ id: 'gold-fresh', month: '2026-08' }],
+      nextCursor: null,
+    })
+    await freshRequest
+    resolveOld?.({
+      items: [{ id: 'gold-old', month: '2026-07' }],
+      nextCursor: null,
+    })
+    await oldRequest
+
+    expect(store.goldLabelMonth).toBe('2026-08')
+    expect(store.monthlyGoldLabels).toEqual([{ id: 'gold-fresh', month: '2026-08' }])
   })
 
   it('controls a persisted reindex job through status, cancel, and dead-letter retry actions', async () => {
@@ -2364,19 +2730,6 @@ describe('alicization memory workbench store', () => {
           checkpointUpdatedAt: 30,
           activityUpdatedAt: 30,
         }],
-        nextCursor: 'next-session-page',
-      })
-      .mockResolvedValueOnce({
-        items: [{
-          sessionId: 'session-old',
-          title: '旧的记忆会话',
-          firstTurnAt: 1,
-          lastTurnAt: 5,
-          userTurnCount: 1,
-          assistantTurnCount: 1,
-          checkpointUpdatedAt: 6,
-          activityUpdatedAt: 6,
-        }],
         nextCursor: null,
       })
     const memoryWorkbenchListQualityGoldLabels = vi.fn(async () => ({ items: [label], nextCursor: null }))
@@ -2412,13 +2765,14 @@ describe('alicization memory workbench store', () => {
       query: '你还记得 SiliconFlow baseUrl 吗？',
       sessionId: 'session-gold',
       turnId: 'turn-gold',
+      conversationSampleId: 'memory-quality-sample:default:session-gold:turn-gold',
+      decisionTraceId: 'trace-gold',
       assistantReply: '你之前纠正过，baseUrl 只填主域名。',
       retrievedEvidenceSnapshot: [],
       expectedMemoryIds: ['reflection-siliconflow-baseurl'],
       note: '她应该想起这条明确纠正。',
     })
     await store.loadQualityReplaySessions()
-    await store.loadMoreQualityReplaySessions()
     store.selectQualityTrialSession('session-new')
     store.setQualityTrialMode('live-provider')
     await store.runQualityTrial('2026-08')
@@ -2428,15 +2782,10 @@ describe('alicization memory workbench store', () => {
     expect(store.qualityTrialReport?.summary.longTermFixtureCount).toBe(1)
     expect(store.qualityReplaySessions.map(item => item.sessionId)).toEqual([
       'session-new',
-      'session-old',
     ])
     expect(store.selectedQualitySessionId).toBe('session-new')
     expect(store.monthlyGoldRegressionPack?.itemCount).toBe(1)
     expect(memoryWorkbenchListReplaySessions).toHaveBeenNthCalledWith(1, {
-      limit: 20,
-    })
-    expect(memoryWorkbenchListReplaySessions).toHaveBeenNthCalledWith(2, {
-      cursor: 'next-session-page',
       limit: 20,
     })
     expect(memoryWorkbenchRecordQualityGoldLabel).toHaveBeenCalledWith(expect.objectContaining({
@@ -2448,7 +2797,6 @@ describe('alicization memory workbench store', () => {
     expect(memoryWorkbenchRunQualityTrial).toHaveBeenCalledWith({
       mode: 'live-provider',
       month: '2026-08',
-      sessionId: 'session-new',
     })
   })
 
@@ -2585,8 +2933,13 @@ describe('alicization memory workbench store', () => {
     expect(store.qualityTrialReport).toBeNull()
   })
 
-  it('does not start a quality trial without an explicitly selected replay session', async () => {
-    const memoryWorkbenchRunQualityTrial = vi.fn()
+  it('starts a quality trial without a session picker because the main chat has one primary session', async () => {
+    const memoryWorkbenchRunQualityTrial = vi.fn(async () => ({
+      id: 'quality-report-primary-session',
+      summary: {
+        lastError: null,
+      },
+    }))
     setAlicizationBridge({
       memoryWorkbenchRunQualityTrial,
     } as any)
@@ -2594,8 +2947,11 @@ describe('alicization memory workbench store', () => {
     const store = useAlicizationMemoryWorkbenchStore()
     const result = await store.runQualityTrial('2026-08')
 
-    expect(result).toBeNull()
-    expect(memoryWorkbenchRunQualityTrial).not.toHaveBeenCalled()
+    expect(result?.id).toBe('quality-report-primary-session')
+    expect(memoryWorkbenchRunQualityTrial).toHaveBeenCalledWith({
+      mode: 'historical-replay',
+      month: '2026-08',
+    })
   })
 
   it('restores quality trial context when loading the first persisted report', async () => {

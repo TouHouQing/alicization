@@ -84,6 +84,7 @@ function createPrelude(memoryRecallSeed: string): AlicizationPreparedMainChatPre
         fallbackReason: null,
       },
       chatGovernance: {
+        codingAgentExecutionIntent: null,
         turnMode: 'answer',
         personaKernelMode: 'full',
         mindTurnContract: null,

@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 import {
   buildAlicizationCodingAgentDelegationAuthority,
   normalizeAlicizationCodingAgentTask,
-  resolveAlicizationExplicitCodingAgentConstraint,
   validateAlicizationCodingAgentInvocation,
 } from './coding-agent-task-contract'
 
@@ -13,38 +12,8 @@ describe('coding agent task contract', () => {
   it('does not classify execution from natural-language capability cues', () => {
     const source = readFileSync(new URL('./coding-agent-task-contract.ts', import.meta.url), 'utf8')
 
-    expect(source).not.toContain('isAlicizationCodingAgentCapabilityQuestion')
-  })
-
-  it.each([
-    ['用 Codex 帮我总结这个项目', 'codex'],
-    ['请使用 Claude Code 检查这个仓库', 'claude-code'],
-    ['请通过 CLI 执行 pnpm test', 'cli'],
-  ])('locks an explicitly named channel without deciding execution intent: %s', (userText, agent) => {
-    expect(resolveAlicizationExplicitCodingAgentConstraint(userText)).toEqual({
-      kind: 'single',
-      agent,
-    })
-  })
-
-  it('does not treat a capability question as an execution decision', () => {
-    expect(resolveAlicizationExplicitCodingAgentConstraint('你可以使用 Codex 做什么？')).toEqual({
-      kind: 'single',
-      agent: 'codex',
-    })
-  })
-
-  it('ignores a negatively mentioned alternative channel', () => {
-    expect(resolveAlicizationExplicitCodingAgentConstraint('用 Codex 检查项目，不要用 CLI')).toEqual({
-      kind: 'single',
-      agent: 'codex',
-    })
-  })
-
-  it('does not guess when multiple channels are positively named', () => {
-    expect(resolveAlicizationExplicitCodingAgentConstraint('Codex 和 Claude Code 都可以吗？')).toEqual({
-      kind: 'none',
-    })
+    expect(source).not.toContain('userText')
+    expect(source).not.toContain('normalizeCodingAgentMentionText')
   })
 
   it('defaults an underspecified coding request to read-only investigation', () => {
@@ -202,11 +171,10 @@ describe('coding agent task contract', () => {
   it('narrows an auto delegation to the explicitly named channel', () => {
     expect(buildAlicizationCodingAgentDelegationAuthority({
       contextTurnId: 'turn-explicit-codex',
-      userText: '用 Codex 帮我检查这个项目',
       delegation: {
         confidence: 0.98,
         intentKind: 'execute',
-        requestedAgent: 'auto',
+        requestedAgent: 'codex',
         scope: 'investigation',
         source: 'structured-cognition',
         sourceTurnId: 'turn-explicit-codex',
@@ -215,6 +183,26 @@ describe('coding agent task contract', () => {
     })).toMatchObject({
       allowed: true,
       allowedAgents: ['codex'],
+    })
+  })
+
+  it('keeps an execution authority bound to structured intent rather than user wording', () => {
+    expect(buildAlicizationCodingAgentDelegationAuthority({
+      contextTurnId: 'turn-structured-auto',
+      delegation: {
+        confidence: 0.98,
+        intentKind: 'execute',
+        requestedAgent: 'auto',
+        scope: 'investigation',
+        source: 'structured-cognition',
+        sourceTurnId: 'turn-structured-auto',
+        verdict: 'delegate-coding-agent',
+      },
+    })).toMatchObject({
+      allowed: true,
+      allowedAgents: ['codex', 'claude-code'],
+      turnId: 'turn-structured-auto',
+      sourceTurnId: 'turn-structured-auto',
     })
   })
 

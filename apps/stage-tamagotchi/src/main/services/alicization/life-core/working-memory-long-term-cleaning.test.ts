@@ -68,7 +68,22 @@ describe('working memory long-term cleaning domain', () => {
       cardId: 'default',
       sessionId: 'session-1',
       item,
-    })).toBe('working-memory-owner:default:session-1:correction:turn-1:user:不要固定模板回复，要数字生命自身人格。')
+    })).toBe('working-memory-owner:default:session-1:correction:working-memory-long-term:session-1:correction:turn-1:user:no-fixed-template:turn-1:user:不要固定模板回复，要数字生命自身人格。')
+  })
+
+  it('keeps distinct source ids separate within the same card and session', () => {
+    const first = buildWorkingMemoryLongTermIdempotencyKey({
+      cardId: 'card-1',
+      sessionId: 'session-1',
+      item: queueItem({ id: 'source-one' }),
+    })
+    const second = buildWorkingMemoryLongTermIdempotencyKey({
+      cardId: 'card-1',
+      sessionId: 'session-1',
+      item: queueItem({ id: 'source-two' }),
+    })
+
+    expect(first).not.toBe(second)
   })
 
   it('creates a pending transaction without allowing training by default', () => {
@@ -80,7 +95,7 @@ describe('working memory long-term cleaning domain', () => {
     })
 
     expect(transaction).toMatchObject({
-      id: 'wm-lt-clean:working-memory-owner:default:session-1:correction:turn-1:user:不要固定模板回复，要数字生命自身人格。',
+      id: 'wm-lt-clean:working-memory-owner:default:session-1:correction:working-memory-long-term:session-1:correction:turn-1:user:no-fixed-template:turn-1:user:不要固定模板回复，要数字生命自身人格。',
       queueItemId: 'working-memory-long-term:session-1:correction:turn-1:user:no-fixed-template',
       source: 'working-memory-owner',
       cardId: 'default',

@@ -1,4 +1,7 @@
-import type { AlicizationMemoryQualityMonthlyGoldRegressionPack } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationFinalReplayGateReportRecord,
+  AlicizationMemoryQualityMonthlyGoldRegressionPack,
+} from '@proj-alicization/stage-shared'
 
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
 import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
@@ -648,13 +651,34 @@ describe('memory production trial runner', () => {
     })
 
     expect(report.passed).toBe(false)
-    expect(report.summary.failingStageIds).toEqual([])
-    expect(report.summary.notRunStageIds).toEqual([
+    expect(report.summary.failingStageIds).toEqual(expect.arrayContaining([
+      'dialogue-replay',
+      'runtime-health',
+      'working-memory-compression',
+      'compressed-context-behavior',
+      'long-term-recall',
+      'gold-regression',
+      'temporal-conflict',
+      'semantic-scale-soak',
+      'experience-quality',
+      'scope-fuzz',
+      'persona-dataset-hygiene',
+      'final-replay-gate',
+    ]))
+    expect(report.summary.notRunStageIds).toEqual(expect.arrayContaining([
       'gold-regression',
       'temporal-conflict',
       'semantic-scale-soak',
       'scope-fuzz',
-    ])
+      'dialogue-replay',
+      'runtime-health',
+      'working-memory-compression',
+      'compressed-context-behavior',
+      'long-term-recall',
+      'experience-quality',
+      'persona-dataset-hygiene',
+    ]))
+    expect(report.summary.notRunStageIds).toHaveLength(12)
     expect(report.stages).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: 'temporal-conflict',
@@ -672,7 +696,63 @@ describe('memory production trial runner', () => {
         passed: false,
         status: 'not-run',
       }),
+      expect.objectContaining({
+        id: 'final-replay-gate',
+        passed: false,
+        status: 'not-run',
+      }),
     ]))
+  })
+
+  it('requires the persisted final replay gate as a production evidence stage', async () => {
+    const finalReplayGate = {
+      version: 'final-replay-gate-v1',
+      passed: true,
+      failingKeys: [],
+      metrics: {
+        recallAt3: 1,
+        precisionAt3: 1,
+        wrongThreadRate: 0,
+        templateLeakageFailCount: 0,
+        authorityLeakCount: 0,
+        localHumanlikeVisibleFallbackCount: 0,
+        unsupportedSpecificityVisibleFailCount: 0,
+        turnOsTraceCoverage: 1,
+        learningOutcomeToSelfRevisionRoundtrip: 1,
+        memoryClosureCoverage: 1,
+        memoryClosureConflictClosureRate: 1,
+        memoryClosureLowQualityWithholdRate: 1,
+        memoryClosureUncertaintyLabelRate: 1,
+        claimAccuracy: 1,
+        replyAuthorityAccuracy: 1,
+        latencyBudgetPass: true,
+        mindParticipation: 1,
+        memoryParticipation: 1,
+        personalityParticipation: 1,
+        relationshipParticipation: 1,
+        continuityParticipation: 1,
+        misinternalizationRate: 0,
+        sampleCount: 1,
+        minimumSampleCount: 1,
+        productionGoldSampleCount: 1,
+        minimumProductionGoldSampleCount: 1,
+        productionGoldCoverage: 1,
+      },
+    } satisfies AlicizationFinalReplayGateReportRecord
+
+    const report = await runMemoryProductionTrialRunner({
+      id: 'production-trial-final-replay-gate',
+      cardId: 'alice-main',
+      createdAt: now,
+      finalReplayGate,
+    })
+
+    expect(report.finalReplayGate).toEqual(finalReplayGate)
+    expect(report.summary.notRunStageIds).not.toContain('final-replay-gate')
+    expect(report.stages.find(stage => stage.id === 'final-replay-gate')).toMatchObject({
+      passed: true,
+      itemCount: 1,
+    })
   })
 
   it('publishes regression metrics for recall, abstention, latency, provider, queue, and embedding health', async () => {

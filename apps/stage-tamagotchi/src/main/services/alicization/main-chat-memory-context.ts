@@ -75,6 +75,18 @@ export interface AlicizationLongTermMemoryRecallProviderContext {
   evidence: AlicizationLongTermMemoryRecallProviderEvidence[]
 }
 
+type AlicizationLongTermMemoryRecallPromptEvidence = Omit<
+  AlicizationLongTermMemoryRecallProviderEvidence,
+  'retrievalScore' | 'queryMatches' | 'rankReasons' | 'evidenceVersion' | 'version'
+>
+
+interface AlicizationLongTermMemoryRecallPromptContext {
+  owner: 'long-term-memory-recall'
+  status: 'recalled' | 'empty'
+  confidence: number
+  evidence: AlicizationLongTermMemoryRecallPromptEvidence[]
+}
+
 export interface AlicizationMainChatMemoryContext {
   version: 'alicization-main-chat-memory-context-v1'
   workingMemory: AlicizationWorkingMemoryProviderContext
@@ -348,6 +360,30 @@ function normalizeLongTermRecallProviderContext(
   }
 }
 
+function projectLongTermRecallForProviderPrompt(
+  context: AlicizationLongTermMemoryRecallProviderContext | null,
+): AlicizationLongTermMemoryRecallPromptContext | null {
+  if (!context)
+    return null
+
+  return {
+    owner: context.owner,
+    status: context.status,
+    confidence: context.confidence,
+    evidence: context.evidence.map((item) => {
+      const {
+        retrievalScore: _retrievalScore,
+        queryMatches: _queryMatches,
+        rankReasons: _rankReasons,
+        evidenceVersion: _evidenceVersion,
+        version: _version,
+        ...promptEvidence
+      } = item
+      return promptEvidence
+    }),
+  }
+}
+
 export function buildAlicizationMainChatMemoryContext(input: {
   workingMemory: WorkingMemoryOwnerContext
   workingMemorySnapshot?: WorkingMemorySnapshot | null
@@ -361,6 +397,7 @@ export function buildAlicizationMainChatMemoryContext(input: {
   const longTermRecall = input.longTermRecall
     ? normalizeLongTermRecallProviderContext(input.longTermRecall)
     : null
+  const providerLongTermRecall = projectLongTermRecallForProviderPrompt(longTermRecall)
   const availableLongTermEvidenceIds = longTermRecall
     ? longTermRecall.evidence.map(item => item.id)
     : []
@@ -369,7 +406,7 @@ export function buildAlicizationMainChatMemoryContext(input: {
     data: {
       version,
       workingMemory,
-      longTermRecall,
+      longTermRecall: providerLongTermRecall,
     },
   })
 

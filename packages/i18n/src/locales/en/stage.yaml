@@ -26,6 +26,13 @@ chat:
     low-obedience-denied: The operation was denied.
     low-liveliness: Runtime liveliness is low, so this reply will stay brief.
     reminder-schedule-failed: That reminder was not set.
+  tool-recovery:
+    continue: Continue after confirmation
+    resume: Inspect and resume
+    retry: Retry read-only task
+    running: Recovering
+    failure-label: Tool recovery failed
+    unavailable: This runtime does not provide a recovery action.
   mind-fallback:
     focus-default: 'current-turn'
     repair-stale-anchor: 'Visible reply pipeline did not produce model-authored text; stale anchor carry was blocked.'
@@ -127,6 +134,11 @@ dialogue:
   proactive-dismiss: Not now
   proactive-positive: Good call
 message: Say something...
+session:
+  select: Select chat session
+  new: New session
+  new_title: New conversation
+  untitled: Untitled session
 operations:
   load-models: Load Models
   load-models-status:

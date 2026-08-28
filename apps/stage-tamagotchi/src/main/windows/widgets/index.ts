@@ -69,8 +69,8 @@ function createWidgetsWindow() {
     ...spotlightLikeWindowConfig(),
   })
 
-  // Keep on top like caption/main overlays
-  window.setAlwaysOnTop(true, 'screen-saver', 1)
+  // Keep above normal app windows without covering the OS lock screen.
+  window.setAlwaysOnTop(true, 'floating', 1)
   window.setFullScreenable(false)
   window.setVisibleOnAllWorkspaces(true)
   if (isMacOS)

@@ -271,6 +271,111 @@ describe('chat session store reset stability', () => {
     expect(store.getSessionMessages(sessionId)).toHaveLength(1)
   })
 
+  it('uses one stable primary session and does not expose session switching controls', async () => {
+    const store = useChatSessionStore()
+    await store.initialize()
+
+    expect(store.activeSessionId).toBe('session:primary:default')
+    expect('createSession' in store).toBe(false)
+    expect('activateSession' in store).toBe(false)
+    expect('listCurrentCharacterSessions' in store).toBe(false)
+  })
+
+  it('collapses legacy persisted sessions into the one primary session', async () => {
+    const store = useChatSessionStore()
+    const now = Date.now()
+    const legacyActiveSessionId = 'legacy-active-session'
+    const legacyOlderSessionId = 'legacy-older-session'
+    const legacyActiveMeta = createSessionMeta(legacyActiveSessionId, now + 1, 'Legacy active')
+    const legacyOlderMeta = createSessionMeta(legacyOlderSessionId, now, 'Legacy older')
+
+    await mocks.chatSessionsRepo.saveIndex({
+      userId: 'local',
+      characters: {
+        default: {
+          activeSessionId: legacyActiveSessionId,
+          sessions: {
+            [legacyActiveSessionId]: legacyActiveMeta,
+            [legacyOlderSessionId]: legacyOlderMeta,
+          },
+        },
+      },
+    })
+    await mocks.chatSessionsRepo.saveSession(legacyActiveSessionId, {
+      meta: legacyActiveMeta,
+      messages: [{
+        id: 'legacy-message',
+        role: 'user',
+        content: '历史会话内容',
+        createdAt: now,
+      }],
+    })
+    await mocks.chatSessionsRepo.saveSession(legacyOlderSessionId, {
+      meta: legacyOlderMeta,
+      messages: [{
+        id: 'older-message',
+        role: 'user',
+        content: '更旧的历史会话内容',
+        createdAt: now - 1,
+      }],
+    })
+
+    await store.initialize()
+
+    expect(store.activeSessionId).toBe('session:primary:default')
+    expect(store.messages).toEqual([
+      expect.objectContaining({ id: 'legacy-message' }),
+    ])
+
+    const persistedIndex = await mocks.chatSessionsRepo.getIndex('local')
+    expect(Object.keys(persistedIndex?.characters.default.sessions ?? {})).toEqual([
+      'session:primary:default',
+    ])
+    expect(await mocks.chatSessionsRepo.getSession(legacyActiveSessionId)).toBeNull()
+    expect(await mocks.chatSessionsRepo.getSession(legacyOlderSessionId)).toBeNull()
+  })
+
+  it('keeps legacy storage intact when canonical session persistence fails', async () => {
+    const legacySessionId = 'legacy-session-save-failure'
+    const now = Date.now()
+    await seedPersistedSession(legacySessionId, [{
+      id: 'legacy-message',
+      role: 'user',
+      content: '这条历史消息必须保留。',
+      createdAt: now,
+    }], { now })
+    mocks.chatSessionsRepo.saveSession.mockClear()
+    mocks.chatSessionsRepo.deleteSession.mockClear()
+    mocks.chatSessionsRepo.saveSession.mockRejectedValueOnce(new Error('canonical-save-failed'))
+
+    const store = useChatSessionStore()
+    await expect(store.initialize()).rejects.toThrow('canonical-save-failed')
+
+    expect(mocks.chatSessionsRepo.deleteSession).not.toHaveBeenCalled()
+    expect(await mocks.chatSessionsRepo.getSession(legacySessionId)).not.toBeNull()
+  })
+
+  it('keeps legacy storage intact when canonical index persistence fails', async () => {
+    const legacySessionId = 'legacy-session-index-failure'
+    const now = Date.now()
+    await seedPersistedSession(legacySessionId, [{
+      id: 'legacy-message',
+      role: 'user',
+      content: '索引失败时也不能丢掉历史消息。',
+      createdAt: now,
+    }], { now })
+    mocks.chatSessionsRepo.saveSession.mockClear()
+    mocks.chatSessionsRepo.deleteSession.mockClear()
+    mocks.chatSessionsRepo.saveIndex.mockClear()
+    mocks.chatSessionsRepo.saveIndex.mockRejectedValueOnce(new Error('canonical-index-failed'))
+
+    const store = useChatSessionStore()
+    await expect(store.initialize()).rejects.toThrow('canonical-index-failed')
+
+    expect(mocks.chatSessionsRepo.deleteSession).not.toHaveBeenCalled()
+    expect(await mocks.chatSessionsRepo.getSession(legacySessionId)).not.toBeNull()
+  })
+
   it('filters persisted manual abort error bubbles when loading a stored session', async () => {
     const sessionId = 'session-with-manual-abort'
     const now = Date.now()
@@ -298,7 +403,7 @@ describe('chat session store reset stability', () => {
     await store.initialize()
 
     expect(store.messages.some(message => message.role === 'error')).toBe(false)
-    expect(mocks.chatSessionsRepo.saveSession).toBeCalledWith(sessionId, expect.objectContaining({
+    expect(mocks.chatSessionsRepo.saveSession).toBeCalledWith('session:primary:default', expect.objectContaining({
       messages: expect.not.arrayContaining([
         expect.objectContaining({
           role: 'error',
@@ -382,7 +487,7 @@ describe('chat session store reset stability', () => {
     const savedCall = mocks.chatSessionsRepo.saveSession.mock.calls.find(call => call[0] === sessionId)
     expect(savedCall).toBeTruthy()
     expect(isReactive(savedCall?.[1].messages)).toBe(false)
-    expect(savedCall?.[1].messages).toEqual([])
+    expect(savedCall?.[0]).toBe('session:primary:default')
   })
 
   it('canonicalizes duplicated assistant turns against the persisted session snapshot', async () => {
@@ -439,7 +544,7 @@ describe('chat session store reset stability', () => {
     expect(assistantMessages).toHaveLength(1)
     expect(assistantMessages[0]?.id).toBe(stableTurnId)
     expect((assistantMessages[0] as any)?.structured?.thought).toBe('车票记录显示上午九点出发。')
-    expect(mocks.chatSessionsRepo.saveSession).toBeCalledWith(sessionId, expect.objectContaining({
+    expect(mocks.chatSessionsRepo.saveSession).toBeCalledWith('session:primary:default', expect.objectContaining({
       messages: expect.arrayContaining([
         expect.objectContaining({
           id: stableTurnId,

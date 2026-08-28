@@ -10,18 +10,20 @@ import messages from '@proj-alicization/i18n/locales'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { Format, LogLevel, setGlobalFormat, setGlobalHookPostLog, setGlobalLogLevel, useLogg } from '@guiiai/logg'
 import { initScreenCaptureForMain } from '@proj-alicization/electron-screen-capture/main'
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, powerMonitor, webContents } from 'electron'
 import { noop } from 'es-toolkit'
 import { createLoggLogger, injeca, lifecycle } from 'injeca'
 import { isLinux } from 'std-env'
 
 import icon from '../../resources/icon.png?asset'
 
+import { electronSystemLockStateChannel } from '../shared/eventa'
 import { registerAppExitSignalHandlers } from './app-exit-signal-handlers'
 import { openDebugger, setupDebugger } from './app/debugger'
 import { nullFileLoggerHandle, setupFileLogger } from './app/file-logger'
+import { createScreenLockWindowLifecycle } from './app/screen-lock'
 import { createGlobalAppConfig } from './configs/global'
-import { emitAppBeforeQuit, emitAppReady, emitAppWindowAllClosed } from './libs/bootkit/lifecycle'
+import { emitAppBeforeQuit, emitAppReady, emitAppWindowAllClosed, onAppBeforeQuit } from './libs/bootkit/lifecycle'
 import { setElectronMainDirname } from './libs/electron/location'
 import { createI18n } from './libs/i18n'
 import { setupServerChannel } from './services/airi/channel-server'
@@ -113,6 +115,39 @@ if (hasSingleInstanceLock) {
       if (skipFileLogging || fileLogger.logFileFd === null)
         return
       void fileLogger.appendLog(formatted)
+    })
+
+    const screenLockWindowLifecycle = createScreenLockWindowLifecycle(() => BrowserWindow.getAllWindows())
+    const broadcastSystemLockState = (payload: { locked: boolean }) => {
+      for (const contents of webContents.getAllWebContents()) {
+        if (!contents.isDestroyed())
+          contents.send(electronSystemLockStateChannel, payload)
+      }
+    }
+    const handleLockScreen = () => {
+      screenLockWindowLifecycle.lock()
+      broadcastSystemLockState({ locked: true })
+    }
+    const handleUnlockScreen = () => {
+      screenLockWindowLifecycle.unlock()
+      broadcastSystemLockState({ locked: false })
+    }
+    const handleBrowserWindowCreated = (_event: Electron.Event, window: BrowserWindow) => {
+      screenLockWindowLifecycle.watchWindow(window)
+      optimizer.watchWindowShortcuts(window)
+    }
+
+    powerMonitor.on('lock-screen', handleLockScreen)
+    powerMonitor.on('unlock-screen', handleUnlockScreen)
+    app.on('browser-window-created', handleBrowserWindowCreated)
+    for (const window of BrowserWindow.getAllWindows())
+      screenLockWindowLifecycle.watchWindow(window)
+
+    onAppBeforeQuit(() => {
+      powerMonitor.removeListener('lock-screen', handleLockScreen)
+      powerMonitor.removeListener('unlock-screen', handleUnlockScreen)
+      app.removeListener('browser-window-created', handleBrowserWindowCreated)
+      screenLockWindowLifecycle.dispose()
     })
 
     injeca.setLogger(createLoggLogger(useLogg('injeca').useGlobalConfig()))
@@ -214,11 +249,6 @@ if (hasSingleInstanceLock) {
 
     // Extra
     openDebugger()
-
-    // Default open or close DevTools by F12 in development
-    // and ignore CommandOrControl + R in production.
-    // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-    app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
   }).catch((err) => {
     log.withError(err).error('Error during app initialization')
   })

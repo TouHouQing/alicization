@@ -1666,6 +1666,7 @@ describe('codex executor adapter', () => {
     vi.useFakeTimers()
     let child: ReturnType<typeof createMockCodexChild> | undefined
     let attempt = 0
+    const onExecutionEvent = vi.fn()
 
     spawnMock.mockImplementation(() => {
       attempt += 1
@@ -1709,6 +1710,7 @@ describe('codex executor adapter', () => {
         startupTimeoutMs: 1_000,
         totalTimeoutMs: 5_000,
       },
+      onExecutionEvent,
       workspaceRoot: process.cwd(),
     })
 
@@ -1716,8 +1718,21 @@ describe('codex executor adapter', () => {
     await flushNativeIo()
     await vi.advanceTimersByTimeAsync(1_000)
     await flushNativeIo()
-    await vi.advanceTimersByTimeAsync(1_000)
-    await flushNativeIo()
+    for (let index = 0; index < 50 && !onExecutionEvent.mock.calls.some(([event]) => (
+      event?.payload
+      && typeof event.payload === 'object'
+      && (event.payload as Record<string, unknown>).codexEventType === 'provider.retry'
+    )); index++) {
+      await flushNativeIo()
+    }
+    expect(onExecutionEvent).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({
+        codexEventType: 'provider.retry',
+      }),
+    }))
+    await vi.advanceTimersByTimeAsync(500)
+    for (let index = 0; index < 50 && spawnMock.mock.calls.length < 2; index++)
+      await flushNativeIo()
 
     await expect(resultPromise).resolves.toMatchObject({
       ok: true,

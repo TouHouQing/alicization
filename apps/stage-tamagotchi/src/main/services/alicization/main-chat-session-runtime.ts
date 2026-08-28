@@ -14,6 +14,7 @@ import type { Message } from '@xsai/shared-chat'
 
 import type {
   AlicizationChatStartPayload,
+  AlicizationCodingAgentDelegationSnapshot,
   AlicizationConversationStateSnapshot,
   AlicizationCurrentConsciousFrameSnapshot,
   AlicizationDialogueWorldThreadSnapshot,
@@ -87,6 +88,7 @@ import {
 } from '@proj-alicization/stage-shared'
 import { applyPromptBudget } from '@proj-alicization/stage-ui/composables/alicization-guardrails'
 
+import { buildAlicizationCodingAgentDelegationAuthority } from './coding-agent-task-contract'
 import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
@@ -159,6 +161,7 @@ export interface AlicizationMainChatPerceptionAugmentation {
     fallbackReason: string | null
   }
   chatGovernance: {
+    codingAgentExecutionIntent: AlicizationCodingAgentDelegationSnapshot | null
     turnMode: AlicizationMindTurnGovernance['turnMode']
     personaKernelMode: AlicizationMindTurnGovernance['personaKernelMode']
     mindTurnContract: AlicizationMindTurnContractSnapshot | null
@@ -234,6 +237,7 @@ function resolveProviderMemoryEvidenceForWorkingMemory(
 }
 
 export interface AlicizationPreparedMainChatExecutionResult extends PreparedMainChatExecution {
+  agentSessionId: string
   conversationSessionId: string | null
   preludeTurnId?: string | null
   presentedExecutionCallbacks: AlicizationExecutionCallbackDigest[]
@@ -363,6 +367,7 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   latestUserMessageContainsVisualInput: (messages: Message[]) => boolean
   openAgentTurn: (input: {
     cardId: string
+    conversationSessionId?: string | null
     decisionTraceId?: string | null
     turnId: string
   }) => Promise<AlicizationAgentTurnRuntime> | AlicizationAgentTurnRuntime
@@ -1841,6 +1846,13 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const waitForTools = allowTools
     const toolChoice = undefined
     const toolRegistry = await options.buildToolRegistry?.() ?? createCanonicalToolRegistry()
+    const codingAgentExecutionIntent = prelude.perceptionAugmentation.chatGovernance
+      .codingAgentExecutionIntent ?? null
+    const codingAgentDelegation = buildAlicizationCodingAgentDelegationAuthority({
+      contextTurnId: payload.turnId,
+      decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
+      delegation: codingAgentExecutionIntent,
+    })
     let executionRuntimeAffectiveResidue: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['affectiveResidue'] = null
     let executionRuntimeDerivedMindStateBundle: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['derivedMindStateBundle'] = null
     let executionRuntimeMemoryClosureTrace: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['memoryClosureTrace'] = null
@@ -2335,6 +2347,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         ? agentTurn.trackPhase('tool-registry', async () => await buildMainGatewayTools({
             toolSurface: 'main-chat',
             toolRegistry,
+            codingAgentDelegation,
             context: {
               cardId: payload.cardId,
               turnId: payload.turnId,
@@ -3018,6 +3031,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     }
 
     const preparedResultBase = {
+      agentSessionId: agentTurn.agentSessionId,
       chatConfig: prelude.chatConfig,
       conversationSessionId: agentTurn.conversationSessionId,
       preludeTurnId: prelude.turnId ?? null,

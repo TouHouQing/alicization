@@ -232,4 +232,55 @@ describe('memory workbench persona candidates', () => {
       await db.close()
     }
   })
+
+  it('pages beyond the old source window and updates a tail candidate', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const sourceCount = 257
+      await db.upsertMemoryReflections(Array.from({ length: sourceCount }, (_, index) => ({
+        id: `reflection-scale-${String(index).padStart(3, '0')}`,
+        cardId: 'card-scale',
+        sourceKind: 'reply' as const,
+        targetScope: 'habit' as const,
+        summary: `用户在 item-${index} 上有稳定偏好。`,
+        lesson: `保留 item-${index} 的真实偏好变化。`,
+        status: 'confirmed' as const,
+        confidence: 0.9,
+        createdAt: index,
+        updatedAt: index,
+      })))
+
+      const all = []
+      let cursor: string | null = null
+      do {
+        const page = await db.listMemoryWorkbenchPersonaCandidates({
+          cardId: 'card-scale',
+          limit: 50,
+          cursor,
+        })
+        all.push(...page.items)
+        cursor = page.nextCursor
+      } while (cursor)
+
+      expect(all).toHaveLength(sourceCount)
+      const tailCandidate = all.find(item => item.id === 'persona-candidate:reflection-scale-000')
+      expect(tailCandidate).toBeDefined()
+
+      const updated = await db.applyMemoryWorkbenchPersonaCandidateAction({
+        cardId: 'card-scale',
+        candidateId: 'persona-candidate:reflection-scale-000',
+        decision: 'no-training',
+        reason: '用户暂不允许进入训练治理',
+      })
+
+      expect(updated).toMatchObject({
+        id: 'persona-candidate:reflection-scale-000',
+        status: 'no-training',
+        allowTraining: false,
+      })
+    }
+    finally {
+      await db.close()
+    }
+  })
 })

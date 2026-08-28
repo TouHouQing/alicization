@@ -129,7 +129,7 @@ function createCaptionWindow(options?: BrowserWindowConstructorOptions) {
   //
   // https://github.com/electron/electron/issues/10078#issuecomment-3410164802
   // https://stackoverflow.com/questions/39835282/set-browserwindow-always-on-top-even-other-app-is-in-fullscreen-electron-mac
-  window.setAlwaysOnTop(true, 'screen-saver', 2)
+  window.setAlwaysOnTop(true, 'floating', 2)
   window.setFullScreenable(false)
   window.setVisibleOnAllWorkspaces(true)
   if (isMacOS) {

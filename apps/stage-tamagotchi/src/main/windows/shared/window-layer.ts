@@ -12,7 +12,7 @@ export interface UtilityAppActivationController {
 }
 
 export function promoteStageWindowAboveDesktop(window: Pick<BrowserWindow, 'moveTop' | 'setAlwaysOnTop' | 'setVisibleOnAllWorkspaces'>) {
-  window.setAlwaysOnTop(true, 'screen-saver', 1)
+  window.setAlwaysOnTop(true, 'floating', 1)
   window.setVisibleOnAllWorkspaces(true, {
     visibleOnFullScreen: true,
   })
@@ -39,7 +39,7 @@ export function ensureStageWindowVisible(
 }
 
 export function promoteUtilityWindowAboveStage(window: Pick<BrowserWindow, 'moveTop' | 'setAlwaysOnTop' | 'setVisibleOnAllWorkspaces'>) {
-  window.setAlwaysOnTop(true, 'screen-saver', 2)
+  window.setAlwaysOnTop(true, 'floating', 2)
   window.setVisibleOnAllWorkspaces(true)
   window.moveTop()
 }

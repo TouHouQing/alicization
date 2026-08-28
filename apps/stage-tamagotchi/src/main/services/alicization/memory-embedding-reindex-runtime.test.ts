@@ -1678,4 +1678,43 @@ describe('memory embedding reindex runtime', () => {
     expect((await runtime.getReindexJob(cardAJob.jobId)).status).toBe('queued')
     expect((await runtime.getReindexJob(cardBJob.jobId)).status).toBe('completed')
   })
+
+  it('does not start a duplicate worker when startup recovery is invoked repeatedly', async () => {
+    let releaseEmbedding: () => void = () => {}
+    let embeddingStarted: (() => void) | null = null
+    const embeddingStartedPromise = new Promise<void>((resolve) => {
+      embeddingStarted = resolve
+    })
+    let embedCalls = 0
+    const { runtime } = await createRuntimeHarness({
+      provider: {
+        modelId: 'test-embedding',
+        dimensions: 3,
+        embedTexts: async (texts) => {
+          embedCalls += 1
+          embeddingStarted?.()
+          await new Promise<void>((resolve) => {
+            releaseEmbedding = resolve
+          })
+          return texts.map(text => ({ text, vector: [1, 0, 0] }))
+        },
+      },
+    })
+    const job = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      entries: [{ sourceId: 'memory-1', source: 'memory_reflections', text: '重复恢复调用' }],
+    })
+
+    await runtime.resumePendingJobs(1, 'card-a')
+    await embeddingStartedPromise
+    await expect(runtime.resumePendingJobs(1, 'card-a')).resolves.toEqual([job.jobId])
+    expect(embedCalls).toBe(1)
+
+    releaseEmbedding()
+    await runtime.runJob(job.jobId)
+    await expect(runtime.getReindexJob(job.jobId)).resolves.toMatchObject({
+      status: 'completed',
+      indexed: 1,
+    })
+  })
 })

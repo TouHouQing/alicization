@@ -261,6 +261,11 @@ export const electronOpenChat = defineInvokeEventa('eventa:invoke:electron:windo
 export const electronOpenSettingsDevtools = defineInvokeEventa('eventa:invoke:electron:windows:settings:devtools:open')
 export const electronOpenDevtoolsWindow = defineInvokeEventa<void, { route?: string }>('eventa:invoke:electron:windows:devtools:open')
 export const electronMainStageStartupStatusChannel = 'eventa:event:electron:windows:main:stage-startup-status'
+export const electronSystemLockStateChannel = 'eventa:event:electron:system-lock-state'
+
+export interface ElectronSystemLockStatePayload {
+  locked: boolean
+}
 export interface ElectronMainStageStartupStatusPayload {
   state: 'stage-page-mounted' | 'stage-mounted' | 'stage-unmounted'
   route: string
@@ -895,6 +900,9 @@ export interface AlicizationSimpleRecallGoldLabelOption {
 }
 
 export type AlicizationMemoryQualityEvidenceSnapshot = SharedMemoryWorkbench.AlicizationMemoryQualityEvidenceSnapshot
+export type AlicizationMemoryQualityConversationSample = SharedMemoryWorkbench.AlicizationMemoryQualityConversationSample
+export type AlicizationMemoryQualityConversationSampleListPayload = SharedMemoryWorkbench.AlicizationMemoryQualityConversationSampleListPayload
+export type AlicizationMemoryQualityConversationSampleListResult = SharedMemoryWorkbench.AlicizationMemoryQualityConversationSampleListResult
 export type AlicizationMemoryQualityGoldLabelPayload = SharedMemoryWorkbench.AlicizationMemoryQualityGoldLabelPayload
 export type AlicizationMemoryQualityGoldLabelItem = SharedMemoryWorkbench.AlicizationMemoryQualityGoldLabelItem
 export type AlicizationMemoryQualityGoldLabelListPayload = SharedMemoryWorkbench.AlicizationMemoryQualityGoldLabelListPayload
@@ -3915,6 +3923,11 @@ export type AlicizationChatStreamDispatchPayload
 
 export interface AlicizationChatStartPayload extends AlicizationCardScope {
   turnId: string
+  /**
+   * Renderer-owned chat session identity. Main must use this identity for the
+   * entire turn instead of resolving a potentially stale active-session side channel.
+   */
+  sessionId?: string
   providerId: string
   model: string
   providerConfig: Record<string, unknown>
@@ -4071,6 +4084,7 @@ export const electronAlicizationMemoryWorkbenchReindexEmbeddings = defineInvokeE
 export const electronAlicizationMemoryWorkbenchListEmbeddingModels = defineInvokeEventa<AlicizationMemoryEmbeddingModelListResult, AlicizationMemoryEmbeddingModelListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-embedding-models')
 export const electronAlicizationMemoryWorkbenchTestEmbeddingConnection = defineInvokeEventa<AlicizationMemoryEmbeddingConnectionTestResult, AlicizationMemoryEmbeddingConnectionTestPayload>('eventa:invoke:electron:alicization:memory-workbench:test-embedding-connection')
 export const electronAlicizationMemoryWorkbenchListReplaySessions = defineInvokeEventa<AlicizationMemoryReplaySessionListResult, AlicizationMemoryReplaySessionListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-replay-sessions')
+export const electronAlicizationMemoryWorkbenchListQualityConversationSamples = defineInvokeEventa<AlicizationMemoryQualityConversationSampleListResult, AlicizationMemoryQualityConversationSampleListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-quality-conversation-samples')
 export const electronAlicizationMemoryWorkbenchRunQualityTrial = defineInvokeEventa<AlicizationMemoryQualityTrialReportSurface, AlicizationMemoryQualityTrialPayload>('eventa:invoke:electron:alicization:memory-workbench:run-quality-trial')
 export const electronAlicizationMemoryWorkbenchCancelQualityTrial = defineInvokeEventa<AlicizationMemoryQualityTrialCancelResult, AlicizationMemoryQualityTrialCancelPayload>('eventa:invoke:electron:alicization:memory-workbench:cancel-quality-trial')
 export const electronAlicizationMemoryWorkbenchListQualityTrialReports = defineInvokeEventa<AlicizationMemoryQualityTrialReportSurfaceListResult, AlicizationMemoryQualityTrialReportListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-quality-trial-reports')

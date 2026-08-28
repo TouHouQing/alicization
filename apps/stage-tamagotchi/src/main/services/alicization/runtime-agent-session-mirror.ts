@@ -11,6 +11,8 @@ import type { AlicizationDialogueSessionMirror } from './dialogue-session-manage
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationRecentProactiveOutcome } from './proactive-feedback'
 
+import { alicizationPrimaryConversationSessionId } from '@proj-alicization/stage-shared'
+
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 
 interface CreateAlicizationAgentSessionMirrorRuntimeOptions {
@@ -22,6 +24,7 @@ interface CreateAlicizationAgentSessionMirrorRuntimeOptions {
   getLatestConversationSessionId: () => Promise<string | null | undefined>
   openAgentTurn: (input: {
     cardId: string
+    conversationSessionId?: string | null
     turnId: string
     decisionTraceId?: string | null
   }) => Promise<AlicizationAgentTurnRuntime>
@@ -85,7 +88,6 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
     sanitizeText,
     sanitizeBriefText,
     normalizeCardId,
-    normalizeSessionId,
     getActiveSessionIdByCard,
     getLatestConversationSessionId,
     openAgentTurn,
@@ -175,9 +177,9 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
     if (input.continuitySignals?.length)
       agentTurn.ingestContinuitySignals(input.continuitySignals)
 
-    const sessionId = sanitizeText(input.sessionId ?? agentTurn.conversationSessionId).slice(0, 160)
-    if (!sessionId)
-      return
+    // The mirror is a continuity owner, so callback-provided session ids are
+    // correlation data only and must never create a second production thread.
+    const sessionId = alicizationPrimaryConversationSessionId(normalizeCardId(input.cardId))
 
     const previousMirror = dialogueSessionManager.getSessionMirror(normalizeCardId(input.cardId), sessionId)
     const mirror = dialogueSessionManager.ingestAgentSessionSnapshot({
@@ -246,14 +248,13 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
     turnId?: string | null
   }) {
     const cardId = normalizeCardId(input.cardId)
-    const existingSessionId = normalizeSessionId(input.sessionId)
-      || normalizeSessionId(getActiveSessionIdByCard(cardId))
-      || normalizeSessionId(await getLatestConversationSessionId().catch(() => undefined))
-    if (!existingSessionId)
-      return
+    void getActiveSessionIdByCard
+    void getLatestConversationSessionId
+    const existingSessionId = alicizationPrimaryConversationSessionId(cardId)
 
     const agentTurn = await openAgentTurn({
       cardId,
+      conversationSessionId: existingSessionId,
       turnId: sanitizeText(input.turnId, '')
         || buildMainGatewayAgentTurnId('session-mirror', input.source, cardId, Date.now()),
       decisionTraceId: input.decisionTraceId ?? null,

@@ -34,7 +34,7 @@ import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import ControlsIsland from '../components/stage-islands/controls-island/index.vue'
 import ResourceStatusIsland from '../components/stage-islands/resource-status-island/index.vue'
 
-import { electronMainStageStartupStatusChannel, electronOpenOnboarding } from '../../shared/eventa'
+import { electronMainStageStartupStatusChannel, electronOpenOnboarding, electronSystemLockStateChannel } from '../../shared/eventa'
 import { useControlsIslandStore } from '../stores/controls-island'
 import { useStageThreeRuntimeDiagnosticsStore } from '../stores/stage-three-runtime-diagnostics'
 import { useStageWindowLifecycleStore } from '../stores/stage-window-lifecycle'
@@ -358,7 +358,7 @@ watch(
 
 const settingsAudioDeviceStore = useSettingsAudioDevice()
 const { stream, enabled } = storeToRefs(settingsAudioDeviceStore)
-const { askPermission } = settingsAudioDeviceStore
+const { askPermission, startStream, stopStream } = settingsAudioDeviceStore
 const { startRecord, stopRecord, onStopRecord } = useAudioRecorder(stream)
 const hearingPipeline = useHearingSpeechInputPipeline()
 const {
@@ -534,6 +534,20 @@ function stopAudioInteraction() {
   catch {}
 }
 
+async function resumeAudioInteractionAfterUnlock() {
+  if (!enabled.value)
+    return
+
+  try {
+    await askPermission()
+    await startStream()
+    await startAudioInteraction()
+  }
+  catch (error) {
+    console.error('[Main Page] Failed to resume audio interaction after unlock:', error)
+  }
+}
+
 watch(enabled, async (val) => {
   console.info('[Main Page] Audio enabled changed:', val, 'stream available:', !!stream.value)
   if (val) {
@@ -544,6 +558,23 @@ watch(enabled, async (val) => {
     stopAudioInteraction()
   }
 }, { immediate: true })
+
+function handleSystemLockState(_event: unknown, payload: unknown) {
+  const locked = typeof payload === 'object'
+    && payload !== null
+    && 'locked' in payload
+    && (payload as { locked?: unknown }).locked === true
+
+  if (locked) {
+    stopAudioInteraction()
+    stopStream()
+    return
+  }
+
+  void resumeAudioInteractionAfterUnlock()
+}
+
+window.electron?.ipcRenderer?.on(electronSystemLockStateChannel, handleSystemLockState)
 
 function clearStageLoadRecoveryTimer() {
   if (!stageLoadRecoveryTimer)
@@ -653,6 +684,7 @@ onUnmounted(() => {
   captionPoster.close()
   clearStageLoadRecoveryTimer()
   stopAudioInteraction()
+  window.electron?.ipcRenderer?.removeListener(electronSystemLockStateChannel, handleSystemLockState)
 })
 
 watch([stream, () => vadLoaded.value], async ([s, loaded]) => {

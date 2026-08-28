@@ -18,7 +18,7 @@ describe('promoteStageWindowAboveDesktop', () => {
 
     promoteStageWindowAboveDesktop(window)
 
-    expect(window.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver', 1)
+    expect(window.setAlwaysOnTop).toHaveBeenCalledWith(true, 'floating', 1)
     expect(window.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, {
       visibleOnFullScreen: true,
     })
@@ -36,7 +36,7 @@ describe('promoteUtilityWindowAboveStage', () => {
 
     promoteUtilityWindowAboveStage(window)
 
-    expect(window.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver', 2)
+    expect(window.setAlwaysOnTop).toHaveBeenCalledWith(true, 'floating', 2)
     expect(window.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true)
     expect(window.moveTop).toHaveBeenCalledOnce()
   })

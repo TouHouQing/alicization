@@ -1,10 +1,13 @@
 import type {
+  AlicizationFinalReplayGateReportRecord,
+  AlicizationMemoryQualityConversationSample,
   AlicizationMemoryQualityEvidenceSnapshot,
   AlicizationPersonaTrainingArtifact,
   AlicizationPersonaTrainingSourceRef,
   AlicizationPersonaTrainingSourceRevokeIntent,
   AlicizationPersonaTrainingSourceRevokeIntentStatus,
   AlicizationRuntimeEventEnvelope,
+  AlicizationMemoryQualityConversationSampleListResult as SharedAlicizationMemoryQualityConversationSampleListResult,
   AlicizationMemoryQualityGoldLabelItem as SharedAlicizationMemoryQualityGoldLabelItem,
   AlicizationMemoryQualityGoldLabelListResult as SharedAlicizationMemoryQualityGoldLabelListResult,
   AlicizationMemoryQualityGoldLabelPayload as SharedAlicizationMemoryQualityGoldLabelPayload,
@@ -183,10 +186,11 @@ import process from 'node:process'
 
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 import { errorMessageFrom } from '@moeru/std'
 import {
+  alicizationPrimaryConversationSessionId,
   normalizeAlicizationMemoryProvenance,
   parseAlicizationPersonaTrainingArtifact,
   sanitizeAlicizationProviderFacingText,
@@ -287,8 +291,28 @@ import { createAlicizationRuntimeEventStore } from './turn-os/event-store'
 
 export type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 const legacyMigrationMarker = 'legacy_memory_migrated_v1'
+const conversationSessionMigrationMarkerPrefix = 'conversation_session_migration_v1:'
 const memoryLastPrunedAtKey = 'memory_last_pruned_at'
 const memoryRetrievalTelemetryKey = 'memory_retrieval_telemetry_v1'
+const replayBenchmarkLatestReportMetaKey = 'replay_benchmark_latest_report_v1'
+
+const legacyConversationSessionMigrationSources = [
+  { table: 'conversation_turns', column: 'session_id', cardScoped: true },
+  { table: 'working_memory_checkpoints', column: 'session_id', cardScoped: true },
+  { table: 'working_memory_long_term_transactions', column: 'session_id', cardScoped: true },
+  { table: 'memory_reflections', column: 'session_id', cardScoped: true },
+  { table: 'relationship_outcomes', column: 'session_id', cardScoped: true },
+  { table: 'person_state_evolution_log', column: 'session_id', cardScoped: true },
+  { table: 'episodic_events', column: 'session_id', cardScoped: true },
+  { table: 'persona_reinforcement_events', column: 'session_id', cardScoped: true },
+  { table: 'mind_turn_events', column: 'session_id', cardScoped: false },
+  { table: 'task_threads', column: 'session_id', cardScoped: false },
+  { table: 'executor_events', column: 'session_id', cardScoped: false },
+  { table: 'memory_quality_gold_labels', column: 'session_id', cardScoped: true },
+  { table: 'memory_quality_trial_reports', column: 'session_id', cardScoped: true },
+  { table: 'alicization_runtime_events', column: 'conversation_id', cardScoped: true },
+  { table: 'alicization_runtime_checkpoints', column: 'conversation_id', cardScoped: true },
+] as const
 interface SqliteStatementResult {
   changes: number
   lastID: number
@@ -366,6 +390,7 @@ type AlicizationMemoryIngestOperationKind
 export type AlicizationMemoryQualityGoldLabelPayload = SharedAlicizationMemoryQualityGoldLabelPayload
 export type AlicizationMemoryQualityGoldLabelItem = SharedAlicizationMemoryQualityGoldLabelItem
 export type AlicizationMemoryQualityGoldLabelListResult = SharedAlicizationMemoryQualityGoldLabelListResult
+export type AlicizationMemoryQualityConversationSampleListResult = SharedAlicizationMemoryQualityConversationSampleListResult
 export type AlicizationMemoryQualityMonthlyGoldRegressionPack = SharedAlicizationMemoryQualityMonthlyGoldRegressionPack
 export type AlicizationMemoryQualityTrialReportRecord = SharedAlicizationMemoryQualityTrialReportRecord
 export type AlicizationMemoryQualityTrialReportListResult = SharedAlicizationMemoryQualityTrialReportListResult
@@ -750,6 +775,17 @@ interface DbLearningTaskRow {
 
 interface DbWriteOptions {
   signal?: AbortSignal
+}
+
+export interface AlicizationConversationSessionMigrationResult {
+  cardId: string
+  primarySessionId: string
+  dryRun: boolean
+  sourceSessionIds: string[]
+  changed: boolean
+  migratedRows: Record<string, number>
+  conflictRows: Record<string, number>
+  deadLetterRows: Record<string, number>
 }
 
 interface AlicizationDbConversationTurnInput extends AlicizationConversationTurnInput {
@@ -1564,9 +1600,57 @@ function assertWriteNotAborted(options?: DbWriteOptions) {
 
 interface SqliteDriver {
   Database: typeof sqlite3Types.Database
+  OPEN_READONLY?: number
 }
 
-function openDatabase(filepath: string, driver: SqliteDriver = sqlite3) {
+interface SqliteWriteQueue {
+  enqueue: <T>(task: () => Promise<T>) => Promise<T>
+  waitForIdle: () => Promise<void>
+  release: () => void
+}
+
+interface SqliteWriteQueueState {
+  queue: Promise<unknown>
+  owners: number
+}
+
+const sqliteWriteQueues = new Map<string, SqliteWriteQueueState>()
+
+function acquireSqliteWriteQueue(filepath: string): SqliteWriteQueue {
+  const key = resolve(filepath)
+  const state = sqliteWriteQueues.get(key) ?? {
+    queue: Promise.resolve(undefined),
+    owners: 0,
+  }
+  sqliteWriteQueues.set(key, state)
+  state.owners += 1
+  let released = false
+
+  return {
+    enqueue: async <T>(task: () => Promise<T>) => {
+      const next = state.queue.then(task, task)
+      state.queue = next.then(() => undefined, () => undefined)
+      return await next
+    },
+    waitForIdle: async () => {
+      await state.queue
+    },
+    release: () => {
+      if (released)
+        return
+      released = true
+      state.owners = Math.max(0, state.owners - 1)
+      if (state.owners === 0)
+        sqliteWriteQueues.delete(key)
+    },
+  }
+}
+
+function openDatabase(
+  filepath: string,
+  driver: SqliteDriver = sqlite3,
+  options?: { readOnly?: boolean },
+) {
   return new Promise<sqlite3Types.Database>((resolve, reject) => {
     let database: sqlite3Types.Database | null = null
     const onOpen = (error: Error | null) => {
@@ -1586,6 +1670,18 @@ function openDatabase(filepath: string, driver: SqliteDriver = sqlite3) {
         }
         reject(new Error('sqlite3 opened without database handle'))
       })
+    }
+
+    if (options?.readOnly) {
+      if (typeof driver.OPEN_READONLY !== 'number') {
+        return reject(new Error('Alicization read-only database requires a SQLite driver with OPEN_READONLY'))
+      }
+      database = new driver.Database(
+        filepath,
+        driver.OPEN_READONLY,
+        onOpen,
+      )
+      return
     }
 
     database = new driver.Database(filepath, onOpen)
@@ -1793,6 +1889,10 @@ export interface AlicizationDbService {
     options?: DbWriteOptions,
   ) => Promise<boolean>
   getLatestConversationSessionId: (cardId?: string) => Promise<string | undefined>
+  migrateLegacyConversationSessionsToPrimary: (input: {
+    cardId: string
+    dryRun?: boolean
+  }) => Promise<AlicizationConversationSessionMigrationResult>
   getWorkingMemoryCheckpoint: (cardId: string, sessionId: string) => Promise<WorkingMemorySnapshot | null>
   listWorkingMemoryCheckpoints: (cardId: string, options?: { limit?: number }) => Promise<WorkingMemorySnapshot[]>
   listMemoryWorkbenchReplaySessions: (input: {
@@ -1940,6 +2040,11 @@ export interface AlicizationDbService {
     limit?: number
     cursor?: string | null
   }) => Promise<AlicizationMemoryQualityGoldLabelListResult>
+  listMemoryQualityConversationSamples: (input: {
+    cardId: string
+    limit?: number
+    cursor?: string | null
+  }) => Promise<AlicizationMemoryQualityConversationSampleListResult>
   buildMonthlyGoldRegressionPack: (input: {
     cardId: string
     month?: string | null
@@ -1954,6 +2059,7 @@ export interface AlicizationDbService {
     mode?: 'historical-replay' | 'live-provider'
     month?: string | null
     sessionId?: string | null
+    readOnly?: boolean
     signal?: AbortSignal
   }) => Promise<MemoryProductionTrialReport>
   manageMemoryWorkbenchSemanticScaleJobs: (input: {
@@ -2230,6 +2336,7 @@ export async function setupAlicizationDb(
     rootDir?: string
     cardId?: string
     allowUnboundScope?: boolean
+    readOnly?: boolean
     sqliteDriver?: SqliteDriver
     embeddingProvider?: LongTermMemoryEmbeddingProvider | null
     resolveEmbeddingProvider?: () => LongTermMemoryEmbeddingProvider | null
@@ -2263,11 +2370,13 @@ export async function setupAlicizationDb(
   const rootDir = options?.rootDir
     ?? (options?.cardId ? join(userDataPath, 'alicizations', 'cards', options.cardId) : join(userDataPath, 'alicizations'))
   const dbPath = join(rootDir, 'alicization.db')
-  await mkdir(rootDir, { recursive: true })
+  const readOnly = options?.readOnly === true
+  if (!readOnly)
+    await mkdir(rootDir, { recursive: true })
 
-  const database = await openDatabase(dbPath, options?.sqliteDriver)
+  const database = await openDatabase(dbPath, options?.sqliteDriver, { readOnly })
 
-  let writeQueue = Promise.resolve<unknown>(undefined)
+  const sqliteWriteQueue = acquireSqliteWriteQueue(dbPath)
 
   const resolveMemoryCardId = (cardIdRaw: unknown, operation: string) => {
     const cardId = normalizeOrganicMemoryText(cardIdRaw, 120)
@@ -2279,14 +2388,14 @@ export async function setupAlicizationDb(
   }
 
   const enqueueWrite = async <T>(task: () => Promise<T>, options?: DbWriteOptions) => {
+    if (readOnly)
+      throw new Error('Alicization database is read-only')
     assertWriteNotAborted(options)
     const guardedTask = async () => {
       assertWriteNotAborted(options)
       return await task()
     }
-    const next = writeQueue.then(guardedTask, guardedTask)
-    writeQueue = next.then(() => undefined, () => undefined)
-    return await next
+    return await sqliteWriteQueue.enqueue(guardedTask)
   }
 
   async function applyMemoryIngestPayload(payload: AlicizationMemoryIngestPayload) {
@@ -2382,8 +2491,8 @@ export async function setupAlicizationDb(
   }
 
   async function initializeSchema() {
-    await run(database, 'PRAGMA journal_mode = WAL;')
     await run(database, 'PRAGMA busy_timeout = 2000;')
+    await run(database, 'PRAGMA journal_mode = WAL;')
     await run(database, 'PRAGMA foreign_keys = ON;')
     await run(database, 'PRAGMA synchronous = NORMAL;')
 
@@ -3126,6 +3235,7 @@ export async function setupAlicizationDb(
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_reflections_card_updated_at ON memory_reflections(card_id, updated_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_reflections_card_status_updated_at ON memory_reflections(card_id, status, updated_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_reflections_card_status_updated_at_id ON memory_reflections(card_id, status, updated_at DESC, id ASC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_reflections_trace_created_at ON memory_reflections(decision_trace_id, created_at DESC)')
 
     await run(database, `
@@ -3307,6 +3417,7 @@ export async function setupAlicizationDb(
       )
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_reinforcement_card_dimension_created_at ON persona_reinforcement_events(card_id, dimension, created_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_reinforcement_card_created_at_id ON persona_reinforcement_events(card_id, created_at DESC, id ASC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_reinforcement_turn_created_at ON persona_reinforcement_events(turn_id, created_at DESC)')
 
     await run(database, `
@@ -3686,6 +3797,24 @@ export async function setupAlicizationDb(
       )
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_working_memory_checkpoints_card_updated ON working_memory_checkpoints(card_id, updated_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS conversation_session_migration_dead_letters (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        table_name TEXT NOT NULL,
+        row_key TEXT NOT NULL,
+        source_session_id TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        UNIQUE(card_id, table_name, row_key)
+      )
+    `)
+    await run(database, `
+      CREATE INDEX IF NOT EXISTS idx_session_migration_dead_letters_card_created
+      ON conversation_session_migration_dead_letters(card_id, created_at DESC)
+    `)
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS scheduled_tasks (
@@ -4110,6 +4239,639 @@ export async function setupAlicizationDb(
     return normalized || undefined
   }
 
+  async function migrateLegacyConversationSessionsToPrimary(input: {
+    cardId: string
+    dryRun?: boolean
+  }): Promise<AlicizationConversationSessionMigrationResult> {
+    const cardId = resolveMemoryCardId(input.cardId, 'conversation session migration')
+    const primarySessionId = alicizationPrimaryConversationSessionId(cardId)
+    const dryRun = input.dryRun === true
+    const migrationMarkerKey = `${conversationSessionMigrationMarkerPrefix}${cardId}`
+    const migratedRows = Object.fromEntries(
+      legacyConversationSessionMigrationSources.map(source => [source.table, 0]),
+    )
+    const conflictRows = Object.fromEntries(
+      legacyConversationSessionMigrationSources.map(source => [source.table, 0]),
+    )
+    const deadLetterRows = Object.fromEntries(
+      legacyConversationSessionMigrationSources.map(source => [source.table, 0]),
+    )
+    if (!dryRun) {
+      const marker = await getMetaValue(migrationMarkerKey)
+      if (marker) {
+        try {
+          const parsed = JSON.parse(marker) as {
+            version?: unknown
+            status?: unknown
+            primarySessionId?: unknown
+          }
+          if (
+            parsed.version === 1
+            && parsed.status === 'completed'
+            && parsed.primarySessionId === primarySessionId
+          ) {
+            return {
+              cardId,
+              primarySessionId,
+              dryRun: false,
+              sourceSessionIds: [],
+              changed: false,
+              migratedRows,
+              conflictRows,
+              deadLetterRows,
+            }
+          }
+        }
+        catch {
+          // Re-run an incomplete or malformed migration marker.
+        }
+      }
+    }
+    const cardScopedMigrationSources = legacyConversationSessionMigrationSources
+      .filter(source => source.cardScoped)
+    const sourceSessionQuery = cardScopedMigrationSources
+      .map(source => `
+        SELECT ${source.column} AS session_id
+        FROM ${source.table}
+        WHERE ${source.cardScoped ? 'card_id = ? AND ' : ''}
+          ${source.column} IS NOT NULL
+          AND TRIM(${source.column}) != ''
+          AND ${source.column} != ?
+      `)
+      .join(' UNION ')
+    const sourceSessionParams = cardScopedMigrationSources.flatMap(() => [cardId, primarySessionId])
+    const sourceSessionRows = await all<{ session_id: string }>(
+      database,
+      `SELECT DISTINCT session_id FROM (${sourceSessionQuery}) ORDER BY session_id ASC`,
+      sourceSessionParams,
+    )
+    const sourceSessionIds = [...new Set(
+      sourceSessionRows
+        .map(row => typeof row.session_id === 'string' ? row.session_id.trim() : '')
+        .filter(sessionId => sessionId && sessionId !== primarySessionId),
+    )].sort()
+
+    if (sourceSessionIds.length === 0) {
+      if (!dryRun) {
+        await enqueueWrite(async () => {
+          await upsertMeta(migrationMarkerKey, JSON.stringify({
+            version: 1,
+            status: 'completed',
+            cardId,
+            primarySessionId,
+            sourceSessionIds: [],
+            migratedRows,
+            conflictRows,
+            deadLetterRows,
+            completedAt: now(),
+          }))
+        })
+      }
+      return {
+        cardId,
+        primarySessionId,
+        dryRun,
+        sourceSessionIds: [],
+        changed: false,
+        migratedRows,
+        conflictRows,
+        deadLetterRows,
+      }
+    }
+
+    const sessionPlaceholders = sourceSessionIds.map(() => '?').join(', ')
+    const countLegacyRows = async (source: typeof legacyConversationSessionMigrationSources[number]) => {
+      const where = source.cardScoped
+        ? `card_id = ? AND ${source.column} IN (${sessionPlaceholders})`
+        : `${source.column} IN (${sessionPlaceholders})`
+      const params = source.cardScoped
+        ? [cardId, ...sourceSessionIds]
+        : sourceSessionIds
+      const row = await get<{ count: number }>(
+        database,
+        `SELECT COUNT(*) AS count FROM ${source.table} WHERE ${where}`,
+        params,
+      )
+      return Math.max(0, Math.floor(Number(row?.count) || 0))
+    }
+
+    const cardScopedSessionOwnershipQuery = cardScopedMigrationSources
+      .map(source => `
+        SELECT card_id, ${source.column} AS session_id
+        FROM ${source.table}
+        WHERE ${source.column} IN (${sessionPlaceholders})
+          AND card_id IS NOT NULL
+          AND TRIM(card_id) != ''
+      `)
+      .join(' UNION ALL ')
+    const sessionCardOwners = await all<{
+      card_id: string
+      session_id: string
+    }>(
+      database,
+      `SELECT DISTINCT card_id, session_id FROM (${cardScopedSessionOwnershipQuery})`,
+      cardScopedMigrationSources.flatMap(() => sourceSessionIds),
+    )
+    const cardOwnersBySession = new Map<string, Set<string>>()
+    for (const row of sessionCardOwners) {
+      const sessionId = typeof row.session_id === 'string' ? row.session_id.trim() : ''
+      const ownerCardId = typeof row.card_id === 'string' ? row.card_id.trim() : ''
+      if (!sessionId || !ownerCardId)
+        continue
+      const owners = cardOwnersBySession.get(sessionId) ?? new Set<string>()
+      owners.add(ownerCardId)
+      cardOwnersBySession.set(sessionId, owners)
+    }
+    const hasSoleCardOwnedSession = (sessionIdRaw: unknown) => {
+      const sessionId = typeof sessionIdRaw === 'string' ? sessionIdRaw.trim() : ''
+      if (!sessionId)
+        return false
+      const owners = cardOwnersBySession.get(sessionId)
+      return owners?.size === 1 && owners.has(cardId)
+    }
+
+    const hasCardOwnedAnchor = async (input: {
+      turnId?: unknown
+      decisionTraceId?: unknown
+    }) => {
+      const turnId = typeof input.turnId === 'string' ? input.turnId.trim() : ''
+      const decisionTraceId = typeof input.decisionTraceId === 'string'
+        ? input.decisionTraceId.trim()
+        : ''
+      if (turnId) {
+        const conversationTurn = await get<{ id: string }>(
+          database,
+          `
+          SELECT id
+          FROM conversation_turns
+          WHERE card_id = ?
+            AND turn_id = ?
+          LIMIT 1
+          `,
+          [cardId, turnId],
+        )
+        if (conversationTurn)
+          return true
+
+        const runtimeEvent = await get<{ event_id: string }>(
+          database,
+          `
+          SELECT event_id
+          FROM alicization_runtime_events
+          WHERE card_id = ?
+            AND turn_id = ?
+          LIMIT 1
+          `,
+          [cardId, turnId],
+        )
+        if (runtimeEvent)
+          return true
+      }
+      if (decisionTraceId) {
+        const runtimeEvent = await get<{ event_id: string }>(
+          database,
+          `
+          SELECT event_id
+          FROM alicization_runtime_events
+          WHERE card_id = ?
+            AND correlation_id = ?
+          LIMIT 1
+          `,
+          [cardId, decisionTraceId],
+        )
+        if (runtimeEvent)
+          return true
+      }
+      return false
+    }
+
+    const isUnscopedRowOwnedByCard = async (
+      source: typeof legacyConversationSessionMigrationSources[number],
+      row: Record<string, unknown>,
+    ) => {
+      if (hasSoleCardOwnedSession(row.session_id))
+        return true
+
+      if (source.table === 'executor_events') {
+        const threadId = typeof row.thread_id === 'string' ? row.thread_id.trim() : ''
+        if (threadId) {
+          const parent = await get<{
+            session_id: string | null
+            turn_id: string | null
+            decision_trace_id: string | null
+          }>(
+            database,
+            `
+            SELECT session_id, turn_id, decision_trace_id
+            FROM task_threads
+            WHERE id = ?
+            LIMIT 1
+            `,
+            [threadId],
+          )
+          if (
+            parent?.session_id === primarySessionId
+            && await hasCardOwnedAnchor({
+              turnId: parent.turn_id,
+              decisionTraceId: parent.decision_trace_id,
+            })
+          ) {
+            return true
+          }
+          if (parent?.session_id === primarySessionId && hasSoleCardOwnedSession(row.session_id))
+            return true
+        }
+      }
+      return await hasCardOwnedAnchor({
+        turnId: row.turn_id,
+        decisionTraceId: row.decision_trace_id,
+      })
+    }
+
+    const deadLetterUnscopedRow = async (
+      source: typeof legacyConversationSessionMigrationSources[number],
+      row: Record<string, unknown>,
+    ) => {
+      const rowKey = createHash('sha256')
+        .update(JSON.stringify(row))
+        .digest('hex')
+      const sourceSessionId = typeof row.session_id === 'string'
+        ? row.session_id.trim()
+        : ''
+      const insert = await run(
+        database,
+        `
+        INSERT OR IGNORE INTO conversation_session_migration_dead_letters (
+          id,
+          card_id,
+          table_name,
+          row_key,
+          source_session_id,
+          payload_json,
+          reason,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          `conversation-session-migration:${cardId}:${source.table}:${rowKey}`,
+          cardId,
+          source.table,
+          rowKey,
+          sourceSessionId,
+          JSON.stringify(row),
+          'legacy execution row has no verifiable card-owned turn or runtime anchor',
+          now(),
+        ],
+      )
+      deadLetterRows[source.table] += insert.changes
+    }
+
+    if (dryRun) {
+      for (const source of legacyConversationSessionMigrationSources) {
+        migratedRows[source.table] = await countLegacyRows(source)
+      }
+      const legacyCheckpoints = await all<DbWorkingMemoryCheckpointRow>(
+        database,
+        `
+        SELECT card_id, session_id, version, snapshot_json, updated_at
+        FROM working_memory_checkpoints
+        WHERE card_id = ? AND session_id IN (${sessionPlaceholders})
+        `,
+        [cardId, ...sourceSessionIds],
+      )
+      deadLetterRows.working_memory_checkpoints = legacyCheckpoints.filter(checkpoint =>
+        !parseWorkingMemoryCheckpoint(checkpoint.snapshot_json, {
+          cardId,
+          sessionId: checkpoint.session_id,
+        }),
+      ).length
+      return {
+        cardId,
+        primarySessionId,
+        dryRun: true,
+        sourceSessionIds,
+        changed: Object.values(migratedRows).some(count => count > 0)
+          || Object.values(deadLetterRows).some(count => count > 0),
+        migratedRows,
+        conflictRows,
+        deadLetterRows,
+      }
+    }
+
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        const legacyTurns = await all<{
+          id: string
+          turn_id: string | null
+          user_text: string | null
+          assistant_text: string | null
+          structured_json: string | null
+        }>(
+          database,
+          `
+          SELECT id, turn_id, user_text, assistant_text, structured_json
+          FROM conversation_turns
+          WHERE card_id = ? AND session_id IN (${sessionPlaceholders})
+          ORDER BY created_at ASC, rowid ASC
+          `,
+          [cardId, ...sourceSessionIds],
+        )
+        for (const turn of legacyTurns) {
+          const turnId = typeof turn.turn_id === 'string' ? turn.turn_id.trim() : ''
+          if (!turnId) {
+            const result = await run(
+              database,
+              'UPDATE conversation_turns SET session_id = ? WHERE id = ? AND card_id = ?',
+              [primarySessionId, turn.id, cardId],
+            )
+            migratedRows.conversation_turns += result.changes
+            continue
+          }
+
+          const canonicalTurn = await get<{
+            id: string
+            user_text: string | null
+            assistant_text: string | null
+            structured_json: string | null
+          }>(
+            database,
+            `
+            SELECT id, user_text, assistant_text, structured_json
+            FROM conversation_turns
+            WHERE card_id = ? AND session_id = ? AND turn_id = ?
+            LIMIT 1
+            `,
+            [cardId, primarySessionId, turnId],
+          )
+          if (!canonicalTurn) {
+            const result = await run(
+              database,
+              'UPDATE conversation_turns SET session_id = ? WHERE id = ? AND card_id = ?',
+              [primarySessionId, turn.id, cardId],
+            )
+            migratedRows.conversation_turns += result.changes
+            continue
+          }
+
+          await run(
+            database,
+            `
+            UPDATE conversation_turns
+            SET
+              user_text = COALESCE(NULLIF(user_text, ''), ?),
+              assistant_text = COALESCE(NULLIF(assistant_text, ''), ?),
+              structured_json = COALESCE(structured_json, ?)
+            WHERE id = ?
+            `,
+            [
+              turn.user_text,
+              turn.assistant_text,
+              turn.structured_json,
+              canonicalTurn.id,
+            ],
+          )
+          await run(database, 'DELETE FROM conversation_turns WHERE id = ?', [turn.id])
+          migratedRows.conversation_turns += 1
+          conflictRows.conversation_turns += 1
+        }
+
+        const legacyCheckpoints = await all<DbWorkingMemoryCheckpointRow>(
+          database,
+          `
+          SELECT card_id, session_id, version, snapshot_json, updated_at
+          FROM working_memory_checkpoints
+          WHERE card_id = ? AND session_id IN (${sessionPlaceholders})
+          ORDER BY updated_at DESC
+          `,
+          [cardId, ...sourceSessionIds],
+        )
+        for (const checkpoint of legacyCheckpoints) {
+          if (parseWorkingMemoryCheckpoint(checkpoint.snapshot_json, {
+            cardId,
+            sessionId: checkpoint.session_id,
+          })) {
+            continue
+          }
+
+          const rowKey = createHash('sha256')
+            .update([
+              checkpoint.card_id,
+              checkpoint.session_id,
+              checkpoint.version,
+              checkpoint.updated_at,
+              checkpoint.snapshot_json,
+            ].join('\u0000'))
+            .digest('hex')
+          const deadLetterId = `conversation-session-migration:${cardId}:working_memory_checkpoints:${rowKey}`
+          await run(
+            database,
+            `
+            INSERT OR IGNORE INTO conversation_session_migration_dead_letters (
+              id,
+              card_id,
+              table_name,
+              row_key,
+              source_session_id,
+              payload_json,
+              reason,
+              created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `,
+            [
+              deadLetterId,
+              cardId,
+              'working_memory_checkpoints',
+              rowKey,
+              checkpoint.session_id,
+              checkpoint.snapshot_json,
+              'working memory checkpoint failed validation during session migration',
+              now(),
+            ],
+          )
+          await run(
+            database,
+            `
+            DELETE FROM working_memory_checkpoints
+            WHERE card_id = ?
+              AND session_id = ?
+              AND version = ?
+              AND snapshot_json = ?
+              AND updated_at = ?
+            `,
+            [
+              cardId,
+              checkpoint.session_id,
+              checkpoint.version,
+              checkpoint.snapshot_json,
+              checkpoint.updated_at,
+            ],
+          )
+          deadLetterRows.working_memory_checkpoints += 1
+        }
+        const validLegacyCheckpoints = legacyCheckpoints.filter(checkpoint =>
+          parseWorkingMemoryCheckpoint(checkpoint.snapshot_json, {
+            cardId,
+            sessionId: checkpoint.session_id,
+          }),
+        )
+        let canonicalCheckpoint = await get<DbWorkingMemoryCheckpointRow>(
+          database,
+          `
+          SELECT card_id, session_id, version, snapshot_json, updated_at
+          FROM working_memory_checkpoints
+          WHERE card_id = ? AND session_id = ?
+          LIMIT 1
+          `,
+          [cardId, primarySessionId],
+        )
+        for (const checkpoint of validLegacyCheckpoints) {
+          const parsedSnapshot = parseWorkingMemoryCheckpoint(checkpoint.snapshot_json, {
+            cardId,
+            sessionId: checkpoint.session_id,
+          })
+          let snapshotJson = checkpoint.snapshot_json
+          if (parsedSnapshot) {
+            snapshotJson = serializeWorkingMemoryCheckpoint({
+              ...parsedSnapshot,
+              cardId,
+              sessionId: primarySessionId,
+            })
+          }
+          else {
+            try {
+              const rawSnapshot = JSON.parse(checkpoint.snapshot_json) as Record<string, unknown>
+              if (rawSnapshot && typeof rawSnapshot === 'object' && !Array.isArray(rawSnapshot)) {
+                rawSnapshot.cardId = cardId
+                rawSnapshot.sessionId = primarySessionId
+                snapshotJson = JSON.stringify(rawSnapshot)
+              }
+            }
+            catch {
+              // Preserve malformed checkpoint bytes while moving their row.
+            }
+          }
+
+          if (!canonicalCheckpoint) {
+            await run(
+              database,
+              `
+              UPDATE working_memory_checkpoints
+              SET session_id = ?, snapshot_json = ?
+              WHERE card_id = ? AND session_id = ?
+              `,
+              [primarySessionId, snapshotJson, cardId, checkpoint.session_id],
+            )
+            canonicalCheckpoint = {
+              ...checkpoint,
+              session_id: primarySessionId,
+              snapshot_json: snapshotJson,
+            }
+            migratedRows.working_memory_checkpoints += 1
+            continue
+          }
+
+          conflictRows.working_memory_checkpoints += 1
+          if (checkpoint.updated_at > canonicalCheckpoint.updated_at) {
+            await run(
+              database,
+              `
+              UPDATE working_memory_checkpoints
+              SET
+                version = ?,
+                snapshot_json = ?,
+                updated_at = ?
+              WHERE card_id = ? AND session_id = ?
+              `,
+              [
+                checkpoint.version,
+                snapshotJson,
+                checkpoint.updated_at,
+                cardId,
+                primarySessionId,
+              ],
+            )
+            canonicalCheckpoint = {
+              ...checkpoint,
+              session_id: primarySessionId,
+              snapshot_json: snapshotJson,
+            }
+          }
+          await run(
+            database,
+            'DELETE FROM working_memory_checkpoints WHERE card_id = ? AND session_id = ?',
+            [cardId, checkpoint.session_id],
+          )
+          migratedRows.working_memory_checkpoints += 1
+        }
+
+        for (const source of legacyConversationSessionMigrationSources) {
+          if (
+            source.table === 'conversation_turns'
+            || source.table === 'working_memory_checkpoints'
+          ) {
+            continue
+          }
+          if (!source.cardScoped) {
+            const rows = await all<Record<string, unknown> & { __migration_rowid: number }>(
+              database,
+              `
+              SELECT rowid AS __migration_rowid, *
+              FROM ${source.table}
+              WHERE ${source.column} IN (${sessionPlaceholders})
+              ORDER BY rowid ASC
+              `,
+              sourceSessionIds,
+            )
+            for (const row of rows) {
+              if (!await isUnscopedRowOwnedByCard(source, row)) {
+                await deadLetterUnscopedRow(source, row)
+                continue
+              }
+              const result = await run(
+                database,
+                `UPDATE ${source.table} SET ${source.column} = ? WHERE rowid = ?`,
+                [primarySessionId, row.__migration_rowid],
+              )
+              migratedRows[source.table] += result.changes
+            }
+            continue
+          }
+          const where = `card_id = ? AND ${source.column} IN (${sessionPlaceholders})`
+          const params = [primarySessionId, cardId, ...sourceSessionIds]
+          const result = await run(
+            database,
+            `UPDATE ${source.table} SET ${source.column} = ? WHERE ${where}`,
+            params,
+          )
+          migratedRows[source.table] += result.changes
+        }
+        await upsertMeta(migrationMarkerKey, JSON.stringify({
+          version: 1,
+          status: 'completed',
+          cardId,
+          primarySessionId,
+          sourceSessionIds,
+          migratedRows,
+          conflictRows,
+          deadLetterRows,
+          completedAt: now(),
+        }))
+      })
+    })
+
+    return {
+      cardId,
+      primarySessionId,
+      dryRun: false,
+      sourceSessionIds,
+      changed: Object.values(migratedRows).some(count => count > 0)
+        || Object.values(deadLetterRows).some(count => count > 0),
+      migratedRows,
+      conflictRows,
+      deadLetterRows,
+    }
+  }
+
   function normalizeWorkingMemoryCheckpointKey(raw: unknown, maxChars: number) {
     return typeof raw === 'string'
       ? raw.trim().replace(/\s+/g, ' ').slice(0, maxChars).trim()
@@ -4191,6 +4953,7 @@ export async function setupAlicizationDb(
     cursor?: string | null
   }): Promise<AlicizationMemoryReplaySessionListResult> {
     const cardId = resolveMemoryCardId(input.cardId, 'memory replay session list')
+    const primarySessionId = alicizationPrimaryConversationSessionId(cardId)
     const limit = Math.max(1, Math.min(50, Math.floor(input.limit ?? 20)))
     const cursor = parseMemoryReplaySessionCursor(input.cursor)
     const cursorClause = cursor
@@ -4206,6 +4969,9 @@ export async function setupAlicizationDb(
       : ''
     const params: unknown[] = [
       cardId,
+      primarySessionId,
+      cardId,
+      primarySessionId,
       cardId,
       cardId,
       cardId,
@@ -4225,6 +4991,15 @@ export async function setupAlicizationDb(
         SELECT session_id
         FROM working_memory_checkpoints
         WHERE card_id = ?
+          AND session_id = ?
+          AND session_id IS NOT NULL
+          AND TRIM(session_id) != ''
+        GROUP BY session_id
+        UNION
+        SELECT session_id
+        FROM conversation_turns
+        WHERE card_id = ?
+          AND session_id = ?
           AND session_id IS NOT NULL
           AND TRIM(session_id) != ''
         GROUP BY session_id
@@ -9869,34 +10644,38 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     now,
     randomUUID,
     listSources: async (cardId): Promise<PersonaTrainingDatasetSource[]> => {
+      const readAllPages = async <T>(
+        readPage: (cursor: string | null) => Promise<{
+          items: T[]
+          nextCursor: string | null
+        }>,
+      ) => {
+        const items: T[] = []
+        const seenCursors = new Set<string>()
+        let cursor: string | null = null
+        while (true) {
+          const page = await readPage(cursor)
+          items.push(...page.items)
+          if (!page.nextCursor || seenCursors.has(page.nextCursor))
+            break
+          seenCursors.add(page.nextCursor)
+          cursor = page.nextCursor
+        }
+        return items
+      }
       const [reflections, reinforcements] = await Promise.all([
-        memoryRelationshipRuntime.listMemoryReflections({ cardId, limit: 10000, status: 'confirmed' }),
-        memoryRelationshipRuntime.listPersonaReinforcementEvents({ cardId, limit: 10000 }),
+        readAllPages(cursor => memoryRelationshipRuntime.listMemoryReflectionsPage({
+          cardId,
+          limit: 256,
+          status: 'confirmed',
+          cursor,
+        })),
+        readAllPages(cursor => memoryRelationshipRuntime.listPersonaReinforcementEventsPage({
+          cardId,
+          limit: 256,
+          cursor,
+        })),
       ])
-      const provenanceRows = await all<{
-        source_id: string
-        source_kind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
-        cleaning_transaction_id: string
-        cleaned_at: number
-      }>(
-        database,
-        `
-        SELECT source_id, source_kind, cleaning_transaction_id, cleaned_at
-        FROM persona_training_source_provenance
-        WHERE card_id = ?
-        `,
-        [cardId],
-      )
-      const provenanceBySource = new Map(
-        provenanceRows.map(row => [
-          `${row.source_kind}:${row.source_id}`,
-          {
-            kind: 'working-memory-cleaning' as const,
-            cleaningTransactionId: row.cleaning_transaction_id,
-            cleanedAt: row.cleaned_at,
-          },
-        ]),
-      )
       const sourceRefs: AlicizationPersonaTrainingSourceRef[] = [
         ...reflections.map(item => ({
           sourceId: item.id,
@@ -9907,6 +10686,39 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           sourceKind: 'persona-reinforcement' as const,
         })),
       ]
+      const provenanceRows: Array<{
+        source_id: string
+        source_kind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+        cleaning_transaction_id: string
+        cleaned_at: number
+      }> = []
+      for (let index = 0; index < sourceRefs.length; index += 200) {
+        const sourceRefChunk = sourceRefs.slice(index, index + 200)
+        provenanceRows.push(...await all<{
+          source_id: string
+          source_kind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+          cleaning_transaction_id: string
+          cleaned_at: number
+        }>(database, `
+          SELECT source_id, source_kind, cleaning_transaction_id, cleaned_at
+          FROM persona_training_source_provenance
+          WHERE card_id = ?
+            AND (${sourceRefChunk.map(() => '(source_id = ? AND source_kind = ?)').join(' OR ')})
+          `, [
+          cardId,
+          ...sourceRefChunk.flatMap(sourceRef => [sourceRef.sourceId, sourceRef.sourceKind]),
+        ]))
+      }
+      const provenanceBySource = new Map(
+        provenanceRows.map(row => [
+          `${row.source_kind}:${row.source_id}`,
+          {
+            kind: 'working-memory-cleaning' as const,
+            cleaningTransactionId: row.cleaning_transaction_id,
+            cleanedAt: row.cleaned_at,
+          },
+        ]),
+      )
       const policies = await memoryWorkbenchPolicyStore.listPolicyOverrides({ cardId, sourceRefs })
       const policyBySourceRef = new Map(policies.flatMap(policy =>
         policy.sourceKind
@@ -10170,8 +10982,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     enqueueWrite,
     runInTransaction,
     policyStore: memoryWorkbenchPolicyStore,
-    listMemoryReflections: memoryRelationshipRuntime.listMemoryReflections,
-    listPersonaReinforcementEvents: memoryRelationshipRuntime.listPersonaReinforcementEvents,
+    listMemoryReflectionsPage: memoryRelationshipRuntime.listMemoryReflectionsPage,
+    listPersonaReinforcementEventsPage: memoryRelationshipRuntime.listPersonaReinforcementEventsPage,
     listTombstonedLongTermMemorySourceIds,
   })
 
@@ -11907,12 +12719,241 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     return parseMemoryQualityGoldCursor(raw)
   }
 
+  function memoryQualityConversationSampleId(cardId: string, sessionId: string, turnId: string) {
+    return `memory-quality-sample:${cardId}:${sessionId}:${turnId}`
+  }
+
+  function extractMemoryQualitySampleIds(events: AlicizationMindTurnEventRecord[]) {
+    const retrievedCandidateIds: string[] = []
+    const surfacedMemoryIds: string[] = []
+    const add = (target: string[], value: unknown) => {
+      const normalized = normalizeOrganicMemoryText(value, 180)
+      if (normalized && !target.includes(normalized))
+        target.push(normalized)
+    }
+    const addArray = (target: string[], value: unknown) => {
+      if (!Array.isArray(value))
+        return
+      for (const item of value) {
+        if (typeof item === 'string')
+          add(target, item)
+        else if (item && typeof item === 'object' && !Array.isArray(item))
+          add(target, (item as Record<string, unknown>).id)
+      }
+    }
+    const payloadKeys = [
+      'selectedIds',
+      'selectedEras',
+      'selectedPeriods',
+      'selectedEpisodes',
+      'selectedProcedures',
+      'selectedBundles',
+      'selectedChains',
+      'selectedSituations',
+    ]
+    for (const event of events) {
+      if (event.kind !== 'recall-attribution' && event.kind !== 'memory-deliberation-judged')
+        continue
+      const payload = event.payload ?? {}
+      addArray(retrievedCandidateIds, payload.evidenceIds)
+      addArray(retrievedCandidateIds, payload.retrievedCandidateIds)
+      for (const key of payloadKeys)
+        addArray(retrievedCandidateIds, payload[key])
+      if (Array.isArray(payload.surfacedMemoryIds)) {
+        addArray(surfacedMemoryIds, payload.surfacedMemoryIds)
+      }
+    }
+    return {
+      retrievedCandidateIds: retrievedCandidateIds.slice(0, 128),
+      surfacedMemoryIds: surfacedMemoryIds.slice(0, 128),
+    }
+  }
+
+  async function listMemoryQualityConversationSamples(input: {
+    cardId: string
+    limit?: number
+    cursor?: string | null
+  }): Promise<AlicizationMemoryQualityConversationSampleListResult> {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory quality conversation sample list')
+    const sessionId = alicizationPrimaryConversationSessionId(cardId)
+    const limit = Math.max(1, Math.min(100, Math.floor(input.limit ?? 20)))
+    const cursor = parseMemoryQualityGoldCursor(input.cursor)
+    const cursorClause = cursor
+      ? 'AND (created_at < ? OR (created_at = ? AND turn_id < ?))'
+      : ''
+    const rows = await all<DbConversationTurnRow>(
+      database,
+      `
+      SELECT
+        card_id,
+        turn_id,
+        session_id,
+        user_text,
+        assistant_text,
+        structured_json,
+        created_at
+      FROM conversation_turns
+      WHERE card_id = ?
+        AND session_id = ?
+        AND turn_id IS NOT NULL
+        AND TRIM(turn_id) != ''
+        AND user_text IS NOT NULL
+        AND TRIM(user_text) != ''
+        AND assistant_text IS NOT NULL
+        AND TRIM(assistant_text) != ''
+        ${cursorClause}
+      ORDER BY created_at DESC, turn_id DESC
+      LIMIT ?
+      `,
+      cursor
+        ? [cardId, sessionId, cursor.createdAt, cursor.createdAt, cursor.id, limit + 1]
+        : [cardId, sessionId, limit + 1],
+    )
+    const pageRows = rows.slice(0, limit)
+    const turnIds = pageRows
+      .map(row => typeof row.turn_id === 'string' ? row.turn_id.trim() : '')
+      .filter(Boolean)
+    const labels = turnIds.length > 0
+      ? await all<{ turn_id: string, id: string }>(
+          database,
+          `
+          SELECT turn_id, id
+          FROM memory_quality_gold_labels
+          WHERE card_id = ?
+            AND session_id = ?
+            AND turn_id IN (${turnIds.map(() => '?').join(', ')})
+          ORDER BY created_at DESC, id DESC
+          `,
+          [cardId, sessionId, ...turnIds],
+        )
+      : []
+    const labelByTurnId = new Map<string, string>()
+    for (const label of labels) {
+      if (!labelByTurnId.has(label.turn_id))
+        labelByTurnId.set(label.turn_id, label.id)
+    }
+    const items = await Promise.all(pageRows.map(async (row): Promise<AlicizationMemoryQualityConversationSample | null> => {
+      const turnId = typeof row.turn_id === 'string' ? row.turn_id.trim() : ''
+      const query = typeof row.user_text === 'string' ? row.user_text.trim() : ''
+      const assistantReply = typeof row.assistant_text === 'string' ? row.assistant_text.trim() : ''
+      if (!turnId || !query || !assistantReply)
+        return null
+      const events = (await listMindTurnEvents({
+        turnId,
+        limit: 600,
+      })).filter(event => event.sessionId === sessionId && event.turnId === turnId)
+      const decisionTraceId = events.find(event => event.decisionTraceId.trim())?.decisionTraceId ?? null
+      const sampleMemoryIds = extractMemoryQualitySampleIds(events)
+      return {
+        id: memoryQualityConversationSampleId(cardId, sessionId, turnId),
+        cardId,
+        sessionId,
+        turnId,
+        decisionTraceId,
+        query,
+        assistantReply,
+        createdAt: row.created_at,
+        retrievedCandidateIds: sampleMemoryIds.retrievedCandidateIds,
+        surfacedMemoryIds: sampleMemoryIds.surfacedMemoryIds,
+        traceEventKinds: [...new Set(events.map(event => event.kind))],
+        existingGoldLabelId: labelByTurnId.get(turnId) ?? null,
+      }
+    }))
+    const validItems = items.filter((item): item is AlicizationMemoryQualityConversationSample => item !== null)
+    const next = rows.length > limit ? pageRows.at(-1) ?? null : null
+    return {
+      items: validItems,
+      nextCursor: next?.turn_id
+        ? memoryQualityGoldCursor(next.created_at, next.turn_id)
+        : null,
+    }
+  }
+
+  async function validateMemoryQualityConversationSampleBinding(input: {
+    sampleId: string
+    cardId: string
+    sessionId: string
+    turnId: string
+    query: string
+    assistantReply: string
+    decisionTraceId: string
+    retrievedEvidenceSnapshot: AlicizationMemoryQualityEvidenceSnapshot[]
+    retrievedCandidateIds: string[]
+  }) {
+    const canonicalSessionId = alicizationPrimaryConversationSessionId(input.cardId)
+    if (input.sessionId !== canonicalSessionId)
+      throw new Error('memory quality gold label must bind to the canonical conversation session')
+    const expectedSampleId = memoryQualityConversationSampleId(input.cardId, input.sessionId, input.turnId)
+    if (input.sampleId !== expectedSampleId)
+      throw new Error('memory quality gold label conversation sample mismatch')
+    const turn = await get<{
+      user_text: string | null
+      assistant_text: string | null
+    }>(
+      database,
+      `
+      SELECT user_text, assistant_text
+      FROM conversation_turns
+      WHERE card_id = ?
+        AND session_id = ?
+        AND turn_id = ?
+      LIMIT 1
+      `,
+      [input.cardId, input.sessionId, input.turnId],
+    )
+    if (!turn)
+      throw new Error('memory quality gold label conversation turn does not exist')
+    if (turn.user_text?.trim() !== input.query || turn.assistant_text?.trim() !== input.assistantReply)
+      throw new Error('memory quality gold label reply context no longer matches the conversation turn')
+    if (!input.decisionTraceId.trim())
+      throw new Error('memory quality gold label decision trace is required')
+    const events = (await listMindTurnEvents({
+      turnId: input.turnId,
+      limit: 600,
+    })).filter(event => event.sessionId === input.sessionId && event.turnId === input.turnId)
+    if (!events.some(event => event.decisionTraceId === input.decisionTraceId))
+      throw new Error('memory quality gold label decision trace does not belong to the conversation turn')
+    const snapshotIds = new Set(input.retrievedEvidenceSnapshot.map(item => item.id))
+    if (input.retrievedEvidenceSnapshot.some(item => !input.retrievedCandidateIds.includes(item.id)))
+      throw new Error('memory quality gold label evidence must belong to retrieved candidates')
+    if (input.retrievedCandidateIds.some(id => snapshotIds.size > 0 && !snapshotIds.has(id)))
+      throw new Error('memory quality gold label retrieved candidate is missing from evidence snapshot')
+  }
+
   function isRecord(value: unknown): value is Record<string, unknown> {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
   }
 
   function isStringArray(value: unknown): value is string[] {
     return Array.isArray(value) && value.every(item => typeof item === 'string')
+  }
+
+  function hasFinalReplayGateReport(value: unknown): value is AlicizationFinalReplayGateReportRecord {
+    if (!isRecord(value))
+      return false
+    return value.version === 'final-replay-gate-v1'
+      && typeof value.passed === 'boolean'
+      && isStringArray(value.failingKeys)
+      && isRecord(value.metrics)
+  }
+
+  async function readPersistedFinalReplayGate() {
+    const raw = await getMetaValue(replayBenchmarkLatestReportMetaKey)
+    if (!raw)
+      return null
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      if (!isRecord(parsed) || !Array.isArray(parsed.packs))
+        return null
+      const packs = parsed.packs.filter(isRecord)
+      const finalPack = packs.find(pack => pack.packId === 'final-humanlike-memory-v1')
+        ?? packs.at(-1)
+      const finalReplayGate = finalPack?.finalReplayGate
+      return hasFinalReplayGateReport(finalReplayGate) ? finalReplayGate : null
+    }
+    catch {
+      return null
+    }
   }
 
   function isFiniteNumberOrNull(value: unknown) {
@@ -12036,6 +13077,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       'scope-fuzz',
       'gold-regression',
       'persona-dataset-hygiene',
+      'final-replay-gate',
     ].includes(value.stage as string)
     && typeof value.id === 'string'
     && Boolean(value.id.trim())
@@ -12153,6 +13195,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         || candidate.dialogueReplay !== null && !hasDialogueReplayReport(candidate.dialogueReplay)
         || candidate.liveProviderTrial !== null && !hasLiveProviderTrialReport(candidate.liveProviderTrial)
         || candidate.runtimeHealth !== null && !hasRuntimeHealth(candidate.runtimeHealth)
+        || candidate.finalReplayGate !== undefined
+        && candidate.finalReplayGate !== null
+        && !hasFinalReplayGateReport(candidate.finalReplayGate)
         || !hasMemoryQualityTrialRegression(candidate.regression)
         || !hasMemoryQualityHarness(candidate.quality)
         || candidate.goldRegressionPack !== null && !hasMonthlyGoldRegressionPack(candidate.goldRegressionPack)
@@ -12161,7 +13206,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         || candidate.semanticScaleSoak !== null && !isRecord(candidate.semanticScaleSoak)
         || candidate.experienceQuality !== null && !isRecord(candidate.experienceQuality)
         || candidate.scopeFuzz !== null && !isRecord(candidate.scopeFuzz)
-        || !isStringArray(candidate.recommendedNextActions)
+          || !isStringArray(candidate.recommendedNextActions)
       ) {
         return null
       }
@@ -12216,6 +13261,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       throw new Error('memory quality gold label assistantReply is required')
     if (!Array.isArray(input.retrievedEvidenceSnapshot))
       throw new Error('memory quality gold label evidence snapshot is required')
+    const conversationSampleId = normalizeOrganicMemoryText(input.conversationSampleId, 360)
+    if (!conversationSampleId)
+      throw new Error('memory quality gold label conversation sample is required')
+    const decisionTraceId = normalizeOrganicMemoryText(input.decisionTraceId, 180)
+    if (!decisionTraceId)
+      throw new Error('memory quality gold label decision trace is required')
 
     const label = resolveSimpleRecallGoldLabelOption(input.label)
     const expectedMemoryIds = normalizeMemoryQualityIds(input.expectedMemoryIds)
@@ -12228,9 +13279,20 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       throw new Error('memory quality gold label evidence snapshot contains invalid items')
     if (retrievedEvidenceSnapshot.some(item => item.scope.cardId !== null && item.scope.cardId !== cardId))
       throw new Error('memory quality gold label evidence snapshot card scope mismatch')
+    const retrievedCandidateIds = normalizeMemoryQualityIds(input.retrievedCandidateIds)
+    await validateMemoryQualityConversationSampleBinding({
+      sampleId: conversationSampleId,
+      cardId,
+      sessionId,
+      turnId,
+      query,
+      assistantReply,
+      decisionTraceId,
+      retrievedEvidenceSnapshot,
+      retrievedCandidateIds,
+    })
     const id = `memory-quality-gold:${cardId}:${createdAt}:${randomUUID()}`
     const reason = resolveSimpleRecallGoldReason(input.reason)
-    const retrievedCandidateIds = normalizeMemoryQualityIds(input.retrievedCandidateIds)
     const surfacedMemoryIds = normalizeMemoryQualityIds(input.surfacedMemoryIds)
     const wrongThreadIds = normalizeMemoryQualityIds(input.wrongThreadIds)
     await enqueueWrite(async () => {
@@ -12278,7 +13340,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           JSON.stringify(retrievedEvidenceSnapshot),
           1,
           turnId,
-          normalizeOrganicMemoryText(input.decisionTraceId, 180) || null,
+          decisionTraceId,
           normalizeOrganicMemoryText(input.note, 360) || null,
           createdAt,
         ],
@@ -12682,6 +13744,15 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     return deriveLongTermMemoryRecallIntent(input).temporalFocus
   }
 
+  function ensureTemporalRecallCue(rawQuery: string) {
+    const query = normalizeOrganicMemoryText(rawQuery, 600)
+    if (!query)
+      return '你还记得这条记忆吗？'
+    if (/记得|回想|想起|上次|之前|以前|那次|recall|remember|previous|before|last/iu.test(query))
+      return query
+    return `你还记得${query}`
+  }
+
   async function buildLongTermTemporalConflictFixtures(input: {
     cardId: string
     labels: AlicizationMemoryQualityGoldLabelItem[]
@@ -12696,7 +13767,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         .filter((item): item is NonNullable<typeof item> => Boolean(item))
       if (supersededFacts.length === 0)
         continue
-      const currentUserText = `现在 ${fact.subject} ${fact.predicate} 是什么？`
+      const currentUserText = `你还记得现在 ${fact.subject} ${fact.predicate} 是什么吗？`
       fixtures.push({
         id: `runtime-temporal-supersedes:${fact.id}`,
         scenario: 'knowledge-update',
@@ -12708,7 +13779,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         expectedTopIds: [fact.id],
         forbiddenTopIds: supersededFacts.map(item => item.id),
         expectedTemporalFocus: temporalFixtureFocus({ currentUserText }),
-        limit: Math.max(1, supersededFacts.length + 1),
+        limit: 1,
       })
     }
 
@@ -12737,17 +13808,18 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       })
       if (candidates.length === 0)
         continue
+      const currentUserText = ensureTemporalRecallCue(label.query)
       fixtures.push({
         id: `runtime-temporal-expired:${label.id}`,
         scenario: expectedIds.length > 0 ? 'knowledge-update' : 'relative-time',
-        currentUserText: label.query,
+        currentUserText,
         candidates,
         expectedTopIds: expectedIds,
         forbiddenTopIds: forbiddenIds,
         expectedTemporalFocus: temporalFixtureFocus({
-          currentUserText: label.query,
+          currentUserText,
         }),
-        limit: Math.max(1, Math.min(8, candidates.length)),
+        limit: Math.max(1, Math.min(8, expectedIds.length || 1)),
       })
     }
 
@@ -12801,23 +13873,47 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     )
   }
 
+  function resolveReplayCheckpointTurnIds(raw: unknown) {
+    if (typeof raw !== 'string')
+      return []
+
+    const normalized = raw.trim()
+    if (!normalized)
+      return []
+
+    const ids = [normalized]
+    const roleSuffix = normalized.match(/^(.*):(user|alice)$/u)
+    if (roleSuffix?.[1])
+      ids.push(roleSuffix[1])
+    return ids
+  }
+
+  function findReplayCheckpointBoundaryIndex(
+    turns: Array<{ turn: { turnId: string } }>,
+    checkpoint: WorkingMemorySnapshot | null,
+  ) {
+    const boundaryTurnIds = new Set(resolveReplayCheckpointTurnIds(checkpoint?.turnRange.toTurnId))
+    if (boundaryTurnIds.size === 0)
+      return null
+
+    const boundaryIndex = turns.findIndex(item => boundaryTurnIds.has(item.turn.turnId))
+    return boundaryIndex >= 0 ? boundaryIndex : null
+  }
+
   async function runMemoryWorkbenchProductionTrial(input: {
     cardId: string
     mode?: 'historical-replay' | 'live-provider'
     month?: string | null
     sessionId?: string | null
+    readOnly?: boolean
     signal?: AbortSignal
   }): Promise<MemoryProductionTrialReport> {
     const cardId = resolveMemoryCardId(input.cardId, 'memory workbench production trial')
     const createdAt = now()
     const month = normalizeMemoryQualityMonth(input.month, createdAt)
-    const requestedReplaySessionId = typeof input.sessionId === 'string'
-      ? input.sessionId.trim()
-      : ''
-    const selectedWorkingMemoryCheckpoint = requestedReplaySessionId
-      ? await getWorkingMemoryCheckpoint(cardId, requestedReplaySessionId)
-      : null
-    const replaySessionId = selectedWorkingMemoryCheckpoint?.sessionId ?? null
+    const readOnly = input.readOnly === true
+    const replaySessionId = alicizationPrimaryConversationSessionId(cardId)
+    const finalReplayGate = await readPersistedFinalReplayGate()
     let goldRegressionPack = await getMonthlyGoldRegressionPack({ cardId, month })
     if (!goldRegressionPack) {
       const humanLabels = await listAllMemoryQualityGoldLabels({
@@ -12825,7 +13921,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         month,
         humanConfirmedOnly: true,
       })
-      if (humanLabels.length > 0)
+      if (humanLabels.length > 0 && !readOnly)
         goldRegressionPack = await buildMonthlyGoldRegressionPack({ cardId, month })
     }
     const labels = goldRegressionPack?.itemsSnapshot ?? []
@@ -12997,13 +14093,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           id: `memory-db-replay:${cardId}:unavailable:${createdAt}`,
           passed: false,
           turnCount: 0,
-          error: requestedReplaySessionId
-            ? `会话 ${requestedReplaySessionId} 不属于当前机体的 WorkingMemory 范围，无法运行真实对话回放。`
-            : '必须显式选择当前机体的 WorkingMemory 会话后，才能运行真实对话回放。',
+          error: '当前机体没有可用的主对话会话，无法运行真实对话回放。',
           recommendedNextActions: [
-            requestedReplaySessionId
-              ? '选择当前机体已有的 WorkingMemory 会话后再运行质量试用。'
-              : '从会话选择器中明确选择一段本地会话后再运行质量试用。',
+            '先发送一轮真实对话，生成当前机体的主会话记录后再运行质量试用。',
           ],
         }
       }
@@ -13012,7 +14104,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         cardId,
         limit: 500,
       })
-      const replayTurns = persistedTurns
+      const allReplayTurns = persistedTurns
         .map((row, index) => {
           const userText = typeof row.userText === 'string' ? row.userText.trim() : ''
           if (!userText)
@@ -13031,6 +14123,19 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           }
         })
         .filter((item): item is NonNullable<typeof item> => item !== null)
+
+      const persistedCheckpoint = await getWorkingMemoryCheckpoint(cardId, replaySessionId)
+      const checkpointBoundaryIndex = findReplayCheckpointBoundaryIndex(
+        allReplayTurns,
+        persistedCheckpoint,
+      )
+      const checkpointAligned = checkpointBoundaryIndex !== null
+      let replayCheckpoint = checkpointAligned
+        ? structuredClone(persistedCheckpoint)
+        : null
+      const replayTurns = checkpointAligned
+        ? allReplayTurns.slice(checkpointBoundaryIndex + 1)
+        : allReplayTurns
 
       if (replayTurns.length === 0) {
         return {
@@ -13067,7 +14172,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           userId: 'local-user',
           turns: replayTurns.map(item => item.turn),
           db: {
-            getWorkingMemoryCheckpoint,
+            getWorkingMemoryCheckpoint: async () =>
+              replayCheckpoint ? structuredClone(replayCheckpoint) : null,
             retrieveLongTermMemoryEvidenceReadOnly,
           },
           provider: memoryTrialProvider.generate,
@@ -13098,10 +14204,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           typeof row.assistantText === 'string' ? row.assistantText : '',
         ]),
       )
-      // A selected session identifies the replay source; replay itself rebuilds
-      // WorkingMemory from persisted turns so the current checkpoint is not
-      // replayed a second time.
-      let replayCheckpoint: WorkingMemorySnapshot | null = null
+      // Use an aligned persisted checkpoint as the replay origin. If its
+      // boundary cannot be mapped to a persisted turn, rebuild from history.
       const replayReport = await replayMemoryDialogue({
         id: `memory-db-replay:${cardId}:${replaySessionId}:${createdAt}`,
         cardId,
@@ -13161,6 +14265,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       experienceQuality,
       scopeFuzzReport,
       runtimeHealth,
+      finalReplayGate,
       goldRegressionPack,
       longTerm,
       personaTraining: personaSnapshot
@@ -13187,12 +14292,14 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           ],
         }
       : report
-    await persistMemoryQualityTrialReport({
-      report: finalReport,
-      month,
-      mode: input.mode === 'live-provider' ? 'live-provider' : 'historical-replay',
-      sessionId: replaySessionId,
-    })
+    if (!readOnly) {
+      await persistMemoryQualityTrialReport({
+        report: finalReport,
+        month,
+        mode: input.mode === 'live-provider' ? 'live-provider' : 'historical-replay',
+        sessionId: replaySessionId,
+      })
+    }
     return finalReport
   }
 
@@ -14047,21 +15154,35 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     return (row?.journal_mode || '').toLowerCase()
   }
 
-  await initializeSchema()
-  await restoreArchivedFactsIntoActiveMemory()
-  await enqueueWrite(async () => {
-    await drainMemoryIngestJournal()
-  })
-  await rebuildLongTermMemorySearchIndexForCard(boundCardId, 'initial long-term memory search index rebuild')
-  await memoryEmbeddingReindexRuntime.resumePendingJobs(8, boundCardId)
-  await memorySemanticScaleJobRuntime.resumePendingJobs(boundCardId)
-  await personaTrainingPipelineGate.reconcileAfterRestart({
-    cardId: hasBoundCardScope ? boundCardId : null,
-    reason: 'application-restarted-before-training-completed',
-  })
-  await resumePendingPersonaTrainingSourceRevokeIntents({
-    limit: 8,
-  })
+  try {
+    if (readOnly) {
+      await run(database, 'PRAGMA busy_timeout = 2000;')
+      await run(database, 'PRAGMA foreign_keys = ON;')
+      await run(database, 'PRAGMA query_only = ON;')
+    }
+    else {
+      await initializeSchema()
+      await restoreArchivedFactsIntoActiveMemory()
+      await enqueueWrite(async () => {
+        await drainMemoryIngestJournal()
+      })
+      await rebuildLongTermMemorySearchIndexForCard(boundCardId, 'initial long-term memory search index rebuild')
+      await memoryEmbeddingReindexRuntime.resumePendingJobs(8, boundCardId)
+      await memorySemanticScaleJobRuntime.resumePendingJobs(boundCardId)
+      await personaTrainingPipelineGate.reconcileAfterRestart({
+        cardId: hasBoundCardScope ? boundCardId : null,
+        reason: 'application-restarted-before-training-completed',
+      })
+      await resumePendingPersonaTrainingSourceRevokeIntents({
+        limit: 8,
+      })
+    }
+  }
+  catch (error) {
+    sqliteWriteQueue.release()
+    await close(database).catch(() => {})
+    throw error
+  }
 
   return {
     dbPath,
@@ -14069,7 +15190,13 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       await personaTrainingPipelineGate.stop('database-close')
       await memoryEmbeddingReindexRuntime.stop()
       await memorySemanticScaleJobRuntime.stop()
-      await close(database)
+      await sqliteWriteQueue.waitForIdle()
+      try {
+        await close(database)
+      }
+      finally {
+        sqliteWriteQueue.release()
+      }
     },
     appendRuntimeEvent,
     listRuntimeEvents,
@@ -14084,6 +15211,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     },
     compareAndSetMetaValue,
     getLatestConversationSessionId,
+    migrateLegacyConversationSessionsToPrimary,
     getWorkingMemoryCheckpoint,
     listWorkingMemoryCheckpoints,
     listMemoryWorkbenchReplaySessions,
@@ -14130,6 +15258,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     getMemoryWorkbenchEmbeddingHealth,
     recordMemoryQualityGoldLabel,
     listMemoryQualityGoldLabels,
+    listMemoryQualityConversationSamples,
     buildMonthlyGoldRegressionPack,
     listMemoryQualityTrialReports,
     runMemoryWorkbenchProductionTrial,

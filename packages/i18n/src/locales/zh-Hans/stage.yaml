@@ -26,6 +26,13 @@ chat:
     low-obedience-denied: 操作被拒绝了。
     low-liveliness: 当前运行状态偏低，本轮回复将保持简短。
     reminder-schedule-failed: 提醒未成功设置。
+  tool-recovery:
+    continue: 确认后继续
+    resume: 核对后恢复
+    retry: 重试只读任务
+    running: 正在恢复
+    failure-label: 工具恢复失败
+    unavailable: 当前运行时没有提供恢复入口。
   mind-fallback:
     focus-default: 'current-turn'
     repair-stale-anchor: '可见回复链路没有产出模型文本；旧锚点已阻断。'
@@ -127,6 +134,11 @@ dialogue:
   proactive-dismiss: 先别打扰
   proactive-positive: 这次不错
 message: 说点什么...
+session:
+  select: 选择聊天会话
+  new: 新建会话
+  new_title: 新的对话
+  untitled: 未命名会话
 operations:
   load-models: 加载模型
   load-models-status:

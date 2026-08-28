@@ -65,6 +65,25 @@ describe('memory workbench settings page', () => {
     expect(source).toContain('settings.pages.memory.workbench.fields.embedding_health')
   })
 
+  it('renders the final replay gate with truthful not-run state, failing keys, and metrics', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const zhHans = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/zh-Hans/settings.yaml', import.meta.url), 'utf8')
+    const en = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/en/settings.yaml', import.meta.url), 'utf8')
+
+    expect(source).toContain('qualityTrialReport.finalReplayGate')
+    expect(source).toContain('qualityTrialReport.finalReplayGate.failingKeys')
+    expect(source).toContain('qualityTrialReport.finalReplayGate.metrics.recallAt3')
+    expect(source).toContain('qualityTrialReport.finalReplayGate.metrics.learningOutcomeToSelfRevisionRoundtrip')
+    expect(source).toContain('stage.status === \'not-run\'')
+    expect(source).toContain('states.quality_not_run')
+    expect(zhHans).toContain('final_replay_gate:')
+    expect(zhHans).toContain('quality_not_run:')
+    expect(zhHans).toContain('final_replay_failing_keys:')
+    expect(en).toContain('final_replay_gate:')
+    expect(en).toContain('quality_not_run:')
+    expect(en).toContain('final_replay_failing_keys:')
+  })
+
   it('keeps raw health debug details behind the development-only diagnostics gate', () => {
     const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
 
@@ -177,6 +196,16 @@ describe('memory workbench settings page', () => {
     expect(source).toContain('reindexEmbeddings')
     expect(source).toContain('settings.pages.memory.workbench.fields.behavior_lesson')
     expect(source).toContain('settings.pages.memory.workbench.actions.reindex_embeddings')
+  })
+
+  it('lets users download the quality-gated persona dataset export', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain('useDownload')
+    expect(source).toContain('downloadPersonaDatasetExport')
+    expect(source).toContain('new Blob')
+    expect(source).toContain('persona-training-dataset')
+    expect(source).toContain('actions.download_persona_dataset')
   })
 
   it('renders the local persona trainer configuration and durable run controls', () => {
@@ -317,25 +346,19 @@ describe('memory workbench settings page', () => {
     expect(embeddingConfigSource).toContain('settings.pages.memory.workbench.actions.save_embedding_config')
   })
 
-  it('uses a card-scoped replay session picker instead of a manual replay pack id', () => {
+  it('uses the canonical primary dialogue session instead of a session picker', () => {
     const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
-    const pickerSource = readFileSync(new URL('../modules/components/memory-quality-session-picker.vue', import.meta.url), 'utf8')
 
-    expect(source).toContain('<MemoryQualitySessionPicker')
+    expect(source).not.toContain('<MemoryQualitySessionPicker')
+    expect(source).toContain('quality_primary_session')
     expect(source).toContain('qualityReplaySessions')
-    expect(source).toContain('selectedQualitySessionId')
     expect(source).toContain('qualityTrialMode')
-    expect(source).toContain('loadMoreQualityReplaySessions')
     expect(source).toContain('watch(activeCardId')
     expect(source).toContain('resetQualityTrialContext')
-    expect(source).toContain('@update:selected-session-id="store.selectQualityTrialSession"')
-    expect(source).toContain('@update:mode="store.setQualityTrialMode"')
-    expect(source).toContain(':disabled="qualityReplaySessionsLoading || !selectedQualitySessionId"')
+    expect(source).toContain('@click="store.setQualityTrialMode(\'historical-replay\')"')
+    expect(source).toContain('@click="store.setQualityTrialMode(\'live-provider\')"')
     expect(source).not.toContain('qualityReplayPackId')
     expect(source).not.toContain('replay_pack_id')
-    expect(pickerSource).toContain('historical-replay')
-    expect(pickerSource).toContain('live-provider')
-    expect(pickerSource).toContain('settings.pages.memory.workbench.quality.live_provider_notice')
   })
 
   it('exposes packaged quality trials with durable report history', () => {
@@ -353,12 +376,17 @@ describe('memory workbench settings page', () => {
     expect(source).toContain('loadMoreQualityTrialReports')
     expect(source).toContain('selectQualityTrialReport')
     expect(source).toContain('selectedQualityTrialRecord')
+    expect(source).toContain('qualityConversationSamples')
+    expect(source).toContain('settings.pages.memory.workbench.quality.conversation_sample')
+    expect(zhHans).toContain('conversation_sample:')
+    expect(english).toContain('conversation_sample:')
     expect(source).toContain('selectedQualityTrialRecord?.reportHash')
     expect(source).toContain('qualityTrialReport.summary.lastError')
     expect(source).toContain('<MemoryQualityTrialHistory')
     expect(source).not.toContain('qualityTrialReport.dialogueReplay.turns')
     expect(source).not.toContain('qualityTrialReport.liveProviderTrial.turns')
-    expect(source).not.toContain('qualityTrialReport.quality.traces')
+    expect(source).toContain('qualityTrialReport.quality.traces')
+    expect(source).toContain('qualityTrialReport.quality.findings')
     expect(source).not.toContain('JSON.stringify(qualityTrialReport')
     expect(historySource).toContain('AlicizationMemoryQualityTrialReportRecordSurface')
     expect(source).not.toContain('settings.pages.memory.workbench.fields.full_quality_report')
@@ -460,5 +488,39 @@ describe('memory workbench settings page', () => {
     expect(source).not.toContain('providerTrace.')
     expect(source).not.toContain('liveProviderTrial.turns')
     expect(zhHans).toContain('live_provider_diagnostics: 真实 Provider 诊断')
+  })
+
+  it('keeps C-end quality feedback visible and labels missing harness detail truthfully', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const zhHans = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/zh-Hans/settings.yaml', import.meta.url), 'utf8')
+    const english = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/en/settings.yaml', import.meta.url), 'utf8')
+
+    expect(source).toContain('qualityTrialReport.quality.summary.failingFixtureIds')
+    expect(source).toContain('qualityTrialReport.stages')
+    expect(source).toContain('recallProbe.evidence')
+    expect(source).toContain('item.provenance')
+    expect(source).toContain('item.queryMatches')
+    expect(source).toContain('item.rankReasons')
+    expect(source).toContain('settings.pages.memory.workbench.quality.trace_not_available')
+    expect(source).toContain('settings.pages.memory.workbench.quality.fixture_detail_not_available')
+    expect(source).toContain('<section :class="[\'border\', \'border-neutral-200\', \'p-4\', \'dark:border-neutral-800\']">')
+    expect(source).toContain('quality.feedback_title')
+    expect(zhHans).toContain('trace_not_available: 当前 C 端报告未提供逐条 harness trace')
+    expect(zhHans).toContain('fixture_detail_not_available: 仅保留真实失败样本 ID；逐条 fixture 明细未由当前报告投影提供')
+    expect(english).toContain('trace_not_available: Per-fixture harness trace is not included in the current C-end report projection')
+    expect(english).toContain('fixture_detail_not_available: The real failing fixture ID is retained; per-fixture detail is not included in the current report projection')
+  })
+
+  it('does not hide real progress and failure surfaces behind development diagnostics', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const personaRuns = readFileSync(new URL('../modules/components/persona-training-runs.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain('<PersonaTrainingRuns')
+    expect(personaRuns).toContain('personaTrainingRun.progress')
+    expect(personaRuns).toContain('personaTrainingRun.error')
+    expect(source).toContain('reindexProgress.progress')
+    expect(source).toContain('reindexProgress.lastError')
+    expect(source).toContain('workingMemoryCleaningFailures')
+    expect(source).toContain('lastError')
   })
 })

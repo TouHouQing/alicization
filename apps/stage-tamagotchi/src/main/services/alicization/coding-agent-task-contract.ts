@@ -23,15 +23,6 @@ export interface AlicizationNormalizedCodingAgentTask {
 
 export type AlicizationCodingAgentName = 'codex' | 'claude-code' | 'cli'
 
-export type AlicizationExplicitCodingAgentConstraint
-  = | {
-    kind: 'single'
-    agent: AlicizationCodingAgentName
-  }
-  | {
-    kind: 'none'
-  }
-
 export interface AlicizationCodingAgentInvocation {
   agent?: unknown
   args?: unknown
@@ -68,61 +59,7 @@ export interface AlicizationCodingAgentDelegationAuthority {
   allowCommand?: boolean
 }
 
-function normalizeCodingAgentMentionText(raw: unknown) {
-  return typeof raw === 'string'
-    ? raw
-        .trim()
-        .toLowerCase()
-        .replace(/[‐‑‒–—−]/gu, '-')
-        .replace(/\s+/g, ' ')
-    : ''
-}
-
-function hasNegativeCodingAgentMention(text: string, aliases: string[]) {
-  return aliases.some(alias => new RegExp(
-    `(?:不要|别|不必|无需|without|instead of|not)\\s*(?:使用|用|调用|run|use)?\\s*${alias}`,
-    'iu',
-  ).test(text))
-}
-
-/**
- * Extract only an explicit channel constraint from the current user turn.
- *
- * This is deliberately narrower than a general intent classifier: it never
- * decides whether a task should execute. It only prevents a concrete named
- * Coding Agent from being silently replaced by another channel after the
- * model has already decided to execute.
- */
-export function resolveAlicizationExplicitCodingAgentConstraint(
-  userText: unknown,
-): AlicizationExplicitCodingAgentConstraint {
-  const text = normalizeCodingAgentMentionText(userText)
-  if (!text)
-    return { kind: 'none' }
-
-  const candidates: Array<{
-    agent: AlicizationCodingAgentName
-    aliases: string[]
-  }> = [
-    { agent: 'codex', aliases: ['codex'] },
-    { agent: 'claude-code', aliases: ['claude\\s+code', 'claude-code', 'claude'] },
-    { agent: 'cli', aliases: ['cli', '命令行'] },
-  ]
-  const matches = candidates.filter(candidate =>
-    candidate.aliases.some(alias => new RegExp(`(?:\\b|用|使用|调用|通过|让)${alias}(?:\\b|\\s|做|帮|来)`, 'iu').test(text))
-    && !hasNegativeCodingAgentMention(text, candidate.aliases),
-  )
-
-  if (matches.length !== 1)
-    return { kind: 'none' }
-
-  return {
-    kind: 'single',
-    agent: matches[0]!.agent,
-  }
-}
-
-export interface AlicizationCodingAgentDelegationSnapshotLike {
+export interface AlicizationCodingAgentExecutionIntent {
   confidence: number
   intentKind: AlicizationCodingAgentDelegationIntentKind
   requestedAgent: AlicizationCodingAgentDelegationRequestedAgent
@@ -132,11 +69,12 @@ export interface AlicizationCodingAgentDelegationSnapshotLike {
   verdict: 'respond-directly' | 'clarify' | 'delegate-coding-agent'
 }
 
+export type AlicizationCodingAgentDelegationSnapshotLike = AlicizationCodingAgentExecutionIntent
+
 export function buildAlicizationCodingAgentDelegationAuthority(input: {
   contextTurnId: string
   decisionTraceId?: string | null
   delegation?: AlicizationCodingAgentDelegationSnapshotLike | null
-  userText?: string | null
 }): AlicizationCodingAgentDelegationAuthority | null {
   const delegation = input.delegation
   if (
@@ -152,14 +90,11 @@ export function buildAlicizationCodingAgentDelegationAuthority(input: {
     return null
   }
 
-  const explicitConstraint = resolveAlicizationExplicitCodingAgentConstraint(input.userText)
-  const allowedAgents: AlicizationCodingAgentName[] = explicitConstraint.kind === 'single'
-    ? [explicitConstraint.agent]
-    : delegation.requestedAgent === 'auto'
-      ? delegation.scope === 'command'
-        ? ['cli']
-        : ['codex', 'claude-code']
-      : [delegation.requestedAgent]
+  const allowedAgents: AlicizationCodingAgentName[] = delegation.requestedAgent === 'auto'
+    ? delegation.scope === 'command'
+      ? ['cli']
+      : ['codex', 'claude-code']
+    : [delegation.requestedAgent]
 
   return {
     allowed: true,

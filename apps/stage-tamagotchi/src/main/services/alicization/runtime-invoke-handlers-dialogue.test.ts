@@ -25,7 +25,7 @@ describe('runtime invoke handlers dialogue', () => {
     const candidate = buildHumanlikeMemoryCandidate({
       now: 120_000,
       turnId: 'turn-humanlike-audit-read',
-      sessionId: 'session-humanlike-audit-read',
+      sessionId: 'session:primary:card-humanlike-audit',
       dialogue: {
         userText: '别把这次记成进度汇报，我是在确认她是否记得刚才的约定。',
         assistantText: '我会把它记成一次约定回想的检验。',
@@ -81,7 +81,7 @@ describe('runtime invoke handlers dialogue', () => {
         id: 'evt-humanlike-audit-read',
         decisionTraceId: 'mind:humanlike-audit-read',
         turnId: 'turn-humanlike-audit-read',
-        sessionId: 'session-humanlike-audit-read',
+        sessionId: 'session:primary:card-humanlike-audit',
         origin: 'user-turn',
         kind: 'person-state-updated',
         payload: {
@@ -93,7 +93,7 @@ describe('runtime invoke handlers dialogue', () => {
         id: 'evt-unrelated',
         decisionTraceId: 'mind:humanlike-audit-read',
         turnId: 'turn-humanlike-audit-read',
-        sessionId: 'session-humanlike-audit-read',
+        sessionId: 'session:primary:card-humanlike-audit',
         origin: 'user-turn',
         kind: 'reply-memory-coherence',
         payload: { summary: 'raw coherence event should not leak into humanlike audit list' },
@@ -166,7 +166,7 @@ describe('runtime invoke handlers dialogue', () => {
       expect.objectContaining({
         id: candidate.id,
         turnId: 'turn-humanlike-audit-read',
-        sessionId: 'session-humanlike-audit-read',
+        sessionId: 'session:primary:card-humanlike-audit',
         whyRemember: expect.stringContaining('remembered agreement check'),
         relationshipContext: expect.stringContaining('remembered agreement check'),
         relationshipPrimaryIntent: 'ordinary-relationship',
@@ -280,7 +280,7 @@ describe('runtime invoke handlers dialogue', () => {
       expect.objectContaining({
         decisionTraceId: 'mind:humanlike-audit-correction',
         turnId: 'turn-humanlike-audit-read',
-        sessionId: 'session-humanlike-audit-read',
+        sessionId: 'session:primary:card-humanlike-audit',
         origin: 'user-turn',
         kind: 'humanlike-memory-corrected',
         payload: expect.objectContaining({
@@ -497,7 +497,7 @@ describe('runtime invoke handlers dialogue', () => {
       turnId: 'turn-tool-replay',
       cardId: 'card-tool-replay',
       userId: 'local-user',
-      conversationId: 'session-tool-replay',
+      conversationId: 'session:primary:card-tool-replay',
     }
     const listRuntimeEventScopes = vi.fn(async () => [{
       ...scope,
@@ -613,7 +613,7 @@ describe('runtime invoke handlers dialogue', () => {
     expect(listRuntimeEventScopes).toHaveBeenCalledWith({
       cardId: 'card-tool-replay',
       userId: 'local-user',
-      conversationId: 'session-tool-replay',
+      conversationId: 'session:primary:card-tool-replay',
       eventTypes: [
         'model.tool_call.proposed',
         'action.started',
@@ -634,7 +634,7 @@ describe('runtime invoke handlers dialogue', () => {
     expect(result).toEqual([{
       cardId: 'card-tool-replay',
       turnId: 'turn-tool-replay',
-      sessionId: 'session-tool-replay',
+      sessionId: 'session:primary:card-tool-replay',
       startedAt: 1_000,
       updatedAt: 1_300,
       cards: [

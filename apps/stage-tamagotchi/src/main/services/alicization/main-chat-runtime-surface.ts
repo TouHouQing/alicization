@@ -82,6 +82,102 @@ const alicizationProviderFactTypes = new Set([
   'alicization-turn-memory-context',
 ]) as ReadonlySet<string>
 
+const providerFactKeyAliases = new Set([
+  'customdirectives',
+  'openingpolicy',
+  'relationshipcadence',
+  'projectstatebrief',
+  'runtimemindstate',
+  'surfacepolicy',
+  'shouldstayinward',
+  'shoulddelayuntilafterpayoff',
+  'stablecoreonly',
+  'suppressiontags',
+  'ambiguityposture',
+  'conflictseverity',
+  'restraintsurfacemode',
+  'withheldreasons',
+]) as ReadonlySet<string>
+
+const providerFactTextResiduePattern
+  = /opening_policy|opening-policy|relationship_cadence|relationship-cadence|visibility\s*=\s*redacted_internal|project-state-brief|runtime-mind-state/iu
+
+function normalizeProviderFactKey(raw: string) {
+  return raw.replace(/[^a-z0-9]/giu, '').toLowerCase()
+}
+
+function shouldDropProviderFactField(key: string, value: unknown) {
+  const normalizedKey = normalizeProviderFactKey(key)
+  if (providerFactKeyAliases.has(normalizedKey))
+    return true
+
+  if (
+    normalizedKey === 'visibility'
+    && typeof value === 'string'
+    && value.trim().toLowerCase() === 'redacted_internal'
+  ) {
+    return true
+  }
+
+  if (
+    (key === 'summary' || key === 'text' || key === 'reason' || key === 'note')
+    && typeof value === 'string'
+    && providerFactTextResiduePattern.test(value)
+  ) {
+    return true
+  }
+
+  return false
+}
+
+function sanitizeProviderFactValue(value: unknown, key = ''): unknown {
+  if (shouldDropProviderFactField(key, value))
+    return undefined
+
+  if (Array.isArray(value)) {
+    return value
+      .map(item => sanitizeProviderFactValue(item))
+      .filter(item => item !== undefined)
+  }
+
+  if (value && typeof value === 'object') {
+    const sanitized: Record<string, unknown> = {}
+    for (const [childKey, childValue] of Object.entries(value)) {
+      const nextValue = sanitizeProviderFactValue(childValue, childKey)
+      if (nextValue !== undefined)
+        sanitized[childKey] = nextValue
+    }
+    return sanitized
+  }
+
+  return value
+}
+
+function sanitizeAlicizationProviderSystemFact(message: Message, type: string) {
+  if (typeof message.content !== 'string')
+    return message
+
+  try {
+    const parsed = JSON.parse(message.content) as {
+      data?: unknown
+      type?: unknown
+    }
+    if (parsed.type !== type || parsed.data === undefined)
+      return message
+
+    return {
+      ...message,
+      content: JSON.stringify({
+        ...parsed,
+        data: sanitizeProviderFactValue(parsed.data),
+      }),
+    }
+  }
+  catch {
+    return message
+  }
+}
+
 function readAlicizationProviderFactType(content: string) {
   try {
     const parsed = JSON.parse(content) as {
@@ -98,15 +194,22 @@ function readAlicizationProviderFactType(content: string) {
 }
 
 export function filterAlicizationProviderSystemMessages(messages: Message[]) {
-  return messages.filter((message) => {
-    if (message.role !== 'system')
-      return true
+  const filtered: Message[] = []
+  for (const message of messages) {
+    if (message.role !== 'system') {
+      filtered.push(message)
+      continue
+    }
     if (typeof message.content !== 'string')
-      return false
+      continue
 
     const type = readAlicizationProviderFactType(message.content)
-    return Boolean(type && alicizationProviderFactTypes.has(type))
-  })
+    if (!type || !alicizationProviderFactTypes.has(type))
+      continue
+
+    filtered.push(sanitizeAlicizationProviderSystemFact(message, type))
+  }
+  return filtered
 }
 
 interface MainChatRuntimeSurfaceToolDescriptor {

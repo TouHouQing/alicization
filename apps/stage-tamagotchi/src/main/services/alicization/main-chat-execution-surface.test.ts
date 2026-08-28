@@ -1195,7 +1195,7 @@ describe('main chat execution surface', () => {
     await first
   })
 
-  it('exposes Coding Agent on a main-chat turn when the capability is active, without pre-classifying the user text', async () => {
+  it('does not expose Coding Agent or CLI to an undelegated main-chat turn', async () => {
     const tools = await buildMainGatewayTools({
       toolSurface: 'main-chat',
       userText: '检查一下这个项目',
@@ -1228,11 +1228,12 @@ describe('main chat execution surface', () => {
     })
 
     const toolNames = tools.map((entry: any) => entry.function?.name)
-    expect(toolNames).toContain('coding_agent')
+    expect(toolNames).not.toContain('coding_agent')
+    expect(toolNames).not.toContain('cli')
     expect(toolNames).not.toContain('openclaw')
   })
 
-  it('keeps ordinary local command work on CLI while leaving model-owned Coding Agent selection available', async () => {
+  it('does not expose direct CLI command execution to an undelegated main-chat turn', async () => {
     const executeTaskThread = vi.fn(async () => ({
       ok: true,
       stage: 'dispatch',
@@ -1266,33 +1267,10 @@ describe('main chat execution surface', () => {
     })
 
     const toolNames = tools.map((entry: any) => entry.function?.name)
-    expect(toolNames).toContain('cli')
-    expect(toolNames).toContain('coding_agent')
+    expect(toolNames).not.toContain('cli')
+    expect(toolNames).not.toContain('coding_agent')
     expect(toolNames).not.toContain('openclaw')
-
-    const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
-    await cliTool.execute({
-      command: 'find',
-      args: ['/Users/touhouqing/Desktop/GIT', '-mindepth', '1', '-maxdepth', '1', '-type', 'd'],
-      cwd: '/Users/touhouqing/Desktop',
-      effect: 'observe',
-    }, {
-      toolCallId: 'main-chat-cli-1',
-    })
-
-    expect(executeTaskThread).toHaveBeenCalledWith(expect.objectContaining({
-      task: expect.objectContaining({
-        kind: 'run-command',
-        requestedChannel: 'cli',
-        effect: 'observe',
-      }),
-      dispatch: expect.objectContaining({
-        cli: expect.objectContaining({
-          command: 'find',
-          cwd: '/Users/touhouqing/Desktop',
-        }),
-      }),
-    }))
+    expect(executeTaskThread).not.toHaveBeenCalled()
   })
 
   it('exposes direct CLI instead of the coding-agent facade for a command-scoped delegation', async () => {

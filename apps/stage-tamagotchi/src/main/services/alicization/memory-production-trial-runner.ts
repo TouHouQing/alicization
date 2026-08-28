@@ -1,4 +1,7 @@
-import type { AlicizationMemoryQualityMonthlyGoldRegressionPack } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationFinalReplayGateReportRecord,
+  AlicizationMemoryQualityMonthlyGoldRegressionPack,
+} from '@proj-alicization/stage-shared'
 
 import type { WorkingMemoryQualityFixture } from './life-core/working-memory-quality-harness'
 import type {
@@ -49,6 +52,7 @@ export type MemoryProductionTrialStageKind
     | 'scope-fuzz'
     | 'gold-regression'
     | 'persona-dataset-hygiene'
+    | 'final-replay-gate'
 
 export interface MemoryProductionTrialDialogueReplayResult {
   id: string
@@ -89,6 +93,7 @@ export interface MemoryProductionTrialRunnerInput {
   personaTraining?: PersonaTrainingDatasetQualityFixture[]
   personaTrainingError?: string | null
   goldRegressionPack?: AlicizationMemoryQualityMonthlyGoldRegressionPack | null
+  finalReplayGate?: AlicizationFinalReplayGateReportRecord | null
   runtimeHealth?: MemoryProductionTrialRuntimeHealth | null
   requireProductionStages?: boolean
   productionStageErrors?: Partial<Record<
@@ -175,6 +180,7 @@ export interface MemoryProductionTrialReport {
   regression: MemoryProductionTrialRegressionMetrics
   quality: MemoryQualityHarnessReport
   goldRegressionPack: AlicizationMemoryQualityMonthlyGoldRegressionPack | null
+  finalReplayGate?: AlicizationFinalReplayGateReportRecord | null
   compressedContextBehavior: WorkingMemoryCompressionBehaviorReport | null
   temporalConflict: LongTermMemoryTemporalConflictReport | null
   semanticScaleSoak: MemorySemanticScaleSoakReport | null
@@ -220,7 +226,7 @@ function stageFromQuality(input: {
 }
 
 function notRunStage(
-  stage: Extract<MemoryProductionTrialStageKind, 'semantic-scale-soak' | 'scope-fuzz' | 'temporal-conflict' | 'gold-regression'>,
+  stage: MemoryProductionTrialStageKind,
   error: string,
 ): MemoryProductionTrialStageResult {
   return {
@@ -241,6 +247,7 @@ export async function runMemoryProductionTrialRunner(
   let liveProviderTrial: MemoryLiveProviderTrialReport | null = null
   const runtimeHealth = input.runtimeHealth ?? null
   const goldRegressionPack = input.goldRegressionPack ?? null
+  const finalReplayGate = input.finalReplayGate ?? null
   const workingMemory: WorkingMemoryQualityFixture[] = [...(input.workingMemory ?? [])]
   const userTrials: MemoryUserTrialHarnessInput[] = [...(input.userTrials ?? [])]
   const recommendedNextActions: string[] = []
@@ -293,6 +300,12 @@ export async function runMemoryProductionTrialRunner(
       stages.push(failedReplayStage(errorMessageFrom(error) ?? String(error)))
       recommendedNextActions.push('修复 dialogue replay/provider 失败后再相信本次生产试用结果。')
     }
+  }
+  else if (input.requireProductionStages) {
+    stages.push(notRunStage(
+      'dialogue-replay',
+      'not-run: no real local conversation replay was provided',
+    ))
   }
 
   const quality = await runMemoryQualityHarnessSuite({
@@ -370,15 +383,34 @@ export async function runMemoryProductionTrialRunner(
     recommendedNextActions.push(...healthFailures.map(failure => `处理真实健康指标：${failure}。`))
     recommendedNextActions.push(...runtimeHealth.errors.map(error => `健康指标查询失败：${error}。`))
   }
+  else if (input.requireProductionStages) {
+    stages.push(notRunStage(
+      'runtime-health',
+      'not-run: no persisted runtime health snapshot was provided',
+    ))
+  }
 
   stages.push(
-    stageFromQuality({
-      stage: 'working-memory-compression',
-      id: 'working-memory-compression',
-      itemCount: quality.workingMemory.length,
-      passed: quality.workingMemory.every(result => result.passed),
-      error: quality.workingMemory.find(result => result.trace.error)?.trace.error ?? null,
-    }),
+    quality.workingMemory.length > 0
+      ? stageFromQuality({
+          stage: 'working-memory-compression',
+          id: 'working-memory-compression',
+          itemCount: quality.workingMemory.length,
+          passed: quality.workingMemory.every(result => result.passed),
+          error: quality.workingMemory.find(result => result.trace.error)?.trace.error ?? null,
+        })
+      : input.requireProductionStages
+        ? notRunStage(
+            'working-memory-compression',
+            'not-run: no WorkingMemory checkpoint fixtures were available',
+          )
+        : stageFromQuality({
+            stage: 'working-memory-compression',
+            id: 'working-memory-compression',
+            itemCount: 0,
+            passed: true,
+            error: null,
+          }),
     ...(compressedContextBehavior
       ? [
           stageFromQuality({
@@ -389,14 +421,32 @@ export async function runMemoryProductionTrialRunner(
             error: compressedContextBehavior.summary.lastError,
           }),
         ]
-      : []),
-    stageFromQuality({
-      stage: 'long-term-recall',
-      id: 'long-term-recall',
-      itemCount: quality.longTerm.length,
-      passed: quality.longTerm.every(result => result.passed),
-      error: quality.longTerm.find(result => result.trace.error)?.trace.error ?? null,
-    }),
+      : input.requireProductionStages
+        ? [notRunStage(
+            'compressed-context-behavior',
+            'not-run: no compressed-context behavior fixtures were available',
+          )]
+        : []),
+    quality.longTerm.length > 0
+      ? stageFromQuality({
+          stage: 'long-term-recall',
+          id: 'long-term-recall',
+          itemCount: quality.longTerm.length,
+          passed: quality.longTerm.every(result => result.passed),
+          error: quality.longTerm.find(result => result.trace.error)?.trace.error ?? null,
+        })
+      : input.requireProductionStages
+        ? notRunStage(
+            'long-term-recall',
+            'not-run: no long-term recall fixtures were available',
+          )
+        : stageFromQuality({
+            stage: 'long-term-recall',
+            id: 'long-term-recall',
+            itemCount: 0,
+            passed: true,
+            error: null,
+          }),
     ...(goldRegressionStage ? [goldRegressionStage] : []),
     ...(temporalConflict
       ? [
@@ -442,7 +492,12 @@ export async function runMemoryProductionTrialRunner(
             error: experienceQuality.findings.find(item => item.severity === 'critical')?.message ?? null,
           }),
         ]
-      : []),
+      : input.requireProductionStages
+        ? [notRunStage(
+            'experience-quality',
+            'not-run: no experience-quality fixtures were available',
+          )]
+        : []),
     ...(scopeFuzz
       ? [
           stageFromQuality({
@@ -460,17 +515,48 @@ export async function runMemoryProductionTrialRunner(
             ?? 'not-run: isolated DB scope fuzz did not produce a report',
           )]
         : []),
-    stageFromQuality({
-      stage: 'persona-dataset-hygiene',
-      id: 'persona-dataset-hygiene',
-      itemCount: quality.personaTraining.length,
-      passed: !personaTrainingStageError && quality.personaTraining.every(result => result.passed),
-      error: personaTrainingStageError,
-    }),
+    quality.personaTraining.length > 0 || personaTrainingStageError
+      ? stageFromQuality({
+          stage: 'persona-dataset-hygiene',
+          id: 'persona-dataset-hygiene',
+          itemCount: quality.personaTraining.length,
+          passed: !personaTrainingStageError && quality.personaTraining.every(result => result.passed),
+          error: personaTrainingStageError,
+        })
+      : input.requireProductionStages
+        ? notRunStage(
+            'persona-dataset-hygiene',
+            'not-run: no Persona/LoRA dataset fixtures were available',
+          )
+        : stageFromQuality({
+            stage: 'persona-dataset-hygiene',
+            id: 'persona-dataset-hygiene',
+            itemCount: 0,
+            passed: true,
+            error: null,
+          }),
+    ...(input.requireProductionStages || input.finalReplayGate !== undefined
+      ? [
+          finalReplayGate
+            ? stageFromQuality({
+                stage: 'final-replay-gate',
+                id: 'final-replay-gate',
+                itemCount: finalReplayGate.metrics.sampleCount ?? 0,
+                passed: finalReplayGate.passed,
+                error: finalReplayGate.failingKeys.length > 0
+                  ? `final replay gate failed: ${finalReplayGate.failingKeys.join(', ')}`
+                  : null,
+              })
+            : notRunStage(
+                'final-replay-gate',
+                'not-run: no persisted final replay gate report is available',
+              ),
+        ]
+      : []),
   )
 
   const failingStageIds = stages
-    .filter(stage => !stage.passed && stage.status !== 'not-run')
+    .filter(stage => !stage.passed)
     .map(stage => stage.id)
   const notRunStageIds = stages
     .filter(stage => stage.status === 'not-run')
@@ -582,6 +668,7 @@ export async function runMemoryProductionTrialRunner(
     regression,
     quality,
     goldRegressionPack,
+    finalReplayGate,
     compressedContextBehavior,
     temporalConflict,
     semanticScaleSoak,

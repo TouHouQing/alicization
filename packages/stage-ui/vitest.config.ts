@@ -3,6 +3,7 @@ import type { Plugin } from 'vite'
 import { join, resolve } from 'node:path'
 import { cwd } from 'node:process'
 
+import Vue from '@vitejs/plugin-vue'
 import Yaml from 'unplugin-yaml/vite'
 
 import { loadEnv } from 'vite'
@@ -14,6 +15,7 @@ export default defineConfig(({ mode }) => {
   return ({
     plugins: [
       Yaml() as Plugin,
+      Vue(),
     ],
     resolve: {
       alias: {

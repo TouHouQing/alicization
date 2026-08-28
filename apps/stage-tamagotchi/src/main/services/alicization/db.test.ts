@@ -5811,6 +5811,452 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('migrates legacy session continuity into the canonical primary session without writing during dry-run', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+    const cardId = 'default'
+    const legacySessionId = 'legacy-session-before-single-session'
+    const primarySessionId = 'session:primary:default'
+    const snapshot = createEmptyWorkingMemorySnapshot({
+      cardId,
+      sessionId: legacySessionId,
+      now: 200,
+    })
+    snapshot.currentThread = {
+      title: '旧会话中的任务',
+      currentUserMove: '继续旧任务',
+      currentAliceMove: null,
+      primaryAnchor: 'legacy-session',
+      mode: 'task',
+      shouldHold: true,
+      confidence: 0.82,
+    }
+
+    await db.appendConversationTurn({
+      turnId: 'legacy-turn-1',
+      sessionId: legacySessionId,
+      userText: '旧会话里的用户消息',
+      assistantText: '旧会话里的助手回复',
+      createdAt: 100,
+    })
+    await db.upsertWorkingMemoryCheckpoint(snapshot)
+    const task = await db.upsertTaskThread({
+      id: 'legacy-session-task',
+      goal: '继续旧会话任务',
+      kind: 'codebase-investigation',
+      status: 'paused',
+      sessionId: legacySessionId,
+      createdAt: 100,
+      updatedAt: 200,
+    })
+    await db.appendExecutionEvents([{
+      id: 'legacy-session-task:event-1',
+      threadId: task.id,
+      sessionId: legacySessionId,
+      kind: 'step',
+      threadStatus: 'paused',
+      createdAt: 210,
+      payload: {
+        source: 'legacy-session',
+      },
+    }])
+    await db.appendRuntimeEvent({
+      turnId: 'legacy-session-runtime-turn',
+      cardId,
+      userId: 'local-user',
+      conversationId: legacySessionId,
+    }, {
+      eventId: 'legacy-session-runtime-event',
+      eventType: 'turn.accepted',
+      schemaVersion: 1,
+      sequence: 0,
+      turnId: 'legacy-session-runtime-turn',
+      cardId,
+      userId: 'local-user',
+      conversationId: legacySessionId,
+      source: 'runtime',
+      causationId: null,
+      correlationId: 'legacy-session-runtime-turn',
+      idempotencyKey: null,
+      occurredAt: 220,
+      payload: {},
+    })
+    await db.saveRuntimeCheckpoint({
+      turnId: 'legacy-session-runtime-turn',
+      cardId,
+      userId: 'local-user',
+      conversationId: legacySessionId,
+      sequence: 0,
+      status: 'running',
+      activeActionIds: [],
+      deliveryOwner: 'inline',
+      projection: runtimeCheckpointProjection(),
+      schemaVersion: 3,
+      updatedAt: 220,
+    })
+
+    const dryRun = await db.migrateLegacyConversationSessionsToPrimary({
+      cardId,
+      dryRun: true,
+    })
+    expect(dryRun).toMatchObject({
+      cardId,
+      primarySessionId,
+      dryRun: true,
+      sourceSessionIds: [legacySessionId],
+      changed: true,
+      migratedRows: {
+        conversation_turns: 1,
+        working_memory_checkpoints: 1,
+        task_threads: 1,
+        executor_events: 1,
+      },
+    })
+    await expect(db.listConversationTurnsBySession(legacySessionId, { cardId })).resolves.toHaveLength(1)
+    await expect(db.getWorkingMemoryCheckpoint(cardId, legacySessionId)).resolves.toMatchObject({ sessionId: legacySessionId })
+
+    const migrated = await db.migrateLegacyConversationSessionsToPrimary({ cardId })
+    expect(migrated).toMatchObject({
+      cardId,
+      primarySessionId,
+      dryRun: false,
+      sourceSessionIds: [legacySessionId],
+      changed: true,
+      migratedRows: {
+        conversation_turns: 1,
+        working_memory_checkpoints: 1,
+        task_threads: 1,
+        executor_events: 1,
+      },
+    })
+    await expect(db.listConversationTurnsBySession(primarySessionId, { cardId })).resolves.toEqual([expect.objectContaining({
+      turnId: 'legacy-turn-1',
+      sessionId: primarySessionId,
+      userText: '旧会话里的用户消息',
+    })])
+    await expect(db.listConversationTurnsBySession(legacySessionId, { cardId })).resolves.toHaveLength(0)
+    await expect(db.getWorkingMemoryCheckpoint(cardId, primarySessionId)).resolves.toMatchObject({
+      sessionId: primarySessionId,
+      currentThread: {
+        title: '旧会话中的任务',
+      },
+    })
+    await expect(db.getWorkingMemoryCheckpoint(cardId, legacySessionId)).resolves.toBeNull()
+    await expect(db.listTaskThreads({ sessionId: primarySessionId })).resolves.toEqual([expect.objectContaining({
+      id: task.id,
+      sessionId: primarySessionId,
+    })])
+    await expect(db.listExecutionEvents({
+      threadId: task.id,
+      limit: 10,
+    })).resolves.toEqual([expect.objectContaining({
+      sessionId: primarySessionId,
+    })])
+    await expect(db.listRuntimeEvents({
+      turnId: 'legacy-session-runtime-turn',
+      cardId,
+      userId: 'local-user',
+      conversationId: primarySessionId,
+    })).resolves.toEqual([expect.objectContaining({
+      eventId: 'legacy-session-runtime-event',
+      conversationId: primarySessionId,
+    })])
+    await expect(db.loadRuntimeCheckpoint({
+      turnId: 'legacy-session-runtime-turn',
+      cardId,
+      userId: 'local-user',
+      conversationId: primarySessionId,
+    })).resolves.toMatchObject({
+      turnId: 'legacy-session-runtime-turn',
+      conversationId: primarySessionId,
+    })
+    const marker = await db.getMetaValue(`conversation_session_migration_v1:${cardId}`)
+    expect(marker ? JSON.parse(marker) : null).toMatchObject({
+      version: 1,
+      status: 'completed',
+      cardId,
+      primarySessionId,
+      sourceSessionIds: [legacySessionId],
+    })
+    await expect(db.migrateLegacyConversationSessionsToPrimary({ cardId })).resolves.toMatchObject({
+      changed: false,
+      sourceSessionIds: [],
+    })
+
+    await db.close()
+  })
+
+  it('opens a production trial database as a real read-only SQLite connection', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const writableDb = await setupAlicizationDb(userDataPath, {
+      sqliteDriver: actualSqliteDriver,
+    })
+    await writableDb.appendConversationTurn({
+      cardId: 'default',
+      sessionId: 'session:primary:default',
+      turnId: 'read-only-seed',
+      userText: '只读试用前的历史消息',
+      assistantText: '历史消息已写入。',
+      createdAt: 100,
+    })
+    await writableDb.close()
+
+    let openedPath = ''
+    let openedMode: number | undefined
+    const readOnlyDriver = {
+      ...actualSqliteDriver,
+      Database: function ReadOnlyDatabase(
+        filepath: string,
+        mode: number,
+        callback: (error: Error | null) => void,
+      ) {
+        openedPath = filepath
+        openedMode = mode
+        return new actualSqliteDriver.Database(filepath, mode, callback)
+      },
+    }
+    const readOnlyDb = await setupAlicizationDb(userDataPath, {
+      sqliteDriver: readOnlyDriver,
+      readOnly: true,
+    })
+
+    await expect(readOnlyDb.listConversationTurnsBySession(
+      'session:primary:default',
+      { cardId: 'default' },
+    )).resolves.toEqual([expect.objectContaining({
+      turnId: 'read-only-seed',
+    })])
+    await expect(readOnlyDb.setMetaValue(
+      'read-only-write',
+      'must fail',
+    )).rejects.toThrow(/read.?only/i)
+    await expect(readOnlyDb.appendConversationTurn({
+      cardId: 'default',
+      sessionId: 'session:primary:default',
+      turnId: 'read-only-write',
+      userText: '不应写入',
+      createdAt: 200,
+    })).rejects.toThrow(/read.?only/i)
+    expect(openedPath).toContain('alicization.db')
+    expect(openedPath).not.toContain('immutable=1')
+    expect(openedMode).toBe(actualSqliteDriver.OPEN_READONLY)
+
+    await readOnlyDb.close()
+  })
+
+  it('reads committed WAL frames in read-only mode instead of opening an immutable stale snapshot', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const initializedDb = await setupAlicizationDb(userDataPath, {
+      sqliteDriver: actualSqliteDriver,
+    })
+    const dbPath = initializedDb.dbPath
+    await initializedDb.close()
+
+    const writer = await openActualSqlite(dbPath)
+    let readOnlyDb: Awaited<ReturnType<typeof setupAlicizationDb>> | null = null
+    try {
+      await runActualSqlite(writer, 'PRAGMA journal_mode = WAL')
+      await runActualSqlite(writer, 'PRAGMA wal_autocheckpoint = 0')
+      await runActualSqlite(writer, `
+        INSERT INTO conversation_turns (
+          id,
+          card_id,
+          turn_id,
+          session_id,
+          user_text,
+          assistant_text,
+          structured_json,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        'wal-visible-turn',
+        'default',
+        'wal-visible-turn',
+        'session:primary:default',
+        'WAL 里的最新用户消息',
+        'WAL 里的最新助手回复',
+        null,
+        300,
+      ])
+
+      readOnlyDb = await setupAlicizationDb(userDataPath, {
+        sqliteDriver: actualSqliteDriver,
+        readOnly: true,
+      })
+      await expect(readOnlyDb.listConversationTurnsBySession(
+        'session:primary:default',
+        { cardId: 'default' },
+      )).resolves.toEqual([expect.objectContaining({
+        turnId: 'wal-visible-turn',
+        userText: 'WAL 里的最新用户消息',
+      })])
+    }
+    finally {
+      await readOnlyDb?.close()
+      await closeActualSqlite(writer)
+    }
+  })
+
+  it('dead-letters malformed legacy WorkingMemory checkpoints instead of moving invalid session bytes', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const initializedDb = await setupAlicizationDb(userDataPath, {
+      sqliteDriver: actualSqliteDriver,
+    })
+    await initializedDb.close()
+
+    const dbPath = join(userDataPath, 'alicizations', 'alicization.db')
+    const legacyDatabase = await openActualSqlite(dbPath)
+    await runActualSqlite(
+      legacyDatabase,
+      `
+      INSERT INTO working_memory_checkpoints (
+        card_id,
+        session_id,
+        version,
+        snapshot_json,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?)
+      `,
+      [
+        'default',
+        'legacy-malformed-checkpoint',
+        'working-memory-v1',
+        '{not-json',
+        300,
+      ],
+    )
+    await closeActualSqlite(legacyDatabase)
+
+    const db = await setupAlicizationDb(userDataPath, {
+      sqliteDriver: actualSqliteDriver,
+    })
+    try {
+      const dryRun = await db.migrateLegacyConversationSessionsToPrimary({
+        cardId: 'default',
+        dryRun: true,
+      })
+      expect(dryRun).toMatchObject({
+        changed: true,
+        deadLetterRows: {
+          working_memory_checkpoints: 1,
+        },
+      })
+
+      const migration = await db.migrateLegacyConversationSessionsToPrimary({
+        cardId: 'default',
+      })
+
+      expect(migration).toMatchObject({
+        changed: true,
+        sourceSessionIds: ['legacy-malformed-checkpoint'],
+        deadLetterRows: {
+          working_memory_checkpoints: 1,
+        },
+      })
+      await expect(db.getWorkingMemoryCheckpoint('default', 'legacy-malformed-checkpoint')).resolves.toBeNull()
+      await expect(db.getWorkingMemoryCheckpoint('default', 'session:primary:default')).resolves.toBeNull()
+
+      const deadLetterDatabase = await openActualSqlite(dbPath)
+      try {
+        await expect(allActualSqlite<{
+          card_id: string
+          table_name: string
+          source_session_id: string
+          payload_json: string
+          reason: string
+        }>(
+          deadLetterDatabase,
+          `
+          SELECT card_id, table_name, source_session_id, payload_json, reason
+          FROM conversation_session_migration_dead_letters
+          `,
+        )).resolves.toEqual([{
+          card_id: 'default',
+          table_name: 'working_memory_checkpoints',
+          source_session_id: 'legacy-malformed-checkpoint',
+          payload_json: '{not-json',
+          reason: 'working memory checkpoint failed validation during session migration',
+        }])
+      }
+      finally {
+        await closeActualSqlite(deadLetterDatabase)
+      }
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('dead-letters unscoped legacy execution rows without a card-owned turn anchor', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'shared')
+    const cardA = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: actualSqliteDriver,
+    })
+    const cardB = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-b',
+      sqliteDriver: actualSqliteDriver,
+    })
+    const legacySessionId = 'legacy-session-with-ambiguous-task'
+    try {
+      await cardA.appendConversationTurn({
+        cardId: 'card-a',
+        sessionId: legacySessionId,
+        turnId: 'card-a-owned-turn',
+        userText: '当前机体拥有的历史对话锚点',
+        assistantText: '历史回复',
+        createdAt: 100,
+      })
+      await cardB.appendConversationTurn({
+        cardId: 'card-b',
+        sessionId: legacySessionId,
+        turnId: 'card-b-owned-turn',
+        userText: '另一个机体拥有的历史对话锚点',
+        assistantText: '另一个历史回复',
+        createdAt: 100,
+      })
+      const ambiguousTask = await cardA.upsertTaskThread({
+        id: 'ambiguous-legacy-task',
+        goal: '无法证明归属的旧任务',
+        kind: 'codebase-investigation',
+        status: 'paused',
+        sessionId: legacySessionId,
+        turnId: 'unowned-turn',
+        createdAt: 110,
+        updatedAt: 110,
+      })
+
+      const migration = await cardA.migrateLegacyConversationSessionsToPrimary({
+        cardId: 'card-a',
+      })
+
+      expect(migration).toMatchObject({
+        changed: true,
+        sourceSessionIds: [legacySessionId],
+        deadLetterRows: {
+          task_threads: 1,
+        },
+      })
+      await expect(cardA.listTaskThreads({
+        sessionId: legacySessionId,
+      })).resolves.toEqual([expect.objectContaining({
+        id: ambiguousTask.id,
+        sessionId: legacySessionId,
+        turnId: 'unowned-turn',
+      })])
+      await expect(cardA.listTaskThreads({
+        sessionId: 'session:primary:card-a',
+      })).resolves.toEqual([])
+    }
+    finally {
+      await Promise.all([cardA.close(), cardB.close()])
+    }
+  })
+
   it('returns the latest limited conversation window in chronological order', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
       sqliteDriver: actualSqliteDriver,

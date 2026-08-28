@@ -369,6 +369,24 @@ describe('main chat memory context', () => {
     expect(context.providerSystemBlock).toContain(naturalFieldDiscussion)
   })
 
+  it('keeps retrieval diagnostics out of the Provider-facing memory envelope', () => {
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: workingMemoryFixture,
+      longTermRecall: {
+        ...longTermRecallFixture,
+        evidence: [createEvidence('memory-provider-facing')],
+      },
+    })
+
+    const serialized = context.providerSystemBlock
+    expect(serialized).toContain('memory-provider-facing')
+    expect(serialized).toContain('Confirmed long-term memory evidence')
+    expect(serialized).not.toContain('retrievalScore')
+    expect(serialized).not.toContain('queryMatches')
+    expect(serialized).not.toContain('rankReasons')
+    expect(serialized).not.toContain('evidenceVersion')
+  })
+
   it('preserves natural-language field discussion while removing retrieval and audit policy from the Provider envelope', () => {
     const retiredField = ['opening', 'policy'].join('_')
     const naturalFieldDiscussion = `用户正在讨论 ${retiredField}=legacy 这个代码字段。`
@@ -430,13 +448,6 @@ describe('main chat memory context', () => {
       },
       provenance: 'remembered',
       confidence: 0.93,
-      queryMatches: ['typed memory context'],
-      rankReasons: [
-        'confirmed evidence',
-        'ranked by query match',
-      ],
-      evidenceVersion: 'long-term-memory-evidence-v1',
-      version: 'long-term-memory-evidence-v1',
     })
     expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('visibleMode')
     expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('visibility')

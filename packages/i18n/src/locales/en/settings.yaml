@@ -552,9 +552,12 @@ pages:
         search: Search
         reset: Reset
         approve_candidate: Approve Candidate
+        load_more_persona_candidates: Load More Candidates
+        loading_more_persona_candidates: Loading Candidates
         reject_candidate: Reject Candidate
         stage_persona_dataset: Create Dataset Version
         export_persona_dataset: Export Dataset Manifest
+        download_persona_dataset: Download Dataset File
         activate_persona_dataset: Activate Version
         rollback_persona_dataset: Roll Back Version
         revoke_persona_source: Revoke Source
@@ -700,6 +703,7 @@ pages:
         loading: Loading memory state...
         quality_passed: Passed
         quality_failed: Needs Work
+        quality_not_run: Not run (insufficient evidence)
         quality_trial_cancelled_by_user: Quality trial cancelled by user
         empty_quality_report: No quality trial report yet. Run a quality trial first.
         empty_gold_labels: No labels for this month yet. Run recall probe and click one of the four feedback buttons.
@@ -900,6 +904,10 @@ pages:
         replay_checkpoint_writes: Working-Memory Writes
         replay_recalled_evidence: Long-Term Evidence
         replay_turn_trace: Per-turn Replay Trace
+        quality_trace_details: Per-fixture Quality Details
+        selected_ids: Selected Memories
+        rejected_ids: Rejected Memories
+        forbidden_ids: Forbidden Memories
         last_error: Last Error
         recall_at_k: Recall@K
         regression_metrics: Regression Metrics
@@ -930,10 +938,26 @@ pages:
         latency_ms: Latency
         finish_reason: Finish Reason
         output_length: Output Length
+        final_replay_gate: Final Dialogue Replay Gate
+        final_replay_sample_count: Final Gate Samples
+        final_replay_recall_at_3: Final Gate Recall@3
+        final_replay_precision_at_3: Final Gate Precision@3
+        final_replay_wrong_thread_rate: Final Gate Wrong-Thread Rate
+        final_replay_template_leakage: Template Leakage Failures
+        final_replay_authority_leak: Internal Authority Leaks
+        final_replay_visible_fallbacks: Visible Fixed Fallbacks
+        final_replay_unsupported_specificity: Unsupported Specificity Failures
+        final_replay_trace_coverage: Per-Turn Trace Coverage
+        final_replay_learning_roundtrip: Learning-to-Self-Revision Roundtrip
+        final_replay_failing_keys: Final Gate Failing Keys
         failing_stages: Failing Stages
         failing_fixtures: Failing Fixtures
         quality_findings: Quality Findings
         recommended_actions: Recommended Actions
+        recall_reasons: Recall Reasons
+        rank_reasons: Ranking Reasons
+        query_matches: Query Matches
+        provenance: Provenance
         expected_ids: Expected IDs
         surfaced_ids: Surfaced IDs
         wrong_thread_ids: Wrong Thread IDs
@@ -968,11 +992,28 @@ pages:
         historical_replay: Historical Replay
         live_provider: Live Provider
         live_provider_diagnostics: Live Provider Diagnostics
+        quality_primary_session: Current dialogue session (the only primary session)
         session_title: Replay Session
         empty_sessions: No local sessions are available for replay
         session_user_turns: '{count} user turns'
         session_assistant_turns: '{count} replies'
         session_recent: Most Recent Turn
+        conversation_sample: Real Conversation Sample
+        loading_conversation_samples: Loading real conversation samples...
+        empty_conversation_samples: No real conversation samples are available for labeling
+        load_more_conversation_samples: Load More Conversation Samples
+        loading_more_conversation_samples: Loading more conversation samples...
+        sample_turn: Conversation Turn
+        sample_trace: Decision Trace
+        sample_already_labeled: Already Labeled
+        trace_owners:
+          long_term: Long-Term Recall
+          working: Working Memory
+          persona: Persona Dataset
+        finding_severity:
+          critical: Critical
+          warning: Warning
+          info: Info
         live_provider_notice: Live Provider mode calls the currently configured dialogue model and may incur API charges, but it does not write WorkingMemory, long-term memory, or persona training data.
         labels:
           right: Correct Recall
@@ -986,6 +1027,13 @@ pages:
           unwanted: This turn did not need recall, or she should have said she was unsure.
         quality_history: Quality Report History
         empty_quality_history: No quality reports have been saved yet. Run a quality validation to keep the result here.
+        final_replay_gate_description: This is the final evidence gate for the production dialogue loop; without persisted replay evidence, it cannot pass.
+        final_replay_gate_not_available: No persisted final replay gate report was found, so this production evidence cannot be treated as passing.
+        final_replay_no_failing_keys: The final replay gate has no failing keys.
+        no_failing_fixtures: No failing fixtures were recorded in this report.
+        trace_not_available: Per-fixture harness trace is not included in the current C-end report projection
+        fixture_detail_not_available: The real failing fixture ID is retained; per-fixture detail is not included in the current report projection
+        recall_detail_not_available: No real recall evidence is available to display yet; run a recall probe first.
         quality_report_hash: Report Integrity Hash
         quality_session: Replay Session
         quality_run_mode: Run Mode

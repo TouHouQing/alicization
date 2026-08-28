@@ -54,6 +54,70 @@ function createSensorySnapshot(overrides?: Partial<AlicizationSensoryCacheSnapsh
 }
 
 describe('alicization agent runtime', () => {
+  it('prefers the session identity carried by the current chat turn', async () => {
+    const resolveConversationSessionId = vi.fn(async () => 'stale-active-session')
+    const runtime = createAlicizationAgentRuntime({
+      getSensorySnapshot: async () => createSensorySnapshot(),
+      resolveConversationSessionId,
+    })
+
+    const turn = await runtime.openTurn({
+      cardId: 'default',
+      turnId: 'turn-explicit-session',
+      conversationSessionId: 'renderer-session',
+    })
+
+    expect(turn.conversationSessionId).toBe('renderer-session')
+    expect(resolveConversationSessionId).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when production canonical session resolution is unavailable', async () => {
+    const runtime = createAlicizationAgentRuntime({
+      getSensorySnapshot: async () => createSensorySnapshot(),
+      enforceCanonicalConversationSessionId: true,
+      resolveConversationSessionId: async () => undefined,
+    })
+
+    await expect(runtime.openTurn({
+      cardId: 'default',
+      turnId: 'turn-missing-canonical-session',
+      conversationSessionId: 'renderer-session',
+    })).rejects.toThrow('canonical conversation session')
+  })
+
+  it('ignores a stale external session when production canonical session is resolved', async () => {
+    const runtime = createAlicizationAgentRuntime({
+      getSensorySnapshot: async () => createSensorySnapshot(),
+      enforceCanonicalConversationSessionId: true,
+      resolveConversationSessionId: async () => 'session:primary:default',
+    })
+
+    const turn = await runtime.openTurn({
+      cardId: 'default',
+      turnId: 'turn-canonical-session',
+      conversationSessionId: 'renderer-session',
+    })
+
+    expect(turn.conversationSessionId).toBe('session:primary:default')
+  })
+
+  it('rejects execution context identity that crosses the canonical card or session boundary', async () => {
+    const runtime = createAlicizationAgentRuntime({
+      getSensorySnapshot: async () => createSensorySnapshot(),
+      enforceCanonicalConversationSessionId: true,
+      resolveConversationSessionId: async () => 'session:primary:default',
+    })
+    const turn = await runtime.openTurn({
+      cardId: 'default',
+      turnId: 'turn-context-boundary',
+    })
+
+    await expect(turn.buildExecutionRuntimeContext({
+      cardId: 'card-b',
+      sessionId: 'session:primary:card-b',
+    })).rejects.toThrow('canonical execution context')
+  })
+
   it('reuses one agent session and deduplicates carried actions and continuity signals', async () => {
     const getSensorySnapshot = vi.fn(async () => createSensorySnapshot())
     const runtime = createAlicizationAgentRuntime({

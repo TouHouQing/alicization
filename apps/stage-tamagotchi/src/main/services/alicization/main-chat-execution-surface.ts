@@ -1748,12 +1748,17 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     execute: async (input, toolContext, onExecutionEvent) => {
       const invocationValidation = validateAlicizationCodingAgentInvocation(
         input,
-        options.codingAgentDelegation
+        options.toolSurface === 'main-chat'
           ? {
               contextTurnId: toolContext.turnId,
-              delegation: options.codingAgentDelegation,
+              delegation: options.codingAgentDelegation ?? null,
             }
-          : undefined,
+          : options.codingAgentDelegation
+            ? {
+                contextTurnId: toolContext.turnId,
+                delegation: options.codingAgentDelegation,
+              }
+            : undefined,
       )
       if (!invocationValidation.ok) {
         if (
@@ -2046,30 +2051,18 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   const codingAgentFacadeCapabilityAvailable = Boolean(
     toolRegistry.resolveActive('coding_agent'),
   )
-  const hasTurnBoundCodingAgentDelegation = Boolean(
-    options.codingAgentDelegation?.allowed,
-  )
-  const codingAgentDelegationAllowed = options.toolSurface !== 'main-chat'
-    || (
-      codingAgentFacadeCapabilityAvailable
-      && (
-        !hasTurnBoundCodingAgentDelegation
-        || options.codingAgentDelegation?.allowedAgents.some(agent => agent !== 'cli') === true
-      )
-    )
+  const hasTurnBoundCodingAgentDelegation = options.codingAgentDelegation?.allowed === true
   const mainChatCodingAgentNames = allowedCodingAgents
   const mainChatCodingAgentFacadeAllowed = options.toolSurface !== 'main-chat'
     || (
       codingAgentFacadeCapabilityAvailable
-      && codingAgentDelegationAllowed
+      && hasTurnBoundCodingAgentDelegation
       && mainChatCodingAgentNames.some(agent => agent !== 'cli')
     )
   const mainChatCliExecutorAllowed = options.toolSurface !== 'main-chat'
     || (
-      !hasTurnBoundCodingAgentDelegation
-    )
-    || (
-      options.codingAgentDelegation?.allowCommand === true
+      hasTurnBoundCodingAgentDelegation
+      && options.codingAgentDelegation?.allowCommand === true
       && mainChatCodingAgentNames.includes('cli')
     )
   const mainChatCliExecutorTools = executorRunToolSpecs

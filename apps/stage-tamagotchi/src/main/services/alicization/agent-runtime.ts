@@ -12,7 +12,10 @@ import type { AlicizationRuntimeCallChainSnapshot } from './runtime-call-chain'
 import { createHash, randomUUID } from 'node:crypto'
 
 import { errorMessageFrom } from '@moeru/std'
-import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
+import {
+  alicizationPrimaryConversationSessionId,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
 import { buildAlicizationExecutionRuntimeContext } from './execution-runtime-context'
 import { createAlicizationRuntimeCallChain } from './runtime-call-chain'
@@ -138,10 +141,17 @@ export interface AlicizationAgentTurnRuntime {
 export interface OpenAlicizationAgentTurnInput {
   cardId: string
   decisionTraceId?: string | null
+  conversationSessionId?: string | null
   turnId: string
 }
 
 interface CreateAlicizationAgentRuntimeOptions {
+  /**
+   * Production dialogue must use the session owner supplied by the runtime.
+   * Renderer/replay ids are correlation values and cannot create another
+   * agent session or fall back to a detached one.
+   */
+  enforceCanonicalConversationSessionId?: boolean
   getNow?: () => number
   maxContinuityHistory?: number
   getSensorySnapshot: () => Promise<AlicizationSensoryCacheSnapshot> | AlicizationSensoryCacheSnapshot
@@ -458,7 +468,18 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
   async function openTurn(input: OpenAlicizationAgentTurnInput): Promise<AlicizationAgentTurnRuntime> {
     expireIdleSessions()
     const cardId = sanitizeText(input.cardId, 120) || 'default'
-    const conversationSessionId = await resolveConversationSessionId(cardId).catch(() => null)
+    const explicitConversationSessionId = sanitizeText(input.conversationSessionId, 160)
+    const resolvedConversationSessionId = options.enforceCanonicalConversationSessionId
+      ? await resolveConversationSessionId(cardId).catch(() => null)
+      : null
+    if (options.enforceCanonicalConversationSessionId) {
+      if (!resolvedConversationSessionId) {
+        throw new TypeError('agent turn requires a canonical conversation session')
+      }
+    }
+    const conversationSessionId = options.enforceCanonicalConversationSessionId
+      ? resolvedConversationSessionId
+      : explicitConversationSessionId || await resolveConversationSessionId(cardId).catch(() => null)
     const session = getOrCreateSession(cardId, conversationSessionId)
     const trace = createAlicizationRuntimeCallChain({
       getNow,
@@ -624,6 +645,19 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
     }
 
     const buildExecutionRuntimeContext: AlicizationAgentTurnRuntime['buildExecutionRuntimeContext'] = async (identity) => {
+      if (options.enforceCanonicalConversationSessionId) {
+        const requestedCardId = sanitizeText(identity?.cardId, 120)
+        const requestedSessionId = sanitizeText(identity?.sessionId, 160)
+        if (requestedCardId && requestedCardId !== cardId) {
+          throw new TypeError('canonical execution context cannot cross card scope')
+        }
+        if (requestedSessionId && requestedSessionId !== conversationSessionId) {
+          throw new TypeError('canonical execution context cannot cross session scope')
+        }
+        if (conversationSessionId !== alicizationPrimaryConversationSessionId(cardId)) {
+          throw new TypeError('canonical execution context requires the primary conversation session')
+        }
+      }
       const sensorySnapshot = identity?.sensorySnapshot ?? await getSensorySnapshot()
       const recentTasks = selectRecentTasksForExecutionContext(
         session.tasks,

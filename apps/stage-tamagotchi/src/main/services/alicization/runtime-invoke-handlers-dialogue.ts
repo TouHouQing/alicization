@@ -39,6 +39,7 @@ import type {
 } from './turn-os/event-store'
 
 import {
+  alicizationPrimaryConversationSessionId,
   buildAlicizationMemoryDecisionTraceRecords,
   filterLearningArtifactLedgerRecords,
   learningArtifactLedgerRecordFromMindTurnEvent,
@@ -227,6 +228,7 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
     clearAllConversationData,
     parseStructuredHint,
   } = options
+  const getCanonicalSessionId = () => alicizationPrimaryConversationSessionId(getActiveCardId())
   const replayBenchmarkRuntime = createAlicizationReplayBenchmarkRuntime({
     getAlicizationDb,
     appendAuditLog,
@@ -251,9 +253,7 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
 
   registerInvokeHandler(electronAlicizationAckDialogue, async payload => await withCardScope(payload.cardId, async () => {
     const activeCardId = getActiveCardId()
-    const sessionId = normalizeSessionId(payload.sessionId)
-    if (!sessionId)
-      return
+    const sessionId = getCanonicalSessionId()
 
     const previousCursor = getDialogueAckCursor(activeCardId, sessionId)
     await ackDialogueDelivery({
@@ -320,9 +320,10 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
 
   registerInvokeHandler(electronAlicizationReplayDialogues, async payload => await withCardScope(payload.cardId, async () => {
     const activeCardId = getActiveCardId()
-    const sessionId = normalizeSessionId(payload.sessionId)
-    if (!sessionId)
-      return [] as AlicizationDialogueRespondedPayload[]
+    const requestedSessionId = normalizeSessionId(payload.sessionId)
+    const sessionId = getCanonicalSessionId()
+    if (requestedSessionId && requestedSessionId !== sessionId)
+      await appendRuntimeDebugLine('dialogue-replay.session-id-normalized', { requestedSessionId, sessionId })
 
     const ackCursor = getDialogueAckCursor(activeCardId, sessionId)
     const limit = Math.max(1, Math.min(500, Math.floor(payload.limit ?? 200)))
@@ -361,7 +362,11 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
   }))
 
   registerInvokeHandler(electronAlicizationListConversationTurns, async payload => await withCardScope(payload.cardId, async () => {
-    const rows = await getAlicizationDb().listConversationTurnsBySession(payload.sessionId, {
+    const requestedSessionId = normalizeSessionId(payload.sessionId)
+    const sessionId = getCanonicalSessionId()
+    if (requestedSessionId && requestedSessionId !== sessionId)
+      await appendRuntimeDebugLine('dialogue-list-turns.session-id-normalized', { requestedSessionId, sessionId })
+    const rows = await getAlicizationDb().listConversationTurnsBySession(sessionId, {
       sinceCreatedAt: payload.sinceCreatedAt,
       limit: payload.limit,
     })
@@ -384,9 +389,10 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
 
   registerInvokeHandler(electronAlicizationListTurnToolProjections, async payload => await withCardScope(payload.cardId, async () => {
     const activeCardId = getActiveCardId()
-    const sessionId = normalizeSessionId(payload.sessionId)
-    if (!sessionId)
-      return [] as AlicizationTurnToolProjectionReplayRecord[]
+    const requestedSessionId = normalizeSessionId(payload.sessionId)
+    const sessionId = getCanonicalSessionId()
+    if (requestedSessionId && requestedSessionId !== sessionId)
+      await appendRuntimeDebugLine('dialogue-tool-projection.session-id-normalized', { requestedSessionId, sessionId })
 
     const limit = Math.max(1, Math.min(500, Math.floor(payload.limit ?? 200)))
     const db = getAlicizationDb()
@@ -512,7 +518,10 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
 
     const decisionTraceId = sanitizeText(payload.decisionTraceId) || `humanlike-memory-correction:${candidateId}`
     const turnId = sanitizeText(payload.turnId) || null
-    const sessionId = normalizeSessionId(payload.sessionId) || null
+    const requestedSessionId = normalizeSessionId(payload.sessionId)
+    const sessionId = getCanonicalSessionId()
+    if (requestedSessionId && requestedSessionId !== sessionId)
+      await appendRuntimeDebugLine('humanlike-memory-correction.session-id-normalized', { requestedSessionId, sessionId })
     const previousValue = sanitizeText(payload.previousValue) || null
     const reason = sanitizeText(payload.reason) || null
     const createdAt = Date.now()

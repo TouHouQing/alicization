@@ -223,6 +223,9 @@ export function sanitizeAlicizationChatStartPayloadForTransport(
   return sanitizeToCloneSafeJson({
     cardId: payload.cardId,
     turnId: payload.turnId,
+    ...(typeof payload.sessionId === 'string' && payload.sessionId.trim()
+      ? { sessionId: payload.sessionId.trim() }
+      : {}),
     providerId: payload.providerId,
     model: payload.model,
     providerConfig: payload.providerConfig,

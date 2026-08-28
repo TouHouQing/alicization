@@ -203,4 +203,18 @@ describe('alicization-chat-transport', () => {
 
     expect(sanitizeAlicizationChatStartPayloadForTransport(payload).value).toEqual(payload)
   })
+
+  it('carries the renderer-owned session identity across the chat-start boundary', () => {
+    const payload = {
+      cardId: 'default',
+      turnId: 'turn-session-identity',
+      sessionId: 'ui-session-42',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [{ role: 'user' as const, content: '上一轮的口令是什么？' }],
+    } satisfies AlicizationChatStartPayload
+
+    expect(sanitizeAlicizationChatStartPayloadForTransport(payload).value).toEqual(payload)
+  })
 })

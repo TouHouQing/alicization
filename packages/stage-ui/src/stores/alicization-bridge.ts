@@ -482,6 +482,9 @@ export type AlicizationSimpleRecallGoldEvaluationClass = SharedMemoryWorkbench.A
 export type AlicizationSimpleRecallGoldBenchmarkDimension = SharedMemoryWorkbench.AlicizationSimpleRecallGoldBenchmarkDimension
 export type AlicizationMemoryQualityEvidenceSnapshot = SharedMemoryWorkbench.AlicizationMemoryQualityEvidenceSnapshot
 export type AlicizationMemoryQualityGoldLabelPayload = SharedMemoryWorkbench.AlicizationMemoryQualityGoldLabelPayload
+export type AlicizationMemoryQualityConversationSample = SharedMemoryWorkbench.AlicizationMemoryQualityConversationSample
+export type AlicizationMemoryQualityConversationSampleListPayload = SharedMemoryWorkbench.AlicizationMemoryQualityConversationSampleListPayload
+export type AlicizationMemoryQualityConversationSampleListResult = SharedMemoryWorkbench.AlicizationMemoryQualityConversationSampleListResult
 export type AlicizationMemoryQualityGoldLabelItem = SharedMemoryWorkbench.AlicizationMemoryQualityGoldLabelItem
 export type AlicizationMemoryQualityGoldLabelListPayload = SharedMemoryWorkbench.AlicizationMemoryQualityGoldLabelListPayload
 export type AlicizationMemoryQualityGoldLabelListResult = SharedMemoryWorkbench.AlicizationMemoryQualityGoldLabelListResult
@@ -2649,6 +2652,7 @@ interface AlicizationBridge {
   memoryWorkbenchRunQualityTrial?: (payload: Omit<AlicizationMemoryQualityTrialPayload, 'cardId'>) => Promise<AlicizationMemoryQualityTrialReportSurface>
   memoryWorkbenchCancelQualityTrial?: (payload: Omit<AlicizationMemoryQualityTrialCancelPayload, 'cardId'>) => Promise<AlicizationMemoryQualityTrialCancelResult>
   memoryWorkbenchListQualityTrialReports?: (payload?: Omit<AlicizationMemoryQualityTrialReportListPayload, 'cardId'>) => Promise<AlicizationMemoryQualityTrialReportSurfaceListResult>
+  memoryWorkbenchListQualityConversationSamples?: (payload?: Omit<AlicizationMemoryQualityConversationSampleListPayload, 'cardId'>) => Promise<AlicizationMemoryQualityConversationSampleListResult>
   memoryWorkbenchRecordQualityGoldLabel?: (payload: Omit<AlicizationMemoryQualityGoldLabelPayload, 'cardId'>) => Promise<AlicizationMemoryQualityGoldLabelItem>
   memoryWorkbenchListQualityGoldLabels?: (payload: Omit<AlicizationMemoryQualityGoldLabelListPayload, 'cardId'>) => Promise<AlicizationMemoryQualityGoldLabelListResult>
   memoryWorkbenchBuildMonthlyGoldRegression?: (payload: Omit<AlicizationMemoryQualityMonthlyGoldRegressionPayload, 'cardId'>) => Promise<AlicizationMemoryQualityMonthlyGoldRegressionPack>

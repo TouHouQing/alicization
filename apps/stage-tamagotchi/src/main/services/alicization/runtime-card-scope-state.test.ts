@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createAlicizationRuntimeCardScopeState } from './runtime-card-scope-state'
 
 describe('runtime card scope state', () => {
-  it('restores or auto-creates active session ids without keeping the logic in runtime.ts', async () => {
+  it('canonicalizes active session ids instead of restoring a legacy production session', async () => {
     const meta = new Map<string, string>()
     const activeSessionIdByCard = new Map<string, string>()
     const appendAuditLog = vi.fn(async () => {})
@@ -31,14 +31,61 @@ describe('runtime card scope state', () => {
     })
 
     const first = await runtime.ensureActiveOrLatestSessionId('card-a')
-    expect(first).toBe('session:auto:card-a:10000')
+    expect(first).toBe('session:primary:card-a')
     expect(activeSessionIdByCard.get('card-a')).toBe(first)
     expect(appendAuditLog).toHaveBeenCalled()
 
     meta.set('active_session_id_v1', 'session-from-meta')
     const second = await runtime.restoreActiveSessionId('card-b')
-    expect(second).toBe('session-from-meta')
-    expect(activeSessionIdByCard.get('card-b')).toBe('session-from-meta')
+    expect(second).toBe('session:primary:card-b')
+    expect(activeSessionIdByCard.get('card-b')).toBe('session:primary:card-b')
+    expect(meta.get('active_session_id_v1')).toBe('session:primary:card-b')
+  })
+
+  it('migrates legacy session data before restoring the canonical session pointer', async () => {
+    const meta = new Map<string, string>()
+    const migrateLegacyConversationSessionsToPrimary = vi.fn(async ({ cardId }: { cardId: string }) => ({
+      cardId,
+      primarySessionId: `session:primary:${cardId}`,
+      dryRun: false,
+      sourceSessionIds: ['legacy-session'],
+      changed: true,
+      migratedRows: {
+        conversation_turns: 2,
+      },
+      conflictRows: {},
+    }))
+    const getLatestConversationSessionId = vi.fn(async () => 'session:primary:card-a')
+    const runtime = createAlicizationRuntimeCardScopeState({
+      now: () => 10_000,
+      userDataPath: '/tmp/runtime-card-scope',
+      activeCardIdRef: () => 'default',
+      normalizeCardId: raw => String(raw ?? '').trim() || 'default',
+      getMetaValue: async key => meta.get(key),
+      setMetaValue: async (key, value) => {
+        meta.set(key, value)
+      },
+      getLatestConversationSessionId,
+      migrateLegacyConversationSessionsToPrimary,
+      appendAuditLog: async () => {},
+      getAlicizationKillSwitchSnapshot: () => ({ state: 'ACTIVE', reason: 'global', updatedAt: 1 }),
+      getAlicizationCardKillSwitchSnapshot: () => ({ state: 'ACTIVE', reason: 'card', updatedAt: 2 }),
+      setAlicizationCardKillSwitchState: (_cardId, state, reason) => ({ state, reason, updatedAt: 3 }),
+      activeSessionIdByCard: new Map(),
+      subconsciousStateByCard: new Map(),
+      proactiveLoopStateByCard: new Map(),
+      visualPresenceStateByCard: new Map(),
+      readdir: async () => [],
+      activeSessionMetaKey: 'active_session_id_v1',
+      scopedKillSwitchMetaKey: 'kill_switch_state_v1',
+    })
+
+    await expect(runtime.restoreActiveSessionId('card-a')).resolves.toBe('session:primary:card-a')
+
+    expect(migrateLegacyConversationSessionsToPrimary)
+      .toHaveBeenCalledWith({ cardId: 'card-a', dryRun: false })
+    expect(getLatestConversationSessionId).toHaveBeenCalled()
+    expect(meta.get('active_session_id_v1')).toBe('session:primary:card-a')
   })
 
   it('merges global and card kill switch state and restores scoped snapshot from meta', async () => {

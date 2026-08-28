@@ -134,6 +134,7 @@ export function buildWorkingMemoryLongTermIdempotencyKey(input: {
   sessionId: string
   item: WorkingMemoryLongTermQueueItem
 }) {
+  const sourceId = normalizeWorkingMemoryText(input.item.id, 240) || 'source'
   const sourceTurnIds = uniqueWorkingMemoryTexts(input.item.sourceTurnIds, 12, 120).join('+') || 'no-source'
   const summary = normalizeWorkingMemoryText(input.item.summary, 120) || 'candidate'
   return [
@@ -141,6 +142,7 @@ export function buildWorkingMemoryLongTermIdempotencyKey(input: {
     normalizeWorkingMemoryText(input.cardId, 120) || 'default',
     normalizeWorkingMemoryText(input.sessionId, 160) || 'detached',
     input.item.kind,
+    sourceId,
     sourceTurnIds,
     summary,
   ].join(':')

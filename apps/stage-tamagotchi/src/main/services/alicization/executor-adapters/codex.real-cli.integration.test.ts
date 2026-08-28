@@ -1,7 +1,8 @@
 import type { AlicizationTaskThreadRecord } from '@proj-alicization/stage-shared'
 
-import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { randomUUID } from 'node:crypto'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { dirname, join, relative } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -109,43 +110,59 @@ describe('codex real CLI replay', () => {
     'executes a real read-only coding-agent command and exposes its progress',
     async () => {
       const events: Array<{ payload?: Record<string, unknown> }> = []
-      const result = await executeCodexTaskThread({
-        thread: createRealCliThread(),
-        command: {
-          prompt: '使用终端读取仓库根目录下 apps/stage-tamagotchi/package.json，找到 name 字段。只回答这个 name 的值，不修改任何文件。',
-          sandbox: 'read-only',
-          timeoutMs: 60_000,
-        },
-        lifecycle: {
-          startupTimeoutMs: 30_000,
-          activeStepTimeoutMs: 30_000,
-          providerRecoveryTimeoutMs: 10_000,
-          totalTimeoutMs: 60_000,
-        },
-        onExecutionEvent: (event) => {
-          events.push({
-            payload: event.payload && typeof event.payload === 'object'
-              ? event.payload as Record<string, unknown>
-              : undefined,
-          })
-        },
-        workspaceRoot: process.cwd(),
-      })
+      const workspaceRoot = process.cwd()
+      const probeDirectory = await mkdtemp(join(workspaceRoot, '.alicization-codex-command-probe-'))
+      const probeRelativePath = relative(workspaceRoot, join(probeDirectory, 'value.txt'))
+      const probeValue = `alicization-command-probe-${randomUUID()}`
+      await writeFile(join(workspaceRoot, probeRelativePath), `${probeValue}\n`, 'utf8')
 
-      const commandProgress = events.filter((event) => {
-        const payload = event.payload
-        return payload?.codexEventType === 'item.started'
-          || payload?.codexEventType === 'item.completed'
-      }).filter(event => event.payload?.itemType === 'command_execution')
+      try {
+        const result = await executeCodexTaskThread({
+          thread: createRealCliThread(),
+          command: {
+            prompt: [
+              '这是一个真实 Coding Agent 工具调用验证。',
+              `你必须在回复前使用终端读取当前仓库根目录下的 ${probeRelativePath}。`,
+              '文件内容是随机生成的，不能从上下文推断；不要使用记忆或猜测代替终端命令。',
+              '读取后只回答文件中的完整随机标记。只读，不修改任何文件。',
+            ].join('\n'),
+            sandbox: 'read-only',
+            timeoutMs: 60_000,
+          },
+          lifecycle: {
+            startupTimeoutMs: 30_000,
+            activeStepTimeoutMs: 30_000,
+            providerRecoveryTimeoutMs: 10_000,
+            totalTimeoutMs: 60_000,
+          },
+          onExecutionEvent: (event) => {
+            events.push({
+              payload: event.payload && typeof event.payload === 'object'
+                ? event.payload as Record<string, unknown>
+                : undefined,
+            })
+          },
+          workspaceRoot,
+        })
 
-      expect(commandProgress.length).toBeGreaterThan(0)
-      expect(commandProgress.some(event => event.payload?.semanticProgress === true)).toBe(true)
-      expect(result).toMatchObject({
-        ok: true,
-        finalStatus: 'completed',
-      })
-      expect(result.output).toContain('@proj-alicization/stage-tamagotchi')
-      expect(result.errorMessage ?? '').not.toContain('no semantic progress')
+        const commandProgress = events.filter((event) => {
+          const payload = event.payload
+          return payload?.codexEventType === 'item.started'
+            || payload?.codexEventType === 'item.completed'
+        }).filter(event => event.payload?.itemType === 'command_execution')
+
+        expect(commandProgress.length).toBeGreaterThan(0)
+        expect(commandProgress.some(event => event.payload?.semanticProgress === true)).toBe(true)
+        expect(result).toMatchObject({
+          ok: true,
+          finalStatus: 'completed',
+        })
+        expect(result.output).toContain(probeValue)
+        expect(result.errorMessage ?? '').not.toContain('no semantic progress')
+      }
+      finally {
+        await rm(probeDirectory, { recursive: true, force: true })
+      }
     },
     120_000,
   )

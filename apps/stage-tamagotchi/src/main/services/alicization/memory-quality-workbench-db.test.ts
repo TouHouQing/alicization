@@ -5,6 +5,7 @@ import { join } from 'node:path'
 
 import sqlite3 from 'sqlite3'
 
+import { alicizationPrimaryConversationSessionId } from '@proj-alicization/stage-shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { setupAlicizationDb } from './db'
@@ -47,11 +48,49 @@ async function mutatePersistedDb(
   }
 }
 
-const legacyGoldLabelContext = {
-  sessionId: 'fixture-gold-session',
-  turnId: 'fixture-gold-turn',
-  assistantReply: '这是用于回归夹具的真实助手回复。',
-  retrievedEvidenceSnapshot: [],
+async function seedQualityConversationSample(
+  db: Awaited<ReturnType<typeof setupAlicizationDb>>,
+  input: {
+    cardId?: string
+    turnId: string
+    query: string
+    assistantReply: string
+    decisionTraceId: string
+    createdAt?: number
+  },
+) {
+  const cardId = input.cardId ?? 'default'
+  const sessionId = alicizationPrimaryConversationSessionId(cardId)
+  await db.appendConversationTurn({
+    cardId,
+    sessionId,
+    turnId: input.turnId,
+    userText: input.query,
+    assistantText: input.assistantReply,
+    createdAt: input.createdAt ?? Date.now(),
+  })
+  await db.appendMindTurnEvents([{
+    decisionTraceId: input.decisionTraceId,
+    turnId: input.turnId,
+    sessionId,
+    origin: 'user-turn',
+    kind: 'recall-attribution',
+    payload: {
+      shouldRecall: false,
+      retrievedCandidateIds: [],
+      surfacedMemoryIds: [],
+    },
+    createdAt: (input.createdAt ?? Date.now()) + 1,
+  }])
+  return {
+    sessionId,
+    conversationSampleId: `memory-quality-sample:${cardId}:${sessionId}:${input.turnId}`,
+    turnId: input.turnId,
+    query: input.query,
+    assistantReply: input.assistantReply,
+    decisionTraceId: input.decisionTraceId,
+    retrievedEvidenceSnapshot: [],
+  }
 }
 
 function createSemanticScaleReport(corpusSize: number, id: string) {
@@ -117,18 +156,216 @@ afterEach(async () => {
 })
 
 describe('memory quality workbench DB loop', () => {
+  it('builds labelable samples from the canonical conversation and validates their binding', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const sessionId = alicizationPrimaryConversationSessionId('default')
+      await db.appendConversationTurn({
+        cardId: 'default',
+        sessionId,
+        turnId: 'quality-sample-turn',
+        userText: '你还记得我现在用什么编辑器吗？',
+        assistantText: '我记得你现在用 Zed。',
+        createdAt: Date.parse('2026-08-21T08:00:00.000Z'),
+      })
+      await db.appendMindTurnEvents([{
+        decisionTraceId: 'quality-sample-trace',
+        turnId: 'quality-sample-turn',
+        sessionId,
+        origin: 'user-turn',
+        kind: 'recall-attribution',
+        payload: {
+          selectedEpisodes: [{ id: 'memory-editor' }],
+          surfacedMemoryIds: ['memory-editor'],
+        },
+        createdAt: Date.parse('2026-08-21T08:00:01.000Z'),
+      }])
+
+      const samples = await db.listMemoryQualityConversationSamples({
+        cardId: 'default',
+        limit: 10,
+      })
+
+      expect(samples.items).toEqual([expect.objectContaining({
+        id: `memory-quality-sample:default:${sessionId}:quality-sample-turn`,
+        cardId: 'default',
+        sessionId,
+        turnId: 'quality-sample-turn',
+        decisionTraceId: 'quality-sample-trace',
+        query: '你还记得我现在用什么编辑器吗？',
+        assistantReply: '我记得你现在用 Zed。',
+        retrievedCandidateIds: ['memory-editor'],
+        surfacedMemoryIds: ['memory-editor'],
+        traceEventKinds: ['recall-attribution'],
+        existingGoldLabelId: null,
+      })])
+
+      const label = await db.recordMemoryQualityGoldLabel({
+        cardId: 'default',
+        conversationSampleId: samples.items[0]!.id,
+        month: '2026-08',
+        label: 'right',
+        query: samples.items[0]!.query,
+        sessionId,
+        turnId: samples.items[0]!.turnId,
+        decisionTraceId: samples.items[0]!.decisionTraceId!,
+        assistantReply: samples.items[0]!.assistantReply,
+        retrievedEvidenceSnapshot: [],
+        retrievedCandidateIds: samples.items[0]!.retrievedCandidateIds,
+        surfacedMemoryIds: samples.items[0]!.surfacedMemoryIds,
+        expectedMemoryIds: ['memory-editor'],
+      })
+
+      expect(label.humanConfirmed).toBe(true)
+      expect((await db.listMemoryQualityConversationSamples({ cardId: 'default' })).items[0]?.existingGoldLabelId).toBe(label.id)
+
+      await expect(db.recordMemoryQualityGoldLabel({
+        cardId: 'default',
+        conversationSampleId: samples.items[0]!.id,
+        month: '2026-08',
+        label: 'right',
+        query: samples.items[0]!.query,
+        sessionId,
+        turnId: samples.items[0]!.turnId,
+        decisionTraceId: samples.items[0]!.decisionTraceId!,
+        assistantReply: '这不是该轮真实回复。',
+        retrievedEvidenceSnapshot: [],
+        retrievedCandidateIds: samples.items[0]!.retrievedCandidateIds,
+        surfacedMemoryIds: samples.items[0]!.surfacedMemoryIds,
+        expectedMemoryIds: ['memory-editor'],
+      })).rejects.toThrow('reply context no longer matches')
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('keeps retrieved candidates separate from memories surfaced to the user', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const sessionId = alicizationPrimaryConversationSessionId('default')
+      await db.appendConversationTurn({
+        cardId: 'default',
+        sessionId,
+        turnId: 'quality-candidate-boundary-turn',
+        userText: '请回想这件事。',
+        assistantText: '我只把确认过的那一条带进了回复。',
+        createdAt: Date.parse('2026-08-21T08:10:00.000Z'),
+      })
+      await db.appendMindTurnEvents([{
+        decisionTraceId: 'quality-candidate-boundary-trace',
+        turnId: 'quality-candidate-boundary-turn',
+        sessionId,
+        origin: 'user-turn',
+        kind: 'recall-attribution',
+        payload: {
+          retrievedCandidateIds: ['memory-candidate-only', 'memory-surfaced'],
+          surfacedMemoryIds: ['memory-surfaced'],
+          selectedEpisodes: [
+            { id: 'memory-candidate-only' },
+            { id: 'memory-surfaced' },
+          ],
+        },
+        createdAt: Date.parse('2026-08-21T08:10:01.000Z'),
+      }])
+
+      const samples = await db.listMemoryQualityConversationSamples({
+        cardId: 'default',
+        limit: 10,
+      })
+
+      expect(samples.items[0]).toMatchObject({
+        retrievedCandidateIds: ['memory-candidate-only', 'memory-surfaced'],
+        surfacedMemoryIds: ['memory-surfaced'],
+      })
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('does not infer surfaced memories from a retrieval-only attribution event', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const sessionId = alicizationPrimaryConversationSessionId('default')
+      await db.appendConversationTurn({
+        cardId: 'default',
+        sessionId,
+        turnId: 'quality-retrieval-only-turn',
+        userText: '请在心里回想这件事。',
+        assistantText: '我先想一想。',
+        createdAt: Date.parse('2026-08-21T08:20:00.000Z'),
+      })
+      await db.appendMindTurnEvents([{
+        decisionTraceId: 'quality-retrieval-only-trace',
+        turnId: 'quality-retrieval-only-turn',
+        sessionId,
+        origin: 'user-turn',
+        kind: 'recall-attribution',
+        payload: {
+          retrievedCandidateIds: ['memory-internal-only'],
+          shouldRecall: true,
+          shouldStayInward: false,
+          speechShouldSurface: true,
+          surfacePolicy: 'answer-anchoring',
+        },
+        createdAt: Date.parse('2026-08-21T08:20:01.000Z'),
+      }])
+
+      const samples = await db.listMemoryQualityConversationSamples({
+        cardId: 'default',
+        limit: 10,
+      })
+
+      expect(samples.items[0]).toMatchObject({
+        retrievedCandidateIds: ['memory-internal-only'],
+        surfacedMemoryIds: [],
+      })
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('rejects a gold label that is not bound to a real conversation sample', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await expect(db.recordMemoryQualityGoldLabel({
+        cardId: 'default',
+        month: '2026-08',
+        label: 'unwanted',
+        query: '这条记忆不应该被召回。',
+        sessionId: 'missing-session',
+        turnId: 'missing-turn',
+        assistantReply: '我没有把它带进来。',
+        retrievedEvidenceSnapshot: [],
+        expectedMemoryIds: [],
+        retrievedCandidateIds: [],
+        surfacedMemoryIds: [],
+      } as any)).rejects.toThrow('conversation sample is required')
+    }
+    finally {
+      await db.close()
+    }
+  })
+
   it('enforces label semantics and preserves the real replay context', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
-      await db.appendConversationTurn({
-        cardId: 'default',
-        sessionId: 'gold-session',
+      const missingSample = await seedQualityConversationSample(db, {
         turnId: 'gold-turn',
-        userText: '你还记得我现在使用什么编辑器吗？',
-        assistantText: '我这次没有想起来。',
+        query: '你还记得我现在使用什么编辑器吗？',
+        assistantReply: '我这次没有想起来。',
+        decisionTraceId: 'gold-trace',
         createdAt: 1_755_000_000_000,
       })
-
+      const unwantedSample = await seedQualityConversationSample(db, {
+        turnId: 'unwanted-turn',
+        query: '今天天气怎么样？',
+        assistantReply: '我想起了你使用 Zed。',
+        decisionTraceId: 'unwanted-trace',
+        createdAt: 1_755_000_000_002,
+      })
       const evidence = [{
         id: 'memory-editor-v2',
         kind: 'fact',
@@ -147,15 +384,16 @@ describe('memory quality workbench DB loop', () => {
         queryMatches: ['编辑器'],
         rankReasons: ['semantic-match'],
       }]
-
       await expect(db.recordMemoryQualityGoldLabel({
         cardId: 'default',
+        conversationSampleId: missingSample.conversationSampleId,
         month: '2026-08',
         label: 'missing',
-        query: '你还记得我现在使用什么编辑器吗？',
-        sessionId: 'gold-session',
-        turnId: 'gold-turn',
-        assistantReply: '我这次没有想起来。',
+        query: missingSample.query,
+        sessionId: missingSample.sessionId,
+        turnId: missingSample.turnId,
+        decisionTraceId: missingSample.decisionTraceId,
+        assistantReply: missingSample.assistantReply,
         retrievedEvidenceSnapshot: evidence,
         expectedMemoryIds: [],
         retrievedCandidateIds: ['memory-editor-v2'],
@@ -164,13 +402,15 @@ describe('memory quality workbench DB loop', () => {
 
       const unwanted = await db.recordMemoryQualityGoldLabel({
         cardId: 'default',
+        conversationSampleId: unwantedSample.conversationSampleId,
         month: '2026-08',
         label: 'unwanted',
         reason: 'should-abstain',
-        query: '今天天气怎么样？',
-        sessionId: 'gold-session',
-        turnId: 'gold-turn',
-        assistantReply: '我想起了你使用 Zed。',
+        query: unwantedSample.query,
+        sessionId: unwantedSample.sessionId,
+        turnId: unwantedSample.turnId,
+        decisionTraceId: unwantedSample.decisionTraceId,
+        assistantReply: unwantedSample.assistantReply,
         retrievedEvidenceSnapshot: evidence,
         expectedMemoryIds: [],
         retrievedCandidateIds: ['memory-editor-v2'],
@@ -178,9 +418,9 @@ describe('memory quality workbench DB loop', () => {
       })
 
       expect(unwanted).toMatchObject({
-        sessionId: 'gold-session',
-        turnId: 'gold-turn',
-        assistantReply: '我想起了你使用 Zed。',
+        sessionId: unwantedSample.sessionId,
+        turnId: unwantedSample.turnId,
+        assistantReply: unwantedSample.assistantReply,
         reason: 'should-abstain',
         expectedMemoryIds: [],
         retrievedEvidenceSnapshot: evidence,
@@ -197,14 +437,23 @@ describe('memory quality workbench DB loop', () => {
       cardId: 'card-a',
     })
     try {
+      const sample = await seedQualityConversationSample(db, {
+        cardId: 'card-a',
+        turnId: 'card-a-turn',
+        query: '这条记忆属于哪个机体？',
+        assistantReply: '我只应该使用当前机体的记忆。',
+        decisionTraceId: 'card-a-trace',
+      })
       await expect(db.recordMemoryQualityGoldLabel({
         cardId: 'card-a',
+        conversationSampleId: sample.conversationSampleId,
         month: '2026-08',
         label: 'right',
-        query: '这条记忆属于哪个机体？',
-        sessionId: 'card-a-session',
-        turnId: 'card-a-turn',
-        assistantReply: '我只应该使用当前机体的记忆。',
+        query: sample.query,
+        sessionId: sample.sessionId,
+        turnId: sample.turnId,
+        decisionTraceId: sample.decisionTraceId,
+        assistantReply: sample.assistantReply,
         retrievedEvidenceSnapshot: [{
           id: 'foreign-memory',
           kind: 'fact',
@@ -234,23 +483,24 @@ describe('memory quality workbench DB loop', () => {
   it('freezes one immutable monthly regression pack and never silently truncates labels', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
-      await db.appendConversationTurn({
-        cardId: 'default',
-        sessionId: 'gold-session',
+      const sample = await seedQualityConversationSample(db, {
         turnId: 'gold-turn',
-        userText: '请记住我喜欢蓝色。',
-        assistantText: '记住了。',
+        query: '我喜欢什么颜色？',
+        assistantReply: '你喜欢蓝色。',
+        decisionTraceId: 'gold-trace',
         createdAt: 1_755_000_000_000,
       })
 
       const base = {
         cardId: 'default',
+        conversationSampleId: sample.conversationSampleId,
         month: '2026-08',
         label: 'right' as const,
-        query: '我喜欢什么颜色？',
-        sessionId: 'gold-session',
-        turnId: 'gold-turn',
-        assistantReply: '你喜欢蓝色。',
+        query: sample.query,
+        sessionId: sample.sessionId,
+        turnId: sample.turnId,
+        decisionTraceId: sample.decisionTraceId,
+        assistantReply: sample.assistantReply,
         retrievedEvidenceSnapshot: [],
         expectedMemoryIds: ['memory-color'],
         retrievedCandidateIds: ['memory-color'],
@@ -258,7 +508,6 @@ describe('memory quality workbench DB loop', () => {
       }
       await Promise.all(Array.from({ length: 205 }, (_, index) => db.recordMemoryQualityGoldLabel({
         ...base,
-        query: `${base.query} ${index}`,
         createdAt: 1_755_000_000_000 + index,
       })))
 
@@ -285,7 +534,6 @@ describe('memory quality workbench DB loop', () => {
 
       await db.recordMemoryQualityGoldLabel({
         ...base,
-        query: '新增标签不应改变已经冻结的 pack。',
         createdAt: 1_755_000_000_999,
       })
       const secondPack = await db.buildMonthlyGoldRegressionPack({
@@ -320,6 +568,62 @@ describe('memory quality workbench DB loop', () => {
         passed: false,
       })
       expect(report.passed).toBe(false)
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('runs a read-only production trial without persisting a report or freezing a gold pack', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        month: '2026-08',
+        readOnly: true,
+      })
+      const persistedReports = await db.listMemoryQualityTrialReports({
+        cardId: 'default',
+      })
+
+      expect(report.summary.notRunStageIds).toContain('gold-regression')
+      expect(persistedReports.items).toEqual([])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('includes the persisted final replay gate in a read-only production trial', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const finalReplayGate = {
+      version: 'final-replay-gate-v1',
+      passed: true,
+      failingKeys: [],
+      metrics: {
+        sampleCount: 1,
+      },
+    }
+    try {
+      await db.setMetaValue('replay_benchmark_latest_report_v1', JSON.stringify({
+        packs: [{
+          packId: 'final-humanlike-memory-v1',
+          finalReplayGate,
+        }],
+      }))
+
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        month: '2026-08',
+        readOnly: true,
+      })
+
+      expect(report.finalReplayGate).toEqual(finalReplayGate)
+      expect(report.summary.notRunStageIds).not.toContain('final-replay-gate')
+      expect(report.stages.find(stage => stage.id === 'final-replay-gate')).toMatchObject({
+        passed: true,
+        itemCount: 1,
+      })
     }
     finally {
       await db.close()
@@ -530,9 +834,15 @@ describe('memory quality workbench DB loop', () => {
   it('persists beginner recall labels and exports a monthly regression pack', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
+      const sample = await seedQualityConversationSample(db, {
+        turnId: 'turn-embedding-1',
+        query: '你还记得我现在的 embedding baseUrl 怎么填吗？',
+        assistantReply: '这是用于回归夹具的真实助手回复。',
+        decisionTraceId: 'trace-embedding-1',
+      })
       const item = await db.recordMemoryQualityGoldLabel({
         cardId: 'default',
-        ...legacyGoldLabelContext,
+        ...sample,
         month: '2026-08',
         label: 'wrong',
         reason: 'wrong-thread',
@@ -541,8 +851,6 @@ describe('memory quality workbench DB loop', () => {
         retrievedCandidateIds: ['memory-current-baseurl', 'memory-old-baseurl'],
         surfacedMemoryIds: ['memory-old-baseurl'],
         wrongThreadIds: ['memory-old-baseurl'],
-        turnId: 'turn-embedding-1',
-        decisionTraceId: 'trace-embedding-1',
         note: '她提到了旧线程里的 baseUrl。',
         createdAt: Date.parse('2026-08-04T08:00:00.000Z'),
       })
@@ -593,6 +901,12 @@ describe('memory quality workbench DB loop', () => {
   it('runs a production trial from persisted gold labels and real long-term recall', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
+      const sample = await seedQualityConversationSample(db, {
+        turnId: 'fixture-gold-turn',
+        query: '你还记得 SiliconFlow embedding baseUrl 应该怎么填吗？',
+        assistantReply: '这是用于回归夹具的真实助手回复。',
+        decisionTraceId: 'fixture-gold-trace',
+      })
       await db.upsertMemoryReflections([{
         id: 'reflection-siliconflow-baseurl',
         cardId: 'default',
@@ -607,7 +921,7 @@ describe('memory quality workbench DB loop', () => {
       }])
       await db.recordMemoryQualityGoldLabel({
         cardId: 'default',
-        ...legacyGoldLabelContext,
+        ...sample,
         month: '2026-08',
         label: 'right',
         query: '你还记得 SiliconFlow embedding baseUrl 应该怎么填吗？',
@@ -640,9 +954,15 @@ describe('memory quality workbench DB loop', () => {
     const userDataPath = await createSandboxUserDataPath()
     const db = await setupAlicizationDb(userDataPath)
     try {
+      const sample = await seedQualityConversationSample(db, {
+        turnId: 'fixture-gold-turn',
+        query: '这条不该被召回的旧记忆还会出现吗？',
+        assistantReply: '这是用于回归夹具的真实助手回复。',
+        decisionTraceId: 'fixture-gold-trace',
+      })
       await db.recordMemoryQualityGoldLabel({
         cardId: 'default',
-        ...legacyGoldLabelContext,
+        ...sample,
         month: '2026-08',
         label: 'unwanted',
         query: '这条不该被召回的旧记忆还会出现吗？',
@@ -692,9 +1012,15 @@ describe('memory quality workbench DB loop', () => {
     const db = await setupAlicizationDb(userDataPath)
     const dateNow = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-08-20T08:00:00.000Z'))
     try {
+      const sample = await seedQualityConversationSample(db, {
+        turnId: 'fixture-gold-turn',
+        query: '同一时间运行的生产试用必须各自可追溯。',
+        assistantReply: '这是用于回归夹具的真实助手回复。',
+        decisionTraceId: 'fixture-gold-trace',
+      })
       await db.recordMemoryQualityGoldLabel({
         cardId: 'default',
-        ...legacyGoldLabelContext,
+        ...sample,
         month: '2026-08',
         label: 'unwanted',
         query: '同一时间运行的生产试用必须各自可追溯。',
@@ -740,9 +1066,15 @@ describe('memory quality workbench DB loop', () => {
     const userDataPath = await createSandboxUserDataPath()
     const db = await setupAlicizationDb(userDataPath)
     try {
+      const sample = await seedQualityConversationSample(db, {
+        turnId: 'fixture-gold-turn',
+        query: '损坏的质量报告不能进入 Workbench。',
+        assistantReply: '这是用于回归夹具的真实助手回复。',
+        decisionTraceId: 'fixture-gold-trace',
+      })
       await db.recordMemoryQualityGoldLabel({
         cardId: 'default',
-        ...legacyGoldLabelContext,
+        ...sample,
         month: '2026-08',
         label: 'unwanted',
         query: '损坏的质量报告不能进入 Workbench。',
@@ -786,6 +1118,12 @@ describe('memory quality workbench DB loop', () => {
   it('builds temporal conflict fixtures from expired labels and superseding facts', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
+      const sample = await seedQualityConversationSample(db, {
+        turnId: 'fixture-gold-turn',
+        query: '现在 SiliconFlow embedding baseUrl 应该怎么填？',
+        assistantReply: '这是用于回归夹具的真实助手回复。',
+        decisionTraceId: 'fixture-gold-trace',
+      })
       await db.upsertMemoryFacts([{
         subject: 'SiliconFlow embedding baseUrl',
         predicate: '填写方式',
@@ -814,7 +1152,7 @@ describe('memory quality workbench DB loop', () => {
       })
       await db.recordMemoryQualityGoldLabel({
         cardId: 'default',
-        ...legacyGoldLabelContext,
+        ...sample,
         month: '2026-08',
         label: 'wrong',
         reason: 'expired',
@@ -838,6 +1176,23 @@ describe('memory quality workbench DB loop', () => {
       expect(report.temporalConflict?.results.some(result =>
         result.trace.scenario === 'tombstone'
         && result.trace.blockedIds.includes(oldFact!.id),
+      )).toBe(true)
+      const knowledgeUpdateResults = report.temporalConflict?.results.filter(result =>
+        result.trace.scenario === 'knowledge-update',
+      ) ?? []
+      expect(knowledgeUpdateResults.length).toBeGreaterThan(0)
+      expect(
+        knowledgeUpdateResults.every(result => result.passed),
+        JSON.stringify(knowledgeUpdateResults.map(result => ({
+          fixtureId: result.fixtureId,
+          passed: result.passed,
+          topIds: result.trace.selectedIds,
+          intent: result.trace.temporalFocus,
+          error: result.trace.error,
+        }))),
+      ).toBe(true)
+      expect(knowledgeUpdateResults.every(result =>
+        result.trace.selectedIds[0] === currentFact!.id,
       )).toBe(true)
       expect(report.summary.notRunStageIds).not.toContain('temporal-conflict')
     }
@@ -941,10 +1296,11 @@ describe('memory quality workbench DB loop', () => {
     }
   })
 
-  it('runs the selected persisted conversation as a structured DB dialogue replay report', async () => {
+  it('replays the canonical primary session even when a legacy sessionId is supplied', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
-      const sessionId = 'session-production-replay'
+      const sessionId = alicizationPrimaryConversationSessionId('default')
+      const legacySessionId = 'session-production-replay-legacy'
       const createdAt = Date.parse('2026-08-04T08:30:00.000Z')
       const checkpoint = createEmptyWorkingMemorySnapshot({
         cardId: 'default',
@@ -970,7 +1326,7 @@ describe('memory quality workbench DB loop', () => {
 
       const report = await db.runMemoryWorkbenchProductionTrial({
         cardId: 'default',
-        sessionId,
+        sessionId: legacySessionId,
         month: '2026-08',
       })
 
@@ -1002,7 +1358,106 @@ describe('memory quality workbench DB loop', () => {
         passed: true,
         itemCount: 2,
       }))
+      expect(report.dialogueReplay?.id).toContain(sessionId)
+      expect(report.dialogueReplay?.id).not.toContain(legacySessionId)
       expect(await db.getWorkingMemoryCheckpoint('default', sessionId)).toEqual(productionCheckpointBeforeTrial)
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('continues DB replay from an aligned WorkingMemory checkpoint without replaying its prefix twice', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const sessionId = alicizationPrimaryConversationSessionId('default')
+      const checkpointAt = Date.parse('2026-08-04T08:29:00.000Z')
+      const checkpoint = createEmptyWorkingMemorySnapshot({
+        cardId: 'default',
+        sessionId,
+        now: checkpointAt,
+      })
+      checkpoint.turnRange = {
+        fromTurnId: 'turn-checkpoint:user',
+        toTurnId: 'turn-checkpoint:alice',
+      }
+      checkpoint.recentRawTurns = [
+        normalizeWorkingMemoryTurn({
+          turnId: 'turn-checkpoint:user',
+          role: 'user',
+          text: 'checkpoint 之前的用户消息',
+          createdAt: checkpointAt,
+          source: 'conversation-turn',
+          visibility: 'user-visible',
+          importance: 0.8,
+        }),
+        normalizeWorkingMemoryTurn({
+          turnId: 'turn-checkpoint:alice',
+          role: 'alice',
+          text: 'checkpoint 之前的助手回复',
+          createdAt: checkpointAt + 1,
+          source: 'conversation-turn',
+          visibility: 'user-visible',
+          importance: 0.7,
+        }),
+      ]
+      checkpoint.compressedTimeline = [{
+        id: 'checkpoint-episodelet',
+        sourceTurnIds: ['turn-checkpoint:user', 'turn-checkpoint:alice'],
+        summary: 'checkpoint 已保留前一段对话连续性。',
+        thread: '持久化 checkpoint 续接',
+        unresolvedQuestions: [],
+        commitments: [],
+        corrections: [],
+        relationshipPosture: null,
+        emotionalPosture: null,
+        executionCarry: null,
+        importance: 0.9,
+        createdAt: checkpointAt,
+      }]
+      checkpoint.compression = {
+        level: 'light',
+        sourceTurnIds: ['turn-checkpoint:user', 'turn-checkpoint:alice'],
+        lastCompressedAt: checkpointAt,
+      }
+      await db.upsertWorkingMemoryCheckpoint(checkpoint)
+      await db.appendConversationTurn({
+        turnId: 'turn-checkpoint',
+        sessionId,
+        userText: 'checkpoint 之前的用户消息',
+        assistantText: 'checkpoint 之前的助手回复',
+        createdAt: checkpointAt,
+      })
+      await db.appendConversationTurn({
+        turnId: 'turn-after-checkpoint',
+        sessionId,
+        userText: '继续 checkpoint 之后的真实对话。',
+        assistantText: '已经从持久化 checkpoint 继续。',
+        createdAt: checkpointAt + 1_000,
+      })
+
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        month: '2026-08',
+      })
+
+      expect(report.dialogueReplay?.summary).toMatchObject({
+        turnCount: 1,
+        succeededTurnCount: 1,
+        failedTurnCount: 0,
+      })
+      expect(report.dialogueReplay?.turns.map(turn => turn.turnId)).toEqual([
+        'turn-after-checkpoint',
+      ])
+      expect(report.dialogueReplay?.turns[0]?.stages.find(stage => stage.name === 'hydration')).toMatchObject({
+        details: {
+          found: true,
+          source: 'persistent-working-memory-checkpoint',
+        },
+      })
+      expect(report.dialogueReplay?.turns[0]?.providerMessages[0]?.content)
+        .toContain('checkpoint 已保留前一段对话连续性')
+      expect(await db.getWorkingMemoryCheckpoint('default', sessionId)).toEqual(checkpoint)
     }
     finally {
       await db.close()
@@ -1026,7 +1481,8 @@ describe('memory quality workbench DB loop', () => {
       memoryTrialProvider: provider,
     })
     try {
-      const sessionId = 'session-live-provider-trial'
+      const sessionId = alicizationPrimaryConversationSessionId('default')
+      const legacySessionId = 'session-live-provider-trial'
       const createdAt = Date.parse('2026-08-04T08:35:00.000Z')
       await db.upsertWorkingMemoryCheckpoint(createEmptyWorkingMemorySnapshot({
         cardId: 'default',
@@ -1075,12 +1531,33 @@ describe('memory quality workbench DB loop', () => {
       const episodicMemory = (await db.listRecentEpisodicEvents(10))
         .find(item => item.turnId === 'turn-live-provider-memory')
       expect(episodicMemory).toBeDefined()
+      await db.appendMindTurnEvents([{
+        decisionTraceId: 'turn-live-provider-trace',
+        turnId: 'turn-live-provider',
+        sessionId,
+        origin: 'user-turn',
+        kind: 'recall-attribution',
+        payload: {
+          shouldRecall: false,
+          retrievedCandidateIds: [],
+          surfacedMemoryIds: [],
+        },
+        createdAt: createdAt + 1,
+      }])
+      const sample = {
+        sessionId,
+        conversationSampleId: `memory-quality-sample:default:${sessionId}:turn-live-provider`,
+        turnId: 'turn-live-provider',
+        query: '你还记得白樱线吗？',
+        assistantReply: '历史回复不应作为本次真实 Provider 输出。',
+        decisionTraceId: 'turn-live-provider-trace',
+        retrievedEvidenceSnapshot: [],
+      }
       await db.recordMemoryQualityGoldLabel({
         cardId: 'default',
-        ...legacyGoldLabelContext,
+        ...sample,
         month: '2026-08',
         label: 'right',
-        query: '你还记得白樱线吗？',
         expectedMemoryIds: [episodicMemory!.id],
         surfacedMemoryIds: [episodicMemory!.id],
         createdAt,
@@ -1092,7 +1569,7 @@ describe('memory quality workbench DB loop', () => {
       const report = await db.runMemoryWorkbenchProductionTrial({
         cardId: 'default',
         mode: 'live-provider',
-        sessionId,
+        sessionId: legacySessionId,
         month: '2026-08',
       })
 
@@ -1101,12 +1578,14 @@ describe('memory quality workbench DB loop', () => {
       expect(report.liveProviderTrial).toMatchObject({
         version: 'memory-live-provider-trial-v1',
         passed: true,
+        sessionId,
         productionWrites: [],
         summary: {
           providerCallCount: 1,
         },
       })
       expect(report.dialogueReplay?.turns[0]?.providerOutput).toBe('Provider 收到 2 条消息。')
+      expect(report.liveProviderTrial?.sessionId).not.toBe(legacySessionId)
       expect(await db.getWorkingMemoryCheckpoint('default', sessionId)).toEqual(checkpointBefore)
       expect(await db.getMemoryWorkbenchRecallHealth({ cardId: 'default' })).toEqual(recallHealthBefore)
       expect((await db.listRecentEpisodicEvents(10))
@@ -1138,7 +1617,8 @@ describe('memory quality workbench DB loop', () => {
       memoryTrialProvider: provider,
     })
     try {
-      const sessionId = 'session-default-replay'
+      const sessionId = alicizationPrimaryConversationSessionId('default')
+      const legacySessionId = 'session-default-replay'
       const createdAt = Date.parse('2026-08-04T08:40:00.000Z')
       await db.upsertWorkingMemoryCheckpoint(createEmptyWorkingMemorySnapshot({
         cardId: 'default',
@@ -1155,12 +1635,13 @@ describe('memory quality workbench DB loop', () => {
 
       const report = await db.runMemoryWorkbenchProductionTrial({
         cardId: 'default',
-        sessionId,
+        sessionId: legacySessionId,
         month: '2026-08',
       })
 
       expect(report.summary.dialogueReplayCount).toBe(1)
       expect(report.dialogueReplay?.id).toContain(sessionId)
+      expect(report.dialogueReplay?.id).not.toContain(legacySessionId)
       expect(report.dialogueReplay?.summary.turnCount).toBe(1)
       expect(report.liveProviderTrial).toBeNull()
       expect(provider.generate).not.toHaveBeenCalled()
@@ -1170,10 +1651,10 @@ describe('memory quality workbench DB loop', () => {
     }
   })
 
-  it('does not infer the latest session or call the live Provider when sessionId is omitted', async () => {
+  it('runs the live Provider against the canonical primary session when sessionId is omitted', async () => {
     const provider = {
       generate: vi.fn(async () => ({
-        text: '不应隐式调用真实 Provider。',
+        text: '当前主会话已经接上真实模型。',
         providerId: 'provider-live',
         modelId: 'model-live',
         finishReason: 'stop',
@@ -1185,7 +1666,7 @@ describe('memory quality workbench DB loop', () => {
       memoryTrialProvider: provider,
     })
     try {
-      const sessionId = 'session-explicit-only'
+      const sessionId = alicizationPrimaryConversationSessionId('default')
       await db.upsertWorkingMemoryCheckpoint(createEmptyWorkingMemorySnapshot({
         cardId: 'default',
         sessionId,
@@ -1194,8 +1675,8 @@ describe('memory quality workbench DB loop', () => {
       await db.appendConversationTurn({
         turnId: 'turn-explicit-only',
         sessionId,
-        userText: '只有显式选择后才能回放。',
-        assistantText: '不会自动使用最近会话。',
+        userText: '没有手工选择也应该沿当前主会话回放。',
+        assistantText: '生产试用应该使用当前主会话。',
         createdAt: Date.parse('2026-08-04T08:45:00.000Z'),
       })
 
@@ -1206,31 +1687,66 @@ describe('memory quality workbench DB loop', () => {
       })
 
       expect(report.summary.dialogueReplayCount).toBe(1)
-      expect(report.dialogueReplay).toBeNull()
-      expect(report.liveProviderTrial).toBeNull()
-      expect(report.stages).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          stage: 'dialogue-replay',
-          passed: false,
-          error: expect.stringContaining('显式选择'),
-        }),
-      ]))
-      expect(provider.generate).not.toHaveBeenCalled()
+      expect(report.liveProviderTrial?.sessionId).toBe(sessionId)
+      expect(report.liveProviderTrial?.summary.succeededTurnCount).toBe(1)
+      expect(provider.generate).toHaveBeenCalledOnce()
     }
     finally {
       await db.close()
     }
   })
 
-  it('rejects an explicitly selected session outside the current card scope', async () => {
+  it('lists the canonical primary session from conversation turns before its first checkpoint', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const sessionId = alicizationPrimaryConversationSessionId('default')
+      await db.appendConversationTurn({
+        cardId: 'default',
+        turnId: 'turn-primary-before-checkpoint',
+        sessionId,
+        userText: '第一次启动时还没有短期记忆快照。',
+        assistantText: '但当前主会话仍然可以被质量试用发现。',
+        createdAt: Date.parse('2026-08-04T08:55:00.000Z'),
+      })
+
+      const result = await db.listMemoryWorkbenchReplaySessions({
+        cardId: 'default',
+      })
+
+      expect(result.items).toEqual([
+        expect.objectContaining({
+          sessionId,
+          title: '第一次启动时还没有短期记忆快照。',
+          checkpointUpdatedAt: null,
+          userTurnCount: 1,
+          assistantTurnCount: 1,
+        }),
+      ])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('does not replay a foreign sessionId and keeps the canonical primary session owner', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
       const foreignSessionId = 'session-foreign-card'
+      const primarySessionId = alicizationPrimaryConversationSessionId('default')
       await db.appendConversationTurn({
+        cardId: 'default',
+        turnId: 'turn-primary',
+        sessionId: primarySessionId,
+        userText: '当前主会话应该被回放。',
+        assistantText: '当前主会话已经回放。',
+        createdAt: Date.parse('2026-08-04T08:49:00.000Z'),
+      })
+      await db.appendConversationTurn({
+        cardId: 'default',
         turnId: 'turn-foreign',
         sessionId: foreignSessionId,
-        userText: '这条会话不属于当前机体。',
-        assistantText: '不应该被当前机体回放。',
+        userText: '这条旧会话不应该被回放。',
+        assistantText: '这条旧会话也不应该出现在报告里。',
         createdAt: Date.parse('2026-08-04T08:50:00.000Z'),
       })
 
@@ -1240,20 +1756,19 @@ describe('memory quality workbench DB loop', () => {
         month: '2026-08',
       })
 
-      expect(report.passed).toBe(false)
-      expect(report.stages[0]).toMatchObject({
-        stage: 'dialogue-replay',
-        passed: false,
-        error: `会话 ${foreignSessionId} 不属于当前机体的 WorkingMemory 范围，无法运行真实对话回放。`,
-      })
-      expect(report.dialogueReplay).toBeNull()
+      expect(report.summary.dialogueReplayCount).toBe(1)
+      expect(report.dialogueReplay?.summary.turnCount).toBe(1)
+      expect(JSON.stringify(report.dialogueReplay)).toContain('当前主会话应该被回放')
+      expect(JSON.stringify(report.dialogueReplay)).not.toContain('旧会话')
+      expect(report.dialogueReplay?.id).toContain(primarySessionId)
+      expect(report.dialogueReplay?.id).not.toContain(foreignSessionId)
     }
     finally {
       await db.close()
     }
   })
 
-  it('lists replay sessions with keyset pagination and keeps foreign card sessions out', async () => {
+  it('lists only the canonical primary session and keeps foreign card sessions out', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const sharedRootDir = join(userDataPath, 'shared-card-db')
     const db = await setupAlicizationDb(userDataPath, {
@@ -1265,112 +1780,73 @@ describe('memory quality workbench DB loop', () => {
       rootDir: sharedRootDir,
     })
     try {
-      for (const [sessionId, updatedAt, title] of [
-        ['session-a-new', 300, '新的记忆会话'],
-        ['session-a-tie-z', 200, '同时间较新会话'],
-        ['session-a-tie-a', 200, '同时间较旧会话'],
-      ] as const) {
-        const checkpoint = createEmptyWorkingMemorySnapshot({
-          cardId: 'card-a',
-          sessionId,
-          now: updatedAt,
-        })
-        checkpoint.currentThread = {
-          title,
-          currentUserMove: `${title}用户消息`,
-          currentAliceMove: `${title}助手回复`,
-          primaryAnchor: sessionId,
-          mode: 'casual',
-          shouldHold: true,
-          confidence: 0.9,
-        }
-        await db.upsertWorkingMemoryCheckpoint(checkpoint)
-        await db.appendConversationTurn({
-          cardId: 'card-a',
-          turnId: `${sessionId}-turn`,
-          sessionId,
-          userText: `${title}用户消息`,
-          assistantText: `${title}助手回复`,
-          createdAt: updatedAt - 10,
-        })
-      }
-      const sharedSessionId = 'session-shared-across-cards'
-      const cardASharedCheckpoint = createEmptyWorkingMemorySnapshot({
+      const primarySessionId = alicizationPrimaryConversationSessionId('card-a')
+      const legacySessionId = 'session-a-legacy'
+      const primaryCheckpoint = createEmptyWorkingMemorySnapshot({
         cardId: 'card-a',
-        sessionId: sharedSessionId,
-        now: 180,
+        sessionId: primarySessionId,
+        now: 300,
       })
-      cardASharedCheckpoint.currentThread = {
-        title: '',
+      primaryCheckpoint.currentThread = {
+        title: '当前机体的主会话',
         currentUserMove: 'CARD_A_VISIBLE',
         currentAliceMove: 'CARD_A_REPLY',
-        primaryAnchor: sharedSessionId,
+        primaryAnchor: primarySessionId,
         mode: 'casual',
         shouldHold: true,
         confidence: 0.9,
       }
-      await db.upsertWorkingMemoryCheckpoint(cardASharedCheckpoint)
+      await db.upsertWorkingMemoryCheckpoint(primaryCheckpoint)
       await db.appendConversationTurn({
         cardId: 'card-a',
-        turnId: 'shared-turn-card-a',
-        sessionId: sharedSessionId,
+        turnId: 'primary-turn-card-a',
+        sessionId: primarySessionId,
         userText: 'CARD_A_VISIBLE',
         assistantText: 'CARD_A_REPLY',
-        createdAt: 170,
+        createdAt: 290,
+      })
+      await db.appendConversationTurn({
+        cardId: 'card-a',
+        turnId: 'legacy-turn-card-a',
+        sessionId: legacySessionId,
+        userText: 'CARD_A_LEGACY',
+        assistantText: 'CARD_A_LEGACY_REPLY',
+        createdAt: 280,
       })
       await foreignDb.upsertWorkingMemoryCheckpoint(createEmptyWorkingMemorySnapshot({
         cardId: 'card-b',
-        sessionId: sharedSessionId,
+        sessionId: primarySessionId,
         now: 400,
       }))
       await foreignDb.appendConversationTurn({
         cardId: 'card-b',
-        turnId: 'shared-turn-card-b',
-        sessionId: sharedSessionId,
+        turnId: 'foreign-turn-card-b',
+        sessionId: primarySessionId,
         userText: 'CARD_B_SECRET',
         assistantText: 'CARD_B_SECRET_REPLY',
         createdAt: 390,
-      })
-      await db.appendConversationTurn({
-        cardId: 'card-a',
-        turnId: 'turn-without-checkpoint',
-        sessionId: 'session-a-turn-only',
-        userText: '只有真实对话记录，还没有短期记忆快照。',
-        assistantText: '这个会话仍然应该可以被质量回放选择。',
-        createdAt: 250,
       })
 
       const first = await db.listMemoryWorkbenchReplaySessions({
         cardId: 'card-a',
         limit: 2,
       })
-      const second = await db.listMemoryWorkbenchReplaySessions({
-        cardId: 'card-a',
-        limit: 3,
-        cursor: first.nextCursor,
-      })
-      const scopedTurns = await db.listConversationTurnsBySession(sharedSessionId, {
+      const scopedTurns = await db.listConversationTurnsBySession(primarySessionId, {
         cardId: 'card-a',
       })
       const report = await db.runMemoryWorkbenchProductionTrial({
         cardId: 'card-a',
-        sessionId: sharedSessionId,
+        sessionId: legacySessionId,
         month: '2026-08',
       })
 
       expect(first.items.map(item => item.sessionId)).toEqual([
-        'session-a-new',
-        'session-a-tie-z',
+        primarySessionId,
       ])
-      expect(first.nextCursor).toBeTruthy()
-      expect(second.items.map(item => item.sessionId)).toEqual([
-        'session-a-tie-a',
-        sharedSessionId,
-      ])
-      expect(second.nextCursor).toBeNull()
-      expect(second.items.at(-1)).toMatchObject({
-        sessionId: sharedSessionId,
-        title: 'CARD_A_VISIBLE',
+      expect(first.nextCursor).toBeNull()
+      expect(first.items[0]).toMatchObject({
+        sessionId: primarySessionId,
+        title: '当前机体的主会话',
         userTurnCount: 1,
         assistantTurnCount: 1,
       })
@@ -1379,9 +1855,11 @@ describe('memory quality workbench DB loop', () => {
         userText: 'CARD_A_VISIBLE',
         assistantText: 'CARD_A_REPLY',
       })
-      expect(JSON.stringify(scopedTurns)).not.toContain('CARD_B_SECRET')
+      expect(JSON.stringify(first)).not.toContain('CARD_A_LEGACY')
+      expect(JSON.stringify(first)).not.toContain('CARD_B_SECRET')
       expect(report.dialogueReplay?.summary.turnCount).toBe(1)
       expect(JSON.stringify(report.dialogueReplay)).not.toContain('CARD_B_SECRET')
+      expect(JSON.stringify(report.dialogueReplay)).not.toContain('CARD_A_LEGACY')
     }
     finally {
       await Promise.all([

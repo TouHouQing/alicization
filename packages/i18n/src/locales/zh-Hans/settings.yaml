@@ -543,9 +543,12 @@ pages:
         search: 搜索
         reset: 重置
         approve_candidate: 批准候选
+        load_more_persona_candidates: 加载更多候选
+        loading_more_persona_candidates: 正在加载候选
         reject_candidate: 拒绝候选
         stage_persona_dataset: 生成数据集版本
         export_persona_dataset: 导出数据集清单
+        download_persona_dataset: 下载数据集文件
         activate_persona_dataset: 激活版本
         rollback_persona_dataset: 回滚版本
         revoke_persona_source: 撤回来源
@@ -691,6 +694,7 @@ pages:
         loading: 正在读取记忆状态...
         quality_passed: 通过
         quality_failed: 需要优化
+        quality_not_run: 未运行（证据不足）
         quality_trial_cancelled_by_user: 用户取消质量试用
         empty_quality_report: 还没有质量试用报告。先运行一次质量试用。
         empty_gold_labels: 本月还没有标注。先在召回测试后点四个反馈按钮之一。
@@ -891,6 +895,10 @@ pages:
         replay_checkpoint_writes: 短期记忆写回
         replay_recalled_evidence: 长期记忆证据
         replay_turn_trace: 回放逐轮链路
+        quality_trace_details: 质量逐条详情
+        selected_ids: 已选择记忆
+        rejected_ids: 已拒绝记忆
+        forbidden_ids: 禁止召回记忆
         last_error: 最后错误
         recall_at_k: Recall@K
         regression_metrics: 质量回归指标
@@ -921,10 +929,26 @@ pages:
         latency_ms: 延迟
         finish_reason: 完成原因
         output_length: 输出长度
+        final_replay_gate: 最终对话回放门禁
+        final_replay_sample_count: 最终门禁样本数
+        final_replay_recall_at_3: 最终门禁 Recall@3
+        final_replay_precision_at_3: 最终门禁 Precision@3
+        final_replay_wrong_thread_rate: 最终门禁错线程率
+        final_replay_template_leakage: 固定模板泄漏次数
+        final_replay_authority_leak: 内部权威泄漏次数
+        final_replay_visible_fallbacks: 用户可见固定回退次数
+        final_replay_unsupported_specificity: 无依据具体化失败次数
+        final_replay_trace_coverage: 逐轮追踪覆盖率
+        final_replay_learning_roundtrip: 学习到自我修订回写率
+        final_replay_failing_keys: 最终门禁失败项
         failing_stages: 失败阶段
         failing_fixtures: 失败样本
         quality_findings: 质量问题
         recommended_actions: 建议动作
+        recall_reasons: 召回理由
+        rank_reasons: 排序理由
+        query_matches: 查询匹配
+        provenance: 来源与溯源
         expected_ids: 应该命中
         surfaced_ids: 已提到
         wrong_thread_ids: 错线程
@@ -959,11 +983,28 @@ pages:
         historical_replay: 历史回放
         live_provider: 真实模型试用
         live_provider_diagnostics: 真实 Provider 诊断
+        quality_primary_session: 当前对话会话（唯一）
         session_title: 回放会话
         empty_sessions: 暂无可回放的本地会话
         session_user_turns: 用户 {count} 轮
         session_assistant_turns: 她回复 {count} 轮
         session_recent: 最近对话
+        conversation_sample: 真实对话样本
+        loading_conversation_samples: 正在读取真实对话样本...
+        empty_conversation_samples: 暂无可标注的真实对话样本
+        load_more_conversation_samples: 加载更多对话样本
+        loading_more_conversation_samples: 正在加载更多对话样本...
+        sample_turn: 对话轮次
+        sample_trace: 决策 Trace
+        sample_already_labeled: 已有人工标注
+        trace_owners:
+          long_term: 长期记忆回想
+          working: 短期记忆
+          persona: 人格数据集
+        finding_severity:
+          critical: 严重
+          warning: 警告
+          info: 信息
         live_provider_notice: 真实模型试用会调用当前配置的对话模型并可能产生 API 费用，但不会写入短期记忆、长期记忆或人格训练数据。
         labels:
           right: 记得对
@@ -977,6 +1018,13 @@ pages:
           unwanted: 这句话不需要回忆，或者应该明确说不确定。
         quality_history: 质量报告历史
         empty_quality_history: 还没有保存的质量报告。运行一次质量验证后，这里会保留结果。
+        final_replay_gate_description: 这是整条生产对话链路的最终证据门禁；没有持久化回放证据时不会显示为通过。
+        final_replay_gate_not_available: 尚未找到持久化的最终回放门禁报告，本次生产证据不能视为通过。
+        final_replay_no_failing_keys: 最终回放门禁没有失败项。
+        no_failing_fixtures: 本次报告没有失败样本。
+        trace_not_available: 当前 C 端报告未提供逐条 harness trace
+        fixture_detail_not_available: 仅保留真实失败样本 ID；逐条 fixture 明细未由当前报告投影提供
+        recall_detail_not_available: 当前没有可展示的真实召回证据；请先运行召回测试。
         quality_report_hash: 报告校验哈希
         quality_session: 回放会话
         quality_run_mode: 运行方式

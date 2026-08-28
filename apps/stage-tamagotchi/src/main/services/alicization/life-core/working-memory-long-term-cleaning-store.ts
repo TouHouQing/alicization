@@ -183,18 +183,28 @@ export function createWorkingMemoryLongTermCleaningStoreRuntime(options: Working
     })
   }
 
-  async function listDueTransactions(limit = 8, dueAt = options.now()) {
+  async function listDueTransactions(limit = 8, dueAt = options.now(), cardId?: string | null) {
+    const normalizedCardId = cardId?.trim() ?? ''
+    const clauses = [
+      'status IN (\'pending-cleaning\', \'admitted\', \'failed\')',
+      'COALESCE(next_attempt_at, created_at) <= ?',
+    ]
+    const params: unknown[] = [dueAt]
+    if (normalizedCardId) {
+      clauses.unshift('card_id = ?')
+      params.unshift(normalizedCardId)
+    }
+    params.push(Math.max(1, Math.min(32, Math.floor(limit))))
     const rows = await options.all<WorkingMemoryLongTermCleaningRow>(
       options.database,
       `
       SELECT *
       FROM working_memory_long_term_transactions
-      WHERE status IN ('pending-cleaning', 'admitted', 'failed')
-        AND COALESCE(next_attempt_at, created_at) <= ?
+      WHERE ${clauses.join(' AND ')}
       ORDER BY created_at ASC
       LIMIT ?
       `,
-      [dueAt, Math.max(1, Math.min(32, Math.floor(limit)))],
+      params,
     )
     return rows.map(mapWorkingMemoryLongTermCleaningRow)
   }

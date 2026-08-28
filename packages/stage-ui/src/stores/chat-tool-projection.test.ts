@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   applyChatToolProjectionSlice,
   buildChatExecutionStatusFromProjection,
+  extractChatExecutorToolRecovery,
   projectRecoveredTurnToolProjectionsIntoMessages,
   removeChatInfrastructureErrorMessage,
   replaceChatAssistantTextPreservingToolProjection,
@@ -38,6 +39,64 @@ function toolCard(
 }
 
 describe('chat tool projection', () => {
+  it('extracts recovery actions from a nested executor tool result', () => {
+    const recovery = {
+      state: 'available',
+      reasonCode: 'SIDE_EFFECT_RECONCILIATION_REQUIRED',
+      actions: [{
+        kind: 'resume',
+        threadId: 'thread-1',
+        expectedChannel: 'codex',
+        expectedUpdatedAt: 42,
+        safety: 'inspect-before-replay',
+        reasonCode: 'SIDE_EFFECT_RECONCILIATION_REQUIRED',
+      }],
+    } as const
+
+    expect(extractChatExecutorToolRecovery({ result: { recovery } })).toEqual(recovery)
+  })
+
+  it('attaches available recovery to the execution status without exposing malformed actions', () => {
+    const recovery = {
+      state: 'available',
+      reasonCode: 'CONFIRMATION_REQUIRED',
+      actions: [{
+        kind: 'continue',
+        threadId: 'thread-1',
+        expectedChannel: 'codex',
+        expectedUpdatedAt: 42,
+        safety: 'confirmation-required',
+        reasonCode: 'CONFIRMATION_REQUIRED',
+      }],
+    } as const
+
+    expect(buildChatExecutionStatusFromProjection(toolCard({
+      result: { status: 'failed', recovery },
+    }))).toEqual(expect.objectContaining({ recovery }))
+    expect(extractChatExecutorToolRecovery({
+      recovery: {
+        state: 'available',
+        reasonCode: 'BROKEN',
+        actions: [{ kind: 'continue' }],
+      },
+    })).toBeNull()
+  })
+
+  it('keeps recovery projection available when the executor result has no summary text', () => {
+    const recovery = {
+      state: 'blocked',
+      reasonCode: 'RECOVERY_BLOCKED',
+      actions: [],
+    } as const
+
+    expect(buildChatExecutionStatusFromProjection(toolCard({
+      result: { recovery },
+    }))).toEqual(expect.objectContaining({
+      recovery,
+      phase: 'completed',
+    }))
+  })
+
   it('applies queued tool projection slices and refreshes the UI once', () => {
     const message: any = {
       role: 'assistant',

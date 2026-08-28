@@ -120,6 +120,7 @@ describe('runtime main chat runtime', () => {
         },
       }),
       prepareMainChatSessionExecution: async input => ({
+        agentSessionId: 'agent-session-1',
         waitForTools: false,
         tools: undefined,
         toolChoice: undefined,

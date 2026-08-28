@@ -96,4 +96,80 @@ describe('main chat provider fact filter', () => {
       },
     ])
   })
+
+  it('strips legacy governance fields nested inside otherwise legal provider facts', () => {
+    const messages = filterAlicizationProviderSystemMessages([
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-persona-profile',
+          data: {
+            alicizationName: '小艾',
+            custom_directives: '固定模板不应进入人格回复',
+            opening_policy: 'none',
+            nested: {
+              relationship_cadence: 'always',
+              visibility: 'redacted_internal',
+            },
+            summary: 'visibility=redacted_internal',
+            naturalText: '用户曾经讨论过一个代码字段。',
+          },
+        }),
+      },
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-execution-callbacks',
+          data: {
+            status: 'failed',
+            summary: 'Provider timeout while processing the request.',
+          },
+        }),
+      },
+    ] as any)
+
+    const serialized = JSON.stringify(messages)
+    const personaFact = JSON.parse(String(messages[0]?.content ?? '{}')) as {
+      data?: Record<string, unknown>
+    }
+    expect(serialized).toContain('alicization-persona-profile')
+    expect(serialized).toContain('用户曾经讨论过一个代码字段。')
+    expect(personaFact.data).not.toHaveProperty('custom_directives')
+    expect(personaFact.data).not.toHaveProperty('opening_policy')
+    expect(personaFact.data?.nested).not.toHaveProperty('relationship_cadence')
+    expect(personaFact.data?.nested).not.toHaveProperty('visibility')
+    expect(personaFact.data).not.toHaveProperty('summary')
+    expect(serialized).toContain('Provider timeout while processing the request.')
+  })
+
+  it('preserves legal visibility values while dropping only the retired redacted-internal marker', () => {
+    const messages = filterAlicizationProviderSystemMessages([
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-turn-memory-context',
+          data: {
+            visibility: 'explicit',
+            nested: {
+              visibility: 'inward',
+            },
+            retired: {
+              visibility: 'redacted_internal',
+            },
+          },
+        }),
+      },
+    ] as any)
+
+    const fact = JSON.parse(String(messages[0]?.content ?? '{}')) as {
+      data?: {
+        visibility?: unknown
+        nested?: { visibility?: unknown }
+        retired?: Record<string, unknown>
+      }
+    }
+    expect(fact.data?.visibility).toBe('explicit')
+    expect(fact.data?.nested?.visibility).toBe('inward')
+    expect(fact.data?.retired).toEqual({})
+  })
 })

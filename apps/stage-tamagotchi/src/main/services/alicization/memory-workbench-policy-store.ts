@@ -294,16 +294,48 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
       .filter(sourceRef => sourceRef.sourceId)
     const sourceRefKeys = new Set(sourceRefs
       .map(sourceRef => `${sourceRef.sourceKind}\0${sourceRef.sourceId}`))
-    const rows = await input.all<MemoryWorkbenchPolicyOverrideRow>(
-      input.database,
-      `
+    const rows: MemoryWorkbenchPolicyOverrideRow[] = []
+    const selectColumns = `
       SELECT source_id, source, source_kind, visible_mode, allow_training, review_state, reason, updated_at
       FROM long_term_memory_policy_overrides
-      WHERE card_id = ?
-      ORDER BY updated_at DESC
-      `,
-      [cardId],
-    )
+    `
+    const appendRows = async (where: string, params: unknown[]) => {
+      rows.push(...await input.all<MemoryWorkbenchPolicyOverrideRow>(
+        input.database,
+        `${selectColumns}
+        WHERE ${where}
+        ORDER BY updated_at DESC
+        `,
+        params,
+      ))
+    }
+
+    if (sourceRefs.length > 0) {
+      for (let index = 0; index < sourceRefs.length; index += 200) {
+        const sourceRefChunk = sourceRefs.slice(index, index + 200)
+        await appendRows(
+          `card_id = ? AND (${sourceRefChunk.map(() => '(source_id = ? AND source_kind = ?)').join(' OR ')})`,
+          [
+            cardId,
+            ...sourceRefChunk.flatMap(sourceRef => [sourceRef.sourceId, sourceRef.sourceKind]),
+          ],
+        )
+      }
+    }
+    else if (sourceIds.size > 0) {
+      const ids = [...sourceIds]
+      for (let index = 0; index < ids.length; index += 400) {
+        const idChunk = ids.slice(index, index + 400)
+        await appendRows(
+          `card_id = ? AND source_id IN (${idChunk.map(() => '?').join(', ')})`,
+          [cardId, ...idChunk],
+        )
+      }
+    }
+    else {
+      await appendRows('card_id = ?', [cardId])
+    }
+
     return rows
       .map(mapPolicyRow)
       .filter((policy) => {
@@ -314,6 +346,7 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
         }
         return sourceIds.size === 0 || sourceIds.has(policy.sourceId)
       })
+      .sort((left, right) => right.updatedAt - left.updatedAt || left.sourceId.localeCompare(right.sourceId))
   }
 
   async function inheritCandidatePolicies(inheritInput: {

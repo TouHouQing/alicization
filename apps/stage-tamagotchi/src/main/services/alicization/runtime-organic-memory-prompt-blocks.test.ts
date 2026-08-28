@@ -78,7 +78,7 @@ describe('runtime-organic-memory-prompt-blocks', () => {
     }))
   })
 
-  it('keeps recall selection structural without forwarding drafted wording candidates', () => {
+  it('does not forward recall planning output without actual memory evidence', () => {
     const sourceText = buildOrganicMemoryProviderFactBlocks(buildContext({
       memoryDeliberation: {
         shouldRecall: true,
@@ -135,27 +135,9 @@ describe('runtime-organic-memory-prompt-blocks', () => {
         rationale: '关系记忆与当前问题相关。',
         confidence: 0.84,
       },
-    })).join('\n')
-    const recallFact = parseFacts([sourceText])[0]
-
-    expect(recallFact?.data.selection).toEqual(expect.objectContaining({
-      deliberation: expect.objectContaining({
-        shouldRecall: true,
-        selectedEraIds: ['era-1'],
-        selectedProcedureIds: ['procedure-1'],
-        surfacePolicy: 'relationship-continuity',
-      }),
-      speech: {
-        shouldSurface: true,
-        surfaceMode: 'relationship-continuity',
-        placement: 'inside-payoff',
-        certainty: 'approximate',
-        confidence: 0.84,
-      },
     }))
-    expect(sourceText).not.toMatch(/drafted (?:inward|visible|opening|internal|style)/u)
-    expect(sourceText).not.toMatch(/"opening"/u)
-    expect(sourceText).not.toMatch(/\[ALICIZATION_/u)
+
+    expect(sourceText).toEqual([])
   })
 
   it('does not forward derived affective or learning governance state to Provider', () => {
@@ -283,6 +265,102 @@ describe('runtime-organic-memory-prompt-blocks', () => {
     expect(serialized).not.toContain('"reasonTags"')
     expect(serialized).not.toMatch(
       /internal-cadence|internal-repair|internal-callback-hold|internal_policy=/u,
+    )
+  })
+
+  it('keeps planner and surface governance out of the ordinary personality prompt', () => {
+    const serialized = buildOrganicMemoryProviderFactBlocks(buildContext({
+      retrievedFacts: [{
+        id: 'fact-real-memory',
+        subject: '用户',
+        predicate: '希望',
+        object: '失败时直接说明真实原因。',
+        confidence: 0.94,
+        provenance: 'remembered',
+        source: 'long-term-memory-recall',
+      } as any],
+      recalledFragments: [{
+        id: 'fragment-real-memory',
+        text: '用户上次明确说过，希望我在失败时直接说明原因。',
+        sourceKind: 'conversation-turn',
+        provenance: 'remembered',
+        createdAt: 1,
+      } as any],
+      memoryDeliberation: {
+        shouldRecall: true,
+        selectedEraIds: ['era-1'],
+        selectedConsolidationIds: ['consolidation-1'],
+        selectedWindowIds: [],
+        selectedProcedureIds: ['procedure-1'],
+        selectedEpisodeIds: ['episode-1'],
+        selectedRelationshipLines: ['内部关系线索'],
+        selectedEras: [{
+          id: 'era-1',
+          facet: 'relationship-era',
+          summary: '真实的关系记忆摘要。',
+        }],
+        selectedPeriods: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [],
+        selectedChains: [],
+        surfacePolicy: 'relationship-continuity',
+        confidence: 0.9,
+        whyNow: '内部召回理由',
+        inwardLine: '内部草稿',
+        visibleLine: '内部可见草稿',
+      },
+      recollectionIntent: {
+        mode: 'relationship',
+        temporalFocus: 'recent',
+        searchEpisodes: true,
+        searchProceduralExperience: false,
+        confidence: 0.9,
+        recollectionAgenda: {
+          goalSimilarity: 0.8,
+          relationshipNeed: 0.8,
+          affectivePull: 0.2,
+          sceneFamiliarity: 0.4,
+          candidateTimeScopes: [{ scope: 'recent', weight: 1 }],
+          candidateEraFacets: [{ facet: 'relationship-era', weight: 1 }],
+          uncertaintyTolerance: 0.2,
+        },
+      } as any,
+      recollectionPlan: {
+        selectedConsolidationIds: ['consolidation-1'],
+        selectedWindowIds: [],
+        selectedProceduralIds: ['procedure-1'],
+        selectedEpisodeIds: ['episode-1'],
+        selectedRelationshipLines: ['内部关系线索'],
+        opening: '内部开场草稿',
+        certainty: 'certain',
+        rationale: '内部计划理由',
+        confidence: 0.9,
+      } as any,
+      recollectionSpeechPlan: {
+        shouldSurface: true,
+        surfaceMode: 'relationship-continuity',
+        placement: 'inside-payoff',
+        certainty: 'certain',
+        rationale: '内部表层理由',
+        confidence: 0.9,
+      } as any,
+      memoryResolutionLedger: {
+        retrievalQuality: 'high',
+        visibleCarryMode: 'direct',
+        surfaceConfidence: 0.9,
+        conflictPressure: 0.1,
+        shouldStayInward: true,
+        shouldDelayUntilAfterPayoff: true,
+        stableCoreOnly: true,
+        shouldLabelUncertainty: true,
+        suppressionTags: ['internal-cadence'],
+      } as any,
+    })).join('\n')
+
+    expect(serialized).toContain('失败时直接说明真实原因。')
+    expect(serialized).not.toMatch(
+      /surfacePolicy|shouldStayInward|shouldDelayUntilAfterPayoff|stableCoreOnly|suppressionTags|recollectionIntent|recollectionAgenda|内部召回理由|内部计划理由|内部表层理由|内部开场草稿/u,
     )
   })
 })

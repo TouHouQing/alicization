@@ -1,5 +1,7 @@
 import type { AlicizationKillSwitchSnapshot } from '../../../shared/eventa'
 
+import { alicizationPrimaryConversationSessionId } from '@proj-alicization/stage-shared'
+
 interface CreateAlicizationRuntimeCardScopeStateOptions {
   now: () => number
   userDataPath: string
@@ -8,6 +10,17 @@ interface CreateAlicizationRuntimeCardScopeStateOptions {
   getMetaValue: (key: string) => Promise<string | undefined>
   setMetaValue: (key: string, value: string) => Promise<void>
   getLatestConversationSessionId: () => Promise<string | undefined>
+  migrateLegacyConversationSessionsToPrimary?: (input: {
+    cardId: string
+    dryRun?: boolean
+  }) => Promise<{
+    primarySessionId: string
+    sourceSessionIds: string[]
+    changed: boolean
+    migratedRows: Record<string, number>
+    conflictRows: Record<string, number>
+    deadLetterRows?: Record<string, number>
+  }>
   appendAuditLog: (input: {
     level: 'notice'
     category: string
@@ -55,9 +68,8 @@ export function createAlicizationRuntimeCardScopeState(options: CreateAlicizatio
 
   async function persistActiveSessionId(cardId: string, sessionId: string) {
     const normalizedCardId = options.normalizeCardId(cardId)
-    const normalizedSessionId = normalizeSessionId(sessionId)
-    if (!normalizedSessionId)
-      return
+    void sessionId
+    const normalizedSessionId = alicizationPrimaryConversationSessionId(normalizedCardId)
 
     options.activeSessionIdByCard.set(normalizedCardId, normalizedSessionId)
     await options.setMetaValue(options.activeSessionMetaKey, normalizedSessionId).catch(() => {})
@@ -65,45 +77,66 @@ export function createAlicizationRuntimeCardScopeState(options: CreateAlicizatio
 
   async function restoreActiveSessionId(cardId: string) {
     const normalizedCardId = options.normalizeCardId(cardId)
-    const rawFromMeta = await options.getMetaValue(options.activeSessionMetaKey).catch(() => undefined)
-    const fromMeta = normalizeSessionId(rawFromMeta)
-    if (fromMeta) {
-      options.activeSessionIdByCard.set(normalizedCardId, fromMeta)
-      return fromMeta
+    const primarySessionId = alicizationPrimaryConversationSessionId(normalizedCardId)
+    const migration = await options.migrateLegacyConversationSessionsToPrimary?.({
+      cardId: normalizedCardId,
+      dryRun: false,
+    }).catch((error) => {
+      void options.appendAuditLog({
+        level: 'notice',
+        category: 'alicization.session',
+        action: 'migration-failed',
+        message: 'Legacy conversation session migration failed before canonical restore.',
+        payload: {
+          cardId: normalizedCardId,
+          sessionId: primarySessionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      }, normalizedCardId).catch(() => {})
+      return null
+    })
+    if (migration?.changed) {
+      await options.appendAuditLog({
+        level: 'notice',
+        category: 'alicization.session',
+        action: 'migrated-to-primary',
+        message: 'Migrated legacy conversation continuity into the canonical primary session.',
+        payload: {
+          cardId: normalizedCardId,
+          sessionId: primarySessionId,
+          sourceSessionIds: migration.sourceSessionIds,
+          migratedRows: migration.migratedRows,
+          conflictRows: migration.conflictRows,
+          deadLetterRows: migration.deadLetterRows ?? {},
+        },
+      }, normalizedCardId).catch(() => {})
     }
-
+    const rawFromMeta = normalizeSessionId(await options.getMetaValue(options.activeSessionMetaKey).catch(() => undefined))
     const latestFromTurns = normalizeSessionId(await options.getLatestConversationSessionId().catch(() => undefined))
-    if (latestFromTurns) {
-      options.activeSessionIdByCard.set(normalizedCardId, latestFromTurns)
-      await options.setMetaValue(options.activeSessionMetaKey, latestFromTurns).catch(() => {})
-      return latestFromTurns
-    }
-
-    return ''
+    options.activeSessionIdByCard.set(normalizedCardId, primarySessionId)
+    if (rawFromMeta !== primarySessionId || (latestFromTurns && latestFromTurns !== primarySessionId))
+      await options.setMetaValue(options.activeSessionMetaKey, primarySessionId).catch(() => {})
+    return primarySessionId
   }
 
   async function ensureActiveOrLatestSessionId(cardId: string) {
     const normalizedCardId = options.normalizeCardId(cardId)
+    const primarySessionId = alicizationPrimaryConversationSessionId(normalizedCardId)
     const fromMemory = normalizeSessionId(options.activeSessionIdByCard.get(normalizedCardId))
-    if (fromMemory)
-      return fromMemory
-
-    const restored = normalizeSessionId(await restoreActiveSessionId(normalizedCardId))
-    if (restored)
-      return restored
-
-    const fallback = `session:auto:${normalizedCardId}:${options.now()}`
-    await persistActiveSessionId(normalizedCardId, fallback)
-    await options.appendAuditLog({
-      level: 'notice',
-      category: 'alicization.session',
-      action: 'auto-created',
-      message: 'Auto-created fallback conversation session for card scope.',
-      payload: {
-        sessionId: fallback,
-      },
-    }, normalizedCardId)
-    return fallback
+    if (fromMemory !== primarySessionId) {
+      await persistActiveSessionId(normalizedCardId, primarySessionId)
+      await options.appendAuditLog({
+        level: 'notice',
+        category: 'alicization.session',
+        action: 'canonicalized',
+        message: 'Canonicalized the production conversation session for card scope.',
+        payload: {
+          previousSessionId: fromMemory || null,
+          sessionId: primarySessionId,
+        },
+      }, normalizedCardId)
+    }
+    return primarySessionId
   }
 
   async function listKnownCardIds() {

@@ -7,6 +7,7 @@ import type {
 } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import type { AlicizationMemoryQualityGoldLabelReason } from '@proj-alicization/stage-ui/stores/alicization-memory-workbench'
 
+import { useDownload } from '@proj-alicization/stage-ui/composables/download'
 import { useAlicizationMemoryWorkbenchStore } from '@proj-alicization/stage-ui/stores/alicization-memory-workbench'
 import { useAiriCardStore } from '@proj-alicization/stage-ui/stores/modules/airi-card'
 import { Button } from '@proj-alicization/ui'
@@ -25,7 +26,6 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import MemoryEmbeddingConfig from './components/memory-embedding-config.vue'
-import MemoryQualitySessionPicker from './components/memory-quality-session-picker.vue'
 import MemoryQualityTrialHistory from './components/memory-quality-trial-history.vue'
 import PersonaRuntimeConfig from './components/persona-runtime-config.vue'
 import PersonaTrainingExecutorConfig from './components/persona-training-executor-config.vue'
@@ -55,6 +55,7 @@ const {
   workingMemoryCleaningRetriedItems,
   workingMemoryCleaningLoading,
   personaCandidates,
+  personaNextCursor,
   personaLoading,
   personaTrainingDataset,
   personaTrainingDatasetExport,
@@ -76,8 +77,10 @@ const {
   qualityTrialReportsNextCursor,
   qualityTrialReportsLoading,
   qualityReplaySessions,
-  qualityReplaySessionsLoading,
-  qualityReplaySessionsNextCursor,
+  qualityConversationSamples,
+  qualityConversationSamplesNextCursor,
+  qualityConversationSamplesLoading,
+  selectedQualityConversationSampleId,
   selectedQualitySessionId,
   qualityTrialMode,
   goldLabelLoading,
@@ -102,6 +105,8 @@ const selectedQualityTrialRecord = computed(() => {
   return qualityTrialReports.value.find(item => item.report.id === qualityTrialReport.value?.id) ?? null
 })
 const selectedQualityTrialReportId = computed(() => selectedQualityTrialRecord.value?.id ?? null)
+const qualityPrimarySession = computed(() => qualityReplaySessions.value[0] ?? null)
+const selectedQualityConversationSample = computed(() => qualityConversationSamples.value.find(item => item.id === selectedQualityConversationSampleId.value) ?? null)
 // Scale soaking and raw label authoring are engineering diagnostics. The
 // production validation entry and its durable reports stay visible to users.
 const internalDiagnosticsVisible = import.meta.env.DEV
@@ -122,8 +127,10 @@ const pendingTombstone = ref<{
 } | null>(null)
 
 const qualityGoldContextReady = computed(() => Boolean(
-  selectedQualitySessionId.value.trim()
+  selectedQualityConversationSample.value
+  && selectedQualitySessionId.value.trim()
   && qualityTurnId.value.trim()
+  && qualityDecisionTraceId.value.trim()
   && qualityAssistantReply.value.trim()
   && recallProbe.value,
 ))
@@ -436,7 +443,7 @@ const qualityFailureDetails = computed<QualityPanelDetail[]>(() => {
   const fixtureDetails = report.quality.summary.failingFixtureIds.map(fixtureId => ({
     id: `fixture:${fixtureId}`,
     title: `${t('settings.pages.memory.workbench.fields.failing_fixtures')}: ${fixtureId}`,
-    description: '-',
+    description: t('settings.pages.memory.workbench.quality.fixture_detail_not_available'),
     meta: [],
   }))
 
@@ -453,6 +460,24 @@ function formatQualityAction(value: AlicizationMemoryQualityActionCode) {
 
 function listText(values: string[]) {
   return values.length > 0 ? values.join(' / ') : '-'
+}
+
+function formatQualityRankReasons(rankReasonsById: Record<string, string[]>) {
+  return Object.entries(rankReasonsById)
+    .map(([id, reasons]) => `${id}: ${listText(reasons)}`)
+    .join(' / ') || '-'
+}
+
+function formatQualityTraceOwner(owner: 'LongTermMemoryRecall' | 'WorkingMemory' | 'PersonaTrainingDataset') {
+  if (owner === 'LongTermMemoryRecall')
+    return t('settings.pages.memory.workbench.quality.trace_owners.long_term')
+  if (owner === 'WorkingMemory')
+    return t('settings.pages.memory.workbench.quality.trace_owners.working')
+  return t('settings.pages.memory.workbench.quality.trace_owners.persona')
+}
+
+function formatQualityFindingSeverity(severity: 'critical' | 'warning' | 'info') {
+  return t(`settings.pages.memory.workbench.quality.finding_severity.${severity}`)
 }
 
 function formatTimestamp(value: number | null | undefined) {
@@ -576,6 +601,18 @@ function exportPersonaDataset(datasetId?: string | null) {
   void store.exportPersonaTrainingDataset(datasetId)
 }
 
+function downloadPersonaDatasetExport() {
+  const exported = personaTrainingDatasetExport.value
+  if (!exported)
+    return
+
+  const datasetId = exported.manifest.datasetId.replace(/[^\w.-]+/gu, '-').replace(/^-+|-+$/gu, '') || 'dataset'
+  const blob = new Blob([
+    `${JSON.stringify(exported, null, 2)}\n`,
+  ], { type: 'application/json;charset=utf-8' })
+  useDownload(blob, `alicization-persona-training-dataset-${datasetId}.json`).download()
+}
+
 function activatePersonaDataset(datasetId: string) {
   void store.activatePersonaTrainingDataset(datasetId)
 }
@@ -603,12 +640,31 @@ function loadQualityGoldLabels() {
   void store.loadMonthlyGoldLabels(goldLabelMonth.value)
 }
 
+async function loadQualityConversationSamples() {
+  const samples = await store.loadQualityConversationSamples()
+  const first = samples[0]
+  if (first)
+    await selectQualityConversationSample(first.id)
+}
+
 async function runQualityTrial() {
   await store.runQualityTrial(goldLabelMonth.value)
 }
 
 function buildGoldRegression() {
   void store.buildMonthlyGoldRegression(goldLabelMonth.value)
+}
+
+async function selectQualityConversationSample(sampleId: string) {
+  const sample = store.selectQualityConversationSample(sampleId)
+  if (!sample)
+    return
+  qualityTurnId.value = sample.turnId
+  qualityDecisionTraceId.value = sample.decisionTraceId ?? ''
+  qualityAssistantReply.value = sample.assistantReply
+  qualityExpectedMemoryIds.value = ''
+  qualitySurfacedMemoryIds.value = [...sample.surfacedMemoryIds]
+  await store.runRecallProbe(sample.query)
 }
 
 function applyProbeGoldLabel(label: AlicizationSimpleRecallGoldLabel) {
@@ -629,9 +685,10 @@ function applyProbeGoldLabel(label: AlicizationSimpleRecallGoldLabel) {
     label,
     reason: selectedGoldLabelReason.value,
     query,
-    sessionId: selectedQualitySessionId.value,
+    sessionId: selectedQualityConversationSample.value!.sessionId,
+    conversationSampleId: selectedQualityConversationSample.value!.id,
     turnId: qualityTurnId.value.trim(),
-    decisionTraceId: qualityDecisionTraceId.value.trim() || null,
+    decisionTraceId: qualityDecisionTraceId.value.trim(),
     assistantReply: qualityAssistantReply.value.trim(),
     retrievedEvidenceSnapshot: qualityEvidenceSnapshot(),
     expectedMemoryIds,
@@ -668,6 +725,7 @@ onMounted(() => {
   void store.refreshSkills(false)
   void store.loadMonthlyGoldLabels(goldLabelMonth.value)
   reloadQualityTrialContext()
+  void loadQualityConversationSamples()
 })
 
 watch(activeCardId, () => {
@@ -683,6 +741,7 @@ watch(activeCardId, () => {
   void store.refreshPersonaTrainingIncrements()
   void store.refreshSkills(false)
   void store.loadMonthlyGoldLabels(goldLabelMonth.value)
+  void loadQualityConversationSamples()
 })
 </script>
 
@@ -1169,7 +1228,17 @@ watch(activeCardId, () => {
             <div>{{ t('settings.pages.memory.workbench.fields.dataset_active') }}: {{ personaTrainingDataset.activeVersionId ?? '-' }}</div>
             <div>{{ t('settings.pages.memory.workbench.fields.dataset_examples') }}: {{ personaTrainingDataset.examples.length }}</div>
             <div v-if="personaTrainingDatasetExport">
-              {{ t('settings.pages.memory.workbench.fields.dataset_hash') }}: {{ personaTrainingDatasetExport.manifest.manifestHash }}
+              <div>
+                {{ t('settings.pages.memory.workbench.fields.dataset_hash') }}: {{ personaTrainingDatasetExport.manifest.manifestHash }}
+              </div>
+              <Button
+                class="mt-2"
+                :label="t('settings.pages.memory.workbench.actions.download_persona_dataset')"
+                icon="i-solar:download-minimalistic-bold-duotone"
+                size="sm"
+                variant="secondary"
+                @click="downloadPersonaDatasetExport"
+              />
             </div>
           </div>
 
@@ -1396,19 +1465,94 @@ watch(activeCardId, () => {
               @keydown.enter.prevent="loadQualityGoldLabels()"
             >
           </label>
-          <MemoryQualitySessionPicker
-            :selected-session-id="selectedQualitySessionId"
-            :mode="qualityTrialMode"
-            :sessions="qualityReplaySessions"
-            :loading="qualityReplaySessionsLoading"
-            :has-more="Boolean(qualityReplaySessionsNextCursor)"
-            @update:selected-session-id="store.selectQualityTrialSession"
-            @update:mode="store.setQualityTrialMode"
-            @load-more="store.loadMoreQualityReplaySessions()"
+          <div :class="['mt-4', 'border', 'border-neutral-200', 'p-3', 'dark:border-neutral-800']">
+            <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.quality.quality_primary_session') }}
+            </div>
+            <div v-if="qualityPrimarySession" :class="['mt-2', 'flex', 'flex-wrap', 'items-center', 'gap-2', 'text-sm']">
+              <span class="font-medium">{{ qualityPrimarySession.title }}</span>
+              <span class="text-xs text-neutral-500">{{ qualityPrimarySession.sessionId }}</span>
+              <span class="text-xs text-neutral-500">
+                {{ t('settings.pages.memory.workbench.quality.session_user_turns', { count: qualityPrimarySession.userTurnCount }) }}
+                /
+                {{ t('settings.pages.memory.workbench.quality.session_assistant_turns', { count: qualityPrimarySession.assistantTurnCount }) }}
+              </span>
+            </div>
+            <div v-else :class="['mt-2', 'text-sm', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.quality.empty_sessions') }}
+            </div>
+            <div :class="['mt-3', 'flex', 'flex-wrap', 'gap-2']">
+              <Button
+                :label="t('settings.pages.memory.workbench.quality.historical_replay')"
+                icon="i-solar:history-bold-duotone"
+                size="sm"
+                :variant="qualityTrialMode === 'historical-replay' ? undefined : 'secondary'"
+                @click="store.setQualityTrialMode('historical-replay')"
+              />
+              <Button
+                :label="t('settings.pages.memory.workbench.quality.live_provider')"
+                icon="i-solar:play-circle-bold-duotone"
+                size="sm"
+                :variant="qualityTrialMode === 'live-provider' ? undefined : 'secondary'"
+                @click="store.setQualityTrialMode('live-provider')"
+              />
+            </div>
+          </div>
+          <label :class="['mt-3', 'grid', 'gap-1']">
+            <span :class="['text-xs', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.quality.conversation_sample') }}
+            </span>
+            <select
+              v-model="selectedQualityConversationSampleId"
+              :disabled="qualityConversationSamplesLoading || qualityConversationSamples.length === 0"
+              :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+              @change="selectQualityConversationSample(selectedQualityConversationSampleId ?? '')"
+            >
+              <option v-if="qualityConversationSamples.length === 0" :value="null">
+                {{ qualityConversationSamplesLoading
+                  ? t('settings.pages.memory.workbench.quality.loading_conversation_samples')
+                  : t('settings.pages.memory.workbench.quality.empty_conversation_samples') }}
+              </option>
+              <option v-for="sample in qualityConversationSamples" :key="sample.id" :value="sample.id">
+                {{ formatTimestamp(sample.createdAt) }} · {{ sample.query.slice(0, 72) }}
+              </option>
+            </select>
+          </label>
+          <Button
+            v-if="qualityConversationSamplesNextCursor"
+            :label="qualityConversationSamplesLoading
+              ? t('settings.pages.memory.workbench.quality.loading_more_conversation_samples')
+              : t('settings.pages.memory.workbench.quality.load_more_conversation_samples')"
+            icon="i-solar:alt-arrow-down-bold-duotone"
+            size="sm"
+            variant="secondary"
+            :loading="qualityConversationSamplesLoading"
+            :disabled="qualityConversationSamplesLoading"
+            @click="store.loadMoreQualityConversationSamples()"
           />
+          <div v-if="selectedQualityConversationSample" :class="['mt-2', 'border', 'border-neutral-200', 'p-3', 'text-xs', 'dark:border-neutral-800']">
+            <div class="font-medium">
+              {{ selectedQualityConversationSample.query }}
+            </div>
+            <div class="mt-1 whitespace-pre-wrap text-neutral-500">
+              {{ selectedQualityConversationSample.assistantReply }}
+            </div>
+            <div class="grid mt-2 gap-1 text-neutral-500">
+              <div>
+                {{ t('settings.pages.memory.workbench.quality.sample_turn') }}:
+                {{ selectedQualityConversationSample.turnId }}
+              </div>
+              <div>
+                {{ t('settings.pages.memory.workbench.quality.sample_trace') }}:
+                {{ selectedQualityConversationSample.decisionTraceId ?? '-' }}
+              </div>
+              <div v-if="selectedQualityConversationSample.existingGoldLabelId">
+                {{ t('settings.pages.memory.workbench.quality.sample_already_labeled') }}
+              </div>
+            </div>
+          </div>
           <div :class="['mt-3', 'flex', 'flex-wrap', 'gap-2']">
             <Button
-              v-if="internalDiagnosticsVisible"
               :label="t('settings.pages.memory.workbench.actions.load_gold_labels')"
               icon="i-solar:calendar-search-bold-duotone"
               size="sm"
@@ -1421,7 +1565,7 @@ watch(activeCardId, () => {
               icon="i-solar:play-circle-bold-duotone"
               size="sm"
               :loading="qualityTrialLoading"
-              :disabled="qualityReplaySessionsLoading || !selectedQualitySessionId"
+              :disabled="qualityTrialLoading"
               @click="runQualityTrial()"
             />
             <Button
@@ -1433,7 +1577,6 @@ watch(activeCardId, () => {
               @click="store.cancelQualityTrial(t('settings.pages.memory.workbench.states.quality_trial_cancelled_by_user'))"
             />
             <Button
-              v-if="internalDiagnosticsVisible"
               :label="t('settings.pages.memory.workbench.actions.build_gold_regression')"
               icon="i-solar:archive-check-bold-duotone"
               size="sm"
@@ -1453,7 +1596,7 @@ watch(activeCardId, () => {
           @load-more="store.loadMoreQualityTrialReports()"
         />
 
-        <section v-if="internalDiagnosticsVisible" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <section :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
           <div :class="['flex', 'flex-wrap', 'items-start', 'justify-between', 'gap-3']">
             <div>
               <div :class="['text-sm', 'font-semibold']">
@@ -1558,41 +1701,43 @@ watch(activeCardId, () => {
               <div>P95: {{ semanticScaleJob.report.summary.p95LatencyMs.toFixed(1) }} ms</div>
               <div>P99: {{ semanticScaleJob.report.summary.p99LatencyMs.toFixed(1) }} ms</div>
               <div>{{ t('settings.pages.memory.workbench.fields.coverage_ratio') }}: {{ formatCoverageRatio(semanticScaleJob.report.summary.coverageRatio) }}</div>
-              <template v-if="semanticScaleJob.report.resourceMetrics">
-                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_dimensions') }}: {{ semanticScaleJob.report.resourceMetrics.dimensions }}</div>
-                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_vector_input') }}: {{ semanticScaleJob.report.resourceMetrics.vectorInput }}</div>
-                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_elapsed') }}: {{ semanticScaleJob.report.resourceMetrics.elapsedMs.toFixed(1) }} ms</div>
-                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_peak_rss') }}: {{ formatBytes(semanticScaleJob.report.resourceMetrics.peakRssBytes) }}</div>
-                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_sqlite_size') }}: {{ formatBytes(semanticScaleJob.report.resourceMetrics.sqliteBytes) }}</div>
-                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_wal_size') }}: {{ formatBytes(semanticScaleJob.report.resourceMetrics.sqliteWalBytes) }}</div>
-                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_cpu') }}: {{ semanticScaleJob.report.resourceMetrics.cpuUserMs.toFixed(1) }} / {{ semanticScaleJob.report.resourceMetrics.cpuSystemMs.toFixed(1) }} ms</div>
+              <template v-if="internalDiagnosticsVisible">
+                <template v-if="semanticScaleJob.report.resourceMetrics">
+                  <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_dimensions') }}: {{ semanticScaleJob.report.resourceMetrics.dimensions }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_vector_input') }}: {{ semanticScaleJob.report.resourceMetrics.vectorInput }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_elapsed') }}: {{ semanticScaleJob.report.resourceMetrics.elapsedMs.toFixed(1) }} ms</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_peak_rss') }}: {{ formatBytes(semanticScaleJob.report.resourceMetrics.peakRssBytes) }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_sqlite_size') }}: {{ formatBytes(semanticScaleJob.report.resourceMetrics.sqliteBytes) }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_wal_size') }}: {{ formatBytes(semanticScaleJob.report.resourceMetrics.sqliteWalBytes) }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_cpu') }}: {{ semanticScaleJob.report.resourceMetrics.cpuUserMs.toFixed(1) }} / {{ semanticScaleJob.report.resourceMetrics.cpuSystemMs.toFixed(1) }} ms</div>
+                </template>
+                <div
+                  v-if="semanticScaleJob.report.summary.failingChecks.length > 0"
+                  :class="['col-span-2', 'border-t', 'border-rose-200', 'pt-2', 'dark:border-rose-900']"
+                >
+                  <div :class="['text-xs', 'font-semibold', 'text-rose-600', 'dark:text-rose-300']">
+                    {{ t('settings.pages.memory.workbench.fields.semantic_scale_failing_checks') }}
+                  </div>
+                  <ul :class="['mt-1', 'list-disc', 'space-y-1', 'pl-5', 'text-xs']">
+                    <li v-for="check in semanticScaleJob.report.summary.failingChecks" :key="check">
+                      {{ check }}
+                    </li>
+                  </ul>
+                </div>
+                <div
+                  v-if="semanticScaleJob.report.recommendedNextActions.length > 0"
+                  :class="['col-span-2', 'border-t', 'border-neutral-200', 'pt-2', 'dark:border-neutral-800']"
+                >
+                  <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                    {{ t('settings.pages.memory.workbench.fields.semantic_scale_recommended_actions') }}
+                  </div>
+                  <ul :class="['mt-1', 'list-disc', 'space-y-1', 'pl-5', 'text-xs']">
+                    <li v-for="action in semanticScaleJob.report.recommendedNextActions" :key="action">
+                      {{ action }}
+                    </li>
+                  </ul>
+                </div>
               </template>
-              <div
-                v-if="semanticScaleJob.report.summary.failingChecks.length > 0"
-                :class="['col-span-2', 'border-t', 'border-rose-200', 'pt-2', 'dark:border-rose-900']"
-              >
-                <div :class="['text-xs', 'font-semibold', 'text-rose-600', 'dark:text-rose-300']">
-                  {{ t('settings.pages.memory.workbench.fields.semantic_scale_failing_checks') }}
-                </div>
-                <ul :class="['mt-1', 'list-disc', 'space-y-1', 'pl-5', 'text-xs']">
-                  <li v-for="check in semanticScaleJob.report.summary.failingChecks" :key="check">
-                    {{ check }}
-                  </li>
-                </ul>
-              </div>
-              <div
-                v-if="semanticScaleJob.report.recommendedNextActions.length > 0"
-                :class="['col-span-2', 'border-t', 'border-neutral-200', 'pt-2', 'dark:border-neutral-800']"
-              >
-                <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
-                  {{ t('settings.pages.memory.workbench.fields.semantic_scale_recommended_actions') }}
-                </div>
-                <ul :class="['mt-1', 'list-disc', 'space-y-1', 'pl-5', 'text-xs']">
-                  <li v-for="action in semanticScaleJob.report.recommendedNextActions" :key="action">
-                    {{ action }}
-                  </li>
-                </ul>
-              </div>
             </div>
           </div>
 
@@ -1661,7 +1806,7 @@ watch(activeCardId, () => {
           </div>
         </section>
 
-        <section v-if="internalDiagnosticsVisible" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <section :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
           <div :class="['text-sm', 'font-semibold']">
             {{ t('settings.pages.memory.workbench.quality.feedback_title') }}
           </div>
@@ -1672,21 +1817,16 @@ watch(activeCardId, () => {
             <div :class="['text-xs', 'text-neutral-500']">
               {{ t('settings.pages.memory.workbench.quality.replay_binding') }}
             </div>
-            <input
-              v-model="qualityTurnId"
-              :class="['border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
-              :placeholder="t('settings.pages.memory.workbench.quality.turn_id_placeholder')"
-            >
-            <input
-              v-model="qualityDecisionTraceId"
-              :class="['border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
-              :placeholder="t('settings.pages.memory.workbench.quality.decision_trace_id_placeholder')"
-            >
-            <textarea
-              v-model="qualityAssistantReply"
-              :class="['min-h-20', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
-              :placeholder="t('settings.pages.memory.workbench.quality.assistant_reply_placeholder')"
-            />
+            <div v-if="selectedQualityConversationSample" :class="['grid', 'gap-1', 'border', 'border-neutral-200', 'p-3', 'text-xs', 'dark:border-neutral-800']">
+              <div>{{ t('settings.pages.memory.workbench.quality.sample_turn') }}: {{ qualityTurnId }}</div>
+              <div>{{ t('settings.pages.memory.workbench.quality.sample_trace') }}: {{ qualityDecisionTraceId || '-' }}</div>
+              <div class="whitespace-pre-wrap">
+                {{ qualityAssistantReply }}
+              </div>
+            </div>
+            <div v-else :class="['border', 'border-dashed', 'border-neutral-300', 'p-3', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
+              {{ t('settings.pages.memory.workbench.quality.empty_conversation_samples') }}
+            </div>
             <input
               v-model="qualityExpectedMemoryIds"
               :class="['border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
@@ -1795,6 +1935,187 @@ watch(activeCardId, () => {
               <div>{{ t('settings.pages.memory.workbench.fields.persona_fixtures') }}: {{ qualityTrialReport.summary.personaTrainingFixtureCount }}</div>
               <div>{{ t('settings.pages.memory.workbench.fields.dialogue_replay') }}: {{ qualityTrialReport.summary.dialogueReplayCount }}</div>
               <div>{{ t('settings.pages.memory.workbench.fields.recall_at_k') }}: {{ formatQualityScore(qualityTrialReport.quality.summary.recallAtK) }}</div>
+            </div>
+            <div :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+              <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.fields.failing_fixtures') }}
+              </div>
+              <div v-if="qualityTrialReport.quality.summary.failingFixtureIds.length === 0" :class="['mt-2', 'text-sm', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.quality.no_failing_fixtures') }}
+              </div>
+              <ul v-else :class="['mt-2', 'list-disc', 'space-y-1', 'pl-5', 'text-sm', 'text-rose-600', 'dark:text-rose-300']">
+                <li v-for="fixtureId in qualityTrialReport.quality.summary.failingFixtureIds" :key="fixtureId">
+                  {{ fixtureId }}
+                </li>
+              </ul>
+            </div>
+            <div :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+              <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.fields.replay_turn_trace') }}
+              </div>
+              <div v-if="qualityTrialReport.stages.length === 0" :class="['mt-2', 'text-sm', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.quality.trace_not_available') }}
+              </div>
+              <div v-else :class="['mt-2', 'flex', 'flex-col', 'gap-2']">
+                <article v-for="stage in qualityTrialReport.stages" :key="stage.id" :class="['border', 'border-neutral-200', 'p-2', 'text-xs', 'dark:border-neutral-800']">
+                  <div :class="['flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
+                    <span class="font-medium">{{ stage.stage }} · {{ stage.id }}</span>
+                    <span
+                      :class="[
+                        stage.status === 'not-run'
+                          ? 'text-amber-600 dark:text-amber-300'
+                          : stage.passed
+                            ? 'text-emerald-600 dark:text-emerald-300'
+                            : 'text-rose-600 dark:text-rose-300',
+                      ]"
+                    >
+                      {{ stage.status === 'not-run'
+                        ? t('settings.pages.memory.workbench.states.quality_not_run')
+                        : stage.passed
+                          ? t('settings.pages.memory.workbench.states.quality_passed')
+                          : t('settings.pages.memory.workbench.states.quality_failed') }}
+                    </span>
+                  </div>
+                  <div class="mt-1 text-neutral-500">
+                    {{ t('settings.pages.memory.workbench.fields.count') }}: {{ stage.itemCount }}
+                    <span v-if="stage.error">
+                      · {{ t('settings.pages.memory.workbench.fields.last_error') }}:
+                      {{ formatQualityFailure(stage.error) }}
+                    </span>
+                  </div>
+                </article>
+              </div>
+            </div>
+            <div :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+              <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.fields.quality_trace_details') }}
+              </div>
+              <div v-if="qualityTrialReport.quality.traces.length === 0" :class="['mt-2', 'text-sm', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.quality.trace_not_available') }}
+              </div>
+              <div v-else :class="['mt-2', 'flex', 'flex-col', 'gap-2']">
+                <article v-for="trace in qualityTrialReport.quality.traces" :key="trace.id" :class="['border', 'border-neutral-200', 'p-2', 'text-xs', 'dark:border-neutral-800']">
+                  <div :class="['flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
+                    <span class="font-medium">{{ formatQualityTraceOwner(trace.owner) }} · {{ trace.fixtureId }}</span>
+                    <span :class="trace.error ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'">
+                      {{ trace.error ? formatQualityFailure(trace.error) : t('settings.pages.memory.workbench.states.quality_passed') }}
+                    </span>
+                  </div>
+                  <div class="mt-1 text-neutral-500">
+                    {{ t('settings.pages.memory.workbench.fields.selected_ids') }}: {{ listText(trace.selectedIds) }}
+                  </div>
+                  <div class="mt-1 text-neutral-500">
+                    {{ t('settings.pages.memory.workbench.fields.rejected_ids') }}: {{ listText(trace.rejectedIds) }}
+                  </div>
+                  <div class="mt-1 text-neutral-500">
+                    {{ t('settings.pages.memory.workbench.fields.forbidden_ids') }}: {{ listText(trace.forbiddenIds) }}
+                  </div>
+                  <div class="mt-1 break-words text-neutral-500">
+                    {{ t('settings.pages.memory.workbench.fields.rank_reasons') }}: {{ formatQualityRankReasons(trace.rankReasonsById) }}
+                  </div>
+                  <div v-if="trace.semantic" class="mt-1 break-words text-neutral-500">
+                    {{ t('settings.pages.memory.workbench.fields.semantic_channel') }}:
+                    {{ trace.semantic.available ? `${trace.semantic.providerId ?? '-'} / ${trace.semantic.modelId ?? '-'} / ${trace.semantic.dimensions ?? '-'}` : t('settings.pages.memory.workbench.fields.unavailable') }}
+                  </div>
+                </article>
+              </div>
+            </div>
+            <div v-if="qualityTrialReport.quality.findings.length > 0" :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+              <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.fields.quality_findings') }}
+              </div>
+              <div :class="['mt-2', 'flex', 'flex-col', 'gap-2']">
+                <article v-for="finding in qualityTrialReport.quality.findings" :key="`${finding.code}:${finding.fixtureId}`" :class="['border', 'border-neutral-200', 'p-2', 'text-xs', 'dark:border-neutral-800']">
+                  <div class="font-medium">
+                    {{ formatQualityFindingSeverity(finding.severity) }} · {{ finding.code }} · {{ finding.fixtureId }}
+                  </div>
+                  <div class="mt-1 text-neutral-500">
+                    {{ t('settings.pages.memory.workbench.fields.recommended_actions') }}: {{ finding.suggestedAction ? formatQualityAction(finding.suggestedAction) : '-' }}
+                  </div>
+                </article>
+              </div>
+            </div>
+            <div :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+              <div :class="['flex', 'flex-wrap', 'items-start', 'justify-between', 'gap-2']">
+                <div>
+                  <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                    {{ t('settings.pages.memory.workbench.fields.final_replay_gate') }}
+                  </div>
+                  <div :class="['mt-1', 'text-xs', 'text-neutral-500']">
+                    {{ t('settings.pages.memory.workbench.quality.final_replay_gate_description') }}
+                  </div>
+                </div>
+                <div
+                  :class="[
+                    'text-sm',
+                    qualityTrialReport.finalReplayGate
+                      ? qualityTrialReport.finalReplayGate.passed
+                        ? 'text-emerald-600 dark:text-emerald-300'
+                        : 'text-rose-600 dark:text-rose-300'
+                      : 'text-amber-600 dark:text-amber-300',
+                  ]"
+                >
+                  {{ qualityTrialReport.finalReplayGate
+                    ? qualityTrialReport.finalReplayGate.passed
+                      ? t('settings.pages.memory.workbench.states.quality_passed')
+                      : t('settings.pages.memory.workbench.states.quality_failed')
+                    : t('settings.pages.memory.workbench.states.quality_not_run') }}
+                </div>
+              </div>
+              <div v-if="!qualityTrialReport.finalReplayGate" :class="['mt-3', 'border', 'border-dashed', 'border-amber-300', 'p-3', 'text-sm', 'text-amber-700', 'dark:border-amber-800', 'dark:text-amber-300']">
+                {{ t('settings.pages.memory.workbench.quality.final_replay_gate_not_available') }}
+              </div>
+              <template v-else>
+                <div :class="['mt-3', 'grid', 'grid-cols-2', 'gap-2', 'text-sm', 'lg:grid-cols-3']">
+                  <div>{{ t('settings.pages.memory.workbench.fields.final_replay_sample_count') }}: {{ qualityTrialReport.finalReplayGate.metrics.sampleCount ?? '-' }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.final_replay_recall_at_3') }}: {{ formatQualityScore(qualityTrialReport.finalReplayGate.metrics.recallAt3) }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.final_replay_precision_at_3') }}: {{ formatQualityScore(qualityTrialReport.finalReplayGate.metrics.precisionAt3) }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.final_replay_wrong_thread_rate') }}: {{ formatQualityScore(qualityTrialReport.finalReplayGate.metrics.wrongThreadRate) }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.final_replay_template_leakage') }}: {{ qualityTrialReport.finalReplayGate.metrics.templateLeakageFailCount ?? '-' }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.final_replay_authority_leak') }}: {{ qualityTrialReport.finalReplayGate.metrics.authorityLeakCount ?? '-' }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.final_replay_visible_fallbacks') }}: {{ qualityTrialReport.finalReplayGate.metrics.localHumanlikeVisibleFallbackCount ?? '-' }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.final_replay_unsupported_specificity') }}: {{ qualityTrialReport.finalReplayGate.metrics.unsupportedSpecificityVisibleFailCount ?? '-' }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.final_replay_trace_coverage') }}: {{ formatQualityScore(qualityTrialReport.finalReplayGate.metrics.turnOsTraceCoverage) }}</div>
+                  <div>{{ t('settings.pages.memory.workbench.fields.final_replay_learning_roundtrip') }}: {{ formatQualityScore(qualityTrialReport.finalReplayGate.metrics.learningOutcomeToSelfRevisionRoundtrip) }}</div>
+                </div>
+                <div :class="['mt-3', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+                  <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                    {{ t('settings.pages.memory.workbench.fields.final_replay_failing_keys') }}
+                  </div>
+                  <div v-if="qualityTrialReport.finalReplayGate.failingKeys.length === 0" :class="['mt-2', 'text-sm', 'text-neutral-500']">
+                    {{ t('settings.pages.memory.workbench.quality.final_replay_no_failing_keys') }}
+                  </div>
+                  <ul v-else :class="['mt-2', 'list-disc', 'space-y-1', 'pl-5', 'text-sm', 'text-rose-600', 'dark:text-rose-300']">
+                    <li v-for="key in qualityTrialReport.finalReplayGate.failingKeys" :key="key">
+                      {{ key }}
+                    </li>
+                  </ul>
+                </div>
+              </template>
+            </div>
+            <div :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+              <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.fields.recall_reasons') }}
+              </div>
+              <div v-if="!recallProbe || recallProbe.evidence.length === 0" :class="['mt-2', 'text-sm', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.quality.recall_detail_not_available') }}
+              </div>
+              <div v-else :class="['mt-2', 'flex', 'flex-col', 'gap-2']">
+                <article v-for="item in recallProbe.evidence" :key="item.id" :class="['border', 'border-neutral-200', 'p-2', 'text-xs', 'dark:border-neutral-800']">
+                  <div class="font-medium">
+                    {{ item.id }} · {{ item.summary }}
+                  </div>
+                  <div class="mt-1 text-neutral-500">
+                    {{ t('settings.pages.memory.workbench.fields.rank_reasons') }}: {{ listText(item.rankReasons) }}
+                  </div>
+                  <div class="mt-1 text-neutral-500">
+                    {{ t('settings.pages.memory.workbench.fields.query_matches') }}: {{ listText(item.queryMatches) }}
+                  </div>
+                  <div class="mt-1 break-words text-neutral-500">
+                    {{ t('settings.pages.memory.workbench.fields.provenance') }}: {{ item.provenance ?? '-' }}
+                  </div>
+                </article>
+              </div>
             </div>
             <div :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
               <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
@@ -1937,7 +2258,7 @@ watch(activeCardId, () => {
           </template>
         </section>
 
-        <section v-if="internalDiagnosticsVisible" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <section :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
           <div :class="['flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
             <div :class="['text-sm', 'font-semibold']">
               {{ t('settings.pages.memory.workbench.quality.gold_labels_title') }}
@@ -2001,6 +2322,18 @@ watch(activeCardId, () => {
           @click="store.refreshPersonaCandidates()"
         />
       </div>
+      <Button
+        v-if="personaNextCursor"
+        :label="personaLoading
+          ? t('settings.pages.memory.workbench.actions.loading_more_persona_candidates')
+          : t('settings.pages.memory.workbench.actions.load_more_persona_candidates')"
+        icon="i-solar:alt-arrow-down-bold-duotone"
+        size="sm"
+        variant="secondary"
+        :loading="personaLoading"
+        :disabled="personaLoading"
+        @click="store.loadMorePersonaCandidates()"
+      />
       <div v-if="personaCandidates.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
         {{ t('settings.pages.memory.workbench.states.empty_persona') }}
       </div>

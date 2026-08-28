@@ -11,6 +11,7 @@ import type { AlicizationKnowledgeAssimilationRuntime } from './knowledge-assimi
 import type { WorkingMemoryStore } from './life-core/working-memory-store'
 
 import {
+  alicizationPrimaryConversationSessionId,
   projectAlicizationMemoryQualityTrialReportRecordSurface,
   projectAlicizationMemoryQualityTrialReportSurface,
 } from '@proj-alicization/stage-shared'
@@ -41,6 +42,7 @@ import {
   electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements,
   electronAlicizationMemoryWorkbenchListPersonaTrainingRuns,
   electronAlicizationMemoryWorkbenchListPersonaTrainingSourceRevokeIntents,
+  electronAlicizationMemoryWorkbenchListQualityConversationSamples,
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchListQualityTrialReports,
   electronAlicizationMemoryWorkbenchListReplaySessions,
@@ -177,7 +179,9 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchGetSnapshot, async payload => await withCardScope(payload.cardId, async () => {
     const cardId = cardIdFrom(payload)
-    const sessionId = normalizeSessionId(payload.sessionId) || null
+    // A Workbench snapshot belongs to the one production dialogue session.
+    // An older renderer session id is correlation data, not another owner.
+    const sessionId = alicizationPrimaryConversationSessionId(cardId)
     const alicizationDb = getAlicizationDb()
 
     return await buildMemoryWorkbenchSnapshot({
@@ -217,7 +221,6 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
           cardId,
           mode: payload.mode === 'live-provider' ? 'live-provider' : 'historical-replay',
           month: sanitizeText(payload.month, '') || null,
-          sessionId: sanitizeText(payload.sessionId, '') || null,
           signal: controller.signal,
         }),
       ))
@@ -259,8 +262,15 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     cursor: sanitizeText(payload.cursor, '') || null,
   })))
 
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchListQualityConversationSamples, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().listMemoryQualityConversationSamples({
+    cardId: cardIdFrom(payload),
+    limit: payload.limit,
+    cursor: sanitizeText(payload.cursor, '') || null,
+  })))
+
   registerInvokeHandler(electronAlicizationMemoryWorkbenchRecordQualityGoldLabel, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().recordMemoryQualityGoldLabel({
     cardId: cardIdFrom(payload),
+    conversationSampleId: sanitizeText(payload.conversationSampleId),
     month: sanitizeText(payload.month, '') || null,
     label: payload.label,
     reason: payload.reason ?? null,
@@ -275,7 +285,7 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     retrievedCandidateIds: payload.retrievedCandidateIds,
     surfacedMemoryIds: payload.surfacedMemoryIds,
     wrongThreadIds: payload.wrongThreadIds,
-    decisionTraceId: sanitizeText(payload.decisionTraceId, '') || null,
+    decisionTraceId: sanitizeText(payload.decisionTraceId),
     note: sanitizeText(payload.note, '') || null,
     createdAt: payload.createdAt,
   })))

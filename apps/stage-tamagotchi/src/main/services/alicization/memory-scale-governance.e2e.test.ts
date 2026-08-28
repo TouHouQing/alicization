@@ -1,6 +1,6 @@
 import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
 
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -28,6 +28,28 @@ function close(database: sqlite3.Database) {
   return new Promise<void>((resolve, reject) => {
     database.close(error => error ? reject(error) : resolve())
   })
+}
+
+function createDelayedSqliteDriver(
+  sqlFragment: string,
+  delayMs: number,
+  onDelayStarted?: () => void,
+) {
+  return {
+    Database: function DelayedDatabase(filepath: string, callback: (error: Error | null) => void) {
+      const database = new sqlite3.Database(filepath, callback)
+      const run = database.run.bind(database)
+      database.run = ((sql: string, params: unknown[], runCallback: (error?: Error | null) => void) => {
+        if (!sql.includes(sqlFragment))
+          return run(sql, params, runCallback)
+
+        onDelayStarted?.()
+        setTimeout(() => run(sql, params, runCallback), delayMs)
+        return database
+      }) as typeof database.run
+      return database
+    },
+  } as any
 }
 
 async function mutatePersistedDb(dbPath: string, task: (database: sqlite3.Database) => Promise<void>) {
@@ -152,6 +174,285 @@ afterEach(async () => {
 })
 
 describe('memory scale governance end-to-end', () => {
+  it('waits for a transient shared-database lock before applying WAL during open', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations')
+    await mkdir(rootDir, { recursive: true })
+    const dbPath = join(rootDir, 'alicization.db')
+    const locker = new sqlite3.Database(dbPath)
+    await run(locker, 'CREATE TABLE lock_probe (id INTEGER)')
+    await run(locker, 'BEGIN EXCLUSIVE')
+
+    const releaseLock = new Promise<void>((resolve, reject) => {
+      setTimeout(async () => {
+        try {
+          await run(locker, 'ROLLBACK')
+          await close(locker)
+          resolve()
+        }
+        catch (error) {
+          reject(error)
+        }
+      }, 1_500)
+    })
+
+    let db: Awaited<ReturnType<typeof setupAlicizationDb>> | null = null
+    try {
+      db = await setupAlicizationDb(userDataPath, {
+        rootDir,
+        cardId: 'card-open-lock',
+      })
+    }
+    finally {
+      await releaseLock
+      await db?.close()
+    }
+
+    expect(db?.dbPath).toBe(dbPath)
+  }, 10_000)
+
+  it('serializes writes from card handles sharing one dbPath', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations')
+    let delayStarted!: () => void
+    const delayedWriteStarted = new Promise<void>((resolve) => {
+      delayStarted = resolve
+    })
+    const cardA = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: createDelayedSqliteDriver(
+        'INSERT OR IGNORE INTO working_memory_long_term_transactions',
+        2_500,
+        delayStarted,
+      ),
+    })
+    const cardB = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-b',
+    })
+
+    const queueItem = (cardId: string) => ({
+      id: `shared-queue-item-${cardId}`,
+      source: 'working-memory-owner' as const,
+      memoryEvidence: {
+        version: 'working-memory-long-term-evidence-v1' as const,
+        source: 'explicit-structured-memory-evidence' as const,
+        kind: 'relationship' as const,
+        summary: `${cardId} shared db write`,
+        reason: '跨 card 的写入必须在共享数据库上有序完成。',
+        evidenceSnippets: [`${cardId} shared db write`],
+        salience: 0.9,
+        sensitivity: 'personal' as const,
+        confidence: 0.8,
+      },
+      kind: 'relationship' as const,
+      summary: `${cardId} shared db write`,
+      reason: '跨 card 的写入必须在共享数据库上有序完成。',
+      sourceTurnIds: [`turn-${cardId}:user`],
+      evidenceSnippets: [`${cardId} shared db write`],
+      salience: 0.9,
+      confidence: 0.8,
+      sensitivity: 'personal' as const,
+      allowTraining: false,
+      status: 'pending-cleaning' as const,
+      rejectionReasons: [],
+      contaminationFlags: [],
+      createdAt: 1_000,
+    })
+
+    try {
+      const cardAWrite = cardA.enqueueWorkingMemoryLongTermQueueItems({
+        cardId: 'card-a',
+        sessionId: 'shared-db-session-a',
+        items: [queueItem('card-a')],
+      })
+      await delayedWriteStarted
+      const cardBWrite = cardB.enqueueWorkingMemoryLongTermQueueItems({
+        cardId: 'card-b',
+        sessionId: 'shared-db-session-b',
+        items: [queueItem('card-b')],
+      })
+
+      await expect(Promise.all([cardAWrite, cardBWrite])).resolves.toEqual([undefined, undefined])
+    }
+    finally {
+      await Promise.all([cardA.close(), cardB.close()])
+    }
+  }, 10_000)
+
+  it('does not close a shared database before its queued write finishes', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    let delayStarted!: () => void
+    const delayedWriteStarted = new Promise<void>((resolve) => {
+      delayStarted = resolve
+    })
+    const db = await setupAlicizationDb(userDataPath, {
+      cardId: 'card-close-race',
+      sqliteDriver: createDelayedSqliteDriver(
+        'INSERT OR IGNORE INTO working_memory_long_term_transactions',
+        100,
+        delayStarted,
+      ),
+    })
+
+    try {
+      const queuedWrite = db.enqueueWorkingMemoryLongTermQueueItems({
+        cardId: 'card-close-race',
+        sessionId: 'close-race-session',
+        items: [{
+          id: 'close-race-item',
+          source: 'working-memory-owner',
+          memoryEvidence: {
+            version: 'working-memory-long-term-evidence-v1',
+            source: 'explicit-structured-memory-evidence',
+            kind: 'relationship',
+            summary: 'close race review candidate',
+            reason: '关闭必须等待已接受的 SQLite 写入完成。',
+            evidenceSnippets: ['close race review candidate'],
+            salience: 0.9,
+            sensitivity: 'personal',
+            confidence: 0.8,
+          },
+          kind: 'relationship',
+          summary: 'close race review candidate',
+          reason: '关闭必须等待已接受的 SQLite 写入完成。',
+          sourceTurnIds: ['turn-close-race:user'],
+          evidenceSnippets: ['close race review candidate'],
+          salience: 0.9,
+          confidence: 0.8,
+          sensitivity: 'personal',
+          allowTraining: false,
+          status: 'pending-cleaning',
+          rejectionReasons: [],
+          contaminationFlags: [],
+          createdAt: 1_000,
+        }],
+      })
+      await delayedWriteStarted
+      const closePromise = db.close()
+
+      await expect(queuedWrite).resolves.toBeUndefined()
+      await expect(closePromise).resolves.toBeUndefined()
+    }
+    catch (error) {
+      await db.close().catch(() => {})
+      throw error
+    }
+  }, 10_000)
+
+  it('isolates review admission by card, session, and source across restart', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations')
+    const cardA = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+    })
+    const cardB = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-b',
+    })
+    const sharedSessionId = 'session-shared-review'
+    const sharedSourceId = 'source-shared-review'
+    const queueItem = (cardId: string) => ({
+      id: sharedSourceId,
+      source: 'working-memory-owner' as const,
+      memoryEvidence: {
+        version: 'working-memory-long-term-evidence-v1' as const,
+        source: 'explicit-structured-memory-evidence' as const,
+        kind: 'relationship' as const,
+        summary: `${cardId} review candidate`,
+        reason: '用户明确表达了需要长期保持的相处偏好。',
+        evidenceSnippets: [`${cardId} review candidate`],
+        salience: 0.92,
+        sensitivity: 'personal' as const,
+        confidence: 0.68,
+      },
+      kind: 'relationship' as const,
+      summary: `${cardId} review candidate`,
+      reason: '用户明确表达了需要长期保持的相处偏好。',
+      sourceTurnIds: ['turn-shared-review:user'],
+      evidenceSnippets: [`${cardId} review candidate`],
+      salience: 0.92,
+      confidence: 0.68,
+      sensitivity: 'personal' as const,
+      allowTraining: false,
+      status: 'pending-cleaning' as const,
+      rejectionReasons: [],
+      contaminationFlags: [],
+      createdAt: 1_000,
+    })
+
+    try {
+      await cardA.enqueueWorkingMemoryLongTermQueueItems({
+        cardId: 'card-a',
+        sessionId: sharedSessionId,
+        items: [queueItem('card-a')],
+      })
+      await cardB.enqueueWorkingMemoryLongTermQueueItems({
+        cardId: 'card-b',
+        sessionId: sharedSessionId,
+        items: [queueItem('card-b')],
+      })
+
+      await expect(cardA.drainWorkingMemoryLongTermQueue(8)).resolves.toMatchObject({
+        cleaned: 1,
+        review: 1,
+        applied: 0,
+        failed: 0,
+      })
+      expect(await cardA.getMemoryWorkbenchQueueHealth({ cardId: 'card-a' })).toMatchObject({
+        pending: 0,
+        review: 1,
+      })
+      expect(await cardB.getMemoryWorkbenchQueueHealth({ cardId: 'card-b' })).toMatchObject({
+        pending: 1,
+        review: 0,
+      })
+      expect((await cardA.listMemoryWorkbenchReviewItems({ cardId: 'card-a', limit: 8 })).items.map(item => item.summary)).toEqual([
+        'card-a review candidate',
+      ])
+      expect((await cardB.listMemoryWorkbenchReviewItems({ cardId: 'card-b', limit: 8 })).items).toEqual([])
+    }
+    finally {
+      await Promise.all([cardA.close(), cardB.close()])
+    }
+
+    const reopenedCardA = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+    })
+    const reopenedCardB = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-b',
+    })
+    try {
+      expect((await reopenedCardA.listMemoryWorkbenchReviewItems({ cardId: 'card-a', limit: 8 })).items.map(item => item.summary)).toEqual([
+        'card-a review candidate',
+      ])
+      expect(await reopenedCardB.getMemoryWorkbenchQueueHealth({ cardId: 'card-b' })).toMatchObject({
+        pending: 1,
+        review: 0,
+      })
+
+      await expect(reopenedCardB.drainWorkingMemoryLongTermQueue(8)).resolves.toMatchObject({
+        cleaned: 1,
+        review: 1,
+        applied: 0,
+        failed: 0,
+      })
+      expect((await reopenedCardB.listMemoryWorkbenchReviewItems({ cardId: 'card-b', limit: 8 })).items.map(item => item.summary)).toEqual([
+        'card-b review candidate',
+      ])
+      expect((await reopenedCardA.listMemoryWorkbenchReviewItems({ cardId: 'card-a', limit: 8 })).items.map(item => item.summary)).toEqual([
+        'card-a review candidate',
+      ])
+    }
+    finally {
+      await Promise.all([reopenedCardA.close(), reopenedCardB.close()])
+    }
+  }, 30_000)
+
   it('keeps long-term sources, vectors, and persona exports card-scoped across restart', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const rootDir = join(userDataPath, 'alicizations')
