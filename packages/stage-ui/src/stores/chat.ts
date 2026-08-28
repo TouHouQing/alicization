@@ -2213,6 +2213,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               const executeBridgeStream = async (touch?: (kind?: StreamWatchdogTouchKind) => void) => {
                 await bridgeStreamChat({
                   turnId: bridgeAttemptTurnId,
+                  sessionId,
                   providerId: resolvedRoute.providerId,
                   model: resolvedRoute.model,
                   providerConfig: resolvedRoute.providerConfig,

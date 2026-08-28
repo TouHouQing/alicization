@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import type { ChatHistoryItem } from '@proj-alicization/stage-ui/types/chat'
+import type { ChatHistoryItem, ChatRecoveryAction } from '@proj-alicization/stage-ui/types/chat'
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 
 import { ChatHistory } from '@proj-alicization/stage-ui/components'
 import { useChatReplyAbort } from '@proj-alicization/stage-ui/composables'
+import { getAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
+import {
+  removeChatInfrastructureErrorMessage,
+  upsertChatInfrastructureErrorMessage,
+} from '@proj-alicization/stage-ui/stores/chat-tool-projection'
 import { useChatSessionStore } from '@proj-alicization/stage-ui/stores/chat/session-store'
 import { useChatStreamStore } from '@proj-alicization/stage-ui/stores/chat/stream-store'
 import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
@@ -116,6 +121,54 @@ onUnmounted(() => {
 })
 
 const historyMessages = computed(() => messages.value as unknown as ChatHistoryItem[])
+
+async function handleRecoveryAction(action: ChatRecoveryAction) {
+  const errorId = `${action.threadId}:tool-recovery-error`
+  const currentMessages = chatSession.getSessionMessages(chatSession.activeSessionId)
+
+  try {
+    const resumeTaskThread = getAlicizationBridge().resumeTaskThread
+    if (!resumeTaskThread) {
+      upsertChatInfrastructureErrorMessage(currentMessages, {
+        id: errorId,
+        code: 'TASK_THREAD_RECOVERY_UNAVAILABLE',
+        message: t('stage.chat.tool-recovery.unavailable'),
+        label: t('stage.chat.tool-recovery.failure-label'),
+      })
+      chatSession.persistSessionMessages(chatSession.activeSessionId)
+      return
+    }
+
+    const result = await resumeTaskThread({
+      threadId: action.threadId,
+      actionKind: action.kind,
+      expectedChannel: action.expectedChannel,
+      expectedUpdatedAt: action.expectedUpdatedAt,
+    })
+
+    if (!result.ok) {
+      upsertChatInfrastructureErrorMessage(currentMessages, {
+        id: errorId,
+        code: result.errorCode || 'TASK_THREAD_RECOVERY_FAILED',
+        message: result.errorMessage || result.summary,
+        label: t('stage.chat.tool-recovery.failure-label'),
+      })
+    }
+    else {
+      removeChatInfrastructureErrorMessage(currentMessages, errorId)
+    }
+    chatSession.persistSessionMessages(chatSession.activeSessionId)
+  }
+  catch (error) {
+    upsertChatInfrastructureErrorMessage(currentMessages, {
+      id: errorId,
+      code: 'TASK_THREAD_RECOVERY_IPC_FAILED',
+      message: error instanceof Error ? error.message : String(error),
+      label: t('stage.chat.tool-recovery.failure-label'),
+    })
+    chatSession.persistSessionMessages(chatSession.activeSessionId)
+  }
+}
 </script>
 
 <template>
@@ -125,6 +178,7 @@ const historyMessages = computed(() => messages.value as unknown as ChatHistoryI
         :messages="historyMessages"
         :sending="sending"
         :streaming-message="streamingMessage"
+        :on-recovery-action="handleRecoveryAction"
       />
     </div>
     <div v-if="attachments.length > 0" class="flex flex-wrap gap-2 border-t border-primary-100 p-2">

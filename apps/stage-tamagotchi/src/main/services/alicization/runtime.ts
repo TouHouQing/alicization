@@ -2,6 +2,7 @@ import type {
   AlicizationChatFailureKind,
   AlicizationExecutionChannel,
   AlicizationExecutionRuntimeContext,
+  AlicizationTaskThreadRecoveryActionKind,
 } from '@proj-alicization/stage-shared'
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 
@@ -6416,7 +6417,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   async function resumeMainGatewayTaskThread(input: {
     context: MainGatewayExecutionToolContext
     dispatchMode?: 'inline' | 'background'
+    expectedActionKind?: AlicizationTaskThreadRecoveryActionKind
     expectedChannel: AlicizationExecutionChannel
+    expectedUpdatedAt?: number
     threadId: string
     abortSignal?: AbortSignal
     onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
@@ -6959,6 +6962,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       port,
       input: payload,
     }),
+    resumeMainGatewayTaskThread,
     appendAuditLog,
     onAlicizationKillSwitchChanged,
     onAlicizationCardKillSwitchChanged,

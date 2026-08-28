@@ -910,6 +910,11 @@ export type AlicizationExecutionEventKind
 
 export interface AlicizationTaskThreadUpsertInput {
   id?: string | null
+  /**
+   * Execution attempt generation. New threads receive one from the database;
+   * ordinary updates preserve the current generation.
+   */
+  attemptId?: string | null
   decisionTraceId?: string | null
   turnId?: string | null
   sessionId?: string | null
@@ -939,6 +944,7 @@ export interface AlicizationTaskThreadUpsertInput {
 
 export interface AlicizationTaskThreadRecord {
   id: string
+  attemptId?: string | null
   decisionTraceId: string | null
   turnId: string | null
   sessionId: string | null
@@ -954,6 +960,45 @@ export interface AlicizationTaskThreadRecord {
   updatedAt: number
   lastEventAt: number | null
   completedAt: number | null
+}
+
+export type AlicizationTaskThreadRecoveryActionKind = 'continue' | 'resume' | 'retry'
+export type AlicizationTaskThreadRecoverySafety = 'confirmation-required' | 'inspect-before-replay' | 'safe-observe-retry'
+
+export interface AlicizationTaskThreadRecoveryAction {
+  kind: AlicizationTaskThreadRecoveryActionKind
+  label: string
+  threadId: string
+  expectedChannel: AlicizationExecutionChannel
+  expectedUpdatedAt: number
+  toolName: string
+  dispatchMode: 'background' | 'inline'
+  requiresConfirmation: boolean
+  safety: AlicizationTaskThreadRecoverySafety
+  reasonCode: string
+}
+
+export interface AlicizationTaskThreadRecoveryProjection {
+  state: 'available' | 'blocked'
+  reasonCode: string
+  actions: AlicizationTaskThreadRecoveryAction[]
+}
+
+export interface AlicizationResumeTaskThreadInput {
+  threadId: string
+  actionKind: AlicizationTaskThreadRecoveryActionKind
+  expectedChannel: AlicizationExecutionChannel
+  expectedUpdatedAt: number
+}
+
+export interface AlicizationResumeTaskThreadResult {
+  ok: boolean
+  accepted?: boolean
+  finalStatus?: AlicizationTaskThreadStatus | null
+  summary: string
+  errorCode?: string
+  errorMessage?: string
+  recovery?: AlicizationTaskThreadRecoveryProjection | null
 }
 
 export type AlicizationExecutorSessionStatus
@@ -1012,6 +1057,11 @@ export interface AlicizationListTaskThreadsInput {
 
 export interface AlicizationExecutionEventInput {
   id?: string | null
+  /**
+   * The task-thread attempt that produced this event. The database fills this
+   * from the thread's current attempt when omitted.
+   */
+  attemptId?: string | null
   threadId: string
   decisionTraceId?: string | null
   turnId?: string | null
@@ -1026,6 +1076,7 @@ export interface AlicizationExecutionEventInput {
 
 export interface AlicizationExecutionEventRecord {
   id: string
+  attemptId?: string | null
   threadId: string
   decisionTraceId: string | null
   turnId: string | null
@@ -1044,6 +1095,7 @@ export interface AlicizationAppendExecutionEventsInput {
 
 export interface AlicizationListExecutionEventsInput {
   threadId?: string
+  attemptId?: string
   decisionTraceId?: string
   turnId?: string
   limit?: number

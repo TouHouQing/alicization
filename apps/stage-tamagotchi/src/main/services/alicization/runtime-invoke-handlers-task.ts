@@ -1,6 +1,7 @@
 import type {
   AlicizationAppendExecutionEventsPayload,
   AlicizationAuditLogInput,
+  AlicizationCardScope,
   AlicizationChannelCapability,
   AlicizationChannelCapabilityManifestRecord,
   AlicizationDispatchTaskThreadPayload,
@@ -10,11 +11,17 @@ import type {
   AlicizationListExecutionEventsPayload,
   AlicizationListExecutorSessionsPayload,
   AlicizationListTaskThreadsPayload,
+  AlicizationResumeTaskThreadInput,
+  AlicizationResumeTaskThreadResult,
   AlicizationTaskThreadRecord,
   AlicizationUpsertChannelCapabilityManifestPayload,
   AlicizationUpsertExecutorSessionPayload,
   AlicizationUpsertTaskThreadPayload,
 } from '../../../shared/eventa'
+
+import { randomUUID } from 'node:crypto'
+
+import { alicizationPrimaryConversationSessionId } from '@proj-alicization/stage-shared'
 
 import {
   electronAlicizationAppendExecutionEvents,
@@ -24,6 +31,7 @@ import {
   electronAlicizationListExecutorSessions,
   electronAlicizationListTaskThreads,
   electronAlicizationPlanTaskThread,
+  electronAlicizationResumeTaskThread,
   electronAlicizationUpsertChannelCapabilityManifest,
   electronAlicizationUpsertExecutorSession,
   electronAlicizationUpsertTaskThread,
@@ -40,6 +48,27 @@ interface RegisterAlicizationTaskInvokeHandlersOptions {
   resolveTaskPlanningCapabilities: (capabilities?: AlicizationChannelCapability[]) => Promise<AlicizationChannelCapability[]>
   planTaskThread: (...args: any[]) => Promise<unknown>
   dispatchTaskThread: (...args: any[]) => Promise<unknown>
+  resumeMainGatewayTaskThread: (input: {
+    context: {
+      cardId: string
+      sessionId: string
+      turnId: string
+      decisionTraceId?: string | null
+      toolCallId?: string | null
+    }
+    expectedActionKind: AlicizationResumeTaskThreadInput['actionKind']
+    expectedChannel: AlicizationResumeTaskThreadInput['expectedChannel']
+    expectedUpdatedAt: AlicizationResumeTaskThreadInput['expectedUpdatedAt']
+    threadId: AlicizationResumeTaskThreadInput['threadId']
+  }) => Promise<{
+    accepted?: boolean
+    errorCode?: string
+    errorMessage?: string
+    finalStatus?: AlicizationResumeTaskThreadResult['finalStatus']
+    ok: boolean
+    recovery?: AlicizationResumeTaskThreadResult['recovery']
+    summary: string
+  }>
   appendAuditLog: (input: AlicizationAuditLogInput) => Promise<void>
   onAlicizationKillSwitchChanged: (listener: (snapshot: { state: 'ACTIVE' | 'SUSPENDED' }) => void) => () => void
   onAlicizationCardKillSwitchChanged: (listener: (entry: { cardId: string, snapshot: { state: 'ACTIVE' | 'SUSPENDED' } }) => void) => () => void
@@ -57,13 +86,18 @@ export function registerAlicizationTaskInvokeHandlers(options: RegisterAlicizati
     resolveTaskPlanningCapabilities,
     planTaskThread,
     dispatchTaskThread,
+    resumeMainGatewayTaskThread,
     appendAuditLog,
     onAlicizationKillSwitchChanged,
     onAlicizationCardKillSwitchChanged,
   } = options
+  const getCanonicalSessionId = () => alicizationPrimaryConversationSessionId(getActiveCardId())
 
   registerInvokeHandler(electronAlicizationUpsertTaskThread, async (payload: AlicizationUpsertTaskThreadPayload) => await withCardScope(payload.cardId, async () => {
-    const row = await getAlicizationDb().upsertTaskThread(payload)
+    const row = await getAlicizationDb().upsertTaskThread({
+      ...payload,
+      sessionId: getCanonicalSessionId(),
+    })
     return row as AlicizationTaskThreadRecord
   }))
 
@@ -71,7 +105,7 @@ export function registerAlicizationTaskInvokeHandlers(options: RegisterAlicizati
     const rows = await getAlicizationDb().listTaskThreads({
       decisionTraceId: payload.decisionTraceId,
       turnId: payload.turnId,
-      sessionId: payload.sessionId,
+      sessionId: getCanonicalSessionId(),
       status: payload.status,
       limit: payload.limit,
     })
@@ -110,7 +144,11 @@ export function registerAlicizationTaskInvokeHandlers(options: RegisterAlicizati
   }))
 
   registerInvokeHandler(electronAlicizationAppendExecutionEvents, async (payload: AlicizationAppendExecutionEventsPayload) => await withCardScope(payload.cardId, async () => {
-    await getAlicizationDb().appendExecutionEvents(payload.events)
+    const sessionId = getCanonicalSessionId()
+    await getAlicizationDb().appendExecutionEvents(payload.events.map(event => ({
+      ...event,
+      sessionId,
+    })))
   }))
 
   registerInvokeHandler(electronAlicizationListExecutionEvents, async (payload: AlicizationListExecutionEventsPayload) => await withCardScope(payload.cardId, async () => {
@@ -130,7 +168,10 @@ export function registerAlicizationTaskInvokeHandlers(options: RegisterAlicizati
     const planningCapabilities = await resolveTaskPlanningCapabilities(payload.capabilities)
     return await planTaskThread({
       threadId: payload.threadId,
-      trace: payload.trace,
+      trace: {
+        ...payload.trace,
+        sessionId: getCanonicalSessionId(),
+      },
       task: payload.task,
       capabilities: planningCapabilities,
       killSwitchSuspended,
@@ -173,6 +214,48 @@ export function registerAlicizationTaskInvokeHandlers(options: RegisterAlicizati
     finally {
       removeGlobalKillSwitchListener()
       removeCardKillSwitchListener()
+    }
+  }))
+
+  registerInvokeHandler(electronAlicizationResumeTaskThread, async (payload: AlicizationCardScope & AlicizationResumeTaskThreadInput): Promise<AlicizationResumeTaskThreadResult> => await withCardScope(getActiveCardId(), async () => {
+    const cardId = getActiveCardId()
+    const killSwitchSuspended = getAlicizationKillSwitchState() === 'SUSPENDED'
+      || getAlicizationCardKillSwitchState(cardId) === 'SUSPENDED'
+    if (killSwitchSuspended) {
+      return {
+        ok: false,
+        accepted: false,
+        finalStatus: 'blocked',
+        summary: 'Task recovery was blocked while Alicization is suspended.',
+        errorCode: 'ALICIZATION_KILL_SWITCH_SUSPENDED',
+        errorMessage: '恢复任务前请先解除暂停状态。',
+        recovery: null,
+      }
+    }
+
+    const turnId = `ui:recovery:${randomUUID()}`
+    const result = await resumeMainGatewayTaskThread({
+      context: {
+        cardId,
+        sessionId: getCanonicalSessionId(),
+        turnId,
+        decisionTraceId: `trace:${turnId}`,
+        toolCallId: `recovery:${payload.threadId}:${payload.actionKind}`,
+      },
+      expectedActionKind: payload.actionKind,
+      expectedChannel: payload.expectedChannel,
+      expectedUpdatedAt: payload.expectedUpdatedAt,
+      threadId: payload.threadId,
+    })
+
+    return {
+      ok: result.ok,
+      accepted: result.accepted,
+      finalStatus: result.finalStatus ?? null,
+      summary: result.summary,
+      errorCode: result.errorCode,
+      errorMessage: result.errorMessage,
+      recovery: result.recovery ?? null,
     }
   }))
 }

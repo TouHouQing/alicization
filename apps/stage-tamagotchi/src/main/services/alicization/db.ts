@@ -591,6 +591,7 @@ interface DbConversationTurnRow {
 
 interface DbTaskThreadRow {
   id: string
+  current_attempt_id: string | null
   decision_trace_id: string | null
   turn_id: string | null
   session_id: string | null
@@ -610,6 +611,7 @@ interface DbTaskThreadRow {
 
 interface DbExecutionEventRow {
   id: string
+  attempt_id: string | null
   thread_id: string
   decision_trace_id: string | null
   turn_id: string | null
@@ -1340,6 +1342,7 @@ function normalizeExecutorSessionStatus(value: unknown): AlicizationExecutorSess
 function mapTaskThreadRow(row: DbTaskThreadRow): AlicizationTaskThreadRecord {
   return {
     id: row.id,
+    attemptId: row.current_attempt_id,
     decisionTraceId: row.decision_trace_id,
     turnId: row.turn_id,
     sessionId: row.session_id,
@@ -1361,6 +1364,7 @@ function mapTaskThreadRow(row: DbTaskThreadRow): AlicizationTaskThreadRecord {
 function mapExecutionEventRow(row: DbExecutionEventRow): AlicizationExecutionEventRecord {
   return {
     id: row.id,
+    attemptId: row.attempt_id,
     threadId: row.thread_id,
     decisionTraceId: row.decision_trace_id,
     turnId: row.turn_id,
@@ -2212,7 +2216,7 @@ export interface AlicizationDbService {
 export interface AlicizationTaskThreadResumeInput {
   event: AlicizationExecutionEventInput
   expectedChannel: AlicizationExecutionChannel
-  expectedStatus: 'needs-affirmation' | 'paused'
+  expectedStatus: 'needs-affirmation' | 'paused' | 'failed'
   expectedUpdatedAt: number
   metadata: Record<string, unknown> | null
   selectedChannel: AlicizationExecutionChannel
@@ -3537,6 +3541,7 @@ export async function setupAlicizationDb(
     await run(database, `
       CREATE TABLE IF NOT EXISTS task_threads (
         id TEXT PRIMARY KEY,
+        current_attempt_id TEXT,
         decision_trace_id TEXT,
         turn_id TEXT,
         session_id TEXT,
@@ -3554,6 +3559,13 @@ export async function setupAlicizationDb(
         completed_at INTEGER
       )
     `)
+    await run(database, 'ALTER TABLE task_threads ADD COLUMN current_attempt_id TEXT').catch(() => {})
+    await run(database, `
+      UPDATE task_threads
+      SET current_attempt_id = id || ':attempt:legacy'
+      WHERE current_attempt_id IS NULL OR trim(current_attempt_id) = ''
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_task_threads_current_attempt_id ON task_threads(current_attempt_id)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_task_threads_trace_updated_at ON task_threads(decision_trace_id, updated_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_task_threads_turn_updated_at ON task_threads(turn_id, updated_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_task_threads_session_updated_at ON task_threads(session_id, updated_at DESC)')
@@ -3612,6 +3624,7 @@ export async function setupAlicizationDb(
     await run(database, `
       CREATE TABLE IF NOT EXISTS executor_events (
         id TEXT PRIMARY KEY,
+        attempt_id TEXT,
         thread_id TEXT NOT NULL,
         decision_trace_id TEXT,
         turn_id TEXT,
@@ -3624,6 +3637,17 @@ export async function setupAlicizationDb(
         created_at INTEGER NOT NULL
       )
     `)
+    await run(database, 'ALTER TABLE executor_events ADD COLUMN attempt_id TEXT').catch(() => {})
+    await run(database, `
+      UPDATE executor_events
+      SET attempt_id = (
+        SELECT current_attempt_id
+        FROM task_threads
+        WHERE task_threads.id = executor_events.thread_id
+      )
+      WHERE attempt_id IS NULL OR trim(attempt_id) = ''
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_executor_events_thread_attempt_created_at ON executor_events(thread_id, attempt_id, created_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_executor_events_thread_created_at ON executor_events(thread_id, created_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_executor_events_trace_created_at ON executor_events(decision_trace_id, created_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_executor_events_turn_created_at ON executor_events(turn_id, created_at DESC)')
@@ -4815,6 +4839,9 @@ export async function setupAlicizationDb(
     const id = typeof input.id === 'string' && input.id.trim()
       ? input.id.trim()
       : randomUUID()
+    const attemptId = typeof input.attemptId === 'string' && input.attemptId.trim()
+      ? input.attemptId.trim()
+      : randomUUID()
     const decisionTraceId = typeof input.decisionTraceId === 'string' && input.decisionTraceId.trim()
       ? input.decisionTraceId.trim()
       : null
@@ -4878,6 +4905,7 @@ export async function setupAlicizationDb(
         `
         INSERT INTO task_threads (
           id,
+          current_attempt_id,
           decision_trace_id,
           turn_id,
           session_id,
@@ -4893,7 +4921,7 @@ export async function setupAlicizationDb(
           updated_at,
           last_event_at,
           completed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ${createOnly
           ? 'ON CONFLICT(id) DO NOTHING'
           : `ON CONFLICT(id)
@@ -4912,10 +4940,15 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           last_event_at = excluded.last_event_at,
           completed_at = excluded.completed_at
         WHERE (? IS NULL OR task_threads.updated_at = ?)
-          AND (task_threads.status != 'dead-lettered' OR excluded.status = 'dead-lettered')`}
+          AND (task_threads.status != 'dead-lettered' OR excluded.status = 'dead-lettered')
+          AND NOT (
+            task_threads.status IN ('failed', 'dead-lettered')
+            AND excluded.status = 'planned'
+          )`}
         `,
         [
           id,
+          attemptId,
           decisionTraceId,
           turnId,
           sessionId,
@@ -4958,6 +4991,17 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     const persistedThread = await getTaskThread(id)
     if (!persistedThread)
       throw new Error(`Task thread "${id}" disappeared after persistence.`)
+    if (
+      status === 'planned'
+      && (persistedThread.status === 'failed' || persistedThread.status === 'dead-lettered')
+    ) {
+      const error = new Error(`Task thread ${id} cannot be reopened by a generic upsert.`)
+      Object.assign(error, {
+        code: 'TASK_THREAD_VERSION_CONFLICT',
+        threadId: id,
+      })
+      throw error
+    }
     return persistedThread
   }
 
@@ -4982,7 +5026,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       || !expectedChannel
       || !selectedChannel
       || expectedUpdatedAt === null
-      || (expectedStatus !== 'needs-affirmation' && expectedStatus !== 'paused')
+      || (
+        expectedStatus !== 'needs-affirmation'
+        && expectedStatus !== 'paused'
+        && expectedStatus !== 'failed'
+      )
       || eventThreadId !== threadId
       || eventKind !== 'resume'
       || eventStatus !== 'planned'
@@ -4994,6 +5042,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     const updatedAt = Number.isFinite(input.updatedAt)
       ? Math.max(0, Math.floor(input.updatedAt))
       : now()
+    const nextAttemptId = randomUUID()
     const eventCreatedAt = Number.isFinite(input.event.createdAt)
       ? Math.max(0, Math.floor(Number(input.event.createdAt)))
       : updatedAt
@@ -5035,16 +5084,98 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     ) {
       throw new Error('paused recovery must be read-only and cannot carry confirmation semantics.')
     }
+    if (
+      expectedStatus === 'failed'
+      && (
+        eventPayload?.resumeMode !== 'retry'
+        || taskMetadata?.effect !== 'observe'
+        || !['none', 'not-applied'].includes(String(eventPayload.sideEffectState ?? ''))
+        || Object.hasOwn(eventPayload, 'approval')
+      )
+    ) {
+      throw new Error('failed task retry must be an observe-only retry with no known side effects.')
+    }
 
     assertWriteNotAborted(options)
     await enqueueWrite(async () => {
       assertWriteNotAborted(options)
       await runInTransaction(database, async () => {
+        const currentThread = await get<{
+          updated_at: number
+          status: string
+          selected_channel: string | null
+          proposed_channel: string | null
+        }>(
+          database,
+          `
+          SELECT updated_at, status, selected_channel, proposed_channel
+          FROM task_threads
+          WHERE id = ?
+          LIMIT 1
+          `,
+          [threadId],
+        )
+        if (
+          !currentThread
+          || currentThread.updated_at !== expectedUpdatedAt
+          || currentThread.status !== expectedStatus
+          || (currentThread.selected_channel ?? currentThread.proposed_channel) !== expectedChannel
+        ) {
+          const error = new Error(`Task thread ${threadId} changed before resume could be applied.`)
+          Object.assign(error, {
+            code: 'TASK_THREAD_VERSION_CONFLICT',
+            threadId,
+            expectedUpdatedAt,
+          })
+          throw error
+        }
+
+        if (expectedStatus === 'failed') {
+          const failureEvidence = await get<{
+            kind: string
+            payload_json: string | null
+            thread_status: string | null
+          }>(
+            database,
+            `
+            SELECT kind, thread_status, payload_json
+            FROM executor_events
+            WHERE thread_id = ?
+              AND attempt_id = (
+                SELECT current_attempt_id
+                FROM task_threads
+                WHERE task_threads.id = ?
+              )
+              AND kind = 'result'
+              AND thread_status = 'failed'
+            ORDER BY created_at DESC
+            LIMIT 1
+            `,
+            [threadId, threadId],
+          )
+          const failurePayload = parseJsonObject(failureEvidence?.payload_json ?? null)
+          const hasFailureEvidence = Boolean(
+            failureEvidence
+            && failureEvidence.kind === 'result'
+            && failureEvidence.thread_status === 'failed'
+            && typeof failurePayload?.failureKind === 'string'
+            && failurePayload.failureKind.trim()
+            && typeof failurePayload?.errorCode === 'string'
+            && failurePayload.errorCode.trim()
+            && typeof failurePayload?.errorMessage === 'string'
+            && failurePayload.errorMessage.trim()
+            && ['none', 'not-applied'].includes(String(failurePayload.sideEffectState ?? '')),
+          )
+          if (!hasFailureEvidence)
+            throw new Error('failed task retry requires persisted failure evidence.')
+        }
+
         const update = await run(
           database,
           `
           UPDATE task_threads
-          SET status = 'planned',
+          SET current_attempt_id = ?,
+              status = 'planned',
               selected_channel = ?,
               metadata_json = ?,
               updated_at = MAX(?, updated_at + 1),
@@ -5056,6 +5187,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             AND COALESCE(selected_channel, proposed_channel) = ?
           `,
           [
+            nextAttemptId,
             selectedChannel,
             metadataJson,
             Math.max(updatedAt, eventCreatedAt),
@@ -5081,6 +5213,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           `
           INSERT INTO executor_events (
             id,
+            attempt_id,
             thread_id,
             decision_trace_id,
             turn_id,
@@ -5091,10 +5224,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             thread_status,
             payload_json,
             created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
           [
             eventId,
+            nextAttemptId,
             threadId,
             eventDecisionTraceId,
             eventTurnId,
@@ -5128,6 +5262,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       `
       SELECT
         id,
+        current_attempt_id,
         decision_trace_id,
         turn_id,
         session_id,
@@ -5234,6 +5369,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       `
       SELECT
         id,
+        current_attempt_id,
         decision_trace_id,
         turn_id,
         session_id,
@@ -5637,6 +5773,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           id: typeof event.id === 'string' && event.id.trim()
             ? event.id.trim().slice(0, 240)
             : randomUUID(),
+          attemptId: typeof event.attemptId === 'string' && event.attemptId.trim()
+            ? event.attemptId.trim()
+            : null,
           threadId,
           decisionTraceId: typeof event.decisionTraceId === 'string' && event.decisionTraceId.trim()
             ? event.decisionTraceId.trim()
@@ -5677,11 +5816,21 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       await runInTransaction(database, async () => {
         const insertedEvents: typeof normalized = []
         for (const event of normalized) {
+          const currentAttempt = await get<{ current_attempt_id: string | null }>(
+            database,
+            'SELECT current_attempt_id FROM task_threads WHERE id = ? LIMIT 1',
+            [event.threadId],
+          )
+          const persistedEvent = {
+            ...event,
+            attemptId: event.attemptId ?? currentAttempt?.current_attempt_id ?? null,
+          }
           const insert = await run(
             database,
             `
             INSERT OR IGNORE INTO executor_events (
               id,
+              attempt_id,
               thread_id,
               decision_trace_id,
               turn_id,
@@ -5692,24 +5841,25 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
               thread_status,
               payload_json,
               created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
             [
-              event.id,
-              event.threadId,
-              event.decisionTraceId,
-              event.turnId,
-              event.sessionId,
-              event.origin,
-              event.channel,
-              event.kind,
-              event.threadStatus,
-              event.payloadJson,
-              event.createdAt,
+              persistedEvent.id,
+              persistedEvent.attemptId,
+              persistedEvent.threadId,
+              persistedEvent.decisionTraceId,
+              persistedEvent.turnId,
+              persistedEvent.sessionId,
+              persistedEvent.origin,
+              persistedEvent.channel,
+              persistedEvent.kind,
+              persistedEvent.threadStatus,
+              persistedEvent.payloadJson,
+              persistedEvent.createdAt,
             ],
           )
           if (insert.changes > 0)
-            insertedEvents.push(event)
+            insertedEvents.push(persistedEvent)
         }
 
         const projectionByThread = new Map<string, {
@@ -5758,6 +5908,10 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
                 status = COALESCE(?, status),
                 completed_at = COALESCE(?, completed_at)
             WHERE id = ?
+              AND (
+                current_attempt_id = ?
+                OR (current_attempt_id IS NULL AND ? IS NULL)
+              )
               AND status NOT IN ('blocked', 'completed', 'failed', 'cancelled', 'dead-lettered')
               AND (
                 ? IN ('blocked', 'completed', 'failed', 'cancelled', 'dead-lettered')
@@ -5772,6 +5926,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
               statusEvent.threadStatus,
               completedAt,
               statusEvent.threadId,
+              statusEvent.attemptId,
+              statusEvent.attemptId,
               statusEvent.threadStatus,
               activityAt,
             ],
@@ -5784,6 +5940,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   async function listExecutionEvents(input?: AlicizationListExecutionEventsInput) {
     const threadId = typeof input?.threadId === 'string'
       ? input.threadId.trim()
+      : ''
+    const attemptId = typeof input?.attemptId === 'string'
+      ? input.attemptId.trim()
       : ''
     const decisionTraceId = typeof input?.decisionTraceId === 'string'
       ? input.decisionTraceId.trim()
@@ -5799,6 +5958,10 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       whereClauses.push('thread_id = ?')
       params.push(threadId)
     }
+    if (attemptId) {
+      whereClauses.push('attempt_id = ?')
+      params.push(attemptId)
+    }
     if (decisionTraceId) {
       whereClauses.push('decision_trace_id = ?')
       params.push(decisionTraceId)
@@ -5813,6 +5976,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       `
       SELECT
         id,
+        attempt_id,
         thread_id,
         decision_trace_id,
         turn_id,
@@ -10123,10 +10287,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     if (input.items.length === 0)
       return
 
+    const cardId = resolveMemoryCardId(input.cardId, 'working memory long-term queue')
     const currentTs = now()
     const transactions = input.items.map(item =>
       createWorkingMemoryLongTermCleaningTransaction({
-        cardId: input.cardId,
+        cardId,
         sessionId: input.sessionId,
         item,
         now: currentTs,
@@ -10327,10 +10492,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
   async function drainWorkingMemoryLongTermQueue(limit = 4) {
     return await workingMemoryLongTermDrainMutex.run(async () => {
+      const cardId = hasBoundCardScope ? boundCardId : null
       const result = await drainWorkingMemoryLongTermTransactions(
-        await workingMemoryLongTermCleaningStore.listDueTransactions(limit, now()),
+        await workingMemoryLongTermCleaningStore.listDueTransactions(limit, now(), cardId),
       )
-      const pending = (await workingMemoryLongTermCleaningStore.listDueTransactions(32, now())).length
+      const pending = (await workingMemoryLongTermCleaningStore.listDueTransactions(32, now(), cardId)).length
       return {
         ...result,
         pending,
@@ -10344,13 +10510,14 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     queueItemIds: string[]
   }) {
     return await workingMemoryLongTermDrainMutex.run(async () => {
+      const cardId = resolveMemoryCardId(input.cardId, 'working memory long-term scoped drain')
       const queueItemIds = [...new Set(
         input.queueItemIds
           .map(queueItemId => queueItemId.trim())
           .filter(Boolean),
       )]
       const scope = {
-        cardId: input.cardId,
+        cardId,
         sessionId: input.sessionId,
         queueItemIds,
       }
@@ -10408,7 +10575,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     limit?: number
     cursor?: string | null
   }): Promise<{ items: LongTermMemoryReviewItem[], nextCursor: string | null }> {
-    const page = await workingMemoryLongTermCleaningStore.listReviewTransactions(input)
+    const cardId = resolveMemoryCardId(input.cardId, 'long-term memory review list')
+    const page = await workingMemoryLongTermCleaningStore.listReviewTransactions({
+      ...input,
+      cardId,
+    })
     return {
       items: page.items
         .map(transaction => createLongTermMemoryReviewItemFromTransaction({
@@ -10432,12 +10603,13 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     reviewItemId: string
     decision: LongTermMemoryReviewDecision
   }): Promise<LongTermMemoryReviewItem | null> {
+    const cardId = resolveMemoryCardId(input.cardId, 'long-term memory review action')
     const reviewItemId = input.reviewItemId.trim()
     if (!reviewItemId)
       return null
 
     const page = await workingMemoryLongTermCleaningStore.listReviewTransactions({
-      cardId: input.cardId,
+      cardId,
       limit: 64,
     })
     for (const transaction of page.items) {
@@ -11191,11 +11363,15 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     limit?: number
     cursor?: string | null
   }) {
-    const page = await listLongTermMemoryReviewPage(input)
+    const cardId = resolveMemoryCardId(input.cardId, 'memory workbench review list')
+    const page = await listLongTermMemoryReviewPage({
+      ...input,
+      cardId,
+    })
     const items = page.items
     const sourceIds = items.flatMap(item => item.sourceMemoryIds)
     const policies = await memoryWorkbenchPolicyStore.listPolicyOverrides({
-      cardId: input.cardId,
+      cardId,
       sourceIds,
     })
     const policyBySourceId = new Map(
@@ -11225,15 +11401,16 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     decision: AlicizationMemoryWorkbenchReviewDecision
     reason?: string | null
   }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory workbench review action')
     if (input.decision === 'inward-only' || input.decision === 'no-training') {
-      const item = (await listLongTermMemoryReviewItems({ cardId: input.cardId, limit: 128 }))
+      const item = (await listLongTermMemoryReviewItems({ cardId, limit: 128 }))
         .find(row => row.id === input.reviewItemId)
       if (!item)
         return null
 
       const sourceIds = item.sourceMemoryIds.length > 0 ? item.sourceMemoryIds : [item.transactionId]
       const existingPolicies = await memoryWorkbenchPolicyStore.listPolicyOverrides({
-        cardId: input.cardId,
+        cardId,
         sourceIds,
       })
       const candidatePolicies = existingPolicies.filter(policy =>
@@ -11243,7 +11420,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       for (const sourceId of sourceIds) {
         const existingPolicy = existingPolicyBySourceId.get(sourceId)
         await memoryWorkbenchPolicyStore.upsertPolicyOverride({
-          cardId: input.cardId,
+          cardId,
           sourceId,
           source: 'working_memory_long_term_candidate',
           visibleMode: input.decision === 'inward-only' ? 'inward-only' : existingPolicy?.visibleMode ?? item.visibleMode,
@@ -11266,7 +11443,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         ? 'tombstone'
         : 'reject'
     const result = await applyLongTermMemoryReviewDecision({
-      cardId: input.cardId,
+      cardId,
       reviewItemId: input.reviewItemId,
       decision,
     })

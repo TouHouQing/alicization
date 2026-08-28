@@ -1,4 +1,4 @@
-import type { AlicizationTaskThreadRecord, AlicizationTaskThreadUpsertInput } from '../../../shared/eventa'
+import type { AlicizationExecutionEventInput, AlicizationExecutionEventRecord, AlicizationTaskThreadRecord, AlicizationTaskThreadUpsertInput } from '../../../shared/eventa'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -71,6 +71,90 @@ function createPausedThread(): AlicizationTaskThreadRecord {
   }
 }
 
+function createFailedObserveThread(): AlicizationTaskThreadRecord {
+  return {
+    ...createNeedsAffirmationThread(),
+    id: 'thread-retry-observe-1',
+    decisionTraceId: 'mind:trace:retry-observe-1',
+    turnId: 'turn-retry-observe-1',
+    sessionId: 'session-retry-observe-1',
+    origin: 'user-turn',
+    goal: 'Inspect the repository after the Codex process timed out.',
+    kind: 'codebase-investigation',
+    status: 'failed',
+    selectedChannel: 'codex',
+    proposedChannel: 'codex',
+    summary: 'Codex timed out before returning the investigation result.',
+    metadata: {
+      task: {
+        permissionMode: 'implicit',
+        effect: 'observe',
+        riskBudget: 'low',
+        justification: 'grounded',
+      },
+    },
+    createdAt: 100,
+    updatedAt: 240,
+    lastEventAt: 240,
+    completedAt: 240,
+  }
+}
+
+function createFailedMutatingThread(): AlicizationTaskThreadRecord {
+  return {
+    ...createNeedsAffirmationThread(),
+    id: 'thread-failed-mutation-1',
+    decisionTraceId: 'mind:trace:failed-mutation-1',
+    turnId: 'turn-failed-mutation-1',
+    sessionId: 'session-failed-mutation-1',
+    origin: 'user-turn',
+    goal: 'Apply the repository patch exactly once.',
+    kind: 'codebase-edit',
+    status: 'failed',
+    selectedChannel: 'codex',
+    proposedChannel: 'codex',
+    summary: 'Codex failed after mutation dispatch state became unclear.',
+    metadata: {
+      task: {
+        permissionMode: 'implicit',
+        effect: 'mutate',
+        riskBudget: 'medium',
+        justification: 'grounded',
+      },
+    },
+    createdAt: 100,
+    updatedAt: 260,
+    lastEventAt: 260,
+    completedAt: 260,
+  }
+}
+
+function createFailureEvent(
+  thread: AlicizationTaskThreadRecord,
+  overrides: Record<string, unknown> = {},
+): AlicizationExecutionEventRecord {
+  return {
+    id: `${thread.id}:failure`,
+    threadId: thread.id,
+    decisionTraceId: thread.decisionTraceId,
+    turnId: thread.turnId,
+    sessionId: thread.sessionId,
+    origin: thread.origin,
+    channel: thread.selectedChannel,
+    kind: 'result',
+    threadStatus: thread.status,
+    payload: {
+      failureKind: 'tool-execution',
+      errorCode: 'CODEX_TIMEOUT',
+      errorMessage: thread.summary,
+      sideEffectState: 'none',
+      effect: 'observe',
+      ...overrides,
+    },
+    createdAt: thread.updatedAt,
+  }
+}
+
 function createCapabilityManifest(overrides: Record<string, unknown> = {}) {
   return {
     channel: 'codex',
@@ -92,10 +176,26 @@ function createCapabilityManifest(overrides: Record<string, unknown> = {}) {
 function createDbState(
   initialThread: AlicizationTaskThreadRecord,
   initialCapabilityManifests: Array<Record<string, unknown>> = [],
+  initialExecutionEvents: AlicizationExecutionEventRecord[] = [],
 ) {
   let currentThread = initialThread
   const capabilityManifests = [...initialCapabilityManifests]
-  const appendExecutionEvents = vi.fn(async (_events: unknown[]) => {})
+  const executionEvents = [...initialExecutionEvents]
+  const appendExecutionEvents = vi.fn(async (events: AlicizationExecutionEventInput[]) => {
+    executionEvents.push(...events.map(event => ({
+      id: event.id ?? `${event.threadId}:${event.kind}:${event.createdAt ?? Date.now()}`,
+      threadId: event.threadId,
+      decisionTraceId: event.decisionTraceId ?? null,
+      turnId: event.turnId ?? null,
+      sessionId: event.sessionId ?? null,
+      origin: event.origin ?? 'user-turn',
+      channel: event.channel ?? null,
+      kind: event.kind,
+      threadStatus: event.threadStatus ?? null,
+      payload: event.payload ?? null,
+      createdAt: event.createdAt ?? Date.now(),
+    })))
+  })
   const getTaskThread = vi.fn(async (id: string) => id === currentThread.id ? { ...currentThread } : undefined)
   const upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadUpsertInput) => {
     currentThread = {
@@ -107,7 +207,7 @@ function createDbState(
     return { ...currentThread }
   })
   const resumeTaskThread = vi.fn(async (input: {
-    event: Record<string, unknown>
+    event: AlicizationExecutionEventInput
     expectedChannel: string
     expectedStatus: string
     expectedUpdatedAt: number
@@ -174,7 +274,15 @@ function createDbState(
       getTaskThread,
       getLatestRelationshipDynamics: vi.fn(async () => null),
       listChannelCapabilityManifests,
-      listExecutionEvents: vi.fn(async () => []),
+      listExecutionEvents: vi.fn(async (input?: { threadId?: string, limit?: number }) => {
+        const threadId = typeof input?.threadId === 'string' ? input.threadId : ''
+        const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit)
+          ? Math.max(1, Math.floor(input.limit))
+          : executionEvents.length
+        return executionEvents
+          .filter(event => !threadId || event.threadId === threadId)
+          .slice(-limit)
+      }),
       listRecentEpisodicEvents: vi.fn(async () => []),
       listExecutorSessions: vi.fn(async () => []),
       listTaskThreads: vi.fn(async () => []),
@@ -523,6 +631,10 @@ describe('executor runtime capability resolution', () => {
 })
 
 describe('executor runtime executeMainGatewayTaskThread', () => {
+  beforeEach(() => {
+    resetCapabilityProbeMocks()
+  })
+
   it('marks synchronous Provider-owned dispatches as inline result delivery', async () => {
     const dbState = createDbState(createNeedsAffirmationThread())
     const dispatchTaskThread = vi.fn(async (invocation: any) => ({
@@ -581,6 +693,110 @@ describe('executor runtime executeMainGatewayTaskThread', () => {
     expect(dispatchTaskThread).toHaveBeenCalledWith(expect.objectContaining({
       resultDeliveryMode: 'inline',
     }))
+  })
+
+  it('projects observe-only recovery after an inline dispatch fails', async () => {
+    const dbState = createDbState(createNeedsAffirmationThread())
+    const dispatchTaskThread = vi.fn(async (invocation: any) => {
+      const plannedThread = await invocation.port.getTaskThread(invocation.input.threadId)
+      await invocation.port.appendExecutionEvents([{
+        id: `${plannedThread.id}:inline-failure`,
+        attemptId: plannedThread.attemptId,
+        threadId: plannedThread.id,
+        decisionTraceId: plannedThread.decisionTraceId,
+        turnId: plannedThread.turnId,
+        sessionId: plannedThread.sessionId,
+        origin: plannedThread.origin,
+        channel: plannedThread.selectedChannel,
+        kind: 'result',
+        threadStatus: 'failed',
+        payload: {
+          failureKind: 'tool-execution',
+          errorCode: 'CODEX_TIMEOUT',
+          errorMessage: 'The inline inspection timed out.',
+          sideEffectState: 'none',
+        },
+        createdAt: 300,
+      }])
+      const failedThread = {
+        ...await invocation.port.getTaskThread(invocation.input.threadId),
+        status: 'failed',
+        summary: 'The inline inspection timed out.',
+        updatedAt: 300,
+        lastEventAt: 300,
+        completedAt: 300,
+        metadata: {
+          task: {
+            effect: 'observe',
+            permissionMode: 'implicit',
+          },
+        },
+      }
+      return {
+        ok: false,
+        summary: 'Codex inspection timed out.',
+        thread: failedThread,
+        createdEventKinds: ['dispatch', 'result'],
+        finalStatus: 'failed',
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'The inline inspection timed out.',
+      }
+    })
+    const runtime = createRuntime({
+      dbState,
+      dispatchTaskThread,
+      localCapabilities: [{
+        channel: 'codex',
+        available: true,
+        enabled: true,
+        ready: true,
+        sessionAffinity: true,
+        reason: null,
+      }],
+    })
+
+    const result = await runtime.executeMainGatewayTaskThread({
+      context: {
+        cardId: 'default',
+        turnId: 'turn-inline-failure',
+        decisionTraceId: 'trace-inline-failure',
+        sessionId: 'session-inline-failure',
+        toolCallId: 'codex-inline-failure-call-1',
+      },
+      task: {
+        kind: 'codebase-investigation',
+        goal: 'Inspect the repository inline and report failures honestly.',
+        origin: 'user',
+        effect: 'observe',
+        permissionMode: 'implicit',
+        justification: 'grounded',
+        riskBudget: 'low',
+        requestedChannel: 'codex',
+        prefersPersistentSession: true,
+        requiresVisualGrounding: false,
+      },
+      dispatch: {
+        codex: {
+          prompt: 'Inspect the repository without modifying files.',
+          sandbox: 'read-only',
+        },
+      },
+    } as any)
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'failed',
+      errorCode: 'CODEX_TIMEOUT',
+      recovery: {
+        state: 'available',
+        reasonCode: 'OBSERVE_RETRY_SAFE',
+        actions: [expect.objectContaining({
+          kind: 'retry',
+          expectedChannel: 'codex',
+          expectedUpdatedAt: expect.any(Number),
+        })],
+      },
+    })
   })
 
   it('returns an accepted Codex task without synchronously waiting for background dispatch', async () => {
@@ -970,6 +1186,236 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
       ok: true,
       finalStatus: 'completed',
     })
+  })
+
+  it('retries a failed observe-only Codex task from persisted failure evidence', async () => {
+    const failedThread = createFailedObserveThread()
+    const dbState = createDbState(
+      failedThread,
+      [],
+      [createFailureEvent(failedThread)],
+    )
+    let dispatchedPrompt = ''
+    const dispatchTaskThread = vi.fn(async ({ input }: any) => {
+      dispatchedPrompt = String(input.codex?.prompt ?? '')
+      return {
+        ok: true,
+        summary: 'Codex retry completed.',
+        thread: {
+          ...dbState.getCurrentThread(),
+          status: 'completed',
+          completedAt: 320,
+        },
+        createdEventKinds: ['resume', 'dispatch', 'result'],
+        finalStatus: 'completed',
+        output: 'inspection completed',
+      }
+    })
+    const runtime = createRuntime({ dbState, dispatchTaskThread })
+
+    const result = await runtime.resumeMainGatewayTaskThread({
+      context: { cardId: 'default' } as any,
+      threadId: failedThread.id,
+      expectedChannel: 'codex',
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      finalStatus: 'completed',
+    })
+    expect(dbState.getCurrentThread()).toMatchObject({
+      id: failedThread.id,
+      status: 'planned',
+      completedAt: null,
+      metadata: expect.objectContaining({
+        task: expect.objectContaining({
+          effect: 'observe',
+        }),
+        execution: expect.objectContaining({
+          recovery: expect.objectContaining({
+            mode: 'retry-observe',
+            previousStatus: 'failed',
+            replaySafety: 'safe',
+          }),
+        }),
+      }),
+    })
+    expect(dbState.appendExecutionEvents.mock.calls.flatMap(([events]) => events)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          threadId: failedThread.id,
+          kind: 'resume',
+          threadStatus: 'planned',
+          payload: expect.objectContaining({
+            resumeMode: 'retry',
+            retryBoundary: 'observe-only-retry',
+            previousStatus: 'failed',
+            effect: 'observe',
+            sideEffectState: 'none',
+          }),
+        }),
+      ]),
+    )
+    expect(dispatchTaskThread).toHaveBeenCalledTimes(1)
+    expect(dispatchTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+      input: expect.objectContaining({
+        codex: expect.objectContaining({
+          sandbox: 'read-only',
+        }),
+      }),
+    }))
+    expect(dispatchedPrompt).toContain('Retry the failed read-only task.')
+    expect(dispatchedPrompt).not.toContain('Make the code change now')
+  })
+
+  it('rejects a stale recovery action before redispatch', async () => {
+    const failedThread = createFailedObserveThread()
+    const dbState = createDbState(
+      failedThread,
+      [],
+      [createFailureEvent(failedThread)],
+    )
+    const dispatchTaskThread = vi.fn()
+    const runtime = createRuntime({ dbState, dispatchTaskThread })
+
+    const result = await runtime.resumeMainGatewayTaskThread({
+      context: { cardId: 'default', sessionId: failedThread.sessionId } as any,
+      threadId: failedThread.id,
+      expectedActionKind: 'retry',
+      expectedChannel: 'codex',
+      expectedUpdatedAt: failedThread.updatedAt - 1,
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'failed',
+      errorCode: 'TASK_THREAD_VERSION_CONFLICT',
+      recovery: {
+        state: 'available',
+        actions: [expect.objectContaining({
+          kind: 'retry',
+          expectedUpdatedAt: failedThread.updatedAt,
+        })],
+      },
+    })
+    expect(dispatchTaskThread).not.toHaveBeenCalled()
+    expect(dbState.resumeTaskThread).not.toHaveBeenCalled()
+  })
+
+  it('blocks a failed observe-only retry when no persisted failure event exists', async () => {
+    const failedThread = createFailedObserveThread()
+    const dbState = createDbState(failedThread)
+    const dispatchTaskThread = vi.fn()
+    const runtime = createRuntime({ dbState, dispatchTaskThread })
+
+    const result = await runtime.resumeMainGatewayTaskThread({
+      context: { cardId: 'default' } as any,
+      threadId: failedThread.id,
+      expectedChannel: 'codex',
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'failed',
+      errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+      recovery: {
+        state: 'blocked',
+        reasonCode: 'OBSERVE_RETRY_EVIDENCE_REQUIRED',
+        actions: [],
+      },
+    })
+    expect(dispatchTaskThread).not.toHaveBeenCalled()
+    expect(dbState.resumeTaskThread).not.toHaveBeenCalled()
+  })
+
+  it('keeps a failed mutating Codex task terminal instead of automatically replaying it', async () => {
+    const failedThread = createFailedMutatingThread()
+    const dbState = createDbState(
+      failedThread,
+      [],
+      [createFailureEvent(failedThread, {
+        effect: 'mutate',
+        sideEffectState: 'unknown',
+        failureDisposition: {
+          kind: 'recover',
+          reasonCode: 'SIDE_EFFECT_RECONCILIATION_REQUIRED',
+        },
+      })],
+    )
+    const dispatchTaskThread = vi.fn()
+    const runtime = createRuntime({ dbState, dispatchTaskThread })
+
+    const result = await runtime.resumeMainGatewayTaskThread({
+      context: { cardId: 'default' } as any,
+      threadId: failedThread.id,
+      expectedChannel: 'codex',
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'failed',
+      errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+      recovery: {
+        state: 'blocked',
+        reasonCode: 'MUTATION_REPLAY_BLOCKED',
+        actions: [],
+      },
+    })
+    expect(dispatchTaskThread).not.toHaveBeenCalled()
+    expect(dbState.upsertTaskThread).not.toHaveBeenCalled()
+  })
+
+  it('shares one persisted failed-task retry dispatch across concurrent resume calls', async () => {
+    const failedThread = createFailedObserveThread()
+    const dbState = createDbState(
+      failedThread,
+      [],
+      [createFailureEvent(failedThread)],
+    )
+    const deferredDispatch = createDeferred<any>()
+    const dispatchTaskThread = vi.fn(() => deferredDispatch.promise)
+    const runtime = createRuntime({ dbState, dispatchTaskThread })
+    const input = {
+      context: { cardId: 'default' } as any,
+      threadId: failedThread.id,
+      expectedChannel: 'codex' as const,
+    }
+
+    const first = runtime.resumeMainGatewayTaskThread(input)
+    const second = runtime.resumeMainGatewayTaskThread(input)
+
+    for (let attempt = 0; attempt < 50 && dispatchTaskThread.mock.calls.length === 0; attempt++)
+      await new Promise<void>(resolve => setTimeout(resolve, 0))
+    expect(first).toBe(second)
+    expect(dispatchTaskThread).toHaveBeenCalledTimes(1)
+
+    deferredDispatch.resolve({
+      ok: true,
+      summary: 'Concurrent retry completed once.',
+      thread: {
+        ...dbState.getCurrentThread(),
+        status: 'completed',
+        completedAt: Date.now(),
+      },
+      createdEventKinds: ['resume', 'result'],
+      finalStatus: 'completed',
+      output: 'completed',
+    })
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      expect.objectContaining({
+        ok: true,
+        finalStatus: 'completed',
+      }),
+      expect.objectContaining({
+        ok: true,
+        finalStatus: 'completed',
+      }),
+    ])
+    const resumeEvents = dbState.appendExecutionEvents.mock.calls
+      .flatMap(([events]) => events)
+      .filter(event => event.kind === 'resume')
+    expect(resumeEvents).toHaveLength(1)
   })
 
   it.each(['blocked', 'completed', 'failed', 'cancelled', 'dead-lettered'] as const)(

@@ -2,6 +2,8 @@ import type { AlicizationRuntimeToolCardProjection } from '@proj-alicization/sta
 
 import type {
   ChatHistoryItem,
+  ChatRecoveryAction,
+  ChatRecoveryProjection,
   ChatSlices,
   ChatSlicesExecutionStatus,
   StreamingAssistantMessage,
@@ -18,6 +20,63 @@ export interface ChatExecutorToolReplyEvidence {
   status: string
   summary: string
   toolName: string
+  recovery?: ChatRecoveryProjection
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isChatRecoveryAction(value: unknown): value is ChatRecoveryAction {
+  if (!isRecord(value))
+    return false
+  return (
+    (value.kind === 'continue' || value.kind === 'resume' || value.kind === 'retry')
+    && typeof value.threadId === 'string'
+    && value.threadId.trim().length > 0
+    && typeof value.expectedChannel === 'string'
+    && value.expectedChannel.trim().length > 0
+    && typeof value.expectedUpdatedAt === 'number'
+    && Number.isFinite(value.expectedUpdatedAt)
+    && (
+      value.safety === 'confirmation-required'
+      || value.safety === 'inspect-before-replay'
+      || value.safety === 'safe-observe-retry'
+    )
+    && typeof value.reasonCode === 'string'
+    && value.reasonCode.trim().length > 0
+  )
+}
+
+function isChatRecoveryProjection(value: unknown): value is ChatRecoveryProjection {
+  if (!isRecord(value))
+    return false
+  return (
+    (value.state === 'available' || value.state === 'blocked')
+    && typeof value.reasonCode === 'string'
+    && value.reasonCode.trim().length > 0
+    && Array.isArray(value.actions)
+    && value.actions.every(isChatRecoveryAction)
+  )
+}
+
+export function extractChatExecutorToolRecovery(result: unknown): ChatRecoveryProjection | null {
+  if (!isRecord(result))
+    return null
+
+  const directRecovery = result.recovery
+  if (isChatRecoveryProjection(directRecovery))
+    return directRecovery
+
+  for (const nestedKey of ['result', 'toolResult', 'toolCallResult']) {
+    const nested = result[nestedKey]
+    if (!isRecord(nested))
+      continue
+    if (isChatRecoveryProjection(nested.recovery))
+      return nested.recovery
+  }
+
+  return null
 }
 
 export interface ChatRecoveredTurnToolProjection {
@@ -125,10 +184,12 @@ export function extractChatExecutorToolReplyEvidence(
     : payload.output != null
       ? JSON.stringify(payload.output)
       : ''
+  const recovery = extractChatExecutorToolRecovery(result)
   const summary = sanitizeExecutorReplyEvidenceText(payload.summary)
     || sanitizeExecutorReplyEvidenceText(payload.errorMessage)
     || sanitizeExecutorReplyEvidenceText(rawOutput, 420)
     || sanitizeExecutorReplyEvidenceText(payload.status)
+    || (recovery ? 'recovery' : '')
 
   if (!summary)
     return null
@@ -145,6 +206,7 @@ export function extractChatExecutorToolReplyEvidence(
     output: sanitizeExecutorReplyEvidenceText(rawOutput, 420),
     errorCode: sanitizeExecutorReplyEvidenceText(payload.errorCode, 96),
     errorMessage: sanitizeExecutorReplyEvidenceText(payload.errorMessage, 280),
+    ...(recovery ? { recovery } : {}),
   }
 }
 
@@ -210,6 +272,8 @@ export function buildChatExecutionStatusFromProjection(
   const result = options?.result === undefined
     ? extractChatExecutorToolReplyEvidence(projection.result, projection.toolName)
     : options.result
+  const recovery = extractChatExecutorToolRecovery(options?.result)
+    ?? extractChatExecutorToolRecovery(projection.result)
   const detail = sanitizeExecutorReplyEvidenceText(
     result?.summary || result?.errorMessage || result?.output || '',
     96,
@@ -229,6 +293,7 @@ export function buildChatExecutionStatusFromProjection(
       ...commandDetails,
       label: `${channel} 上次运行未完成，需要恢复`,
       source: 'builtin',
+      ...(recovery ? { recovery } : {}),
     }
   }
 
@@ -246,6 +311,7 @@ export function buildChatExecutionStatusFromProjection(
       ...commandDetails,
       label: `${channel} 已取消执行`,
       source: 'builtin',
+      ...(recovery ? { recovery } : {}),
     }
   }
 
@@ -265,6 +331,7 @@ export function buildChatExecutionStatusFromProjection(
         ? `${channel} 执行超时（${progressErrorCode}）`
         : `${channel} 执行超时`,
       source: 'builtin',
+      ...(recovery ? { recovery } : {}),
     }
   }
 
@@ -286,6 +353,7 @@ export function buildChatExecutionStatusFromProjection(
           ? `${channel} 需要人工核对: ${progressDetail}`
           : `${channel} 需要人工核对`,
       source: 'builtin',
+      ...(recovery ? { recovery } : {}),
     }
   }
 
@@ -307,6 +375,7 @@ export function buildChatExecutionStatusFromProjection(
           ? `${channel} 没有跑通: ${progressDetail}`
           : `${channel} 没有跑通`,
       source: 'builtin',
+      ...(recovery ? { recovery } : {}),
     }
   }
 
@@ -325,6 +394,7 @@ export function buildChatExecutionStatusFromProjection(
           ? `${channel} 已完成（${Math.floor(elapsedMs / 1_000)} 秒）`
           : `${channel} 已经拿到结果`,
       source: 'builtin',
+      ...(recovery ? { recovery } : {}),
     }
   }
 
@@ -382,6 +452,7 @@ export function buildChatExecutionStatusFromProjection(
         ? `${channel} 进程仍在运行；最近进展：${semanticDetail}${elapsedLabel}`
         : `${channel} 进程仍在运行，暂时没有新进展${elapsedLabel}`,
       source: 'builtin',
+      ...(recovery ? { recovery } : {}),
     }
   }
   return {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import type { ChatAssistantMessage, ChatSlices, ChatSlicesText } from '../../../types/chat'
+import type { ChatAssistantMessage, ChatRecoveryAction, ChatSlices, ChatSlicesExecutionStatus, ChatSlicesText } from '../../../types/chat'
 
-import { computed } from 'vue'
+import { computed, shallowRef } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import ChatResponsePart from './response-part.vue'
 import ChatToolCallBlock from './tool-call-block.vue'
@@ -13,10 +14,17 @@ const props = withDefaults(defineProps<{
   label: string
   showPlaceholder?: boolean
   variant?: 'desktop' | 'mobile'
+  onRecoveryAction?: (action: ChatRecoveryAction) => void | Promise<void>
 }>(), {
   showPlaceholder: false,
   variant: 'desktop',
 })
+
+const emit = defineEmits<{
+  recoveryAction: [action: ChatRecoveryAction]
+}>()
+
+const { t } = useI18n()
 
 const resolvedSlices = computed<ChatSlices[]>(() => {
   if (props.message.slices?.length) {
@@ -41,6 +49,48 @@ const containerClass = computed(() => props.variant === 'mobile' ? 'mr-0' : 'mr-
 const boxClasses = computed(() => [
   props.variant === 'mobile' ? 'px-2 py-2 text-sm bg-primary-50/90 dark:bg-primary-950/90' : 'px-3 py-3 bg-primary-50/80 dark:bg-primary-950/80',
 ])
+
+const pendingRecoveryActionKey = shallowRef<string>()
+
+function recoveryActionKey(action: ChatRecoveryAction) {
+  return `${action.kind}:${action.threadId}:${action.expectedUpdatedAt}`
+}
+
+function recoveryActions(slice: ChatSlicesExecutionStatus) {
+  if (!props.onRecoveryAction || slice.recovery?.state !== 'available')
+    return []
+  return slice.recovery.actions
+}
+
+function isExecutionInProgress(slice: ChatSlicesExecutionStatus) {
+  return slice.phase === 'planning' || slice.phase === 'tool-running'
+}
+
+function isRecoveryActionDisabled(slice: ChatSlicesExecutionStatus, action: ChatRecoveryAction) {
+  return isExecutionInProgress(slice) || pendingRecoveryActionKey.value === recoveryActionKey(action)
+}
+
+function recoveryActionLabel(action: ChatRecoveryAction) {
+  return t(`stage.chat.tool-recovery.${action.kind}`)
+}
+
+async function handleRecoveryAction(action: ChatRecoveryAction) {
+  if (!props.onRecoveryAction)
+    return
+
+  const actionKey = recoveryActionKey(action)
+  if (pendingRecoveryActionKey.value === actionKey)
+    return
+
+  pendingRecoveryActionKey.value = actionKey
+  try {
+    emit('recoveryAction', action)
+    await props.onRecoveryAction(action)
+  }
+  finally {
+    pendingRecoveryActionKey.value = undefined
+  }
+}
 </script>
 
 <template>
@@ -81,6 +131,23 @@ const boxClasses = computed(() => [
           >
             <div class="font-medium">
               {{ slice.label }}
+            </div>
+            <div v-if="slice.errorMessage" class="mt-1 whitespace-pre-wrap break-words opacity-85">
+              {{ slice.errorMessage }}
+            </div>
+            <div v-if="recoveryActions(slice).length > 0" class="mt-2 flex flex-wrap gap-1">
+              <button
+                v-for="action in recoveryActions(slice)"
+                :key="recoveryActionKey(action)"
+                type="button"
+                data-recovery-action
+                :disabled="isRecoveryActionDisabled(slice, action)"
+                :title="recoveryActionLabel(action)"
+                class="border border-current/25 rounded px-1.5 py-0.5 text-[11px] leading-4 transition-colors disabled:cursor-not-allowed hover:bg-current/10 disabled:opacity-50"
+                @click="handleRecoveryAction(action)"
+              >
+                {{ recoveryActionLabel(action) }}
+              </button>
             </div>
             <pre
               v-if="slice.outputPreview"

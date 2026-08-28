@@ -94,6 +94,8 @@ import type {
   AlicizationReplayBenchmarkTelemetryPatch as SharedAlicizationReplayBenchmarkTelemetryPatch,
   AlicizationReplayMemoryQualityRecord as SharedAlicizationReplayMemoryQualityRecord,
   AlicizationResidentPerformanceSnapshot as SharedAlicizationResidentPerformanceSnapshot,
+  AlicizationResumeTaskThreadInput as SharedAlicizationResumeTaskThreadInput,
+  AlicizationResumeTaskThreadResult as SharedAlicizationResumeTaskThreadResult,
   AlicizationRunReplayBenchmarkInput as SharedAlicizationRunReplayBenchmarkInput,
   AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
   AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
@@ -1056,6 +1058,8 @@ export type AlicizationPlanTaskThreadResult = SharedAlicizationPlanTaskThreadRes
 export interface AlicizationDispatchTaskThreadPayload extends SharedAlicizationDispatchTaskThreadInput {}
 
 export type AlicizationDispatchTaskThreadResult = SharedAlicizationDispatchTaskThreadResult
+export type AlicizationResumeTaskThreadInput = SharedAlicizationResumeTaskThreadInput
+export type AlicizationResumeTaskThreadResult = SharedAlicizationResumeTaskThreadResult
 
 export type AlicizationAuditLogLevel = 'info' | 'notice' | 'warning' | 'critical'
 
@@ -2504,6 +2508,7 @@ export interface AlicizationLlmConfigPayload {
 
 export interface AlicizationChatStartPayload extends AlicizationCardScope {
   turnId: string
+  sessionId?: string
   providerId: string
   model: string
   providerConfig: Record<string, unknown>
@@ -2669,6 +2674,7 @@ interface AlicizationBridge {
   listExecutionEvents?: (payload: AlicizationListExecutionEventsPayload) => Promise<AlicizationExecutionEventRecord[]>
   planTaskThread?: (payload: AlicizationPlanTaskThreadPayload) => Promise<AlicizationPlanTaskThreadResult>
   dispatchTaskThread?: (payload: AlicizationDispatchTaskThreadPayload) => Promise<AlicizationDispatchTaskThreadResult>
+  resumeTaskThread?: (payload: AlicizationResumeTaskThreadInput) => Promise<AlicizationResumeTaskThreadResult>
   reportProactiveFeedback?: (payload: AlicizationProactiveFeedbackPayload) => Promise<void>
   setActiveSession?: (payload: { sessionId: string }) => Promise<void>
   appendAuditLog: (payload: AlicizationAuditLogInput) => Promise<void>

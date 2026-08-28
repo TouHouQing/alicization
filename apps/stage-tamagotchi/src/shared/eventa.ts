@@ -194,6 +194,8 @@ import type {
   AlicizationReplayHumanRatingRubric as SharedAlicizationReplayHumanRatingRubric,
   AlicizationReplayMemoryQualityRecord as SharedAlicizationReplayMemoryQualityRecord,
   AlicizationResidentPerformanceSnapshot as SharedAlicizationResidentPerformanceSnapshot,
+  AlicizationResumeTaskThreadInput as SharedAlicizationResumeTaskThreadInput,
+  AlicizationResumeTaskThreadResult as SharedAlicizationResumeTaskThreadResult,
   AlicizationRunReplayBenchmarkInput as SharedAlicizationRunReplayBenchmarkInput,
   AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
   AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
@@ -211,6 +213,10 @@ import type {
   AlicizationSystemProbeDegradeReason as SharedAlicizationSystemProbeDegradeReason,
   AlicizationSystemProbeSample as SharedAlicizationSystemProbeSample,
   AlicizationTaskThreadRecord as SharedAlicizationTaskThreadRecord,
+  AlicizationTaskThreadRecoveryAction as SharedAlicizationTaskThreadRecoveryAction,
+  AlicizationTaskThreadRecoveryActionKind as SharedAlicizationTaskThreadRecoveryActionKind,
+  AlicizationTaskThreadRecoveryProjection as SharedAlicizationTaskThreadRecoveryProjection,
+  AlicizationTaskThreadRecoverySafety as SharedAlicizationTaskThreadRecoverySafety,
   AlicizationTaskThreadStatus as SharedAlicizationTaskThreadStatus,
   AlicizationTaskThreadUpsertInput as SharedAlicizationTaskThreadUpsertInput,
   AlicizationVisibleArtifactLearningPolicy as SharedAlicizationVisibleArtifactLearningPolicy,
@@ -1495,6 +1501,13 @@ export type AlicizationTaskThreadStatus = SharedAlicizationTaskThreadStatus
 export type AlicizationTaskThreadUpsertInput = SharedAlicizationTaskThreadUpsertInput
 
 export type AlicizationTaskThreadRecord = SharedAlicizationTaskThreadRecord
+
+export type AlicizationTaskThreadRecoveryActionKind = SharedAlicizationTaskThreadRecoveryActionKind
+export type AlicizationTaskThreadRecoverySafety = SharedAlicizationTaskThreadRecoverySafety
+export type AlicizationTaskThreadRecoveryAction = SharedAlicizationTaskThreadRecoveryAction
+export type AlicizationTaskThreadRecoveryProjection = SharedAlicizationTaskThreadRecoveryProjection
+export type AlicizationResumeTaskThreadInput = SharedAlicizationResumeTaskThreadInput
+export type AlicizationResumeTaskThreadResult = SharedAlicizationResumeTaskThreadResult
 
 export interface AlicizationUpsertTaskThreadPayload extends AlicizationCardScope, AlicizationTaskThreadUpsertInput {}
 
@@ -4088,6 +4101,7 @@ export const electronAlicizationAppendExecutionEvents = defineInvokeEventa<void,
 export const electronAlicizationListExecutionEvents = defineInvokeEventa<AlicizationExecutionEventRecord[], AlicizationListExecutionEventsPayload>('eventa:invoke:electron:alicization:executor:list-events')
 export const electronAlicizationPlanTaskThread = defineInvokeEventa<AlicizationPlanTaskThreadResult, AlicizationPlanTaskThreadPayload>('eventa:invoke:electron:alicization:executor:plan-task-thread')
 export const electronAlicizationDispatchTaskThread = defineInvokeEventa<AlicizationDispatchTaskThreadResult, AlicizationDispatchTaskThreadPayload>('eventa:invoke:electron:alicization:executor:dispatch-task-thread')
+export const electronAlicizationResumeTaskThread = defineInvokeEventa<AlicizationResumeTaskThreadResult, AlicizationCardScope & AlicizationResumeTaskThreadInput>('eventa:invoke:electron:alicization:executor:resume-task-thread')
 export const electronAlicizationAckDialogue = defineInvokeEventa<void, AlicizationDialogueAckPayload>('eventa:invoke:electron:alicization:conversation:ack-dialogue')
 export const electronAlicizationReportProactiveFeedback = defineInvokeEventa<void, AlicizationProactiveFeedbackPayload>('eventa:invoke:electron:alicization:conversation:report-proactive-feedback')
 export const electronAlicizationReplayDialogues = defineInvokeEventa<AlicizationDialogueRespondedPayload[], AlicizationReplayDialoguesPayload>('eventa:invoke:electron:alicization:conversation:replay-dialogues')

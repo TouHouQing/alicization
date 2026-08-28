@@ -137,6 +137,7 @@ import {
   electronAlicizationReminderSchedule,
   electronAlicizationReplayDialogues,
   electronAlicizationReportProactiveFeedback,
+  electronAlicizationResumeTaskThread,
   electronAlicizationRunMemoryPrune,
   electronAlicizationRunReplayBenchmark,
   electronAlicizationSafetyResolvePermission,
@@ -271,6 +272,7 @@ const alicizationAppendExecutionEvents = useElectronEventaInvoke(electronAliciza
 const alicizationListExecutionEvents = useElectronEventaInvoke(electronAlicizationListExecutionEvents)
 const alicizationPlanTaskThread = useElectronEventaInvoke(electronAlicizationPlanTaskThread)
 const alicizationDispatchTaskThread = useElectronEventaInvoke(electronAlicizationDispatchTaskThread)
+const alicizationResumeTaskThread = useElectronEventaInvoke(electronAlicizationResumeTaskThread)
 const alicizationGetMemoryStats = useElectronEventaInvoke(electronAlicizationGetMemoryStats)
 const alicizationGetOrganicMemorySnapshot = useElectronEventaInvoke(electronAlicizationGetOrganicMemorySnapshot)
 const alicizationGetSelfEvolutionState = useElectronEventaInvoke(electronAlicizationGetSelfEvolutionState)
@@ -1035,6 +1037,9 @@ function sanitizeRendererAlicizationChatStartPayload(
   return sanitizeAlicizationChatStartPayloadForTransport({
     cardId,
     turnId: payload.turnId,
+    ...((payload.sessionId?.trim() || activeSessionId.value?.trim())
+      ? { sessionId: payload.sessionId?.trim() || activeSessionId.value.trim() }
+      : {}),
     providerId: payload.providerId,
     model: payload.model,
     providerConfig: payload.providerConfig,
@@ -1442,6 +1447,7 @@ setAlicizationBridge({
   listExecutionEvents: async payload => await alicizationListExecutionEvents({ ...resolveAlicizationScope(), ...payload }),
   planTaskThread: async payload => await alicizationPlanTaskThread({ ...resolveAlicizationScope(), ...payload }),
   dispatchTaskThread: async payload => await alicizationDispatchTaskThread({ ...resolveAlicizationScope(), ...payload }),
+  resumeTaskThread: async payload => await alicizationResumeTaskThread({ ...resolveAlicizationScope(), ...payload }),
   reportProactiveFeedback: async payload => await alicizationReportProactiveFeedback({ ...resolveAlicizationScope(), ...payload }),
   setActiveSession: async payload => await alicizationSetActiveSession({ ...resolveAlicizationScope(), ...payload }),
   appendAuditLog: async payload => await alicizationAppendAuditLog({ ...resolveAlicizationScope(), ...payload }),

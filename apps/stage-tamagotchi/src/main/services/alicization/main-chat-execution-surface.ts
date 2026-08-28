@@ -6,6 +6,10 @@ import type {
   AlicizationExecutionEventInput,
   AlicizationExecutionRuntimeContext,
   AlicizationProviderToolCapabilityObservation,
+  AlicizationTaskThreadRecoveryAction,
+  AlicizationTaskThreadRecoveryActionKind,
+  AlicizationTaskThreadRecoveryProjection,
+  AlicizationTaskThreadRecoverySafety,
   AlicizationTaskThreadStatus,
 } from '@proj-alicization/stage-shared'
 import type { Tool } from '@xsai/shared-chat'
@@ -84,6 +88,7 @@ export interface MainGatewayExecutionTaskThreadResult {
   finalStatus?: AlicizationTaskThreadStatus | null
   ok: boolean
   output?: unknown | null
+  recovery?: MainGatewayExecutionRecoveryProjection
   plan: {
     state: string
     proposedChannel?: AlicizationExecutionChannel | null
@@ -103,6 +108,11 @@ export interface MainGatewayExecutionTaskThreadResult {
     metadata?: Record<string, unknown> | null
   }
 }
+
+export type MainGatewayExecutionRecoveryActionKind = AlicizationTaskThreadRecoveryActionKind
+export type MainGatewayExecutionRecoverySafety = AlicizationTaskThreadRecoverySafety
+export type MainGatewayExecutionRecoveryAction = AlicizationTaskThreadRecoveryAction
+export type MainGatewayExecutionRecoveryProjection = AlicizationTaskThreadRecoveryProjection
 
 export interface MainGatewayToolExecutionProgress {
   toolCallId: string
@@ -162,7 +172,9 @@ export interface BuildMainGatewayToolsOptions {
   resumeTaskThread?: (input: {
     context: MainGatewayExecutionToolContext
     dispatchMode?: 'inline' | 'background'
+    expectedActionKind?: MainGatewayExecutionRecoveryActionKind
     expectedChannel: AlicizationExecutionChannel
+    expectedUpdatedAt?: number
     threadId: string
     abortSignal?: AbortSignal
     onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
@@ -1050,6 +1062,7 @@ function toMainGatewayExecutorToolResult(result: MainGatewayExecutionTaskThreadR
     errorCode: result.errorCode,
     errorMessage: result.errorMessage,
     createdEventKinds: result.createdEventKinds ?? [],
+    ...(result.recovery ? { recovery: result.recovery } : {}),
     continuationPolicy: nonTerminalRoutingFeedback || (result.ok && result.finalStatus !== 'cancelled')
       ? 'continue'
       : 'stop',

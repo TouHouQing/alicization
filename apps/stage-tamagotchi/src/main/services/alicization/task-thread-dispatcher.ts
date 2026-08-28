@@ -631,6 +631,16 @@ export async function dispatchTaskThread(
   let thread = await port.getTaskThread(input.threadId)
   if (!thread)
     throw new Error(`Task thread "${input.threadId}" was not found.`)
+  // Keep every adapter event attached to the attempt that was dispatchable at
+  // the start of this run. Late callbacks must remain historical evidence
+  // instead of being projected onto a later retry attempt.
+  const dispatchAttemptId = thread.attemptId ?? null
+  const appendExecutionEventsForAttempt = async (events: AlicizationExecutionEventInput[]) => {
+    await port.appendExecutionEvents(events.map(event => ({
+      ...event,
+      attemptId: event.attemptId ?? dispatchAttemptId,
+    })))
+  }
 
   if (thread.status !== 'planned') {
     return {
@@ -762,7 +772,7 @@ export async function dispatchTaskThread(
       finalStatus = blockedThread.status
       const eventWrite = await runBoundedPersistence({
         label: 'kill-switch block event persistence',
-        operation: async () => await port.appendExecutionEvents([blockedEvent]),
+        operation: async () => await appendExecutionEventsForAttempt([blockedEvent]),
         timeoutMs: eventPersistenceTimeoutMs,
       })
       if (!eventWrite.ok)
@@ -1058,7 +1068,7 @@ export async function dispatchTaskThread(
         }
         const write = await runBoundedPersistence({
           label: `realtime execution event persistence attempt ${attempt}`,
-          operation: async () => await port.appendExecutionEvents(pendingEvents),
+          operation: async () => await appendExecutionEventsForAttempt(pendingEvents),
           timeoutMs: eventPersistenceTimeoutMs,
         })
         if (write.ok) {
@@ -1102,7 +1112,7 @@ export async function dispatchTaskThread(
       if (!hasPersistedLiveEvent(event)) {
         const eventWrite = await runBoundedPersistence({
           label: 'late execution event persistence',
-          operation: async () => await port.appendExecutionEvents([evidenceOnlyEvent]),
+          operation: async () => await appendExecutionEventsForAttempt([evidenceOnlyEvent]),
           timeoutMs: eventPersistenceTimeoutMs,
         })
         if (eventWrite.ok)
@@ -1301,7 +1311,7 @@ export async function dispatchTaskThread(
   if (finalEvents.length > 0) {
     const finalWrite = await runBoundedPersistence({
       label: 'final execution event persistence',
-      operation: async () => await port.appendExecutionEvents(finalEvents),
+      operation: async () => await appendExecutionEventsForAttempt(finalEvents),
       timeoutMs: eventPersistenceTimeoutMs,
     })
     if (finalWrite.ok)

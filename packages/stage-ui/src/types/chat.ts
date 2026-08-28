@@ -2,7 +2,12 @@ import type { ContextUpdate, MetadataEventSource, WebSocketEventInputs } from '@
 import type {
   AlicizationChatFailureSurface,
   AlicizationChatMemoryFailureSurface,
+  AlicizationExecutionChannel,
   AlicizationProviderMemoryUsage,
+  AlicizationTaskThreadRecoveryAction,
+  AlicizationTaskThreadRecoveryActionKind,
+  AlicizationTaskThreadRecoveryProjection,
+  AlicizationTaskThreadRecoverySafety,
   AlicizationVisibleArtifactLearningPolicy,
   AlicizationVisibleArtifactOrigin,
   AlicizationVisibleReplyRealizationTransportArtifact,
@@ -36,6 +41,16 @@ export interface ChatSlicesToolCallResult {
   result?: unknown
 }
 
+export type ChatRecoveryActionKind = AlicizationTaskThreadRecoveryActionKind
+export type ChatRecoverySafety = AlicizationTaskThreadRecoverySafety
+export type ChatRecoveryAction = Pick<
+  AlicizationTaskThreadRecoveryAction,
+  'kind' | 'threadId' | 'expectedChannel' | 'expectedUpdatedAt' | 'safety' | 'reasonCode'
+> & { expectedChannel: AlicizationExecutionChannel }
+export type ChatRecoveryProjection = Omit<AlicizationTaskThreadRecoveryProjection, 'actions'> & {
+  actions: ChatRecoveryAction[]
+}
+
 export interface ChatSlicesExecutionStatus {
   type: 'execution-status'
   phase: 'planning' | 'tool-running' | 'tool-recovery-required' | 'tool-cancelled' | 'tool-timeout' | 'tool-failed' | 'tool-dead-lettered' | 'completed'
@@ -56,6 +71,7 @@ export interface ChatSlicesExecutionStatus {
   outputPreview?: string
   source?: 'builtin' | 'mcp'
   category?: 'news' | 'weather' | 'finance' | 'sports'
+  recovery?: ChatRecoveryProjection
 }
 
 export type ChatSlices = ChatSlicesText | ChatSlicesToolCall | ChatSlicesToolCallResult | ChatSlicesExecutionStatus

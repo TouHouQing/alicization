@@ -64,6 +64,7 @@ const mindTurnEvents: Array<{
 }> = []
 const taskThreads = new Map<string, {
   id: string
+  current_attempt_id: string | null
   decision_trace_id: string | null
   turn_id: string | null
   session_id: string | null
@@ -82,6 +83,7 @@ const taskThreads = new Map<string, {
 }>()
 const executionEvents: Array<{
   id: string
+  attempt_id: string | null
   thread_id: string
   decision_trace_id: string | null
   turn_id: string | null
@@ -787,11 +789,11 @@ class FakeSqliteDatabase {
     }
 
     if (sql.includes('INSERT INTO task_threads')) {
-      const [id, decisionTraceId, turnId, sessionId, origin, goal, kind, status, selectedChannel, proposedChannel, summary, metadataJson, createdAt, updatedAt, lastEventAt, completedAt]
-        = actualParams as [string, string | null, string | null, string | null, 'user-turn' | 'subconscious-proactive' | 'system', string, string, string, string | null, string | null, string | null, string | null, number, number, number | null, number | null]
+      const [id, attemptId, decisionTraceId, turnId, sessionId, origin, goal, kind, status, selectedChannel, proposedChannel, summary, metadataJson, createdAt, updatedAt, lastEventAt, completedAt]
+        = actualParams as [string, string | null, string | null, string | null, string | null, 'user-turn' | 'subconscious-proactive' | 'system', string, string, string, string | null, string | null, string | null, string | null, number, number, number | null, number | null]
       const existing = taskThreads.get(id)
-      const expectedUpdatedAt = actualParams.length > 16
-        ? actualParams[16] as number | null
+      const expectedUpdatedAt = actualParams.length > 17
+        ? actualParams[17] as number | null
         : null
       const createOnly = sql.includes('ON CONFLICT(id) DO NOTHING')
       if (existing && createOnly) {
@@ -800,12 +802,19 @@ class FakeSqliteDatabase {
       else if (existing && expectedUpdatedAt !== null && existing.updated_at !== expectedUpdatedAt) {
         changes = 0
       }
-      else if (existing && existing.status === 'dead-lettered' && status !== 'dead-lettered') {
+      else if (
+        existing
+        && (
+          (existing.status === 'dead-lettered' && status !== 'dead-lettered')
+          || (existing.status === 'failed' && status === 'planned')
+        )
+      ) {
         changes = 0
       }
       else {
         taskThreads.set(id, {
           id,
+          current_attempt_id: existing?.current_attempt_id ?? attemptId ?? `${id}:attempt:fake`,
           decision_trace_id: decisionTraceId ?? null,
           turn_id: turnId ?? null,
           session_id: sessionId ?? null,
@@ -828,14 +837,15 @@ class FakeSqliteDatabase {
     }
 
     if (sql.includes('INTO executor_events')) {
-      const [id, threadId, decisionTraceId, turnId, sessionId, origin, channel, kind, threadStatus, payloadJson, createdAt]
-        = actualParams as [string, string, string | null, string | null, string | null, 'user-turn' | 'subconscious-proactive' | 'system', string | null, string, string | null, string | null, number]
+      const [id, attemptId, threadId, decisionTraceId, turnId, sessionId, origin, channel, kind, threadStatus, payloadJson, createdAt]
+        = actualParams as [string, string | null, string, string | null, string | null, string | null, 'user-turn' | 'subconscious-proactive' | 'system', string | null, string, string | null, string | null, number]
       if (executionEvents.some(event => event.id === id)) {
         changes = 0
       }
       else {
         executionEvents.push({
           id,
+          attempt_id: attemptId ?? null,
           thread_id: threadId,
           decision_trace_id: decisionTraceId ?? null,
           turn_id: turnId ?? null,
@@ -1386,9 +1396,31 @@ class FakeSqliteDatabase {
     else if (sql.includes('DELETE FROM mind_turn_events')) {
       mindTurnEvents.length = 0
     }
+    else if (sql.includes('UPDATE task_threads') && sql.includes('SET current_attempt_id = ?')) {
+      const [attemptId, selectedChannel, metadataJson, updatedAt, lastEventAt, id, expectedUpdatedAt, expectedStatus, expectedChannel]
+        = actualParams as [string, string, string | null, number, number, string, number, string, string]
+      const thread = taskThreads.get(id)
+      if (
+        !thread
+        || thread.updated_at !== expectedUpdatedAt
+        || thread.status !== expectedStatus
+        || (thread.selected_channel ?? thread.proposed_channel) !== expectedChannel
+      ) {
+        changes = 0
+      }
+      else {
+        thread.current_attempt_id = attemptId
+        thread.status = 'planned'
+        thread.selected_channel = selectedChannel
+        thread.metadata_json = metadataJson
+        thread.updated_at = Math.max(updatedAt, thread.updated_at + 1)
+        thread.last_event_at = lastEventAt
+        thread.completed_at = null
+      }
+    }
     else if (sql.includes('UPDATE task_threads')) {
-      const [updatedAt, lastEventAt, projectedLastEventAt, status, completedAt, id, projectedStatus, activityAt]
-        = actualParams as [number, number, number, string | null, number | null, string, string | null, number]
+      const [updatedAt, lastEventAt, projectedLastEventAt, status, completedAt, id, attemptId, expectedAttemptId, projectedStatus, activityAt]
+        = actualParams as [number, number, number, string | null, number | null, string, string | null, string | null, string | null, number]
       const thread = taskThreads.get(id)
       if (!thread) {
         changes = 0
@@ -1400,9 +1432,11 @@ class FakeSqliteDatabase {
         const incomingDeadLettered = projectedStatus === 'dead-lettered'
         const currentLastEventAt = thread.last_event_at
         const projectionIsCurrent = currentLastEventAt === null || currentLastEventAt <= activityAt
+        const attemptMatches = thread.current_attempt_id === attemptId
+          || (thread.current_attempt_id === null && attemptId === null && expectedAttemptId === null)
         if (
-          (!currentTerminal && (incomingTerminal || projectionIsCurrent))
-          || (currentTerminal && incomingDeadLettered && thread.status !== 'dead-lettered')
+          (attemptMatches && !currentTerminal && (incomingTerminal || projectionIsCurrent))
+          || (attemptMatches && currentTerminal && incomingDeadLettered && thread.status !== 'dead-lettered')
         ) {
           thread.updated_at = Math.max(thread.updated_at, updatedAt)
           thread.last_event_at = currentLastEventAt === null || currentLastEventAt < lastEventAt
@@ -1475,6 +1509,15 @@ class FakeSqliteDatabase {
     if (sql.includes('FROM task_threads') && sql.includes('WHERE id = ?')) {
       const id = String(actualParams[0] ?? '')
       actualCallback?.(null, id ? taskThreads.get(id) : undefined)
+      return this
+    }
+
+    if (sql.includes('SELECT kind, thread_status, payload_json') && sql.includes('FROM executor_events')) {
+      const [threadId, attemptId] = actualParams as [string, string]
+      const row = [...executionEvents]
+        .filter(event => event.thread_id === threadId && event.attempt_id === attemptId && event.kind === 'result' && event.thread_status === 'failed')
+        .sort((left, right) => right.created_at - left.created_at)[0]
+      actualCallback?.(null, row)
       return this
     }
 
@@ -1849,6 +1892,9 @@ class FakeSqliteDatabase {
       const threadId = _sql.includes('thread_id = ?')
         ? String(actualParams[cursor++] ?? '')
         : ''
+      const attemptId = _sql.includes('attempt_id = ?')
+        ? String(actualParams[cursor++] ?? '')
+        : ''
       const decisionTraceId = _sql.includes('decision_trace_id = ?')
         ? String(actualParams[cursor++] ?? '')
         : ''
@@ -1859,6 +1905,8 @@ class FakeSqliteDatabase {
       const rows = executionEvents
         .filter((event) => {
           if (threadId && event.thread_id !== threadId)
+            return false
+          if (attemptId && event.attempt_id !== attemptId)
             return false
           if (decisionTraceId && event.decision_trace_id !== decisionTraceId)
             return false
@@ -2048,6 +2096,116 @@ describe('alicization sqlite dao', () => {
     expect(await db.getJournalMode()).toBe('wal')
     await db.close()
   })
+
+  it('recovers queued and running leased reindex jobs during a database restart', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const cardId = 'card-reindex-restart'
+    const rootDir = join(userDataPath, 'alicizations', 'cards', cardId)
+    const embeddedTexts: string[] = []
+    const provider = {
+      modelId: 'restart-embedding',
+      dimensions: 3,
+      vectorSpaceId: 'restart-embedding:3',
+      embedTexts: async (texts: string[]) => {
+        embeddedTexts.push(...texts)
+        return texts.map(text => ({
+          text,
+          vector: [1, 0, 0],
+        }))
+      },
+    }
+
+    const initial = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId,
+      sqliteDriver: actualSqliteDriver,
+    })
+    await initial.close()
+
+    const database = await openActualSqlite(join(rootDir, 'alicization.db'))
+    await runActualSqlite(database, `
+      INSERT INTO memory_embedding_reindex_jobs (
+        id, card_id, model_id, dimensions, vector_space_id, status, stage,
+        projection_source, projection_source_ids_json, projection_limit,
+        max_attempts, last_error, created_at, updated_at, started_at, completed_at
+      ) VALUES
+        ('restart-queued', ?, ?, ?, ?, 'queued', 'embedding-indexing', NULL, NULL, NULL, 2, NULL, 1, 1, NULL, NULL),
+        ('restart-running', ?, ?, ?, ?, 'running', 'embedding-indexing', NULL, NULL, NULL, 2, NULL, 2, 2, 2, NULL)
+    `, [
+      cardId,
+      provider.modelId,
+      provider.dimensions,
+      provider.vectorSpaceId,
+      cardId,
+      provider.modelId,
+      provider.dimensions,
+      provider.vectorSpaceId,
+    ])
+    await runActualSqlite(database, `
+      INSERT INTO memory_embedding_reindex_items (
+        id, job_id, card_id, source_id, source, text, text_hash, status,
+        attempt_count, lease_token, lease_expires_at, next_retry_at, last_error,
+        created_at, updated_at, indexed_at
+      ) VALUES
+        ('restart-queued-item', 'restart-queued', ?, 'queued-memory', 'memory_reflections', 'queued restart memory', '', 'pending', 0, NULL, NULL, NULL, NULL, 1, 1, NULL),
+        ('restart-running-item', 'restart-running', ?, 'running-memory', 'memory_reflections', 'running restart memory', '', 'leased', 1, 'stale-lease', 1, NULL, NULL, 2, 2, NULL)
+    `, [cardId, cardId])
+    await closeActualSqlite(database)
+
+    const restarted = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId,
+      sqliteDriver: actualSqliteDriver,
+      embeddingProvider: provider,
+    })
+    try {
+      const waitForTerminalReindex = async (jobId: string) => {
+        let latest: Awaited<ReturnType<typeof restarted.reindexMemoryWorkbenchEmbeddings>> | null = null
+        const deadlineAt = Date.now() + 10_000
+        while (Date.now() < deadlineAt) {
+          latest = await restarted.reindexMemoryWorkbenchEmbeddings({
+            cardId,
+            action: 'status',
+            jobId,
+          })
+          if (['completed', 'cancelled', 'failed'].includes(latest.status ?? ''))
+            return latest
+          const retryDelay = latest.progress?.nextRetryAt
+            ? Math.max(5, Math.min(100, latest.progress.nextRetryAt - Date.now()))
+            : 5
+          await new Promise(resolve => setTimeout(resolve, retryDelay))
+        }
+        throw new Error(`embedding reindex did not recover after restart: ${jobId}; latest=${JSON.stringify(latest)}`)
+      }
+
+      const [recoveredQueued, recoveredRunning] = await Promise.all([
+        waitForTerminalReindex('restart-queued'),
+        waitForTerminalReindex('restart-running'),
+      ])
+      expect(recoveredQueued).toMatchObject({
+        status: 'completed',
+        indexed: 1,
+        failed: 0,
+      })
+      expect(recoveredRunning).toMatchObject({
+        status: 'completed',
+        indexed: 1,
+        failed: 0,
+      })
+      expect(recoveredRunning.progress).toMatchObject({
+        leased: 0,
+        retryable: 0,
+        deadLettered: 0,
+      })
+      expect(embeddedTexts).toEqual(expect.arrayContaining([
+        'queued restart memory',
+        'running restart memory',
+      ]))
+    }
+    finally {
+      await restarted.close()
+    }
+  }, 15_000)
 
   it('creates the runtime event schema and persists validated payload json', async () => {
     const userDataPath = await createSandboxUserDataPath()
@@ -6241,6 +6399,44 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it.each(['failed', 'dead-lettered'] as const)(
+    'rejects a generic upsert from %s back to planned',
+    async (status) => {
+      const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+        sqliteDriver: actualSqliteDriver,
+      })
+      const terminal = await db.upsertTaskThread({
+        id: `thread-${status}-generic-upsert-fence`,
+        goal: `Preserve the ${status} execution evidence.`,
+        kind: 'codebase-investigation',
+        status,
+        selectedChannel: 'codex',
+        proposedChannel: 'codex',
+        summary: `${status} terminal evidence`,
+        createdAt: 100,
+        updatedAt: 100,
+        completedAt: 100,
+      })
+
+      await expect(db.upsertTaskThread({
+        ...terminal,
+        status: 'planned',
+        updatedAt: 200,
+        expectedUpdatedAt: terminal.updatedAt,
+        completedAt: null,
+      })).rejects.toMatchObject({
+        code: 'TASK_THREAD_VERSION_CONFLICT',
+      })
+
+      await expect(db.getTaskThread(terminal.id)).resolves.toEqual(expect.objectContaining({
+        status,
+        updatedAt: terminal.updatedAt,
+        completedAt: 100,
+      }))
+      await db.close()
+    },
+  )
+
   it('keeps a dead-lettered projection ahead of an ordinary terminal event even when it arrives older', async () => {
     runCalls.length = 0
     metaState.clear()
@@ -6719,6 +6915,376 @@ describe('alicization sqlite dao', () => {
       threadId: paused.id,
       limit: 10,
     })).toHaveLength(1)
+    await db.close()
+  })
+
+  it('atomically reopens a failed observe-only task with retry evidence', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+    const failed = await db.upsertTaskThread({
+      id: 'thread-atomic-observe-retry',
+      decisionTraceId: 'trace-atomic-observe-retry',
+      turnId: 'turn-atomic-observe-retry',
+      sessionId: 'session-atomic-observe-retry',
+      goal: 'Inspect the repository after a read-only timeout.',
+      kind: 'codebase-investigation',
+      status: 'failed',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      metadata: {
+        task: {
+          effect: 'observe',
+          permissionMode: 'implicit',
+        },
+      },
+      summary: 'The read-only inspection timed out.',
+      createdAt: 100,
+      updatedAt: 100,
+      lastEventAt: 100,
+      completedAt: 100,
+    })
+
+    await db.appendExecutionEvents([{
+      id: 'thread-atomic-observe-retry:failure',
+      threadId: failed.id,
+      decisionTraceId: failed.decisionTraceId,
+      turnId: failed.turnId,
+      sessionId: failed.sessionId,
+      origin: failed.origin,
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'failed',
+      payload: {
+        failureKind: 'tool-execution',
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'The read-only inspection timed out.',
+        sideEffectState: 'none',
+      },
+      createdAt: 120,
+    }])
+
+    const resumed = await db.resumeTaskThread({
+      threadId: failed.id,
+      expectedUpdatedAt: failed.updatedAt,
+      expectedStatus: 'failed',
+      expectedChannel: 'codex',
+      selectedChannel: 'codex',
+      metadata: {
+        task: {
+          effect: 'observe',
+          permissionMode: 'implicit',
+        },
+        execution: {
+          recovery: {
+            mode: 'retry-observe',
+            previousStatus: 'failed',
+            replaySafety: 'safe',
+          },
+        },
+      },
+      updatedAt: 150,
+      event: {
+        id: 'thread-atomic-observe-retry:resume:100:retry',
+        threadId: failed.id,
+        decisionTraceId: failed.decisionTraceId,
+        turnId: failed.turnId,
+        sessionId: failed.sessionId,
+        origin: failed.origin,
+        channel: 'codex',
+        kind: 'resume',
+        threadStatus: 'planned',
+        payload: {
+          resumeMode: 'retry',
+          previousStatus: 'failed',
+          resumedStatus: 'planned',
+          effect: 'observe',
+          sideEffectState: 'none',
+          retryBoundary: 'observe-only-retry',
+        },
+        createdAt: 150,
+      },
+    })
+
+    expect(resumed).toEqual(expect.objectContaining({
+      id: failed.id,
+      status: 'planned',
+      completedAt: null,
+      metadata: expect.objectContaining({
+        execution: expect.objectContaining({
+          recovery: expect.objectContaining({
+            mode: 'retry-observe',
+          }),
+        }),
+      }),
+    }))
+    await expect(db.listExecutionEvents({
+      threadId: failed.id,
+      limit: 10,
+    })).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'thread-atomic-observe-retry:failure',
+        kind: 'result',
+        threadStatus: 'failed',
+      }),
+      expect.objectContaining({
+        id: 'thread-atomic-observe-retry:resume:100:retry',
+        kind: 'resume',
+        threadStatus: 'planned',
+      }),
+    ]))
+
+    await expect(db.resumeTaskThread({
+      threadId: failed.id,
+      expectedUpdatedAt: failed.updatedAt,
+      expectedStatus: 'failed',
+      expectedChannel: 'codex',
+      selectedChannel: 'codex',
+      metadata: resumed.metadata,
+      updatedAt: 160,
+      event: {
+        id: 'thread-atomic-observe-retry:resume:stale',
+        threadId: failed.id,
+        channel: 'codex',
+        kind: 'resume',
+        threadStatus: 'planned',
+        payload: {
+          resumeMode: 'retry',
+          effect: 'observe',
+          sideEffectState: 'none',
+        },
+        createdAt: 160,
+      },
+    })).rejects.toMatchObject({
+      code: 'TASK_THREAD_VERSION_CONFLICT',
+    })
+    await db.close()
+  })
+
+  it('rejects a failed observe-only retry without a persisted failure event', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+    const failed = await db.upsertTaskThread({
+      id: 'thread-atomic-observe-retry-without-evidence',
+      decisionTraceId: 'trace-atomic-observe-retry-without-evidence',
+      turnId: 'turn-atomic-observe-retry-without-evidence',
+      sessionId: 'session-atomic-observe-retry-without-evidence',
+      goal: 'Inspect the repository after a read-only timeout.',
+      kind: 'codebase-investigation',
+      status: 'failed',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      metadata: {
+        task: {
+          effect: 'observe',
+          permissionMode: 'implicit',
+        },
+      },
+      summary: 'The read-only inspection timed out.',
+      createdAt: 100,
+      updatedAt: 100,
+      lastEventAt: 100,
+      completedAt: 100,
+    })
+
+    await expect(db.resumeTaskThread({
+      threadId: failed.id,
+      expectedUpdatedAt: failed.updatedAt,
+      expectedStatus: 'failed',
+      expectedChannel: 'codex',
+      selectedChannel: 'codex',
+      metadata: {
+        task: {
+          effect: 'observe',
+          permissionMode: 'implicit',
+        },
+      },
+      updatedAt: 150,
+      event: {
+        id: 'thread-atomic-observe-retry-without-evidence:resume',
+        threadId: failed.id,
+        decisionTraceId: failed.decisionTraceId,
+        turnId: failed.turnId,
+        sessionId: failed.sessionId,
+        origin: failed.origin,
+        channel: 'codex',
+        kind: 'resume',
+        threadStatus: 'planned',
+        payload: {
+          resumeMode: 'retry',
+          previousStatus: 'failed',
+          resumedStatus: 'planned',
+          effect: 'observe',
+          sideEffectState: 'none',
+        },
+        createdAt: 150,
+      },
+    })).rejects.toThrow('failed task retry requires persisted failure evidence.')
+
+    expect(await db.getTaskThread(failed.id)).toEqual(expect.objectContaining({
+      status: 'failed',
+      updatedAt: failed.updatedAt,
+    }))
+    expect(await db.listExecutionEvents({
+      threadId: failed.id,
+      limit: 10,
+    })).toEqual([])
+    await db.close()
+  })
+
+  it('isolates late failure evidence from the current retry attempt', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+    const failed = await db.upsertTaskThread({
+      id: 'thread-attempt-isolation',
+      decisionTraceId: 'trace-attempt-isolation',
+      turnId: 'turn-attempt-isolation',
+      sessionId: 'session-attempt-isolation',
+      origin: 'user-turn',
+      goal: 'Inspect the repository without changing it.',
+      kind: 'codebase-investigation',
+      status: 'failed',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      metadata: {
+        task: {
+          effect: 'observe',
+          permissionMode: 'implicit',
+        },
+      },
+      summary: 'The first inspection timed out.',
+      createdAt: 100,
+      updatedAt: 100,
+      lastEventAt: 100,
+      completedAt: 100,
+    })
+    const firstAttemptId = failed.attemptId
+    expect(firstAttemptId).toEqual(expect.any(String))
+
+    await db.appendExecutionEvents([{
+      id: 'thread-attempt-isolation:f1',
+      attemptId: firstAttemptId,
+      threadId: failed.id,
+      decisionTraceId: failed.decisionTraceId,
+      turnId: failed.turnId,
+      sessionId: failed.sessionId,
+      origin: failed.origin,
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'failed',
+      payload: {
+        failureKind: 'tool-execution',
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'The first inspection timed out.',
+        sideEffectState: 'none',
+      },
+      createdAt: 120,
+    }])
+
+    const resumed = await db.resumeTaskThread({
+      threadId: failed.id,
+      expectedUpdatedAt: failed.updatedAt,
+      expectedStatus: 'failed',
+      expectedChannel: 'codex',
+      selectedChannel: 'codex',
+      metadata: failed.metadata,
+      updatedAt: 150,
+      event: {
+        id: 'thread-attempt-isolation:resume',
+        threadId: failed.id,
+        decisionTraceId: failed.decisionTraceId,
+        turnId: failed.turnId,
+        sessionId: failed.sessionId,
+        origin: failed.origin,
+        channel: 'codex',
+        kind: 'resume',
+        threadStatus: 'planned',
+        payload: {
+          resumeMode: 'retry',
+          previousStatus: 'failed',
+          resumedStatus: 'planned',
+          effect: 'observe',
+          sideEffectState: 'none',
+        },
+        createdAt: 150,
+      },
+    })
+    expect(resumed.attemptId).toEqual(expect.any(String))
+    expect(resumed.attemptId).not.toBe(firstAttemptId)
+
+    await db.appendExecutionEvents([{
+      id: 'thread-attempt-isolation:late-f1',
+      attemptId: firstAttemptId,
+      threadId: failed.id,
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'failed',
+      payload: {
+        failureKind: 'tool-execution',
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'Late first-attempt failure.',
+        sideEffectState: 'none',
+      },
+      createdAt: 300,
+    }])
+    await expect(db.getTaskThread(failed.id)).resolves.toEqual(expect.objectContaining({
+      status: 'planned',
+      attemptId: resumed.attemptId,
+    }))
+
+    const failedAgain = await db.upsertTaskThread({
+      ...resumed,
+      status: 'failed',
+      summary: 'The second inspection failed before emitting its result.',
+      updatedAt: 310,
+      lastEventAt: 310,
+      completedAt: 310,
+      expectedUpdatedAt: resumed.updatedAt,
+    })
+    await expect(db.resumeTaskThread({
+      threadId: failed.id,
+      expectedUpdatedAt: failedAgain.updatedAt,
+      expectedStatus: 'failed',
+      expectedChannel: 'codex',
+      selectedChannel: 'codex',
+      metadata: failedAgain.metadata,
+      updatedAt: 320,
+      event: {
+        id: 'thread-attempt-isolation:invalid-resume',
+        threadId: failed.id,
+        channel: 'codex',
+        kind: 'resume',
+        threadStatus: 'planned',
+        payload: {
+          resumeMode: 'retry',
+          effect: 'observe',
+          sideEffectState: 'none',
+        },
+        createdAt: 320,
+      },
+    })).rejects.toThrow('failed task retry requires persisted failure evidence.')
+
+    await db.appendExecutionEvents([{
+      id: 'thread-attempt-isolation:f2',
+      attemptId: resumed.attemptId,
+      threadId: failed.id,
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'failed',
+      payload: {
+        failureKind: 'tool-execution',
+        errorCode: 'CODEX_PROVIDER_FAILED',
+        errorMessage: 'The second inspection failed.',
+        sideEffectState: 'none',
+      },
+      createdAt: 340,
+    }])
+    await expect(db.getTaskThread(failed.id)).resolves.toEqual(expect.objectContaining({
+      status: 'failed',
+      attemptId: resumed.attemptId,
+    }))
     await db.close()
   })
 

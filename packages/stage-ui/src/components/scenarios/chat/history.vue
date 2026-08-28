@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChatAssistantMessage, ChatHistoryItem, ContextMessage } from '../../../types/chat'
+import type { ChatAssistantMessage, ChatHistoryItem, ChatRecoveryAction, ContextMessage } from '../../../types/chat'
 
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -16,6 +16,7 @@ const props = withDefaults(defineProps<{
   userLabel?: string
   errorLabel?: string
   variant?: 'desktop' | 'mobile'
+  onRecoveryAction?: (action: ChatRecoveryAction) => void | Promise<void>
 }>(), {
   sending: false,
   variant: 'desktop',
@@ -106,6 +107,7 @@ const renderMessages = computed<ChatHistoryItem[]>(() => {
           :label="labels.assistant"
           :show-placeholder="shouldShowPlaceholder(message) && showStreamingPlaceholder"
           :variant="variant"
+          :on-recovery-action="onRecoveryAction"
         />
       </div>
 
