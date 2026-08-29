@@ -522,6 +522,83 @@ async function stageActivatablePersonaDataset(
   return dataset
 }
 
+async function insertRawPersonaTrainingDatasetExamples(
+  databasePath: string,
+  dataset: PersonaTrainingDatasetVersion,
+  examples: Array<{
+    id: string
+    sourceId: string
+    sourceKind: string
+    behaviorLesson: string
+    positiveExample: string
+  }>,
+) {
+  const database = await openRawDatabase(databasePath)
+  try {
+    for (const [index, input] of examples.entries()) {
+      const exampleInput = {
+        id: input.id,
+        datasetId: dataset.id,
+        cardId: dataset.cardId,
+        schemaVersion: 'persona-training-example-v1',
+        sourceId: input.sourceId,
+        sourceKind: input.sourceKind,
+        behaviorLesson: input.behaviorLesson,
+        positiveExample: input.positiveExample,
+        negativeExample: null,
+        sensitivity: 'personal',
+        piiStatus: 'clear',
+        piiReason: null,
+        consentSnapshot: dataset.consentSnapshot,
+        provenance: {
+          kind: 'working-memory-cleaning',
+          cleaningTransactionId: `cleaning-gate-${input.id}`,
+          cleanedAt: 300 + index,
+        },
+        allowTraining: true,
+        state: 'staged',
+        createdAt: 300 + index,
+        revokedAt: null,
+      }
+      await runRaw(
+        database,
+        `
+        INSERT INTO persona_training_dataset_examples (
+          id, dataset_id, card_id, schema_version, source_id, source_kind,
+          content_hash, behavior_lesson, positive_example, negative_example,
+          sensitivity, pii_status, pii_reason, consent_snapshot_json, provenance_json,
+          allow_training, state, created_at, revoked_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          exampleInput.id,
+          exampleInput.datasetId,
+          exampleInput.cardId,
+          exampleInput.schemaVersion,
+          exampleInput.sourceId,
+          exampleInput.sourceKind,
+          personaTrainingContentHashForTest(exampleInput as PersonaTrainingDatasetExample),
+          exampleInput.behaviorLesson,
+          exampleInput.positiveExample,
+          exampleInput.negativeExample,
+          exampleInput.sensitivity,
+          exampleInput.piiStatus,
+          exampleInput.piiReason,
+          JSON.stringify(exampleInput.consentSnapshot),
+          JSON.stringify(exampleInput.provenance),
+          1,
+          exampleInput.state,
+          exampleInput.createdAt,
+          exampleInput.revokedAt,
+        ],
+      )
+    }
+  }
+  finally {
+    await closeRawDatabase(database)
+  }
+}
+
 describe('persona training dataset database provenance', () => {
   it('includes every confirmed reflection when the source list crosses a database page boundary', async () => {
     const userDataPath = await createSandboxUserDataPath()
@@ -3418,6 +3495,232 @@ describe('persona training dataset database provenance', () => {
     }
     finally {
       await db.close()
+    }
+  })
+
+  it('runs the real SQLite dataset lifecycle while keeping sibling card datasets isolated', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const sharedRootDir = join(userDataPath, 'shared-persona-dataset-db')
+    const cardA = await setupAlicizationDb(userDataPath, {
+      rootDir: sharedRootDir,
+      cardId: 'card-a',
+    })
+    const cardB = await setupAlicizationDb(userDataPath, {
+      rootDir: sharedRootDir,
+      cardId: 'card-b',
+    })
+    try {
+      const first = await stageActivatablePersonaDataset(cardA, {
+        cardId: 'card-a',
+        sourceSuffix: 'shared-lifecycle-first',
+      })
+      const firstExport = await cardA.exportPersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: first.id,
+      })
+      expect(firstExport).toMatchObject({
+        dataset: {
+          id: first.id,
+          cardId: 'card-a',
+        },
+        manifest: {
+          datasetId: first.id,
+          cardId: 'card-a',
+          exampleCount: 1,
+        },
+      })
+      expect((await cardA.getPersonaTrainingDataset({ cardId: 'card-a' })).versions.find(
+        version => version.id === first.id,
+      )).toMatchObject({
+        exportedAt: expect.any(Number),
+      })
+      await cardA.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: first.id,
+      })
+
+      const second = await stageActivatablePersonaDataset(cardA, {
+        cardId: 'card-a',
+        sourceSuffix: 'shared-lifecycle-second',
+      })
+      const secondExport = await cardA.exportPersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: second.id,
+      })
+      expect(secondExport.manifest.exampleCount).toBeGreaterThan(0)
+      await cardA.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: second.id,
+      })
+
+      const secondSnapshot = await cardA.getPersonaTrainingDataset({ cardId: 'card-a' })
+      const firstSource = secondSnapshot.examples.find(example => example.datasetId === first.id)
+      expect(firstSource).toBeTruthy()
+
+      const rolledBack = await cardA.rollbackPersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: first.id,
+      })
+      expect(rolledBack).toMatchObject({
+        id: first.id,
+        cardId: 'card-a',
+        activeAt: expect.any(Number),
+        rolledBackAt: null,
+      })
+
+      const cardASnapshot = await cardA.getPersonaTrainingDataset({ cardId: 'card-a' })
+      expect(cardASnapshot.activeVersionId).toBe(first.id)
+      expect(cardASnapshot.versions.find(version => version.id === second.id)).toMatchObject({
+        activeAt: null,
+        rolledBackAt: expect.any(Number),
+      })
+
+      const cardBDataset = await stageActivatablePersonaDataset(cardB, {
+        cardId: 'card-b',
+        sourceSuffix: 'shared-lifecycle-card-b',
+      })
+      await cardB.activatePersonaTrainingDataset({
+        cardId: 'card-b',
+        datasetId: cardBDataset.id,
+      })
+      const cardBSnapshot = await cardB.getPersonaTrainingDataset({ cardId: 'card-b' })
+      expect(cardBSnapshot.activeVersionId).toBe(cardBDataset.id)
+      expect(cardBSnapshot.versions.map(version => version.cardId)).toEqual(['card-b'])
+      expect(cardBSnapshot.examples.every(example => example.cardId === 'card-b')).toBe(true)
+
+      await expect(cardB.getPersonaTrainingDataset({
+        cardId: 'card-a',
+      })).rejects.toThrow('card scope does not match the active card')
+      await expect(cardB.exportPersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: first.id,
+      })).rejects.toThrow('card scope does not match the active card')
+      await expect(cardB.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: first.id,
+      })).rejects.toThrow('card scope does not match the active card')
+      await expect(cardB.rollbackPersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: first.id,
+      })).rejects.toThrow('card scope does not match the active card')
+      await expect(cardB.revokePersonaTrainingDatasetSource({
+        cardId: 'card-a',
+        sourceId: firstSource!.sourceId,
+        sourceKind: firstSource!.sourceKind,
+      })).rejects.toThrow('card scope does not match the active card')
+
+      await expect(cardA.revokePersonaTrainingDatasetSource({
+        cardId: 'card-a',
+        sourceId: firstSource!.sourceId,
+        sourceKind: firstSource!.sourceKind,
+      })).resolves.toEqual({ affected: 2 })
+      const revokedSnapshot = await cardA.getPersonaTrainingDataset({ cardId: 'card-a' })
+      expect(revokedSnapshot.activeVersionId).toBeNull()
+      expect(revokedSnapshot.examples).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          datasetId: first.id,
+          sourceId: firstSource!.sourceId,
+          state: 'revoked',
+          allowTraining: false,
+        }),
+        expect.objectContaining({
+          datasetId: second.id,
+          sourceId: firstSource!.sourceId,
+          state: 'revoked',
+          allowTraining: false,
+        }),
+      ]))
+      expect((await cardB.getPersonaTrainingDataset({ cardId: 'card-b' })).activeVersionId).toBe(cardBDataset.id)
+    }
+    finally {
+      await Promise.all([
+        cardA.close(),
+        cardB.close(),
+      ])
+    }
+  })
+
+  it('blocks raw transcript, review-only, PII, and fixed-template examples at the real SQLite quality gate', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const db = await setupAlicizationDb(userDataPath)
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'default',
+        sourceSuffix: 'quality-gate-boundary',
+      })
+      await insertRawPersonaTrainingDatasetExamples(databasePath, dataset, [
+        {
+          id: 'example-raw-transcript',
+          sourceId: 'raw-transcript-source',
+          sourceKind: 'raw-transcript',
+          behaviorLesson: 'raw transcript must never become a training example',
+          positiveExample: 'raw transcript',
+        },
+        {
+          id: 'example-review-only',
+          sourceId: 'review-only-source',
+          sourceKind: 'review-queue',
+          behaviorLesson: 'review-only material must remain in review',
+          positiveExample: 'review-only',
+        },
+        {
+          id: 'example-pii',
+          sourceId: 'pii-source',
+          sourceKind: 'cleaned-long-term-reflection',
+          behaviorLesson: '联系 alice@example.com',
+          positiveExample: '不要把联系 alice@example.com 纳入人格训练',
+        },
+        {
+          id: 'example-fixed-template',
+          sourceId: 'fixed-template-source',
+          sourceKind: 'cleaned-long-term-reflection',
+          behaviorLesson: 'fixed-template-residue',
+          positiveExample: 'fixed-template-residue',
+        },
+      ])
+
+      let exportError: unknown
+      try {
+        await db.exportPersonaTrainingDataset({
+          cardId: 'default',
+          datasetId: dataset.id,
+        })
+      }
+      catch (error) {
+        exportError = error
+      }
+      expect(String(exportError)).toEqual(expect.stringContaining('example-source-kind-unsupported'))
+      expect(String(exportError)).toEqual(expect.stringContaining('pii-content-leak'))
+      expect(String(exportError)).toEqual(expect.stringContaining('template-content-leak'))
+
+      await expect(db.activatePersonaTrainingDataset({
+        cardId: 'default',
+        datasetId: dataset.id,
+      })).rejects.toThrow('persona training dataset quality gate failed')
+
+      const snapshot = await db.getPersonaTrainingDataset({ cardId: 'default' })
+      expect(snapshot.activeVersionId).toBeNull()
+      expect(snapshot.examples).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'example-raw-transcript', sourceKind: 'raw-transcript' }),
+        expect.objectContaining({ id: 'example-review-only', sourceKind: 'review-queue' }),
+        expect.objectContaining({ id: 'example-pii', sourceId: 'pii-source' }),
+        expect.objectContaining({ id: 'example-fixed-template', sourceId: 'fixed-template-source' }),
+      ]))
+    }
+    finally {
+      await db.close()
+    }
+
+    const database = await openRawDatabase(databasePath)
+    try {
+      await expect(queryRawRows<{ count: number }>(
+        database,
+        'SELECT COUNT(*) AS count FROM persona_training_dataset_exports',
+      )).resolves.toEqual([{ count: 0 }])
+    }
+    finally {
+      await closeRawDatabase(database)
     }
   })
 
