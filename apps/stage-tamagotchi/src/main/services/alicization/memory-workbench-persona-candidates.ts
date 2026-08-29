@@ -62,7 +62,12 @@ function safeLimit(raw: unknown) {
   return Math.max(1, Math.min(100, Math.floor(Number(raw ?? 50))))
 }
 
-function encodeCursor(input: { updatedAt: number, id: string }) {
+function encodeCursor(input: {
+  updatedAt: number
+  id: string
+  sourceUpdatedAt?: number
+  sourceId?: string
+}) {
   return Buffer.from(JSON.stringify(input), 'utf8').toString('base64url')
 }
 
@@ -70,17 +75,40 @@ function decodeCursor(raw: string | null | undefined) {
   if (!raw)
     return null
   try {
-    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as { updatedAt?: unknown, id?: unknown }
+    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as {
+      updatedAt?: unknown
+      id?: unknown
+      sourceUpdatedAt?: unknown
+      sourceId?: unknown
+    }
     if (!Number.isFinite(parsed.updatedAt) || typeof parsed.id !== 'string' || !parsed.id.trim())
       return null
     return {
       updatedAt: Number(parsed.updatedAt),
       id: parsed.id.trim(),
+      ...(Number.isFinite(parsed.sourceUpdatedAt) ? { sourceUpdatedAt: Number(parsed.sourceUpdatedAt) } : {}),
+      ...(typeof parsed.sourceId === 'string' && parsed.sourceId.trim() ? { sourceId: parsed.sourceId.trim() } : {}),
     }
   }
   catch {
     return null
   }
+}
+
+function encodeMemoryReflectionCursor(cursor: {
+  updatedAt: number
+  id: string
+  sourceUpdatedAt?: number
+  sourceId?: string
+}) {
+  const sourceId = cursor.sourceId?.trim()
+    || (cursor.id.startsWith('persona-candidate:')
+      ? cursor.id.slice('persona-candidate:'.length)
+      : cursor.id)
+  return encodeURIComponent(JSON.stringify({
+    sortValue: Number.isFinite(cursor.sourceUpdatedAt) ? cursor.sourceUpdatedAt : cursor.updatedAt,
+    id: sourceId,
+  }))
 }
 
 function mapReviewRow(row: PersonaCandidateReviewRow): PersonaCandidateReviewState {
@@ -169,6 +197,12 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
   }>
   listTombstonedLongTermMemorySourceIds: (sourceIds: string[]) => Promise<Set<string>>
 }) {
+  interface CandidateSourceItem {
+    candidate: PersonaTrainingCandidate
+    updatedAt: number
+    sourceId: string
+  }
+
   async function listReviews(cardId: string) {
     const rows = await input.all<PersonaCandidateReviewRow>(
       input.database,
@@ -183,63 +217,90 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     return new Map(rows.map(row => mapReviewRow(row)).map(review => [review.candidateId, review]))
   }
 
-  async function buildCandidates(cardId: string) {
-    const readAllPages = async <T>(
-      readPage: (cursor: string | null) => Promise<{
-        items: T[]
+  const maxReinforcementSourcesPerCandidate = 7
+
+  async function listLatestReinforcements(cardId: string) {
+    const reinforcements: AlicizationPersonaReinforcementEventRecord[] = []
+    const tombstonedSourceIds = new Set<string>()
+    const seenCursors = new Set<string>()
+    let cursor: string | null = null
+
+    while (reinforcements.length < maxReinforcementSourcesPerCandidate) {
+      const page: {
+        items: AlicizationPersonaReinforcementEventRecord[]
         nextCursor: string | null
-      }>,
-    ) => {
-      const items: T[] = []
-      const seenCursors = new Set<string>()
-      let cursor: string | null = null
-      while (true) {
-        const page = await readPage(cursor)
-        items.push(...page.items)
-        if (!page.nextCursor || seenCursors.has(page.nextCursor))
+      } = await input.listPersonaReinforcementEventsPage({
+        cardId,
+        limit: maxReinforcementSourcesPerCandidate + 1,
+        cursor,
+      }).catch(() => ({
+        items: [] as AlicizationPersonaReinforcementEventRecord[],
+        nextCursor: null,
+      }))
+      const pageTombstonedSourceIds = await input.listTombstonedLongTermMemorySourceIds(
+        page.items.map(reinforcement => reinforcement.id),
+      )
+      for (const sourceId of pageTombstonedSourceIds)
+        tombstonedSourceIds.add(sourceId)
+
+      for (const reinforcement of page.items) {
+        if (reinforcement.valence !== 'reinforce') {
+          continue
+        }
+        if (containsAlicizationFixedTemplateResidue(`${reinforcement.dimension} ${reinforcement.summary}`, {
+          provenance: 'internal-structured-fact',
+        })) {
+          continue
+        }
+        if (pageTombstonedSourceIds.has(reinforcement.id)) {
+          continue
+        }
+        reinforcements.push(reinforcement)
+        if (reinforcements.length >= maxReinforcementSourcesPerCandidate) {
           break
-        seenCursors.add(page.nextCursor)
-        cursor = page.nextCursor
+        }
       }
-      return items
+
+      if (
+        reinforcements.length >= maxReinforcementSourcesPerCandidate
+        || !page.nextCursor
+        || seenCursors.has(page.nextCursor)
+      ) {
+        break
+      }
+      seenCursors.add(page.nextCursor)
+      cursor = page.nextCursor
     }
-    const [reflections, reinforcements] = await Promise.all([
-      readAllPages(cursor => input.listMemoryReflectionsPage({
-        cardId,
-        limit: 256,
-        status: 'confirmed',
-        cursor,
-      })).catch(() => []),
-      readAllPages(cursor => input.listPersonaReinforcementEventsPage({
-        cardId,
-        limit: 256,
-        cursor,
-      })).catch(() => []),
-    ])
-    const tombstonedSourceIds = await input.listTombstonedLongTermMemorySourceIds([
-      ...reflections.map(reflection => reflection.id),
-      ...reinforcements.map(reinforcement => reinforcement.id),
-    ])
+
+    return {
+      reinforcements,
+      tombstonedSourceIds,
+    }
+  }
+
+  function buildCandidatesFromReflections(inputData: {
+    reflections: AlicizationMemoryReflectionRecord[]
+    reinforcements: AlicizationPersonaReinforcementEventRecord[]
+    tombstonedSourceIds: Set<string>
+  }) {
     const candidates = buildPersonaTrainingCandidatesFromLongTermMemory({
-      reflections: reflections.map(reflection => ({
+      reflections: inputData.reflections.map(reflection => ({
         id: reflection.id,
         summary: reflection.summary,
         lesson: reflection.lesson,
         confidence: reflection.confidence,
         status: reflection.status,
       })),
-      reinforcements: reinforcements
-        .filter(reinforcement => !tombstonedSourceIds.has(reinforcement.id))
-        .map(reinforcement => ({
-          id: reinforcement.id,
-          dimension: reinforcement.dimension,
-          summary: reinforcement.summary,
-          valence: reinforcement.valence,
-          delta: reinforcement.delta,
-        })),
-      tombstonedSourceIds: Array.from(tombstonedSourceIds),
+      reinforcements: inputData.reinforcements.map(reinforcement => ({
+        id: reinforcement.id,
+        dimension: reinforcement.dimension,
+        summary: reinforcement.summary,
+        valence: reinforcement.valence,
+        delta: reinforcement.delta,
+      })),
+      tombstonedSourceIds: Array.from(inputData.tombstonedSourceIds),
     })
-    const reflectionUpdatedAt = new Map(reflections.map(reflection => [reflection.id, reflection.updatedAt]))
+    const reflectionUpdatedAt = new Map(inputData.reflections.map(reflection => [reflection.id, reflection.updatedAt]))
     return candidates
       .filter(candidate => resolvePersonaCandidateSourceEligibility({
         source: 'cleaned-long-term-reflection',
@@ -260,7 +321,67 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       .map(candidate => ({
         candidate,
         updatedAt: reflectionUpdatedAt.get(candidate.sourceMemoryIds[0] ?? '') ?? input.now(),
+        sourceId: candidate.sourceMemoryIds[0] ?? candidate.id,
       }))
+  }
+
+  async function readCandidateSourcePages(inputData: {
+    cardId: string
+    cursor: string | null
+    sourcePageLimit: number
+    onPage: (candidates: CandidateSourceItem[]) => Promise<boolean> | boolean
+  }) {
+    const { reinforcements, tombstonedSourceIds: reinforcementTombstones } = await listLatestReinforcements(inputData.cardId)
+    const seenCursors = new Set<string>()
+    let cursor = inputData.cursor
+
+    while (true) {
+      const page: {
+        items: AlicizationMemoryReflectionRecord[]
+        nextCursor: string | null
+      } = await input.listMemoryReflectionsPage({
+        cardId: inputData.cardId,
+        limit: inputData.sourcePageLimit,
+        status: 'confirmed',
+        cursor,
+      }).catch(() => ({
+        items: [] as AlicizationMemoryReflectionRecord[],
+        nextCursor: null,
+      }))
+      const tombstonedSourceIds = new Set(reinforcementTombstones)
+      const reflectionTombstones = await input.listTombstonedLongTermMemorySourceIds(
+        page.items.map(reflection => reflection.id),
+      )
+      for (const sourceId of reflectionTombstones)
+        tombstonedSourceIds.add(sourceId)
+
+      if (await inputData.onPage(buildCandidatesFromReflections({
+        reflections: page.items,
+        reinforcements,
+        tombstonedSourceIds,
+      }))) {
+        return
+      }
+
+      if (!page.nextCursor || seenCursors.has(page.nextCursor))
+        return
+      seenCursors.add(page.nextCursor)
+      cursor = page.nextCursor
+    }
+  }
+
+  async function buildCandidates(cardId: string) {
+    const candidates: CandidateSourceItem[] = []
+    await readCandidateSourcePages({
+      cardId,
+      cursor: null,
+      sourcePageLimit: 256,
+      onPage: (pageCandidates) => {
+        candidates.push(...pageCandidates)
+        return false
+      },
+    })
+    return candidates
   }
 
   async function listPersonaCandidates(payload: {
@@ -273,52 +394,69 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     if (!cardId)
       return { items: [], nextCursor: null }
 
-    const candidates = await buildCandidates(cardId)
     const reviews = await listReviews(cardId)
-    const sourceIds = candidates.flatMap(item => item.candidate.sourceMemoryIds)
-    const policies = await input.policyStore.listPolicyOverrides({ cardId, sourceIds })
-    const noTrainingSources = new Set(
-      policies
-        .filter(policy => policy.reviewState === 'no-training' || policy.allowTraining === false)
-        .map(policy => policy.sourceId),
-    )
     const requestedStatus = payload.status && payload.status !== 'all'
       ? payload.status
       : null
     const cursor = decodeCursor(payload.cursor)
     const limit = safeLimit(payload.limit)
+    const matched: Array<{
+      item: AlicizationPersonaCandidateWorkbenchItem
+      sourceUpdatedAt: number
+      sourceId: string
+    }> = []
+    await readCandidateSourcePages({
+      cardId,
+      cursor: cursor ? encodeMemoryReflectionCursor(cursor) : null,
+      sourcePageLimit: Math.max(2, Math.min(256, limit + 1)),
+      onPage: async (pageCandidates) => {
+        const sourceIds = pageCandidates.flatMap(item => item.candidate.sourceMemoryIds)
+        const policies = await input.policyStore.listPolicyOverrides({ cardId, sourceIds })
+        const noTrainingSources = new Set(
+          policies
+            .filter(policy => policy.reviewState === 'no-training' || policy.allowTraining === false)
+            .map(policy => policy.sourceId),
+        )
+        matched.push(...pageCandidates
+          .map(({ candidate, updatedAt, sourceId }) => {
+            const review = reviews.get(candidate.id)
+              ?? (candidate.sourceMemoryIds.some(sourceId => noTrainingSources.has(sourceId))
+                ? {
+                    candidateId: candidate.id,
+                    status: 'no-training' as const,
+                    allowTraining: false,
+                    reason: 'memory policy blocks persona training',
+                    updatedAt,
+                  }
+                : null)
+            return {
+              item: mergePersonaCandidateReviewState({
+                candidate,
+                review,
+                now: updatedAt,
+              }),
+              sourceUpdatedAt: updatedAt,
+              sourceId,
+            }
+          })
+          .filter(({ item }) => !requestedStatus || item.status === requestedStatus))
+        return matched.length > limit
+      },
+    })
 
-    const sorted = candidates
-      .map(({ candidate, updatedAt }) => {
-        const review = reviews.get(candidate.id)
-          ?? (candidate.sourceMemoryIds.some(sourceId => noTrainingSources.has(sourceId))
-            ? {
-                candidateId: candidate.id,
-                status: 'no-training' as const,
-                allowTraining: false,
-                reason: 'memory policy blocks persona training',
-                updatedAt,
-              }
-            : null)
-        return mergePersonaCandidateReviewState({
-          candidate,
-          review,
-          now: updatedAt,
-        })
-      })
-      .filter(item => !requestedStatus || item.status === requestedStatus)
-      .sort((left, right) => {
-        const updatedDiff = right.updatedAt - left.updatedAt
-        return updatedDiff !== 0 ? updatedDiff : left.id.localeCompare(right.id)
-      })
-    const afterCursor = cursor
-      ? sorted.filter(item => item.updatedAt < cursor.updatedAt || (item.updatedAt === cursor.updatedAt && item.id > cursor.id))
-      : sorted
-    const items = afterCursor.slice(0, limit)
-    const next = afterCursor.length > limit ? items[items.length - 1] : null
+    const items = matched.slice(0, limit).map(({ item }) => item)
+    const next = matched.length > limit ? items[items.length - 1] : null
+    const nextSource = matched.length > limit ? matched[limit - 1] : null
     return {
       items,
-      nextCursor: next ? encodeCursor({ updatedAt: next.updatedAt, id: next.id }) : null,
+      nextCursor: next && nextSource
+        ? encodeCursor({
+            updatedAt: next.updatedAt,
+            id: next.id,
+            sourceUpdatedAt: nextSource.sourceUpdatedAt,
+            sourceId: nextSource.sourceId,
+          })
+        : null,
     }
   }
 

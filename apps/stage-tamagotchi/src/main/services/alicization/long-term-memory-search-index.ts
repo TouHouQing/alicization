@@ -171,9 +171,9 @@ interface DbMemoryConsolidationRow {
 }
 
 type SearchCursor
-  = { version: 1, mode: 'recent', updatedAt: number, documentId: string }
-    | { version: 1, mode: 'search', rank: number, updatedAt: number, documentId: string }
-    | { version: 1, mode: 'tombstones', deletedAt: number, tombstoneId: string }
+  = { version: 1, mode: 'recent', updatedAt: number, documentId: string, updatedAtUpperBound?: number }
+    | { version: 1, mode: 'search', rank: number, updatedAt: number, documentId: string, updatedAtUpperBound?: number }
+    | { version: 1, mode: 'tombstones', deletedAt: number, tombstoneId: string, deletedAtUpperBound?: number }
 
 function normalizeText(raw: unknown, maxChars = 320) {
   if (typeof raw !== 'string')
@@ -467,6 +467,9 @@ function decodeCursor(raw: string | null | undefined): SearchCursor | null {
         mode: 'tombstones',
         deletedAt: Number(parsed.deletedAt),
         tombstoneId: parsed.tombstoneId.trim(),
+        ...(Number.isFinite(parsed.deletedAtUpperBound)
+          ? { deletedAtUpperBound: Number(parsed.deletedAtUpperBound) }
+          : {}),
       }
     }
     if (!('documentId' in parsed) || typeof parsed.documentId !== 'string' || !parsed.documentId.trim())
@@ -477,6 +480,9 @@ function decodeCursor(raw: string | null | undefined): SearchCursor | null {
         mode: 'recent',
         updatedAt: Number(parsed.updatedAt),
         documentId: parsed.documentId.trim(),
+        ...(Number.isFinite(parsed.updatedAtUpperBound)
+          ? { updatedAtUpperBound: Number(parsed.updatedAtUpperBound) }
+          : {}),
       }
     }
     if (parsed.mode === 'search' && Number.isFinite(parsed.rank) && Number.isFinite(parsed.updatedAt)) {
@@ -486,6 +492,9 @@ function decodeCursor(raw: string | null | undefined): SearchCursor | null {
         rank: Number(parsed.rank),
         updatedAt: Number(parsed.updatedAt),
         documentId: parsed.documentId.trim(),
+        ...(Number.isFinite(parsed.updatedAtUpperBound)
+          ? { updatedAtUpperBound: Number(parsed.updatedAtUpperBound) }
+          : {}),
       }
     }
   }
@@ -977,15 +986,64 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     `
   }
 
+  async function resolveUpdatedAtUpperBound(
+    inputRaw: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemorySearchItems']>[0],
+    mode: 'recent' | 'search' | 'short-search',
+    query?: string,
+  ) {
+    const clauses: string[] = []
+    const params: unknown[] = []
+    appendCommonFilters(clauses, params, inputRaw)
+    if (mode === 'search') {
+      clauses.push('long_term_memory_search_documents_fts MATCH ?')
+      params.push(buildFtsQuery(query ?? ''))
+    }
+    if (mode === 'short-search') {
+      clauses.push('doc.search_text LIKE ? ESCAPE \'\\\'')
+      params.push(buildLikeQuery(query ?? ''))
+    }
+    const searchJoin = mode === 'search'
+      ? `
+        JOIN long_term_memory_search_documents_fts
+          ON long_term_memory_search_documents_fts.document_id = doc.id
+      `
+      : ''
+    const row = await input.get<{ updated_at: number | null }>(
+      input.database,
+      `
+      SELECT MAX(doc.updated_at) AS updated_at
+      FROM long_term_memory_search_documents doc
+      ${searchJoin}
+      ${projectionJoins()}
+      WHERE ${clauses.join(' AND ')}
+      `,
+      params,
+    )
+    return Number.isFinite(row?.updated_at) ? Number(row!.updated_at) : 0
+  }
+
   async function listRecent(inputRaw: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemorySearchItems']>[0]) {
     const limit = safeLimit(inputRaw.limit)
     const cursor = decodeCursor(inputRaw.cursor)
+    const updatedAtUpperBound = cursor?.mode === 'recent' && Number.isFinite(cursor.updatedAtUpperBound)
+      ? cursor.updatedAtUpperBound
+      : cursor?.mode === 'recent'
+        ? null
+        : await resolveUpdatedAtUpperBound(inputRaw, 'recent')
     const clauses: string[] = []
     const params: unknown[] = []
     appendCommonFilters(clauses, params, inputRaw)
     if (cursor?.mode === 'recent') {
+      if (updatedAtUpperBound !== null) {
+        clauses.push('doc.updated_at <= ?')
+        params.push(updatedAtUpperBound)
+      }
       clauses.push('(doc.updated_at < ? OR (doc.updated_at = ? AND doc.id > ?))')
       params.push(cursor.updatedAt, cursor.updatedAt, cursor.documentId)
+    }
+    else {
+      clauses.push('doc.updated_at <= ?')
+      params.push(updatedAtUpperBound)
     }
     params.push(limit + 1)
     const rows = await input.all<SearchDocumentRow>(
@@ -1010,6 +1068,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
             mode: 'recent',
             updatedAt: next.updated_at,
             documentId: next.id,
+            ...(updatedAtUpperBound !== null ? { updatedAtUpperBound } : {}),
           })
         : null,
     }
@@ -1018,6 +1077,11 @@ export function createLongTermMemorySearchIndexRuntime(input: {
   async function listSearch(inputRaw: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemorySearchItems']>[0], query: string) {
     const limit = safeLimit(inputRaw.limit)
     const cursor = decodeCursor(inputRaw.cursor)
+    const updatedAtUpperBound = cursor?.mode === 'search' && Number.isFinite(cursor.updatedAtUpperBound)
+      ? cursor.updatedAtUpperBound
+      : cursor?.mode === 'search'
+        ? null
+        : await resolveUpdatedAtUpperBound(inputRaw, 'search', query)
     const clauses: string[] = []
     const params: unknown[] = []
     appendCommonFilters(clauses, params, inputRaw)
@@ -1026,8 +1090,16 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     const cursorClauses: string[] = []
     const cursorParams: unknown[] = []
     if (cursor?.mode === 'search') {
+      if (updatedAtUpperBound !== null) {
+        cursorClauses.push('updated_at <= ?')
+        cursorParams.push(updatedAtUpperBound)
+      }
       cursorClauses.push('(rank > ? OR (rank = ? AND updated_at < ?) OR (rank = ? AND updated_at = ? AND id > ?))')
       cursorParams.push(cursor.rank, cursor.rank, cursor.updatedAt, cursor.rank, cursor.updatedAt, cursor.documentId)
+    }
+    else {
+      cursorClauses.push('updated_at <= ?')
+      cursorParams.push(updatedAtUpperBound)
     }
     const rows = await input.all<SearchDocumentRow>(
       input.database,
@@ -1059,6 +1131,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
             rank: Number(next.rank ?? 0),
             updatedAt: next.updated_at,
             documentId: next.id,
+            ...(updatedAtUpperBound !== null ? { updatedAtUpperBound } : {}),
           })
         : null,
     }
@@ -1067,14 +1140,27 @@ export function createLongTermMemorySearchIndexRuntime(input: {
   async function listShortSearch(inputRaw: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemorySearchItems']>[0], query: string) {
     const limit = safeLimit(inputRaw.limit)
     const cursor = decodeCursor(inputRaw.cursor)
+    const updatedAtUpperBound = cursor?.mode === 'recent' && Number.isFinite(cursor.updatedAtUpperBound)
+      ? cursor.updatedAtUpperBound
+      : cursor?.mode === 'recent'
+        ? null
+        : await resolveUpdatedAtUpperBound(inputRaw, 'short-search', query)
     const clauses: string[] = []
     const params: unknown[] = []
     appendCommonFilters(clauses, params, inputRaw)
     clauses.push('doc.search_text LIKE ? ESCAPE \'\\\'')
     params.push(buildLikeQuery(query))
     if (cursor?.mode === 'recent') {
+      if (updatedAtUpperBound !== null) {
+        clauses.push('doc.updated_at <= ?')
+        params.push(updatedAtUpperBound)
+      }
       clauses.push('(doc.updated_at < ? OR (doc.updated_at = ? AND doc.id > ?))')
       params.push(cursor.updatedAt, cursor.updatedAt, cursor.documentId)
+    }
+    else {
+      clauses.push('doc.updated_at <= ?')
+      params.push(updatedAtUpperBound)
     }
     params.push(limit + 1)
     const rows = await input.all<SearchDocumentRow>(
@@ -1099,6 +1185,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
             mode: 'recent',
             updatedAt: next.updated_at,
             documentId: next.id,
+            ...(updatedAtUpperBound !== null ? { updatedAtUpperBound } : {}),
           })
         : null,
     }
@@ -1128,11 +1215,31 @@ export function createLongTermMemorySearchIndexRuntime(input: {
       return { items: [], nextCursor: null }
     const limit = safeLimit(listInput.limit)
     const cursor = decodeCursor(listInput.cursor)
+    const deletedAtUpperBound = cursor?.mode === 'tombstones' && Number.isFinite(cursor.deletedAtUpperBound)
+      ? cursor.deletedAtUpperBound
+      : cursor?.mode === 'tombstones'
+        ? null
+        : await (async () => {
+            const snapshot = await input.get<{ deleted_at: number | null }>(
+              input.database,
+              'SELECT MAX(created_at) AS deleted_at FROM long_term_memory_tombstones WHERE card_id = ?',
+              [cardId],
+            )
+            return Number.isFinite(snapshot?.deleted_at) ? Number(snapshot!.deleted_at) : 0
+          })()
     const clauses = ['tomb.card_id = ?']
     const params: unknown[] = [cardId]
     if (cursor?.mode === 'tombstones') {
+      if (deletedAtUpperBound !== null) {
+        clauses.push('tomb.created_at <= ?')
+        params.push(deletedAtUpperBound)
+      }
       clauses.push('(tomb.created_at < ? OR (tomb.created_at = ? AND tomb.id > ?))')
       params.push(cursor.deletedAt, cursor.deletedAt, cursor.tombstoneId)
+    }
+    else {
+      clauses.push('tomb.created_at <= ?')
+      params.push(deletedAtUpperBound)
     }
     params.push(limit + 1)
     const rows = await input.all<SearchDocumentRow & {
@@ -1198,6 +1305,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
             mode: 'tombstones',
             deletedAt: next.tombstone_created_at,
             tombstoneId: next.tombstone_id,
+            ...(deletedAtUpperBound !== null ? { deletedAtUpperBound } : {}),
           })
         : null,
     }
