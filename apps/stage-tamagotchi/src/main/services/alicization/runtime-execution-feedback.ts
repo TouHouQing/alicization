@@ -16,6 +16,7 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import {
+  readExecutionFailure,
   readExecutionOutcome,
   readLatestExecutionEvent,
   sanitizeExecutionLedgerText,
@@ -269,6 +270,8 @@ async function readTrustedExecutionResultFeedbackLedger(input: {
       && event.threadStatus === 'completed',
     ) ?? null
   if (!completedResultEvent)
+    return null
+  if (readExecutionFailure([completedResultEvent]))
     return null
   const trustedResumeEvents = ownedEvents.filter((event) => {
     if (event.kind !== 'resume' || event.createdAt > completedResultEvent.createdAt)

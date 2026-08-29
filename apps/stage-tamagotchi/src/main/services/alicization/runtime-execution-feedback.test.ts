@@ -408,6 +408,88 @@ describe('runtime execution feedback', () => {
     }), 'card-1')
   })
 
+  it('does not internalize a completed result event that carries execution error evidence', async () => {
+    const buildExecutionResultFeedbackOutcomeClosure = vi.fn((input: any) => input)
+    const persistOutcomeClosure = vi.fn(async () => {})
+    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async (_input: unknown) => {})
+    const appendRelationshipDynamics = vi.fn(async () => {})
+    const upsertTaskThread = vi.fn(async () => ({}))
+    const appendAuditLog = vi.fn(async () => {})
+    const resultEvent = completedExecutionResultEvent({
+      summary: 'Codex execution failed after the task thread completed.',
+    })
+    resultEvent.payload = {
+      summary: 'Codex execution failed after the task thread completed.',
+      errorCode: 'CODEX_TIMEOUT',
+      errorMessage: 'Codex produced no semantic progress for 180000ms.',
+    }
+    const listExecutionEvents = vi.fn(async () => [resultEvent])
+    const runtime = createAlicizationRuntimeExecutionFeedback({
+      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      readLatestUserMessageText: () => '这次结果有用',
+      readLatestAssistantMessageText: () => '执行结果返回了错误',
+      ensureActiveOrLatestSessionId: async () => 'session-1',
+      withCardScope: async (_cardId, task) => await task(),
+      readTaskThreadActivityAt: thread => Number(thread.updatedAt ?? thread.createdAt ?? 0),
+      attachSynthesizedReflections: input => input,
+      buildExecutionProposalFeedbackOutcomeClosure: input => input as any,
+      buildExecutionResultFeedbackOutcomeClosure,
+      deriveExecutionProposalFeedbackKind: () => null,
+      deriveExecutionResultFeedbackKind: () => 'valued',
+      persistOutcomeClosure,
+      appendAuditLog,
+      memoryReconsolidationRuntime: {
+        reconsolidateExecutionResultFeedbackMemoryTrace,
+      },
+      alicizationDb: {
+        getLatestRelationshipDynamics: async () => null,
+        appendRelationshipDynamics,
+        listExecutionEvents,
+        listTaskThreads: async () => [{
+          id: 'thread-1',
+          decisionTraceId: 'trace-1',
+          turnId: 'turn-1',
+          sessionId: 'session-1',
+          origin: 'subconscious-proactive',
+          goal: 'run the patch',
+          kind: 'task',
+          status: 'completed',
+          selectedChannel: 'codex',
+          proposedChannel: 'codex',
+          summary: 'Codex execution failed after the task thread completed.',
+          metadata: withProactiveTaskOwnershipMetadata(),
+          createdAt: 1,
+          updatedAt: 2,
+          lastEventAt: 2,
+          completedAt: 2,
+        } as any],
+        upsertTaskThread,
+      },
+    })
+
+    const feedback = await runtime.settleRecentExecutionResultFeedbackFromUserTurn({
+      cardId: 'card-1',
+      turnId: 'turn-user',
+      providerId: 'openai',
+      model: 'gpt-test',
+      providerConfig: {},
+      messages: [],
+    } as any, 10, 'test')
+
+    expect(feedback).toBeNull()
+    expect(listExecutionEvents).toHaveBeenCalledWith({
+      threadId: 'thread-1',
+      limit: 12,
+    })
+    expect(buildExecutionResultFeedbackOutcomeClosure).not.toHaveBeenCalled()
+    expect(persistOutcomeClosure).not.toHaveBeenCalled()
+    expect(reconsolidateExecutionResultFeedbackMemoryTrace).not.toHaveBeenCalled()
+    expect(appendRelationshipDynamics).not.toHaveBeenCalled()
+    expect(upsertTaskThread).not.toHaveBeenCalled()
+    expect(appendAuditLog).not.toHaveBeenCalled()
+  })
+
   it('does not internalize a completed task thread without a trusted completed result event', async () => {
     const persistOutcomeClosure = vi.fn(async () => {})
     const appendRelationshipDynamics = vi.fn(async () => {})

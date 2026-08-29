@@ -41,6 +41,15 @@ function taskThreadToEpisodeSourceKind(thread: AlicizationTaskThreadRecord) {
     : 'execution-proposal'
 }
 
+function isNonMemoryExecutionStatus(
+  status: AlicizationTaskThreadRecord['status'],
+): status is Extract<AlicizationTaskThreadRecord['status'], 'blocked' | 'failed' | 'cancelled' | 'dead-lettered'> {
+  return status === 'blocked'
+    || status === 'failed'
+    || status === 'cancelled'
+    || status === 'dead-lettered'
+}
+
 export function buildAutobiographicalEpisodesFromTaskThreadUpdate(input: {
   cardId: string
   source: string
@@ -50,6 +59,9 @@ export function buildAutobiographicalEpisodesFromTaskThreadUpdate(input: {
   taskThread: AlicizationTaskThreadRecord
 }): AlicizationEpisodicEventInput[] {
   const thread = input.taskThread
+  if (isNonMemoryExecutionStatus(thread.status))
+    return []
+
   const goal = sanitizeText(thread.goal, 180)
   if (!goal)
     return []
@@ -99,7 +111,7 @@ export function buildAutobiographicalEpisodesFromTaskThreadUpdate(input: {
     ].filter(Boolean).join(' | '),
     confidence: thread.status === 'completed' ? 0.86 : thread.status === 'needs-affirmation' ? 0.8 : 0.82,
     sceneAttachment: thread.status === 'running' || thread.status === 'completed' ? 0.4 : 0.28,
-    consolidationPriority: thread.status === 'failed' || thread.status === 'blocked' ? 0.78 : thread.status === 'completed' ? 0.72 : 0.62,
+    consolidationPriority: thread.status === 'completed' ? 0.72 : 0.62,
     derivedFrom: [
       input.turnId || thread.turnId ? { kind: 'turn', id: input.turnId ?? thread.turnId, label: 'session mirror task-thread turn' } : null,
       { kind: 'task-thread', id: thread.id, label: goal },

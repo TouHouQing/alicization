@@ -433,9 +433,6 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     'alicization-organic-self-context',
     'alicization-turn-memory-context',
   ])
-  const trustedExecutionCallbackFactTypes = new Set([
-    'alicization-execution-callbacks',
-  ])
   function sanitizeOneShotStructuredValue(raw: unknown): unknown {
     if (typeof raw === 'string') {
       const sanitized = sanitizeAlicizationProviderFacingText(raw, 2_400, '', {
@@ -832,18 +829,11 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       })
     }
 
-    const executionCallbackSystemBlock = sanitizeOneShotProviderSystemBlock(
-      executionCallbackContext.systemBlock,
-      trustedExecutionCallbackFactTypes,
-    )
     const callerSystemBlock = sanitizeOneShotProviderSystemBlock(
       generateOptions.system,
       trustedCallerSystemFactTypes,
     )
     const systemMessages: Message[] = [
-      ...(executionCallbackSystemBlock
-        ? [{ role: 'system', content: executionCallbackSystemBlock } as Message]
-        : []),
       ...(generateOptions.extraSystemBlocks ?? [])
         .map(block => sanitizeOneShotProviderSystemBlock(block, trustedExtraSystemFactTypes))
         .filter(Boolean)

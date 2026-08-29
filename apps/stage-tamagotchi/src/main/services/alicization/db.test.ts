@@ -4627,6 +4627,131 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('closes the real WorkingMemory to long-term recall loop in SQLite', async () => {
+    const embeddedTexts: string[] = []
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+      embeddingProvider: {
+        modelId: 'integration-embedding',
+        dimensions: 3,
+        vectorSpaceId: 'integration-embedding:3',
+        embedTexts: async (texts) => {
+          embeddedTexts.push(...texts)
+          return texts.map(text => ({
+            text,
+            vector: [1, 0, 0],
+          }))
+        },
+      },
+    })
+
+    try {
+      await db.enqueueWorkingMemoryLongTermQueueItems({
+        cardId: 'default',
+        sessionId: 'session-integration-memory-loop',
+        items: [{
+          id: 'queue-integration-blue-preference',
+          source: 'working-memory-owner',
+          memoryEvidence: {
+            version: 'working-memory-long-term-evidence-v1',
+            source: 'explicit-structured-memory-evidence',
+            kind: 'preference',
+            summary: '用户喜欢蓝色。',
+            reason: '用户明确要求记住这条偏好。',
+            evidenceSnippets: ['记住我喜欢蓝色。'],
+            salience: 0.9,
+            sensitivity: 'personal',
+            confidence: 0.94,
+          },
+          kind: 'preference',
+          summary: '用户喜欢蓝色。',
+          reason: '用户明确要求记住这条偏好。',
+          sourceTurnIds: ['turn-integration-blue:user'],
+          evidenceSnippets: ['记住我喜欢蓝色。'],
+          salience: 0.9,
+          confidence: 0.94,
+          sensitivity: 'personal',
+          allowTraining: false,
+          status: 'pending-cleaning',
+          rejectionReasons: [],
+          contaminationFlags: [],
+          createdAt: Date.now(),
+        }],
+      })
+
+      await expect(db.drainWorkingMemoryLongTermQueue(4)).resolves.toEqual(expect.objectContaining({
+        cleaned: 1,
+        applied: 1,
+        failed: 0,
+      }))
+      await expect(db.getMemoryWorkbenchQueueHealth({ cardId: 'default' })).resolves.toEqual(expect.objectContaining({
+        applied: 1,
+        failed: 0,
+        deadLettered: 0,
+      }))
+      await expect(db.listMemoryFacts()).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          predicate: 'prefers',
+          object: '用户喜欢蓝色。',
+        }),
+      ]))
+
+      const searched = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query: '蓝色',
+        limit: 8,
+      })
+      expect(searched.items).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          summary: expect.stringContaining('用户喜欢蓝色。'),
+          source: expect.stringMatching(/memory_(facts|reflections)/u),
+        }),
+      ]))
+
+      let embeddingHealth = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
+      const embeddingDeadline = Date.now() + 5_000
+      while (
+        Date.now() < embeddingDeadline
+        && (embeddingHealth.reindexRequired || embeddingHealth.indexedCount < 1)
+      ) {
+        await new Promise(resolve => setTimeout(resolve, 10))
+        embeddingHealth = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
+      }
+      expect(embeddedTexts.length).toBeGreaterThan(0)
+      expect(embeddingHealth).toEqual(expect.objectContaining({
+        providerConfigured: true,
+        modelId: 'integration-embedding',
+        dimensions: 3,
+        reindexRequired: false,
+        searchReady: true,
+      }))
+      expect(embeddingHealth.indexedCount).toBeGreaterThan(0)
+
+      const recalled = await db.retrieveLongTermMemoryEvidence({
+        cardId: 'default',
+        userId: 'local-user',
+        currentUserText: '你还记得我喜欢什么颜色吗？',
+        limit: 8,
+      })
+      expect(recalled.intent.shouldRecall).toBe(true)
+      expect(recalled.evidence).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          candidate: expect.objectContaining({
+            source: 'memory_facts',
+            summary: expect.stringContaining('蓝色'),
+          }),
+          scope: {
+            cardId: 'default',
+            userId: 'local-user',
+          },
+        }),
+      ]))
+    }
+    finally {
+      await db.close()
+    }
+  })
+
   it('cleans WorkingMemory long-term correction candidates before writing memory facts and reflections', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
 
@@ -4763,12 +4888,21 @@ describe('alicization sqlite dao', () => {
       retried: [],
     })
 
-    const longTerm = await db.listMemoryWorkbenchLongTermItems({
+    const confirmedReflections = await db.listMemoryReflections({
       cardId: 'default',
-      query: '失败的清理事务不能伪装成已确认长期记忆',
+      status: 'confirmed',
       limit: 8,
     })
-    expect(longTerm.items).toEqual([])
+    expect(confirmedReflections).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        summary: '失败的清理事务不能伪装成已确认长期记忆。',
+      }),
+    ]))
+    expect(await db.listMemoryFacts()).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        object: '失败的清理事务不能伪装成已确认长期记忆。',
+      }),
+    ]))
 
     const retried = await db.manageMemoryWorkbenchWorkingMemoryCleaningQueue({
       cardId: 'default',

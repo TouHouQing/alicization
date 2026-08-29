@@ -794,7 +794,7 @@ describe('runtime main gateway one-shot', () => {
     expect(systemTexts).toEqual([callerFact])
   })
 
-  it('preserves trusted card directives and structured execution callback facts', async () => {
+  it('does not inject pending execution callbacks into unrelated one-shot Provider prompts', async () => {
     const agentTurn = {
       conversationSessionId: 'session-structured-callback',
       ingestDigitalLifeArchitecture: vi.fn(),
@@ -848,13 +848,12 @@ describe('runtime main gateway one-shot', () => {
       .map(message => JSON.parse(String(message.content)))
 
     expect(systemFacts.map(fact => fact.type)).toEqual([
-      'alicization-execution-callbacks',
       'alicization-subjective-inference-context',
     ])
-    expect(systemFacts[0]).toEqual(JSON.parse(structuredCallback))
+    expect(JSON.stringify(systemFacts)).not.toContain('Provider timeout.')
   })
 
-  it('preserves user-origin text and failure facts inside caller and callback JSON', async () => {
+  it('keeps caller-owned user text without carrying pending callback failure diagnostics', async () => {
     const structuredResidue = 'mode=internal; visibility=hidden'
     const userTurn = `用户正在讨论 ${structuredResidue} 这段待删配置字段。`
     const agentTurn = {
@@ -906,15 +905,69 @@ describe('runtime main gateway one-shot', () => {
     const systemFacts = (vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? [])
       .filter(message => message.role === 'system' && typeof message.content === 'string')
       .map(message => JSON.parse(String(message.content)))
-    const callbackFact = systemFacts.find(fact => fact.type === 'alicization-execution-callbacks')
     const callerFact = systemFacts.find(fact => fact.type === 'alicization-subjective-inference-context')
 
     expect(callerFact?.data.userTurn).toBe(userTurn)
     expect(callerFact?.data.task).toBe('Keep the useful request.')
     expect(callerFact?.data).not.toHaveProperty('internalResidue')
-    expect(callbackFact?.data.status).toBe('failed')
-    expect(callbackFact?.data.summary).toBe(`${structuredResidue}; Provider timeout.`)
-    expect(callbackFact?.data).not.toHaveProperty('internalResidue')
+    expect(systemFacts.some(fact => fact.type === 'alicization-execution-callbacks')).toBe(false)
+    expect(JSON.stringify(systemFacts)).not.toContain('Provider timeout.')
+  })
+
+  it('uses the explicit settlement fact for execution callbacks without duplicating pending diagnostics', async () => {
+    const agentTurn = {
+      conversationSessionId: 'session-explicit-settlement',
+      ingestDigitalLifeArchitecture: vi.fn(),
+      ingestDigitalLifeSpine: vi.fn(),
+      ingestContinuitySignals: vi.fn(),
+      ingestRuntimeActions: vi.fn(),
+      trackTool: vi.fn(async (input: { run: () => Promise<unknown> }) => await input.run()),
+    }
+    const settlementFact = JSON.stringify({
+      type: 'alicization-execution-settlement-context',
+      data: {
+        channel: 'codex',
+        goal: '检查当前项目',
+        outcome: '任务已完成',
+        status: 'completed',
+      },
+    })
+    const { runtime } = createOneShotRuntimeHarness({
+      buildPendingExecutionCallbackContext: vi.fn(async () => ({
+        actions: [],
+        callbacks: [],
+        continuitySignals: [],
+        recallText: 'retry=5 workbench_trace=trace-failure',
+        systemBlock: JSON.stringify({
+          type: 'alicization-execution-callbacks',
+          data: {
+            status: 'failed',
+            summary: 'Codex produced no semantic progress after retry=5',
+            decisionTraceId: 'trace-failure',
+          },
+        }),
+      })),
+    })
+    vi.mocked(generateText).mockResolvedValueOnce({ text: 'ok' } as any)
+
+    await runtime.generateMainGatewayText({
+      system: settlementFact,
+      user: '生成执行结果回执',
+      source: 'execution-callback',
+      cardId: 'card-explicit-settlement',
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+      captureAgentSensorySnapshot: false,
+      agentTurn: agentTurn as any,
+    })
+
+    const systemTexts = (vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? [])
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content))
+
+    expect(systemTexts).toEqual([settlementFact])
+    expect(systemTexts.join('\n')).not.toContain('retry=5')
+    expect(systemTexts.join('\n')).not.toContain('trace-failure')
   })
 
   it('drops caller-owned natural-language system context', async () => {

@@ -2134,6 +2134,12 @@ export interface AlicizationDbService {
     cardId?: string
     limit?: number
   }) => Promise<string[]>
+  recordPersonaTrainingSourceProvenance: (input: {
+    cardId: string
+    cleaningTransactionId: string
+    cleanedAt: number
+    sources: AlicizationPersonaTrainingSourceRef[]
+  }) => Promise<void>
   runPersonaTraining: (input: { cardId: string, datasetId?: string | null }) => Promise<PersonaTrainingPipelineResult>
   startPersonaTraining: (input: { cardId: string, datasetId?: string | null }) => Promise<{ run: PersonaTrainingPipelineRunRecord }>
   getPersonaTrainingRun: (input: { cardId: string, runId: string }) => Promise<PersonaTrainingPipelineRunRecord | null>
@@ -2968,6 +2974,29 @@ export async function setupAlicizationDb(
       )
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_candidate_reviews_card_updated ON persona_training_candidate_reviews(card_id, updated_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS persona_training_candidate_projections (
+        card_id TEXT NOT NULL,
+        candidate_id TEXT NOT NULL,
+        root_source_id TEXT NOT NULL,
+        source_memory_ids_json TEXT NOT NULL,
+        behavior_lesson TEXT NOT NULL,
+        positive_example TEXT NOT NULL,
+        negative_example TEXT,
+        privacy_class TEXT NOT NULL,
+        source_created_at INTEGER NOT NULL,
+        source_updated_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY(card_id, candidate_id),
+        UNIQUE(card_id, root_source_id)
+      )
+    `)
+    await run(database, `
+      CREATE INDEX IF NOT EXISTS idx_persona_candidate_projections_card_source_order
+      ON persona_training_candidate_projections(card_id, source_updated_at DESC, root_source_id ASC)
+    `)
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS persona_training_datasets (
@@ -6794,6 +6823,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       await deleteCardScoped('memory_quality_monthly_gold_packs')
       await deleteCardScoped('memory_quality_trial_reports')
       await deleteCardScoped('persona_training_candidate_reviews')
+      await deleteCardScoped('persona_training_candidate_projections')
       await deleteCardScoped('persona_training_dataset_exports')
       await deleteCardScoped('persona_training_dataset_examples')
       await deleteCardScoped('persona_training_source_provenance')
@@ -6816,6 +6846,29 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       await deleteCardScoped('learning_tasks')
       await deleteCardScoped('long_term_memory_search_documents')
       await deleteCardScoped('long_term_memory_search_documents_fts')
+      const snapshotScope = hasBoundCardScope ? 'WHERE card_id = ?' : ''
+      const snapshotParams = hasBoundCardScope ? [boundCardId] : []
+      await run(
+        database,
+        `DELETE FROM long_term_memory_search_snapshot_items
+         WHERE snapshot_id IN (
+           SELECT id FROM long_term_memory_search_snapshots ${snapshotScope}
+         )`,
+        snapshotParams,
+      )
+      await run(
+        database,
+        `DELETE FROM long_term_memory_tombstone_snapshot_items
+         WHERE snapshot_id IN (
+           SELECT id FROM long_term_memory_search_snapshots ${snapshotScope}
+         )`,
+        snapshotParams,
+      )
+      await run(
+        database,
+        `DELETE FROM long_term_memory_search_snapshots ${snapshotScope}`,
+        snapshotParams,
+      )
 
       await run(database, 'DELETE FROM episodic_reconsolidation_overlays WHERE event_id NOT IN (SELECT id FROM episodic_events)')
       await deleteCardScoped('conversation_turns')
@@ -6826,6 +6879,17 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       await run(database, 'DELETE FROM scheduled_tasks')
       await run(database, 'DELETE FROM memory_ingest_journal')
       await run(database, 'DELETE FROM alicization_meta WHERE key LIKE ?', ['mind-head:%'])
+      await run(
+        database,
+        hasBoundCardScope
+          ? 'DELETE FROM alicization_meta WHERE key = ?'
+          : 'DELETE FROM alicization_meta WHERE key LIKE ?',
+        [
+          hasBoundCardScope
+            ? `persona_candidate_projection_v1:${boundCardId}`
+            : 'persona_candidate_projection_v1:%',
+        ],
+      )
     }))
     resetPersonaTrainingPipelineState()
   }
@@ -10985,6 +11049,44 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     listMemoryReflectionsPage: memoryRelationshipRuntime.listMemoryReflectionsPage,
     listPersonaReinforcementEventsPage: memoryRelationshipRuntime.listPersonaReinforcementEventsPage,
     listTombstonedLongTermMemorySourceIds,
+    listPersonaTrainingSourceProvenance: async ({ cardId, sourceRefs }) => {
+      const normalizedSourceRefs = sourceRefs.filter(sourceRef =>
+        sourceRef.sourceId.trim()
+        && (
+          sourceRef.sourceKind === 'cleaned-long-term-reflection'
+          || sourceRef.sourceKind === 'persona-reinforcement'
+        ),
+      )
+      const rows: Array<{
+        source_id: string
+        source_kind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+        cleaning_transaction_id: string
+        cleaned_at: number
+      }> = []
+      for (let index = 0; index < normalizedSourceRefs.length; index += 200) {
+        const chunk = normalizedSourceRefs.slice(index, index + 200)
+        rows.push(...await all<{
+          source_id: string
+          source_kind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+          cleaning_transaction_id: string
+          cleaned_at: number
+        }>(database, `
+          SELECT source_id, source_kind, cleaning_transaction_id, cleaned_at
+          FROM persona_training_source_provenance
+          WHERE card_id = ?
+            AND (${chunk.map(() => '(source_id = ? AND source_kind = ?)').join(' OR ')})
+        `, [
+          cardId,
+          ...chunk.flatMap(sourceRef => [sourceRef.sourceId, sourceRef.sourceKind]),
+        ]))
+      }
+      return rows.map(row => ({
+        sourceId: row.source_id,
+        sourceKind: row.source_kind,
+        cleaningTransactionId: row.cleaning_transaction_id,
+        cleanedAt: row.cleaned_at,
+      }))
+    },
   })
 
   async function rebuildLongTermMemorySearchIndexForCard(cardIdRaw: string, operation: string) {
@@ -11069,16 +11171,30 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   }
 
   async function upsertMemoryReflections(entries: AlicizationMemoryReflectionInput[]) {
-    if (hasBoundCardScope) {
-      for (const entry of entries)
-        resolveMemoryCardId(entry.cardId, 'memory reflection write')
-    }
+    const cardIds = [...new Set(entries.map(entry =>
+      resolveMemoryCardId(entry.cardId, 'memory reflection write'),
+    ))]
+    await memoryWorkbenchPersonaCandidateRuntime.markProjectionDirty(cardIds)
     const records = await memoryRelationshipRuntime.upsertMemoryReflections(entries)
     await refreshLongTermMemorySearchIndexForRecords({
       source: 'memory_reflections',
       records,
       operation: 'memory reflection search index refresh',
     })
+    await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionForReflections(records)
+    await memoryWorkbenchPersonaCandidateRuntime.markProjectionComplete(cardIds)
+    return records
+  }
+
+  async function appendPersonaReinforcementEvents(events: AlicizationPersonaReinforcementEventInput[]) {
+    const cardIds = [...new Set(events.map(event =>
+      resolveMemoryCardId(event.cardId, 'persona reinforcement write'),
+    ))]
+    await memoryWorkbenchPersonaCandidateRuntime.markProjectionDirty(cardIds)
+    const records = await memoryRelationshipRuntime.appendPersonaReinforcementEvents(events)
+    for (const cardId of cardIds)
+      await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionReinforcementSources(cardId)
+    await memoryWorkbenchPersonaCandidateRuntime.markProjectionComplete(cardIds)
     return records
   }
 
@@ -11237,7 +11353,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         if (projections.episodicEvents.length > 0)
           persistedEpisodes = await appendEpisodicEvents(projections.episodicEvents)
         if (projections.personaReinforcements.length > 0)
-          persistedPersonaReinforcements = await memoryRelationshipRuntime.appendPersonaReinforcementEvents(projections.personaReinforcements)
+          persistedPersonaReinforcements = await appendPersonaReinforcementEvents(projections.personaReinforcements)
 
         await recordPersonaTrainingSourceProvenance({
           cardId: cleanedTransaction.cardId,
@@ -11254,6 +11370,10 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             })),
           ],
         })
+        if (persistedReflections.length > 0)
+          await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionForReflections(persistedReflections)
+        if (persistedPersonaReinforcements.length > 0)
+          await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionReinforcementSources(cleanedTransaction.cardId)
 
         const projectedFactSources = await findProjectedMemoryFactSourcesByCandidateId(
           cleanedTransaction.cardId,
@@ -11470,6 +11590,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
     const createdAt = now()
     const reason = input.reason?.trim() || null
+    const affectsPersonaProjection = source === 'memory_reflections'
+      || source === 'persona_reinforcement_events'
+      || source === 'long_term_memory'
+    if (affectsPersonaProjection)
+      await memoryWorkbenchPersonaCandidateRuntime.markProjectionDirty([cardId])
     await enqueueWrite(async () => {
       await runInTransaction(database, async () => {
         for (const sourceId of sourceIds) {
@@ -11504,6 +11629,16 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     }).catch(() => {
       // Tombstones remain authoritative if native vector cleanup is unavailable.
     })
+    if (source === 'memory_reflections' || source === 'long_term_memory') {
+      await memoryWorkbenchPersonaCandidateRuntime.removeProjectionSources({
+        cardId,
+        sourceIds,
+      })
+    }
+    if (source === 'persona_reinforcement_events' || source === 'long_term_memory')
+      await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionReinforcementSources(cardId)
+    if (affectsPersonaProjection)
+      await memoryWorkbenchPersonaCandidateRuntime.markProjectionComplete([cardId])
     const personaSourceKind = source === 'memory_reflections'
       ? 'cleaned-long-term-reflection' as const
       : source === 'persona_reinforcement_events'
@@ -12108,6 +12243,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       }
     }
 
+    const affectsPersonaProjection = tombstone.source === 'memory_reflections'
+      || tombstone.source === 'persona_reinforcement_events'
+      || tombstone.source === 'long_term_memory'
+    if (affectsPersonaProjection)
+      await memoryWorkbenchPersonaCandidateRuntime.markProjectionDirty([cardId])
     await enqueueWrite(async () => {
       await run(
         database,
@@ -12115,6 +12255,16 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         [cardId, tombstoneId],
       )
     })
+    if (tombstone.source === 'memory_reflections' || tombstone.source === 'long_term_memory') {
+      await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionForCandidateId(
+        cardId,
+        `persona-candidate:${tombstone.source_id}`,
+      )
+    }
+    if (tombstone.source === 'persona_reinforcement_events' || tombstone.source === 'long_term_memory')
+      await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionReinforcementSources(cardId)
+    if (affectsPersonaProjection)
+      await memoryWorkbenchPersonaCandidateRuntime.markProjectionComplete([cardId])
     const item = await longTermMemorySearchIndexRuntime.getLongTermMemorySearchItem({
       cardId,
       memoryItemId: tombstone.source_id,
@@ -13206,7 +13356,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         || candidate.semanticScaleSoak !== null && !isRecord(candidate.semanticScaleSoak)
         || candidate.experienceQuality !== null && !isRecord(candidate.experienceQuality)
         || candidate.scopeFuzz !== null && !isRecord(candidate.scopeFuzz)
-          || !isStringArray(candidate.recommendedNextActions)
+        || !isStringArray(candidate.recommendedNextActions)
       ) {
         return null
       }
@@ -15162,6 +15312,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     }
     else {
       await initializeSchema()
+      await memoryWorkbenchPersonaCandidateRuntime.backfillLegacyProjections(
+        hasBoundCardScope ? boundCardId : null,
+      )
       await restoreArchivedFactsIntoActiveMemory()
       await enqueueWrite(async () => {
         await drainMemoryIngestJournal()
@@ -15277,6 +15430,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     listPersonaTrainingSourceRevokeIntents,
     retryPersonaTrainingSourceRevokeIntent,
     resumePendingPersonaTrainingSourceRevokeIntents,
+    recordPersonaTrainingSourceProvenance,
     runPersonaTraining,
     startPersonaTraining,
     getPersonaTrainingRun,
@@ -15305,7 +15459,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     listMemoryConsolidations,
     searchMemoryConsolidations,
     upsertMemoryConsolidations,
-    appendPersonaReinforcementEvents: memoryRelationshipRuntime.appendPersonaReinforcementEvents,
+    appendPersonaReinforcementEvents,
     listPersonaReinforcementEvents: memoryRelationshipRuntime.listPersonaReinforcementEvents,
     readMindHead,
     upsertMindHead,

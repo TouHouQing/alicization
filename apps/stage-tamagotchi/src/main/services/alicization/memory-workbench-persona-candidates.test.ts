@@ -1,8 +1,10 @@
+import type sqlite3 from 'sqlite3'
+
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { setupAlicizationDb } from './db'
 import { createMemoryWorkbenchPersonaCandidateRuntime } from './memory-workbench-persona-candidates'
@@ -17,6 +19,47 @@ async function createSandboxUserDataPath() {
   const dir = await mkdtemp(join(tmpdir(), 'alicization-persona-candidates-'))
   sandboxDirs.push(dir)
   return dir
+}
+
+async function markPersonaSourcesCleaned(
+  db: Awaited<ReturnType<typeof setupAlicizationDb>>,
+  cardId: string,
+  sourceRefs: Array<{
+    sourceId: string
+    sourceKind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+  }>,
+) {
+  await db.recordPersonaTrainingSourceProvenance({
+    cardId,
+    cleaningTransactionId: `test-cleaning:${cardId}`,
+    cleanedAt: Date.now(),
+    sources: sourceRefs,
+  })
+  const reflectionIds = new Set(sourceRefs
+    .filter(sourceRef => sourceRef.sourceKind === 'cleaned-long-term-reflection')
+    .map(sourceRef => sourceRef.sourceId))
+  if (reflectionIds.size > 0) {
+    const reflections = await db.listMemoryReflections({
+      cardId,
+      limit: 1_000,
+    })
+    await db.upsertMemoryReflections(reflections.filter(reflection => reflectionIds.has(reflection.id)))
+  }
+}
+
+function mockPersonaTrainingSourceProvenance(input: {
+  cardId: string
+  sourceRefs: Array<{
+    sourceId: string
+    sourceKind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+  }>
+}) {
+  return input.sourceRefs.map(sourceRef => ({
+    sourceId: sourceRef.sourceId,
+    sourceKind: sourceRef.sourceKind,
+    cleaningTransactionId: `test-cleaning:${input.cardId}`,
+    cleanedAt: 100,
+  }))
 }
 
 afterEach(async () => {
@@ -195,6 +238,10 @@ describe('memory workbench persona candidates', () => {
           createdAt: 30,
         },
       ])
+      await markPersonaSourcesCleaned(db, 'card-1', [
+        { sourceId: 'reflection-1', sourceKind: 'cleaned-long-term-reflection' },
+        { sourceId: 'reinforcement-1', sourceKind: 'persona-reinforcement' },
+      ])
 
       const listed = await db.listMemoryWorkbenchPersonaCandidates({
         cardId: 'card-1',
@@ -234,6 +281,35 @@ describe('memory workbench persona candidates', () => {
     }
   })
 
+  it('rejects a confirmed reflection without persona training cleaning provenance', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryReflections([{
+        id: 'reflection-without-provenance',
+        cardId: 'card-provenance',
+        sourceKind: 'reply',
+        targetScope: 'habit',
+        summary: '这条反思虽然已确认，但没有清洗证明。',
+        lesson: '没有 provenance 的 confirmed 反思不能进入 Persona candidate。',
+        status: 'confirmed',
+        confidence: 0.95,
+        createdAt: 10,
+        updatedAt: 20,
+      }])
+
+      await expect(db.listMemoryWorkbenchPersonaCandidates({
+        cardId: 'card-provenance',
+        limit: 10,
+      })).resolves.toMatchObject({
+        items: [],
+        nextCursor: null,
+      })
+    }
+    finally {
+      await db.close()
+    }
+  })
+
   it('pages beyond the old source window and updates a tail candidate', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
@@ -249,6 +325,10 @@ describe('memory workbench persona candidates', () => {
         confidence: 0.9,
         createdAt: index,
         updatedAt: index,
+      })))
+      await markPersonaSourcesCleaned(db, 'card-scale', Array.from({ length: sourceCount }, (_, index) => ({
+        sourceId: `reflection-scale-${String(index).padStart(3, '0')}`,
+        sourceKind: 'cleaned-long-term-reflection' as const,
       })))
 
       const all = []
@@ -326,6 +406,11 @@ describe('memory workbench persona candidates', () => {
           updatedAt: 10,
         },
       ])
+      await markPersonaSourcesCleaned(db, 'card-review-page', [
+        { sourceId: 'reflection-review-page-1', sourceKind: 'cleaned-long-term-reflection' },
+        { sourceId: 'reflection-review-page-2', sourceKind: 'cleaned-long-term-reflection' },
+        { sourceId: 'reflection-review-page-3', sourceKind: 'cleaned-long-term-reflection' },
+      ])
 
       await db.applyMemoryWorkbenchPersonaCandidateAction({
         cardId: 'card-review-page',
@@ -357,36 +442,215 @@ describe('memory workbench persona candidates', () => {
     }
   })
 
-  it('does not scan the complete reflection collection for the first candidate page', async () => {
-    const sourceCount = 4096
-    const reflections = Array.from({ length: sourceCount }, (_, index) => ({
-      id: `reflection-large-${String(index).padStart(4, '0')}`,
-      cardId: 'card-large',
-      decisionTraceId: null,
-      turnId: null,
-      sessionId: null,
-      sourceKind: 'reply' as const,
-      targetScope: 'habit' as const,
-      summary: `用户在 item-${index} 上有稳定偏好。`,
-      lesson: `保留 item-${index} 的真实偏好变化。`,
-      status: 'confirmed' as const,
-      confidence: 0.9,
-      supportingFactIds: [],
-      supportingOutcomeIds: [],
-      createdAt: index,
-      updatedAt: sourceCount - index,
-      confirmedAt: index,
-      deniedAt: null,
-    }))
-    const reflectionPageLimits: number[] = []
-    const reflectionPageCursors: Array<string | null | undefined> = []
+  it('persists card-scoped projections across database reopen', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const sharedRootDir = join(userDataPath, 'shared-memory')
+    const cardA = await setupAlicizationDb(userDataPath, {
+      cardId: 'card-a',
+      rootDir: sharedRootDir,
+    })
+    try {
+      await cardA.upsertMemoryReflections([{
+        id: 'reflection-card-a',
+        cardId: 'card-a',
+        sourceKind: 'reply',
+        targetScope: 'habit',
+        summary: 'A 机体确认的长期偏好。',
+        lesson: '只允许 A 机体看到这条人格候选。',
+        status: 'confirmed',
+        confidence: 0.9,
+        createdAt: 10,
+        updatedAt: 20,
+      }])
+      await markPersonaSourcesCleaned(cardA, 'card-a', [{
+        sourceId: 'reflection-card-a',
+        sourceKind: 'cleaned-long-term-reflection',
+      }])
+    }
+    finally {
+      await cardA.close()
+    }
 
+    const cardB = await setupAlicizationDb(userDataPath, {
+      cardId: 'card-b',
+      rootDir: sharedRootDir,
+    })
+    try {
+      await cardB.upsertMemoryReflections([{
+        id: 'reflection-card-b',
+        cardId: 'card-b',
+        sourceKind: 'reply',
+        targetScope: 'habit',
+        summary: 'B 机体确认的长期偏好。',
+        lesson: '只允许 B 机体看到这条人格候选。',
+        status: 'confirmed',
+        confidence: 0.9,
+        createdAt: 11,
+        updatedAt: 21,
+      }])
+      await markPersonaSourcesCleaned(cardB, 'card-b', [{
+        sourceId: 'reflection-card-b',
+        sourceKind: 'cleaned-long-term-reflection',
+      }])
+
+      await expect(cardB.listMemoryWorkbenchPersonaCandidates({
+        cardId: 'card-b',
+        limit: 10,
+      })).resolves.toMatchObject({
+        items: [{ id: 'persona-candidate:reflection-card-b' }],
+      })
+      await expect(cardB.applyMemoryWorkbenchPersonaCandidateAction({
+        cardId: 'card-b',
+        candidateId: 'persona-candidate:reflection-card-a',
+        decision: 'approve',
+      })).resolves.toBeNull()
+    }
+    finally {
+      await cardB.close()
+    }
+
+    const reopenedA = await setupAlicizationDb(userDataPath, {
+      cardId: 'card-a',
+      rootDir: sharedRootDir,
+    })
+    try {
+      const listed = await reopenedA.listMemoryWorkbenchPersonaCandidates({
+        cardId: 'card-a',
+        limit: 10,
+      })
+      expect(listed.items.map(item => item.id)).toEqual([
+        'persona-candidate:reflection-card-a',
+      ])
+      expect(listed.items[0]?.allowTraining).toBe(false)
+    }
+    finally {
+      await reopenedA.close()
+    }
+  })
+
+  it('removes projections when confirmed reflections become pending denied or tombstoned', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const reflection = {
+        id: 'reflection-lifecycle',
+        cardId: 'default',
+        sourceKind: 'reply' as const,
+        targetScope: 'habit' as const,
+        summary: '只有确认且未删除的反思可以进入候选。',
+        lesson: '候选资格必须跟随长期记忆状态。',
+        confidence: 0.9,
+        createdAt: 10,
+      }
+      await db.upsertMemoryReflections([{
+        ...reflection,
+        status: 'confirmed',
+        updatedAt: 20,
+      }])
+      await markPersonaSourcesCleaned(db, 'default', [{
+        sourceId: reflection.id,
+        sourceKind: 'cleaned-long-term-reflection',
+      }])
+      await expect(db.applyMemoryWorkbenchPersonaCandidateAction({
+        cardId: 'default',
+        candidateId: 'persona-candidate:reflection-lifecycle',
+        decision: 'approve',
+      })).resolves.toMatchObject({
+        status: 'approved',
+        allowTraining: false,
+      })
+
+      await db.upsertMemoryReflections([{
+        ...reflection,
+        status: 'pending',
+        updatedAt: 30,
+      }])
+      await expect(db.applyMemoryWorkbenchPersonaCandidateAction({
+        cardId: 'default',
+        candidateId: 'persona-candidate:reflection-lifecycle',
+        decision: 'approve',
+      })).resolves.toBeNull()
+
+      await db.upsertMemoryReflections([{
+        ...reflection,
+        status: 'denied',
+        updatedAt: 40,
+      }])
+      await expect(db.listMemoryWorkbenchPersonaCandidates({
+        cardId: 'default',
+        limit: 10,
+      })).resolves.toMatchObject({
+        items: [],
+      })
+
+      await db.upsertMemoryReflections([{
+        ...reflection,
+        status: 'confirmed',
+        updatedAt: 50,
+      }])
+      await db.tombstoneLongTermMemorySources({
+        sourceIds: [reflection.id],
+        source: 'memory_reflections',
+        reason: 'user removed reflection',
+      })
+      await expect(db.applyMemoryWorkbenchPersonaCandidateAction({
+        cardId: 'default',
+        candidateId: 'persona-candidate:reflection-lifecycle',
+        decision: 'approve',
+      })).resolves.toBeNull()
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('bounds the first candidate page to the projection keyset query', async () => {
+    const listMemoryReflectionsPage = vi.fn(async () => {
+      throw new Error('projection listing must not scan reflection sources')
+    })
+    const projectionQueryParams: unknown[][] = []
     const runtime = createMemoryWorkbenchPersonaCandidateRuntime({
       database: {} as never,
       now: () => 100,
       randomUUID: () => 'test-review-id',
       run: async () => undefined,
-      all: async () => [],
+      all: async <T>(_database: sqlite3.Database, sql: string, params: unknown[] = []): Promise<T[]> => {
+        if (sql.includes('FROM persona_training_candidate_projections')) {
+          projectionQueryParams.push(params)
+          return [
+            {
+              candidate_id: 'persona-candidate:reflection-large-0000',
+              root_source_id: 'reflection-large-0000',
+              source_memory_ids_json: JSON.stringify(['reflection-large-0000']),
+              behavior_lesson: '保留 item-0 的真实偏好变化。',
+              positive_example: '保留 item-0 的真实偏好变化。',
+              negative_example: null,
+              privacy_class: 'personal-redacted',
+              source_created_at: 0,
+              source_updated_at: 4096,
+              updated_at: 4096,
+            },
+            {
+              candidate_id: 'persona-candidate:reflection-large-0001',
+              root_source_id: 'reflection-large-0001',
+              source_memory_ids_json: JSON.stringify(['reflection-large-0001']),
+              behavior_lesson: '保留 item-1 的真实偏好变化。',
+              positive_example: '保留 item-1 的真实偏好变化。',
+              negative_example: null,
+              privacy_class: 'personal-redacted',
+              source_created_at: 1,
+              source_updated_at: 4095,
+              updated_at: 4095,
+            },
+          ] as T[]
+        }
+        if (sql.includes('FROM memory_reflections')) {
+          return [
+            { id: 'reflection-large-0000' },
+            { id: 'reflection-large-0001' },
+          ] as T[]
+        }
+        return []
+      },
       enqueueWrite: async task => await task(),
       runInTransaction: async (_database, task) => await task(),
       policyStore: {
@@ -396,28 +660,8 @@ describe('memory workbench persona candidates', () => {
         listPolicyOverrides: async () => [],
         inheritCandidatePolicies: async () => [],
       },
-      listMemoryReflectionsPage: async (payload) => {
-        const limit = payload.limit ?? 0
-        reflectionPageLimits.push(limit)
-        reflectionPageCursors.push(payload.cursor)
-        const offset = payload.cursor
-          ? reflections.findIndex((reflection) => {
-            const cursor = JSON.parse(decodeURIComponent(payload.cursor!)) as { id: string }
-            return reflection.id === cursor.id
-          }) + 1
-          : 0
-        const pageItems = reflections.slice(offset, offset + limit)
-        const last = pageItems.at(-1)
-        return {
-          items: pageItems,
-          nextCursor: last && offset + pageItems.length < reflections.length
-            ? encodeURIComponent(JSON.stringify({
-                sortValue: last.updatedAt,
-                id: last.id,
-              }))
-            : null,
-        }
-      },
+      listPersonaTrainingSourceProvenance: async input => mockPersonaTrainingSourceProvenance(input),
+      listMemoryReflectionsPage,
       listPersonaReinforcementEventsPage: async () => ({
         items: [],
         nextCursor: null,
@@ -432,7 +676,271 @@ describe('memory workbench persona candidates', () => {
 
     expect(result.items).toHaveLength(1)
     expect(result.items[0]?.id).toBe('persona-candidate:reflection-large-0000')
-    expect(reflectionPageLimits[0]).toBeLessThan(256)
-    expect(reflectionPageCursors.length).toBeLessThanOrEqual(2)
+    expect(result.nextCursor).not.toBeNull()
+    expect(projectionQueryParams).toEqual([['card-large', 2]])
+    expect(listMemoryReflectionsPage).not.toHaveBeenCalled()
+  })
+
+  it('backfills legacy reflections once and serves later pages only from persisted projections', async () => {
+    let migrationState: 'complete' | 'dirty' = 'dirty'
+    const projectionRows: Array<{
+      candidate_id: string
+      root_source_id: string
+      source_memory_ids_json: string
+      behavior_lesson: string
+      positive_example: string
+      negative_example: string | null
+      privacy_class: string
+      source_created_at: number
+      source_updated_at: number
+      updated_at: number
+    }> = [{
+      candidate_id: 'persona-candidate:stale',
+      root_source_id: 'stale',
+      source_memory_ids_json: JSON.stringify(['stale']),
+      behavior_lesson: '陈旧投影。',
+      positive_example: '陈旧投影。',
+      negative_example: null,
+      privacy_class: 'personal-redacted',
+      source_created_at: 1,
+      source_updated_at: 1,
+      updated_at: 1,
+    }]
+    const migrationMarkerKeys: string[] = []
+    const resetProjectionCards: string[] = []
+    const listMemoryReflectionsPage = vi.fn(async () => ({
+      items: [{
+        id: 'reflection-legacy',
+        cardId: 'card-legacy',
+        decisionTraceId: null,
+        turnId: null,
+        sessionId: null,
+        sourceKind: 'reply' as const,
+        targetScope: 'habit' as const,
+        summary: '旧数据库中已经确认的长期反思。',
+        lesson: '迁移后仍保留已经确认的真实偏好。',
+        status: 'confirmed' as const,
+        confidence: 0.9,
+        supportingFactIds: [],
+        supportingOutcomeIds: [],
+        createdAt: 10,
+        updatedAt: 20,
+        confirmedAt: 20,
+        deniedAt: null,
+      }],
+      nextCursor: null,
+    }))
+    const runtime = createMemoryWorkbenchPersonaCandidateRuntime({
+      database: {} as never,
+      now: () => 100,
+      randomUUID: () => 'test-review-id',
+      run: async (_database, sql, params = []) => {
+        if (sql.includes('DELETE FROM persona_training_candidate_projections')) {
+          resetProjectionCards.push(String(params[0]))
+          projectionRows.length = 0
+        }
+        if (sql.includes('INSERT INTO persona_training_candidate_projections')) {
+          projectionRows.push({
+            candidate_id: String(params[1]),
+            root_source_id: String(params[2]),
+            source_memory_ids_json: String(params[3]),
+            behavior_lesson: String(params[4]),
+            positive_example: String(params[5]),
+            negative_example: params[6] == null ? null : String(params[6]),
+            privacy_class: String(params[7]),
+            source_created_at: Number(params[8]),
+            source_updated_at: Number(params[9]),
+            updated_at: Number(params[11]),
+          })
+        }
+        if (sql.includes('INSERT INTO alicization_meta')) {
+          migrationMarkerKeys.push(String(params[0]))
+          migrationState = String(params[1]) === 'complete' ? 'complete' : 'dirty'
+        }
+        return undefined
+      },
+      all: async <T>(_database: sqlite3.Database, sql: string): Promise<T[]> => {
+        if (sql.includes('SELECT value FROM alicization_meta'))
+          return [{ value: migrationState }] as T[]
+        if (sql.includes('SELECT DISTINCT card_id'))
+          throw new Error('card-scoped backfill must not enumerate other cards')
+        if (sql.includes('FROM memory_reflections'))
+          return [{ id: 'reflection-legacy' }] as T[]
+        if (sql.includes('FROM persona_training_candidate_projections'))
+          return projectionRows as T[]
+        return []
+      },
+      enqueueWrite: async task => await task(),
+      runInTransaction: async (_database, task) => await task(),
+      policyStore: {
+        upsertPolicyOverride: async () => {
+          throw new Error('not used')
+        },
+        listPolicyOverrides: async () => [],
+        inheritCandidatePolicies: async () => [],
+      },
+      listPersonaTrainingSourceProvenance: async input => mockPersonaTrainingSourceProvenance(input),
+      listMemoryReflectionsPage,
+      listPersonaReinforcementEventsPage: async () => ({
+        items: [],
+        nextCursor: null,
+      }),
+      listTombstonedLongTermMemorySourceIds: async () => new Set(),
+    })
+
+    await runtime.backfillLegacyProjections('card-legacy')
+    expect(listMemoryReflectionsPage).toHaveBeenCalledTimes(1)
+    expect(projectionRows).toHaveLength(1)
+    expect(migrationMarkerKeys).toEqual([
+      'persona_candidate_projection_v1:card-legacy',
+    ])
+    expect(resetProjectionCards).toEqual(['card-legacy'])
+
+    listMemoryReflectionsPage.mockClear()
+    const listed = await runtime.listPersonaCandidates({
+      cardId: 'card-legacy',
+      limit: 10,
+    })
+    await runtime.backfillLegacyProjections('card-legacy')
+
+    expect(listed.items).toEqual([
+      expect.objectContaining({
+        id: 'persona-candidate:reflection-legacy',
+        allowTraining: false,
+      }),
+    ])
+    expect(listMemoryReflectionsPage).not.toHaveBeenCalled()
+  })
+
+  it('lists persisted projections without reading reflection source pages', async () => {
+    const listMemoryReflectionsPage = vi.fn(async () => {
+      throw new Error('persisted candidate listing must not scan reflection sources')
+    })
+    const runtime = createMemoryWorkbenchPersonaCandidateRuntime({
+      database: {} as never,
+      now: () => 100,
+      randomUUID: () => 'test-review-id',
+      run: async () => undefined,
+      all: async <T>(_database: sqlite3.Database, sql: string): Promise<T[]> => {
+        if (sql.includes('FROM persona_training_candidate_projections')) {
+          return [{
+            candidate_id: 'persona-candidate:reflection-persisted',
+            root_source_id: 'reflection-persisted',
+            source_memory_ids_json: JSON.stringify(['reflection-persisted']),
+            behavior_lesson: '保留用户已经确认的真实偏好。',
+            positive_example: '保留用户已经确认的真实偏好。',
+            negative_example: null,
+            privacy_class: 'personal-redacted',
+            source_created_at: 10,
+            source_updated_at: 20,
+            updated_at: 20,
+          }] as T[]
+        }
+        if (sql.includes('FROM memory_reflections'))
+          return [{ id: 'reflection-persisted' }] as T[]
+        return []
+      },
+      enqueueWrite: async task => await task(),
+      runInTransaction: async (_database, task) => await task(),
+      policyStore: {
+        upsertPolicyOverride: async () => {
+          throw new Error('not used')
+        },
+        listPolicyOverrides: async () => [],
+        inheritCandidatePolicies: async () => [],
+      },
+      listPersonaTrainingSourceProvenance: async input => mockPersonaTrainingSourceProvenance(input),
+      listMemoryReflectionsPage,
+      listPersonaReinforcementEventsPage: async () => ({
+        items: [],
+        nextCursor: null,
+      }),
+      listTombstonedLongTermMemorySourceIds: async () => new Set(),
+    })
+
+    const result = await runtime.listPersonaCandidates({
+      cardId: 'card-persisted',
+      limit: 10,
+    })
+
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        id: 'persona-candidate:reflection-persisted',
+        sourceMemoryIds: ['reflection-persisted'],
+        status: 'candidate',
+        allowTraining: false,
+      }),
+    ])
+    expect(listMemoryReflectionsPage).not.toHaveBeenCalled()
+  })
+
+  it('applies candidate actions by persisted candidate id without scanning reflection sources', async () => {
+    const listMemoryReflectionsPage = vi.fn(async () => {
+      throw new Error('candidate action must not scan reflection sources')
+    })
+    const runtime = createMemoryWorkbenchPersonaCandidateRuntime({
+      database: {} as never,
+      now: () => 200,
+      randomUUID: () => 'test-review-id',
+      run: async () => undefined,
+      all: async <T>(_database: sqlite3.Database, sql: string): Promise<T[]> => {
+        if (sql.includes('FROM persona_training_candidate_projections')) {
+          return [{
+            candidate_id: 'persona-candidate:reflection-direct',
+            root_source_id: 'reflection-direct',
+            source_memory_ids_json: JSON.stringify(['reflection-direct']),
+            behavior_lesson: '审核动作只按候选 ID 定点读取。',
+            positive_example: '审核动作只按候选 ID 定点读取。',
+            negative_example: null,
+            privacy_class: 'personal-redacted',
+            source_created_at: 10,
+            source_updated_at: 20,
+            updated_at: 20,
+          }] as T[]
+        }
+        if (sql.includes('FROM persona_training_candidate_reviews')) {
+          return [{
+            candidate_id: 'persona-candidate:reflection-direct',
+            status: 'no-training',
+            allow_training: 0,
+            reason: '用户不允许训练',
+            updated_at: 200,
+          }] as T[]
+        }
+        if (sql.includes('FROM memory_reflections'))
+          return [{ id: 'reflection-direct' }] as T[]
+        return []
+      },
+      enqueueWrite: async task => await task(),
+      runInTransaction: async (_database, task) => await task(),
+      policyStore: {
+        upsertPolicyOverride: async () => {
+          throw new Error('not used')
+        },
+        listPolicyOverrides: async () => [],
+        inheritCandidatePolicies: async () => [],
+      },
+      listPersonaTrainingSourceProvenance: async input => mockPersonaTrainingSourceProvenance(input),
+      listMemoryReflectionsPage,
+      listPersonaReinforcementEventsPage: async () => ({
+        items: [],
+        nextCursor: null,
+      }),
+      listTombstonedLongTermMemorySourceIds: async () => new Set(),
+    })
+
+    const result = await runtime.applyPersonaCandidateAction({
+      cardId: 'card-direct',
+      candidateId: 'persona-candidate:reflection-direct',
+      decision: 'no-training',
+      reason: '用户不允许训练',
+    })
+
+    expect(result).toEqual(expect.objectContaining({
+      id: 'persona-candidate:reflection-direct',
+      status: 'no-training',
+      allowTraining: false,
+    }))
+    expect(listMemoryReflectionsPage).not.toHaveBeenCalled()
   })
 })

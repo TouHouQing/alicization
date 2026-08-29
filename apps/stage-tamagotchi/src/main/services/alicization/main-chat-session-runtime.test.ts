@@ -5557,7 +5557,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner).toBeNull()
   })
 
-  it('flows correction and failure signals into the short-term memory snapshot', async () => {
+  it('keeps user corrections while isolating failed execution diagnostics from Provider and WorkingMemory', async () => {
     const { runtime } = createWorkingMemoryRuntimeFixture()
     const prelude = createReflectivePrelude({
       messages: [{
@@ -5572,15 +5572,15 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         createdAt: 10,
         decisionTraceId: 'trace-failure',
         goal: 'repair the working-memory prompt',
-        outcome: 'tool failed',
+        outcome: 'Codex produced no semantic progress after retry=5; workbench trace=trace-failure',
         sessionId: 'session-1',
         status: 'failed',
-        summary: 'Failed to repair the working-memory prompt: tool failed',
+        summary: 'Failed to repair the working-memory prompt after debug retry trace',
         threadId: 'thread-failure',
         turnId: 'turn-failure',
       }],
       continuitySignals: [],
-      recallText: 'execution_callback_channel:cli execution_callback_status:failed execution_callback_goal:repair the working-memory prompt execution_callback_outcome:tool failed',
+      recallText: 'execution_callback_channel:cli execution_callback_status:failed execution_callback_goal:repair the working-memory prompt execution_callback_outcome:Codex produced no semantic progress after retry=5 workbench_trace=trace-failure',
       systemBlock: buildAlicizationProviderFactBlock('alicization-execution-callbacks', {
         alreadyExecuted: true,
         callbacks: [{
@@ -5588,10 +5588,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           createdAt: 10,
           decisionTraceId: 'trace-failure',
           goal: 'repair the working-memory prompt',
-          outcome: 'tool failed',
+          outcome: 'Codex produced no semantic progress after retry=5; workbench trace=trace-failure',
           sessionId: 'session-1',
           status: 'failed',
-          summary: 'Failed to repair the working-memory prompt: tool failed',
+          summary: 'Failed to repair the working-memory prompt after debug retry trace',
           threadId: 'thread-failure',
           turnId: 'turn-failure',
         }],
@@ -5603,9 +5603,9 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         channel: 'cli',
         eventKinds: ['dispatch', 'error'],
         goal: 'repair the working-memory prompt',
-        outcome: 'tool failed',
+        outcome: 'Codex produced no semantic progress after retry=5; workbench trace=trace-failure',
         status: 'failed',
-        summary: 'Failed to repair the working-memory prompt: tool failed',
+        summary: 'Failed to repair the working-memory prompt after debug retry trace',
       }],
       recallText: 'execution_channel:cli execution_status:failed',
       systemBlock: '[ALICIZATION_EXECUTION_LEDGER]',
@@ -5629,9 +5629,24 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(workingMemoryText).not.toContain('respect_correction(')
     expect(workingMemoryText).toContain('不是这个，别再用旧模板了。')
     expect(workingMemoryText).not.toContain('carry_execution:')
-    expect(workingMemoryText).toContain('execution_callback_status:failed')
+    expect(workingMemoryText).not.toContain('execution_callback_status:failed')
+    expect(workingMemoryText).not.toContain('Codex produced no semantic progress')
+    expect(workingMemoryText).not.toContain('retry=5')
+    expect(workingMemoryText).not.toContain('trace-failure')
     expect(context.workingMemory).not.toHaveProperty('audit')
     expect(context.workingMemory).not.toHaveProperty('longTermQueue')
+    const providerText = result.messages
+      .map(message => String(message.content ?? ''))
+      .join('\n')
+    expect(providerText).not.toContain('execution_callback_status:failed')
+    expect(providerText).not.toContain('Codex produced no semantic progress')
+    expect(providerText).not.toContain('retry=5')
+    expect(providerText).not.toContain('trace-failure')
+    expect(findAlicizationProviderFact(
+      result.messages,
+      'alicization-execution-callbacks',
+    )).toBeNull()
+    expect(result.memoryWriteItems).toEqual([])
   })
 
   it('keeps raw persisted turns in WorkingMemory but does not enqueue long-term writes without structured evidence', async () => {
@@ -5806,6 +5821,51 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       ],
     }))
     expect(enqueueWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
+  })
+
+  it('extracts an explicit memory request when a Provider returns ordinary text', async () => {
+    const enqueueWorkingMemoryLongTermQueue = vi.fn<WorkingMemoryLongTermQueueEnqueue>(async () => {})
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      enqueueWorkingMemoryLongTermQueue,
+      listConversationTurnsBySession: vi.fn(async () => []),
+    })
+    const messages: Message[] = [{
+      role: 'user',
+      content: '记住我喜欢蓝色',
+    }]
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-plain-text-memory-evidence',
+        messages,
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({ messages }),
+    })
+
+    const intent = result.resolveMemoryWriteIntent?.({
+      assistantText: '记住了。',
+    })
+
+    expect(intent?.workingMemorySnapshot.longTermCandidates).toEqual([
+      expect.objectContaining({
+        kind: 'preference',
+        summary: '用户喜欢蓝色。',
+        sourceTurnIds: ['turn-plain-text-memory-evidence:user'],
+        memoryEvidence: expect.objectContaining({
+          kind: 'preference',
+          evidenceSnippets: ['记住我喜欢蓝色'],
+        }),
+      }),
+    ])
+    expect(intent?.memoryWriteItems).toEqual([
+      expect.objectContaining({
+        kind: 'preference',
+        summary: '用户喜欢蓝色。',
+        status: 'pending-cleaning',
+      }),
+    ])
   })
 
   it('does not report scoped long-term drain success when a current-turn queue item is missing', async () => {

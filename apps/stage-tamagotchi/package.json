@@ -30,6 +30,7 @@
     "refresh:mac:local": "tsx scripts/install-local-mac-app.ts",
     "repair:mac:local:permissions": "tsx scripts/install-local-mac-app.ts --repair-tcc-only",
     "memory:quality-trial": "tsx scripts/memory-quality-trial.ts",
+    "app:blackbox-trial": "tsx scripts/local-app-blackbox-trial.ts",
     "rename-artifacts": "mkdir -p bundle && tsx scripts/rename-artifacts.ts",
     "merge-latest-mac": "tsx scripts/merge-latest-mac.ts",
     "artifacts-metadata": "tsx scripts/artifacts-metadata.ts"

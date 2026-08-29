@@ -83,6 +83,7 @@ import type { AlicizationMainChatReplyAuthoritySurface, AlicizationMainChatReply
 
 import { errorMessageFrom } from '@moeru/std'
 import {
+  buildAlicizationProviderFactBlock,
   normalizeAlicizationRuntimeDigest,
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
@@ -92,6 +93,7 @@ import { buildAlicizationCodingAgentDelegationAuthority } from './coding-agent-t
 import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
+import { extractExplicitLongTermMemoryEvidence } from './explicit-memory-evidence'
 import { normalizeWorkingMemoryLongTermEvidence } from './life-core/working-memory'
 import { buildWorkingMemorySnapshot } from './life-core/working-memory-builder'
 import { createWorkingMemoryHistoryOwner } from './life-core/working-memory-history-owner'
@@ -615,6 +617,94 @@ function normalizeProviderReplyAuthorityContract(
       ? Math.max(0, Math.floor(contract.updatedAt))
       : Date.now(),
   }
+}
+
+const activeExecutionStatuses = new Set([
+  'needs-affirmation',
+  'planned',
+  'running',
+])
+
+function projectExecutionCallbacksForProvider(
+  context: AlicizationExecutionCallbackContext,
+) {
+  return context.callbacks
+    .filter(callback => callback.status === 'completed')
+    .map(callback => ({
+      channel: normalizePreparedExecutionText(callback.channel, 48),
+      goal: normalizePreparedExecutionText(callback.goal, 180),
+      outcome: normalizePreparedExecutionText(callback.outcome, 320) || null,
+      status: 'completed' as const,
+    }))
+    .filter(callback => callback.channel && callback.goal)
+}
+
+function projectExecutionLedgerForProvider(
+  context: AlicizationExecutionLedgerContext,
+) {
+  return context.entries
+    .filter(entry => activeExecutionStatuses.has(entry.status))
+    .map(entry => ({
+      channel: normalizePreparedExecutionText(entry.channel, 48),
+      goal: normalizePreparedExecutionText(entry.goal, 180),
+      status: normalizePreparedExecutionText(entry.status, 48),
+    }))
+    .filter(entry => entry.channel && entry.goal && entry.status)
+}
+
+function buildProviderExecutionCallbackSystemBlock(
+  context: AlicizationExecutionCallbackContext,
+) {
+  const callbacks = projectExecutionCallbacksForProvider(context)
+  return callbacks.length > 0
+    ? buildAlicizationProviderFactBlock('alicization-execution-callbacks', {
+        alreadyExecuted: true,
+        callbacks,
+      })
+    : ''
+}
+
+function buildProviderExecutionLedgerSystemBlock(
+  context: AlicizationExecutionLedgerContext,
+) {
+  const entries = projectExecutionLedgerForProvider(context)
+  return entries.length > 0
+    ? buildAlicizationProviderFactBlock('alicization-execution-ledger', {
+        entries,
+      })
+    : ''
+}
+
+function buildProviderExecutionRecallSeed(input: {
+  callbacks: AlicizationExecutionCallbackContext
+  ledger: AlicizationExecutionLedgerContext
+}) {
+  const callbacks = projectExecutionCallbacksForProvider(input.callbacks)
+    .map(callback => [
+      `execution_callback_channel:${callback.channel}`,
+      `execution_callback_status:${callback.status}`,
+      `execution_callback_goal:${callback.goal}`,
+      callback.outcome ? `execution_callback_outcome:${callback.outcome}` : '',
+    ].filter(Boolean).join(' '))
+  const ledger = projectExecutionLedgerForProvider(input.ledger)
+    .map(entry => [
+      `execution_channel:${entry.channel}`,
+      `execution_status:${entry.status}`,
+      `execution_goal:${entry.goal}`,
+    ].join(' '))
+  return [...callbacks, ...ledger].join('\n')
+}
+
+function buildWorkingMemoryExecutionCarry(
+  context: AlicizationExecutionLedgerContext,
+) {
+  return projectExecutionLedgerForProvider(context)
+    .map(entry => [
+      `execution_channel:${entry.channel}`,
+      `execution_status:${entry.status}`,
+      `execution_goal:${entry.goal}`,
+    ].join(' '))
+    .join('\n')
 }
 
 function buildWorkingMemoryRecentTurns(
@@ -1734,10 +1824,19 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     agentTurn.ingestContinuitySignals(executionCallbackContext.continuitySignals)
     agentTurn.ingestContinuitySignals(sessionContinuitySignals)
 
+    const providerExecutionRecallSeed = buildProviderExecutionRecallSeed({
+      callbacks: executionCallbackContext,
+      ledger: executionLedgerContext,
+    })
+    const providerExecutionCallbackSystemBlock
+      = buildProviderExecutionCallbackSystemBlock(executionCallbackContext)
+    const providerExecutionLedgerSystemBlock
+      = buildProviderExecutionLedgerSystemBlock(executionLedgerContext)
+    const workingMemoryExecutionCarry
+      = buildWorkingMemoryExecutionCarry(executionLedgerContext)
     const organicRecallSeed = [
       contextualString,
-      executionCallbackContext.recallText,
-      executionLedgerContext.recallText,
+      providerExecutionRecallSeed,
       prelude.perceptionAugmentation.memoryRecallSeed,
       memoryCarryPolicy.recallSeed,
     ].filter(Boolean).join('\n')
@@ -2470,11 +2569,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             providerToolCapabilityObservation: payload.providerToolCapabilityObservation ?? null,
           },
         ),
-        executionCallbackSystemBlocks: executionCallbackContext.systemBlock
-          ? [executionCallbackContext.systemBlock]
+        executionCallbackSystemBlocks: providerExecutionCallbackSystemBlock
+          ? [providerExecutionCallbackSystemBlock]
           : [],
-        executionLedgerSystemBlocks: executionLedgerContext.systemBlock
-          ? [executionLedgerContext.systemBlock]
+        executionLedgerSystemBlocks: providerExecutionLedgerSystemBlock
+          ? [providerExecutionLedgerSystemBlock]
           : [],
         customDirectivesResolution,
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
@@ -2530,8 +2629,8 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       currentOrigin: 'provider' as const,
       currentTurnId: payload.turnId,
       dialogueWorldThread: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.dialogueWorldThread ?? null,
-      executionCallbackRecallText: executionCallbackContext.recallText,
-      executionLedgerRecallText: executionLedgerContext.recallText,
+      executionCallbackRecallText: '',
+      executionLedgerRecallText: workingMemoryExecutionCarry,
       hasActiveExecution: executionLedgerContext.entries.length > 0,
       includeMessageHistory: !previousWorkingMemorySnapshot,
       messages: ownerScopedProviderMessages,
@@ -2706,12 +2805,21 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       assistantText: string
       memoryEvidence?: AlicizationProviderMemoryEvidence | null
     }): AlicizationMemoryWriteIntent => {
+      const currentUserText = readLatestUserMessageText(workingMemoryBuildInput.messages)
+      const providerMemoryEvidence = resolveProviderMemoryEvidenceForWorkingMemory(
+        resolveInput.memoryEvidence,
+      )
+      const explicitMemoryEvidence = providerMemoryEvidence
+        ? null
+        : extractExplicitLongTermMemoryEvidence({
+            userText: currentUserText,
+            assistantText: resolveInput.assistantText,
+          })
       const settledWorkingMemoryOwner = buildWorkingMemoryOwnerContextFromRuntime({
         ...workingMemoryBuildInput,
         currentAssistantText: resolveInput.assistantText,
-        currentMemoryEvidence: resolveProviderMemoryEvidenceForWorkingMemory(
-          resolveInput.memoryEvidence,
-        ),
+        currentMemoryEvidence: providerMemoryEvidence
+          ?? resolveProviderMemoryEvidenceForWorkingMemory(explicitMemoryEvidence),
       })
       return {
         version: 'memory-write-intent-v1',

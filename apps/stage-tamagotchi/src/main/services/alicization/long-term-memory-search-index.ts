@@ -9,6 +9,8 @@ import type {
   AlicizationMemoryWorkbenchVisibility,
 } from '../../../shared/eventa'
 
+import { createHash, randomUUID } from 'node:crypto'
+
 import {
   hashLongTermMemoryEmbeddingText,
   normalizeLongTermMemoryEmbeddingText,
@@ -170,10 +172,27 @@ interface DbMemoryConsolidationRow {
   updated_at: number
 }
 
-type SearchCursor
+type LegacySearchCursor
   = { version: 1, mode: 'recent', updatedAt: number, documentId: string, updatedAtUpperBound?: number }
     | { version: 1, mode: 'search', rank: number, updatedAt: number, documentId: string, updatedAtUpperBound?: number }
     | { version: 1, mode: 'tombstones', deletedAt: number, tombstoneId: string, deletedAtUpperBound?: number }
+
+type SnapshotSearchCursor
+  = { version: 2, mode: 'recent', snapshotId: string, updatedAt: number, documentId: string }
+    | { version: 2, mode: 'search', snapshotId: string, rank: number, updatedAt: number, documentId: string }
+    | { version: 2, mode: 'tombstones', snapshotId: string, deletedAt: number, tombstoneId: string }
+
+type SearchCursor = LegacySearchCursor | SnapshotSearchCursor
+
+interface SearchSnapshotRow {
+  id: string
+  card_id: string
+  mode: 'recent' | 'search' | 'tombstones'
+  request_hash: string
+  expires_at: number
+}
+
+const searchSnapshotTtlMs = 30 * 60 * 1000
 
 function normalizeText(raw: unknown, maxChars = 320) {
   if (typeof raw !== 'string')
@@ -459,6 +478,41 @@ function decodeCursor(raw: string | null | undefined): SearchCursor | null {
     return null
   try {
     const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<SearchCursor>
+    if (parsed.version === 2) {
+      if (!('snapshotId' in parsed) || typeof parsed.snapshotId !== 'string' || !parsed.snapshotId.trim())
+        return null
+      if (parsed.mode === 'tombstones' && Number.isFinite(parsed.deletedAt) && typeof parsed.tombstoneId === 'string' && parsed.tombstoneId.trim()) {
+        return {
+          version: 2,
+          mode: 'tombstones',
+          snapshotId: parsed.snapshotId.trim(),
+          deletedAt: Number(parsed.deletedAt),
+          tombstoneId: parsed.tombstoneId.trim(),
+        }
+      }
+      if (!('documentId' in parsed) || typeof parsed.documentId !== 'string' || !parsed.documentId.trim())
+        return null
+      if (parsed.mode === 'recent' && Number.isFinite(parsed.updatedAt)) {
+        return {
+          version: 2,
+          mode: 'recent',
+          snapshotId: parsed.snapshotId.trim(),
+          updatedAt: Number(parsed.updatedAt),
+          documentId: parsed.documentId.trim(),
+        }
+      }
+      if (parsed.mode === 'search' && Number.isFinite(parsed.rank) && Number.isFinite(parsed.updatedAt)) {
+        return {
+          version: 2,
+          mode: 'search',
+          snapshotId: parsed.snapshotId.trim(),
+          rank: Number(parsed.rank),
+          updatedAt: Number(parsed.updatedAt),
+          documentId: parsed.documentId.trim(),
+        }
+      }
+      return null
+    }
     if (parsed.version !== 1)
       return null
     if (parsed.mode === 'tombstones' && Number.isFinite(parsed.deletedAt) && typeof parsed.tombstoneId === 'string' && parsed.tombstoneId.trim()) {
@@ -622,6 +676,72 @@ export function createLongTermMemorySearchIndexRuntime(input: {
       search_text,
       tokenize = 'trigram'
     )`)
+    await input.run(input.database, `
+      CREATE TABLE IF NOT EXISTS long_term_memory_search_snapshots (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        request_hash TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+      )
+    `)
+    await input.run(input.database, 'CREATE INDEX IF NOT EXISTS idx_ltm_search_snapshots_expiry ON long_term_memory_search_snapshots(expires_at ASC)')
+    await input.run(input.database, `
+      CREATE TABLE IF NOT EXISTS long_term_memory_search_snapshot_items (
+        snapshot_id TEXT NOT NULL,
+        document_id TEXT NOT NULL,
+        card_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        evidence_snippets_json TEXT NOT NULL,
+        source_ids_json TEXT NOT NULL,
+        confidence REAL NOT NULL,
+        salience REAL NOT NULL,
+        sensitivity TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_accessed_at INTEGER,
+        tombstoned INTEGER NOT NULL,
+        visibility TEXT NOT NULL,
+        training TEXT NOT NULL,
+        rank REAL,
+        PRIMARY KEY(snapshot_id, document_id)
+      )
+    `)
+    await input.run(input.database, 'CREATE INDEX IF NOT EXISTS idx_ltm_search_snapshot_items_recent ON long_term_memory_search_snapshot_items(snapshot_id, updated_at DESC, document_id ASC)')
+    await input.run(input.database, 'CREATE INDEX IF NOT EXISTS idx_ltm_search_snapshot_items_ranked ON long_term_memory_search_snapshot_items(snapshot_id, rank ASC, updated_at DESC, document_id ASC)')
+    await input.run(input.database, `
+      CREATE TABLE IF NOT EXISTS long_term_memory_tombstone_snapshot_items (
+        snapshot_id TEXT NOT NULL,
+        tombstone_id TEXT NOT NULL,
+        tombstone_source_id TEXT NOT NULL,
+        tombstone_source TEXT NOT NULL,
+        tombstone_reason TEXT,
+        tombstone_created_at INTEGER NOT NULL,
+        document_id TEXT,
+        card_id TEXT,
+        source TEXT,
+        source_id TEXT,
+        kind TEXT,
+        summary TEXT,
+        evidence_snippets_json TEXT,
+        source_ids_json TEXT,
+        confidence REAL,
+        salience REAL,
+        sensitivity TEXT,
+        created_at INTEGER,
+        updated_at INTEGER,
+        last_accessed_at INTEGER,
+        tombstoned INTEGER,
+        visibility TEXT,
+        training TEXT,
+        PRIMARY KEY(snapshot_id, tombstone_id)
+      )
+    `)
+    await input.run(input.database, 'CREATE INDEX IF NOT EXISTS idx_ltm_tombstone_snapshot_items_page ON long_term_memory_tombstone_snapshot_items(snapshot_id, tombstone_created_at DESC, tombstone_id ASC)')
   }
 
   async function loadProjectionDocuments(
@@ -986,6 +1106,303 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     `
   }
 
+  function snapshotRequestHash(
+    listInput: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemorySearchItems']>[0],
+    mode: 'recent' | 'search' | 'short-search',
+    query = '',
+  ) {
+    return createHash('sha256')
+      .update(JSON.stringify({
+        cardId: listInput.cardId,
+        mode,
+        query: normalizeText(query, 240),
+        kind: listInput.kind ?? 'all',
+        sensitivity: listInput.sensitivity ?? 'all',
+        visibility: listInput.visibility ?? 'all',
+        training: listInput.training ?? 'all',
+        source: normalizeSource(listInput.source),
+      }))
+      .digest('hex')
+  }
+
+  function tombstoneSnapshotRequestHash(cardId: string) {
+    return createHash('sha256')
+      .update(JSON.stringify({ cardId, mode: 'tombstones' }))
+      .digest('hex')
+  }
+
+  async function pruneExpiredSnapshots(now: number) {
+    await input.run(
+      input.database,
+      `
+      DELETE FROM long_term_memory_search_snapshot_items
+      WHERE snapshot_id IN (
+        SELECT id FROM long_term_memory_search_snapshots WHERE expires_at <= ?
+      )
+      `,
+      [now],
+    )
+    await input.run(
+      input.database,
+      `
+      DELETE FROM long_term_memory_tombstone_snapshot_items
+      WHERE snapshot_id IN (
+        SELECT id FROM long_term_memory_search_snapshots WHERE expires_at <= ?
+      )
+      `,
+      [now],
+    )
+    await input.run(input.database, 'DELETE FROM long_term_memory_search_snapshots WHERE expires_at <= ?', [now])
+  }
+
+  async function pruneOverflowSnapshots(cardId: string, keepExisting = 7) {
+    const overflowSubquery = `
+      SELECT id
+      FROM long_term_memory_search_snapshots
+      WHERE card_id = ?
+      ORDER BY created_at DESC, id DESC
+      LIMIT -1 OFFSET ?
+    `
+    await input.run(
+      input.database,
+      `DELETE FROM long_term_memory_search_snapshot_items WHERE snapshot_id IN (${overflowSubquery})`,
+      [cardId, keepExisting],
+    )
+    await input.run(
+      input.database,
+      `DELETE FROM long_term_memory_tombstone_snapshot_items WHERE snapshot_id IN (${overflowSubquery})`,
+      [cardId, keepExisting],
+    )
+    await input.run(
+      input.database,
+      `DELETE FROM long_term_memory_search_snapshots WHERE id IN (${overflowSubquery})`,
+      [cardId, keepExisting],
+    )
+  }
+
+  async function assertSnapshot(inputSnapshot: {
+    snapshotId: string
+    cardId: string
+    mode: SearchSnapshotRow['mode']
+    requestHash: string
+  }) {
+    const snapshot = await input.get<SearchSnapshotRow>(
+      input.database,
+      `
+      SELECT id, card_id, mode, request_hash, expires_at
+      FROM long_term_memory_search_snapshots
+      WHERE id = ?
+      `,
+      [inputSnapshot.snapshotId],
+    )
+    if (!snapshot || snapshot.expires_at <= Date.now())
+      throw new Error('long-term memory pagination snapshot expired; restart pagination')
+    if (
+      snapshot.card_id !== inputSnapshot.cardId
+      || snapshot.mode !== inputSnapshot.mode
+      || snapshot.request_hash !== inputSnapshot.requestHash
+    ) {
+      throw new Error('long-term memory pagination snapshot does not match the current request')
+    }
+  }
+
+  async function createSearchSnapshot(
+    listInput: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemorySearchItems']>[0],
+    mode: 'recent' | 'search' | 'short-search',
+    query = '',
+  ) {
+    const snapshotId = `ltm-search-snapshot:${randomUUID()}`
+    const now = Date.now()
+    const requestHash = snapshotRequestHash(listInput, mode, query)
+    const cursorMode: SearchSnapshotRow['mode'] = mode === 'search' ? 'search' : 'recent'
+    await input.enqueueWrite(async () => {
+      await input.runInTransaction(input.database, async () => {
+        await pruneExpiredSnapshots(now)
+        await pruneOverflowSnapshots(listInput.cardId)
+        await input.run(
+          input.database,
+          `
+          INSERT INTO long_term_memory_search_snapshots (
+            id, card_id, mode, request_hash, created_at, expires_at
+          ) VALUES (?, ?, ?, ?, ?, ?)
+          `,
+          [snapshotId, listInput.cardId, cursorMode, requestHash, now, now + searchSnapshotTtlMs],
+        )
+        const clauses: string[] = []
+        const params: unknown[] = []
+        appendCommonFilters(clauses, params, listInput)
+        if (mode === 'search') {
+          clauses.push('long_term_memory_search_documents_fts MATCH ?')
+          params.push(buildFtsQuery(query))
+        }
+        else if (mode === 'short-search') {
+          clauses.push('doc.search_text LIKE ? ESCAPE \'\\\'')
+          params.push(buildLikeQuery(query))
+        }
+        const searchJoin = mode === 'search'
+          ? `
+            JOIN long_term_memory_search_documents_fts
+              ON long_term_memory_search_documents_fts.document_id = doc.id
+          `
+          : ''
+        const rankExpression = mode === 'search'
+          ? 'bm25(long_term_memory_search_documents_fts)'
+          : 'NULL'
+        await input.run(
+          input.database,
+          `
+          INSERT INTO long_term_memory_search_snapshot_items (
+            snapshot_id,
+            document_id,
+            card_id,
+            source,
+            source_id,
+            kind,
+            summary,
+            evidence_snippets_json,
+            source_ids_json,
+            confidence,
+            salience,
+            sensitivity,
+            created_at,
+            updated_at,
+            last_accessed_at,
+            tombstoned,
+            visibility,
+            training,
+            rank
+          )
+          SELECT
+            ?,
+            doc.id,
+            doc.card_id,
+            doc.source,
+            doc.source_id,
+            doc.kind,
+            doc.summary,
+            doc.evidence_snippets_json,
+            doc.source_ids_json,
+            doc.confidence,
+            doc.salience,
+            doc.sensitivity,
+            doc.created_at,
+            doc.updated_at,
+            doc.last_accessed_at,
+            doc.tombstoned,
+            COALESCE(policy.visible_mode, CASE WHEN doc.sensitivity IN ('private', 'secret') THEN 'inward-only' ELSE 'explicit' END),
+            CASE WHEN COALESCE(policy.allow_training, 0) = 1 THEN 'allowed' ELSE 'blocked' END,
+            ${rankExpression}
+          FROM long_term_memory_search_documents doc
+          ${searchJoin}
+          ${projectionJoins()}
+          WHERE ${clauses.join(' AND ')}
+          `,
+          [snapshotId, ...params],
+        )
+      })
+    })
+    return {
+      snapshotId,
+      requestHash,
+      cursorMode,
+    }
+  }
+
+  async function listSearchSnapshotPage(inputPage: {
+    listInput: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemorySearchItems']>[0]
+    mode: 'recent' | 'search' | 'short-search'
+    query?: string
+    snapshotId: string
+    cursor?: SnapshotSearchCursor | null
+  }) {
+    const requestHash = snapshotRequestHash(inputPage.listInput, inputPage.mode, inputPage.query)
+    const cursorMode = inputPage.mode === 'search' ? 'search' : 'recent'
+    await assertSnapshot({
+      snapshotId: inputPage.snapshotId,
+      cardId: inputPage.listInput.cardId,
+      mode: cursorMode,
+      requestHash,
+    })
+    const limit = safeLimit(inputPage.listInput.limit)
+    const clauses = ['snapshot_id = ?']
+    const params: unknown[] = [inputPage.snapshotId]
+    if (inputPage.cursor?.mode === 'search') {
+      clauses.push('(rank > ? OR (rank = ? AND updated_at < ?) OR (rank = ? AND updated_at = ? AND document_id > ?))')
+      params.push(
+        inputPage.cursor.rank,
+        inputPage.cursor.rank,
+        inputPage.cursor.updatedAt,
+        inputPage.cursor.rank,
+        inputPage.cursor.updatedAt,
+        inputPage.cursor.documentId,
+      )
+    }
+    else if (inputPage.cursor?.mode === 'recent') {
+      clauses.push('(updated_at < ? OR (updated_at = ? AND document_id > ?))')
+      params.push(
+        inputPage.cursor.updatedAt,
+        inputPage.cursor.updatedAt,
+        inputPage.cursor.documentId,
+      )
+    }
+    params.push(limit + 1)
+    const rows = await input.all<SearchDocumentRow>(
+      input.database,
+      `
+      SELECT
+        document_id AS id,
+        card_id,
+        source,
+        source_id,
+        kind,
+        summary,
+        evidence_snippets_json,
+        source_ids_json,
+        confidence,
+        salience,
+        sensitivity,
+        '' AS search_text,
+        '' AS embedding_text,
+        '' AS text_hash,
+        created_at,
+        updated_at,
+        last_accessed_at,
+        tombstoned,
+        visibility,
+        training,
+        rank
+      FROM long_term_memory_search_snapshot_items
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY ${cursorMode === 'search' ? 'rank ASC, ' : ''}updated_at DESC, document_id ASC
+      LIMIT ?
+      `,
+      params,
+    )
+    const pageRows = rows.slice(0, limit)
+    const next = rows.length > limit ? pageRows.at(-1) : null
+    return {
+      items: pageRows.map(mapDocumentRow),
+      nextCursor: next
+        ? encodeCursor(cursorMode === 'search'
+            ? {
+                version: 2,
+                mode: 'search',
+                snapshotId: inputPage.snapshotId,
+                rank: Number(next.rank ?? 0),
+                updatedAt: next.updated_at,
+                documentId: next.id,
+              }
+            : {
+                version: 2,
+                mode: 'recent',
+                snapshotId: inputPage.snapshotId,
+                updatedAt: next.updated_at,
+                documentId: next.id,
+              })
+        : null,
+    }
+  }
+
   async function resolveUpdatedAtUpperBound(
     inputRaw: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemorySearchItems']>[0],
     mode: 'recent' | 'search' | 'short-search',
@@ -1025,21 +1442,40 @@ export function createLongTermMemorySearchIndexRuntime(input: {
   async function listRecent(inputRaw: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemorySearchItems']>[0]) {
     const limit = safeLimit(inputRaw.limit)
     const cursor = decodeCursor(inputRaw.cursor)
-    const updatedAtUpperBound = cursor?.mode === 'recent' && Number.isFinite(cursor.updatedAtUpperBound)
-      ? cursor.updatedAtUpperBound
-      : cursor?.mode === 'recent'
+    if (cursor?.version === 2 && cursor.mode === 'recent') {
+      return await listSearchSnapshotPage({
+        listInput: inputRaw,
+        mode: 'recent',
+        snapshotId: cursor.snapshotId,
+        cursor,
+      })
+    }
+    if (cursor?.version === 2)
+      throw new Error('long-term memory pagination snapshot does not match the current request')
+    if (!cursor) {
+      const snapshot = await createSearchSnapshot(inputRaw, 'recent')
+      return await listSearchSnapshotPage({
+        listInput: inputRaw,
+        mode: 'recent',
+        snapshotId: snapshot.snapshotId,
+      })
+    }
+    const legacyCursor = cursor.version === 1 ? cursor : null
+    const updatedAtUpperBound = legacyCursor?.mode === 'recent' && Number.isFinite(legacyCursor.updatedAtUpperBound)
+      ? legacyCursor.updatedAtUpperBound
+      : legacyCursor?.mode === 'recent'
         ? null
         : await resolveUpdatedAtUpperBound(inputRaw, 'recent')
     const clauses: string[] = []
     const params: unknown[] = []
     appendCommonFilters(clauses, params, inputRaw)
-    if (cursor?.mode === 'recent') {
+    if (legacyCursor?.mode === 'recent') {
       if (updatedAtUpperBound !== null) {
         clauses.push('doc.updated_at <= ?')
         params.push(updatedAtUpperBound)
       }
       clauses.push('(doc.updated_at < ? OR (doc.updated_at = ? AND doc.id > ?))')
-      params.push(cursor.updatedAt, cursor.updatedAt, cursor.documentId)
+      params.push(legacyCursor.updatedAt, legacyCursor.updatedAt, legacyCursor.documentId)
     }
     else {
       clauses.push('doc.updated_at <= ?')
@@ -1077,9 +1513,30 @@ export function createLongTermMemorySearchIndexRuntime(input: {
   async function listSearch(inputRaw: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemorySearchItems']>[0], query: string) {
     const limit = safeLimit(inputRaw.limit)
     const cursor = decodeCursor(inputRaw.cursor)
-    const updatedAtUpperBound = cursor?.mode === 'search' && Number.isFinite(cursor.updatedAtUpperBound)
-      ? cursor.updatedAtUpperBound
-      : cursor?.mode === 'search'
+    if (cursor?.version === 2 && cursor.mode === 'search') {
+      return await listSearchSnapshotPage({
+        listInput: inputRaw,
+        mode: 'search',
+        query,
+        snapshotId: cursor.snapshotId,
+        cursor,
+      })
+    }
+    if (cursor?.version === 2)
+      throw new Error('long-term memory pagination snapshot does not match the current request')
+    if (!cursor) {
+      const snapshot = await createSearchSnapshot(inputRaw, 'search', query)
+      return await listSearchSnapshotPage({
+        listInput: inputRaw,
+        mode: 'search',
+        query,
+        snapshotId: snapshot.snapshotId,
+      })
+    }
+    const legacyCursor = cursor.version === 1 ? cursor : null
+    const updatedAtUpperBound = legacyCursor?.mode === 'search' && Number.isFinite(legacyCursor.updatedAtUpperBound)
+      ? legacyCursor.updatedAtUpperBound
+      : legacyCursor?.mode === 'search'
         ? null
         : await resolveUpdatedAtUpperBound(inputRaw, 'search', query)
     const clauses: string[] = []
@@ -1089,13 +1546,20 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     params.push(buildFtsQuery(query))
     const cursorClauses: string[] = []
     const cursorParams: unknown[] = []
-    if (cursor?.mode === 'search') {
+    if (legacyCursor?.mode === 'search') {
       if (updatedAtUpperBound !== null) {
         cursorClauses.push('updated_at <= ?')
         cursorParams.push(updatedAtUpperBound)
       }
       cursorClauses.push('(rank > ? OR (rank = ? AND updated_at < ?) OR (rank = ? AND updated_at = ? AND id > ?))')
-      cursorParams.push(cursor.rank, cursor.rank, cursor.updatedAt, cursor.rank, cursor.updatedAt, cursor.documentId)
+      cursorParams.push(
+        legacyCursor.rank,
+        legacyCursor.rank,
+        legacyCursor.updatedAt,
+        legacyCursor.rank,
+        legacyCursor.updatedAt,
+        legacyCursor.documentId,
+      )
     }
     else {
       cursorClauses.push('updated_at <= ?')
@@ -1140,9 +1604,30 @@ export function createLongTermMemorySearchIndexRuntime(input: {
   async function listShortSearch(inputRaw: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemorySearchItems']>[0], query: string) {
     const limit = safeLimit(inputRaw.limit)
     const cursor = decodeCursor(inputRaw.cursor)
-    const updatedAtUpperBound = cursor?.mode === 'recent' && Number.isFinite(cursor.updatedAtUpperBound)
-      ? cursor.updatedAtUpperBound
-      : cursor?.mode === 'recent'
+    if (cursor?.version === 2 && cursor.mode === 'recent') {
+      return await listSearchSnapshotPage({
+        listInput: inputRaw,
+        mode: 'short-search',
+        query,
+        snapshotId: cursor.snapshotId,
+        cursor,
+      })
+    }
+    if (cursor?.version === 2)
+      throw new Error('long-term memory pagination snapshot does not match the current request')
+    if (!cursor) {
+      const snapshot = await createSearchSnapshot(inputRaw, 'short-search', query)
+      return await listSearchSnapshotPage({
+        listInput: inputRaw,
+        mode: 'short-search',
+        query,
+        snapshotId: snapshot.snapshotId,
+      })
+    }
+    const legacyCursor = cursor.version === 1 ? cursor : null
+    const updatedAtUpperBound = legacyCursor?.mode === 'recent' && Number.isFinite(legacyCursor.updatedAtUpperBound)
+      ? legacyCursor.updatedAtUpperBound
+      : legacyCursor?.mode === 'recent'
         ? null
         : await resolveUpdatedAtUpperBound(inputRaw, 'short-search', query)
     const clauses: string[] = []
@@ -1150,13 +1635,13 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     appendCommonFilters(clauses, params, inputRaw)
     clauses.push('doc.search_text LIKE ? ESCAPE \'\\\'')
     params.push(buildLikeQuery(query))
-    if (cursor?.mode === 'recent') {
+    if (legacyCursor?.mode === 'recent') {
       if (updatedAtUpperBound !== null) {
         clauses.push('doc.updated_at <= ?')
         params.push(updatedAtUpperBound)
       }
       clauses.push('(doc.updated_at < ? OR (doc.updated_at = ? AND doc.id > ?))')
-      params.push(cursor.updatedAt, cursor.updatedAt, cursor.documentId)
+      params.push(legacyCursor.updatedAt, legacyCursor.updatedAt, legacyCursor.documentId)
     }
     else {
       clauses.push('doc.updated_at <= ?')
@@ -1207,6 +1692,195 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     return await listRecent(normalizedInput)
   }
 
+  async function createTombstoneSnapshot(cardId: string) {
+    const snapshotId = `ltm-tombstone-snapshot:${randomUUID()}`
+    const now = Date.now()
+    const requestHash = tombstoneSnapshotRequestHash(cardId)
+    await input.enqueueWrite(async () => {
+      await input.runInTransaction(input.database, async () => {
+        await pruneExpiredSnapshots(now)
+        await pruneOverflowSnapshots(cardId)
+        await input.run(
+          input.database,
+          `
+          INSERT INTO long_term_memory_search_snapshots (
+            id, card_id, mode, request_hash, created_at, expires_at
+          ) VALUES (?, ?, 'tombstones', ?, ?, ?)
+          `,
+          [snapshotId, cardId, requestHash, now, now + searchSnapshotTtlMs],
+        )
+        await input.run(
+          input.database,
+          `
+          INSERT INTO long_term_memory_tombstone_snapshot_items (
+            snapshot_id,
+            tombstone_id,
+            tombstone_source_id,
+            tombstone_source,
+            tombstone_reason,
+            tombstone_created_at,
+            document_id,
+            card_id,
+            source,
+            source_id,
+            kind,
+            summary,
+            evidence_snippets_json,
+            source_ids_json,
+            confidence,
+            salience,
+            sensitivity,
+            created_at,
+            updated_at,
+            last_accessed_at,
+            tombstoned,
+            visibility,
+            training
+          )
+          SELECT
+            ?,
+            tomb.id,
+            tomb.source_id,
+            tomb.source,
+            tomb.reason,
+            tomb.created_at,
+            doc.id,
+            doc.card_id,
+            doc.source,
+            doc.source_id,
+            doc.kind,
+            doc.summary,
+            doc.evidence_snippets_json,
+            doc.source_ids_json,
+            doc.confidence,
+            doc.salience,
+            doc.sensitivity,
+            doc.created_at,
+            doc.updated_at,
+            doc.last_accessed_at,
+            doc.tombstoned,
+            COALESCE(policy.visible_mode, CASE WHEN doc.sensitivity IN ('private', 'secret') THEN 'inward-only' ELSE 'explicit' END),
+            CASE WHEN COALESCE(policy.allow_training, 0) = 1 THEN 'allowed' ELSE 'blocked' END
+          FROM long_term_memory_tombstones tomb
+          LEFT JOIN long_term_memory_search_documents doc
+            ON doc.id = (
+              SELECT candidate.id
+              FROM long_term_memory_search_documents candidate
+              WHERE candidate.card_id = tomb.card_id
+                AND candidate.source_id = tomb.source_id
+                AND (tomb.source = candidate.source OR tomb.source = 'long_term_memory')
+              ORDER BY candidate.updated_at DESC, candidate.id ASC
+              LIMIT 1
+            )
+          LEFT JOIN long_term_memory_policy_overrides policy
+            ON policy.card_id = doc.card_id
+            AND policy.source = doc.source
+            AND policy.source_id = doc.source_id
+          WHERE tomb.card_id = ?
+          `,
+          [snapshotId, cardId],
+        )
+      })
+    })
+    return snapshotId
+  }
+
+  async function listTombstoneSnapshotPage(inputPage: {
+    cardId: string
+    limit?: number
+    snapshotId: string
+    cursor?: Extract<SnapshotSearchCursor, { mode: 'tombstones' }> | null
+  }): Promise<AlicizationMemoryWorkbenchTombstoneListResult> {
+    await assertSnapshot({
+      snapshotId: inputPage.snapshotId,
+      cardId: inputPage.cardId,
+      mode: 'tombstones',
+      requestHash: tombstoneSnapshotRequestHash(inputPage.cardId),
+    })
+    const limit = safeLimit(inputPage.limit)
+    const clauses = ['snapshot_id = ?']
+    const params: unknown[] = [inputPage.snapshotId]
+    if (inputPage.cursor) {
+      clauses.push('(tombstone_created_at < ? OR (tombstone_created_at = ? AND tombstone_id > ?))')
+      params.push(
+        inputPage.cursor.deletedAt,
+        inputPage.cursor.deletedAt,
+        inputPage.cursor.tombstoneId,
+      )
+    }
+    params.push(limit + 1)
+    const rows = await input.all<SearchDocumentRow & {
+      document_id: string | null
+      tombstone_id: string
+      tombstone_source_id: string
+      tombstone_source: string
+      tombstone_reason: string | null
+      tombstone_created_at: number
+    }>(
+      input.database,
+      `
+      SELECT
+        document_id AS id,
+        document_id,
+        card_id,
+        source,
+        source_id,
+        kind,
+        summary,
+        evidence_snippets_json,
+        source_ids_json,
+        confidence,
+        salience,
+        sensitivity,
+        '' AS search_text,
+        '' AS embedding_text,
+        '' AS text_hash,
+        created_at,
+        updated_at,
+        last_accessed_at,
+        tombstoned,
+        visibility,
+        training,
+        tombstone_id,
+        tombstone_source_id,
+        tombstone_source,
+        tombstone_reason,
+        tombstone_created_at
+      FROM long_term_memory_tombstone_snapshot_items
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY tombstone_created_at DESC, tombstone_id ASC
+      LIMIT ?
+      `,
+      params,
+    )
+    const pageRows = rows.slice(0, limit)
+    const next = rows.length > limit ? pageRows.at(-1) : null
+    return {
+      items: pageRows.map(row => ({
+        id: row.tombstone_id,
+        sourceId: row.tombstone_source_id,
+        source: row.tombstone_source,
+        reason: normalizeText(row.tombstone_reason, 300) || null,
+        deletedAt: Math.max(0, Math.floor(Number(row.tombstone_created_at) || 0)),
+        memory: row.document_id
+          ? {
+              ...mapDocumentRow(row),
+              tombstoned: true,
+            }
+          : null,
+      })),
+      nextCursor: next
+        ? encodeCursor({
+            version: 2,
+            mode: 'tombstones',
+            snapshotId: inputPage.snapshotId,
+            deletedAt: next.tombstone_created_at,
+            tombstoneId: next.tombstone_id,
+          })
+        : null,
+    }
+  }
+
   async function listLongTermMemoryTombstones(
     listInput: Parameters<LongTermMemorySearchIndexRuntime['listLongTermMemoryTombstones']>[0],
   ): Promise<AlicizationMemoryWorkbenchTombstoneListResult> {
@@ -1215,9 +1889,28 @@ export function createLongTermMemorySearchIndexRuntime(input: {
       return { items: [], nextCursor: null }
     const limit = safeLimit(listInput.limit)
     const cursor = decodeCursor(listInput.cursor)
-    const deletedAtUpperBound = cursor?.mode === 'tombstones' && Number.isFinite(cursor.deletedAtUpperBound)
-      ? cursor.deletedAtUpperBound
-      : cursor?.mode === 'tombstones'
+    if (cursor?.version === 2 && cursor.mode === 'tombstones') {
+      return await listTombstoneSnapshotPage({
+        cardId,
+        limit,
+        snapshotId: cursor.snapshotId,
+        cursor,
+      })
+    }
+    if (cursor?.version === 2)
+      throw new Error('long-term memory pagination snapshot does not match the current request')
+    if (!cursor) {
+      const snapshotId = await createTombstoneSnapshot(cardId)
+      return await listTombstoneSnapshotPage({
+        cardId,
+        limit,
+        snapshotId,
+      })
+    }
+    const legacyCursor = cursor.version === 1 ? cursor : null
+    const deletedAtUpperBound = legacyCursor?.mode === 'tombstones' && Number.isFinite(legacyCursor.deletedAtUpperBound)
+      ? legacyCursor.deletedAtUpperBound
+      : legacyCursor?.mode === 'tombstones'
         ? null
         : await (async () => {
             const snapshot = await input.get<{ deleted_at: number | null }>(
@@ -1229,13 +1922,13 @@ export function createLongTermMemorySearchIndexRuntime(input: {
           })()
     const clauses = ['tomb.card_id = ?']
     const params: unknown[] = [cardId]
-    if (cursor?.mode === 'tombstones') {
+    if (legacyCursor?.mode === 'tombstones') {
       if (deletedAtUpperBound !== null) {
         clauses.push('tomb.created_at <= ?')
         params.push(deletedAtUpperBound)
       }
       clauses.push('(tomb.created_at < ? OR (tomb.created_at = ? AND tomb.id > ?))')
-      params.push(cursor.deletedAt, cursor.deletedAt, cursor.tombstoneId)
+      params.push(legacyCursor.deletedAt, legacyCursor.deletedAt, legacyCursor.tombstoneId)
     }
     else {
       clauses.push('tomb.created_at <= ?')

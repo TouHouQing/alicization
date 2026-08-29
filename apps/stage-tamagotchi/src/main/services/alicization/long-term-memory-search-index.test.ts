@@ -430,9 +430,9 @@ describe('long-term memory search index', () => {
       })
       expect(firstPage.items.map(item => item.id)).toEqual(['recent-snapshot-1'])
       expect(decodeOpaqueCursor(firstPage.nextCursor)).toMatchObject({
-        version: 1,
+        version: 2,
         mode: 'recent',
-        updatedAtUpperBound: 30,
+        snapshotId: expect.any(String),
       })
 
       await db.upsertMemoryReflections([{
@@ -455,8 +455,9 @@ describe('long-term memory search index', () => {
       })
       expect(secondPage.items.map(item => item.id)).toEqual(['recent-snapshot-2'])
       expect(decodeOpaqueCursor(secondPage.nextCursor)).toMatchObject({
+        version: 2,
         mode: 'recent',
-        updatedAtUpperBound: 30,
+        snapshotId: decodeOpaqueCursor(firstPage.nextCursor).snapshotId,
       })
 
       const legacyCursor = Buffer.from(JSON.stringify({
@@ -515,9 +516,9 @@ describe('long-term memory search index', () => {
       })
       expect(firstPage.items.map(item => item.id)).toEqual(['fts-snapshot-1'])
       expect(decodeOpaqueCursor(firstPage.nextCursor)).toMatchObject({
-        version: 1,
+        version: 2,
         mode: 'search',
-        updatedAtUpperBound: 30,
+        snapshotId: expect.any(String),
       })
 
       await db.upsertMemoryReflections([{
@@ -584,9 +585,9 @@ describe('long-term memory search index', () => {
       })
       expect(firstPage.items.map(item => item.id)).toEqual(['short-snapshot-1'])
       expect(decodeOpaqueCursor(firstPage.nextCursor)).toMatchObject({
-        version: 1,
+        version: 2,
         mode: 'recent',
-        updatedAtUpperBound: 30,
+        snapshotId: expect.any(String),
       })
 
       await expect(db.listMemoryWorkbenchLongTermItems({
@@ -651,9 +652,9 @@ describe('long-term memory search index', () => {
       })
       expect(firstPage.items.map(item => item.sourceId)).toEqual(['tombstone-snapshot-2'])
       expect(decodeOpaqueCursor(firstPage.nextCursor)).toMatchObject({
-        version: 1,
+        version: 2,
         mode: 'tombstones',
-        deletedAtUpperBound: firstPage.items[0]!.deletedAt,
+        snapshotId: expect.any(String),
       })
 
       const legacyCursor = Buffer.from(JSON.stringify({
@@ -669,6 +670,333 @@ describe('long-term memory search index', () => {
       })).resolves.toMatchObject({
         items: [{ sourceId: 'tombstone-snapshot-1' }],
       })
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('freezes recent pagination when a same-timestamp document is inserted after the first page', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryReflections([
+        {
+          id: 'recent-strict-1',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'task',
+          summary: '严格快照普通分页第一条。',
+          lesson: '第一页。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 1,
+          updatedAt: 30,
+        },
+        {
+          id: 'recent-strict-2',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'task',
+          summary: '严格快照普通分页第二条。',
+          lesson: '第二页。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 2,
+          updatedAt: 20,
+        },
+      ])
+
+      const firstPage = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        limit: 1,
+      })
+      expect(firstPage.items.map(item => item.id)).toEqual(['recent-strict-1'])
+
+      await db.upsertMemoryReflections([{
+        id: 'recent-strict-inserted',
+        cardId: 'default',
+        sourceKind: 'reply',
+        targetScope: 'task',
+        summary: '分页开始后使用旧时间戳插入。',
+        lesson: '不能混入已有快照。',
+        status: 'confirmed',
+        confidence: 0.9,
+        createdAt: 3,
+        updatedAt: 25,
+      }])
+
+      await expect(db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        limit: 10,
+        cursor: firstPage.nextCursor,
+      })).resolves.toMatchObject({
+        items: [{ id: 'recent-strict-2' }],
+        nextCursor: null,
+      })
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('freezes FTS membership and rank when a matching document is inserted after the first page', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryReflections([
+        {
+          id: 'fts-strict-1',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'task',
+          summary: '严格语义分页目标 严格语义分页目标',
+          lesson: '第一页。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 1,
+          updatedAt: 30,
+        },
+        {
+          id: 'fts-strict-2',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'task',
+          summary: '严格语义分页目标',
+          lesson: '第二页。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 2,
+          updatedAt: 20,
+        },
+      ])
+
+      const firstPage = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query: '严格语义分页目标',
+        limit: 1,
+      })
+      expect(firstPage.items.map(item => item.id)).toEqual(['fts-strict-1'])
+
+      await db.upsertMemoryReflections([{
+        id: 'fts-strict-inserted',
+        cardId: 'default',
+        sourceKind: 'reply',
+        targetScope: 'task',
+        summary: '严格语义分页目标 严格语义分页目标 严格语义分页目标',
+        lesson: '新匹配不能改变旧快照的集合或排序。',
+        status: 'confirmed',
+        confidence: 0.9,
+        createdAt: 3,
+        updatedAt: 25,
+      }])
+
+      await expect(db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query: '严格语义分页目标',
+        limit: 10,
+        cursor: firstPage.nextCursor,
+      })).resolves.toMatchObject({
+        items: [{ id: 'fts-strict-2' }],
+        nextCursor: null,
+      })
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('freezes tombstone pagination when an older deletion timestamp is inserted after the first page', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const db = await setupAlicizationDb(userDataPath)
+    try {
+      await db.upsertMemoryReflections([
+        {
+          id: 'tombstone-strict-1',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'task',
+          summary: '严格回收站第一条。',
+          lesson: '第一条。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 1,
+          updatedAt: 10,
+        },
+        {
+          id: 'tombstone-strict-2',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'task',
+          summary: '严格回收站第二条。',
+          lesson: '第二条。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 2,
+          updatedAt: 20,
+        },
+      ])
+      await db.tombstoneLongTermMemorySources({
+        sourceIds: ['tombstone-strict-1'],
+        source: 'memory_reflections',
+        reason: '第一条删除',
+      })
+      await new Promise(resolve => setTimeout(resolve, 2))
+      await db.tombstoneLongTermMemorySources({
+        sourceIds: ['tombstone-strict-2'],
+        source: 'memory_reflections',
+        reason: '第二条删除',
+      })
+
+      const firstPage = await db.listMemoryWorkbenchTombstones({
+        cardId: 'default',
+        limit: 1,
+      })
+      expect(firstPage.items.map(item => item.sourceId)).toEqual(['tombstone-strict-2'])
+
+      const rawDatabase = await openRawDatabase(join(userDataPath, 'alicizations', 'alicization.db'))
+      try {
+        await executeRawSql(
+          rawDatabase,
+          `
+          INSERT INTO long_term_memory_tombstones (
+            id, card_id, source_id, source, reason, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?)
+          `,
+          [
+            'tombstone-strict-inserted',
+            'default',
+            'tombstone-strict-inserted-source',
+            'memory_reflections',
+            '分页期间补写旧删除记录',
+            firstPage.items[0]!.deletedAt - 1,
+          ],
+        )
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+
+      await expect(db.listMemoryWorkbenchTombstones({
+        cardId: 'default',
+        limit: 10,
+        cursor: firstPage.nextCursor,
+      })).resolves.toMatchObject({
+        items: [{ sourceId: 'tombstone-strict-1' }],
+        nextCursor: null,
+      })
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('deletes frozen pagination snapshots when conversation data is cleared', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const db = await setupAlicizationDb(userDataPath)
+    try {
+      await db.upsertMemoryReflections([
+        {
+          id: 'snapshot-clear-1',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'task',
+          summary: '清理快照第一页。',
+          lesson: '触发长期记忆分页快照。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 1,
+          updatedAt: 20,
+        },
+        {
+          id: 'snapshot-clear-2',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'task',
+          summary: '清理快照第二页。',
+          lesson: '确保产生 next cursor。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 2,
+          updatedAt: 10,
+        },
+      ])
+      const page = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        limit: 1,
+      })
+      expect(page.nextCursor).toBeTruthy()
+
+      await db.clearConversationData()
+
+      const rawDatabase = await openRawDatabase(join(userDataPath, 'alicizations', 'alicization.db'))
+      try {
+        const [snapshots] = await queryRawRows<{ count: number }>(
+          rawDatabase,
+          'SELECT COUNT(*) AS count FROM long_term_memory_search_snapshots',
+        )
+        const [items] = await queryRawRows<{ count: number }>(
+          rawDatabase,
+          'SELECT COUNT(*) AS count FROM long_term_memory_search_snapshot_items',
+        )
+        expect(snapshots?.count).toBe(0)
+        expect(items?.count).toBe(0)
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('rejects a frozen cursor when the query or filter no longer matches its snapshot', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryReflections([
+        {
+          id: 'snapshot-request-1',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'task',
+          summary: '快照请求绑定目标。',
+          lesson: '第一页。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 1,
+          updatedAt: 20,
+        },
+        {
+          id: 'snapshot-request-2',
+          cardId: 'default',
+          sourceKind: 'reply',
+          targetScope: 'task',
+          summary: '快照请求绑定目标。',
+          lesson: '第二页。',
+          status: 'confirmed',
+          confidence: 0.9,
+          createdAt: 2,
+          updatedAt: 10,
+        },
+      ])
+      const page = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        limit: 1,
+      })
+      expect(page.nextCursor).toBeTruthy()
+
+      await expect(db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query: '快照请求绑定目标',
+        limit: 1,
+        cursor: page.nextCursor,
+      })).rejects.toThrow('pagination snapshot does not match')
+
+      await expect(db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        kind: 'fact',
+        limit: 1,
+        cursor: page.nextCursor,
+      })).rejects.toThrow('pagination snapshot does not match')
     }
     finally {
       await db.close()

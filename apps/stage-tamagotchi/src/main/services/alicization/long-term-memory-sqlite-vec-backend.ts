@@ -99,6 +99,13 @@ function tableName(dimensions: number) {
   return `long_term_memory_vec_${dimensions}`
 }
 
+function hasPartitionedScopeSchema(sql: string | null | undefined) {
+  const normalized = sql?.toLowerCase().replace(/\s+/g, ' ') ?? ''
+  return normalized.includes('card_id text partition key')
+    && normalized.includes('model_id text partition key')
+    && normalized.includes('vector_space_id text partition key')
+}
+
 function packagedExtensionPath(path: string) {
   if (!path.includes('app.asar'))
     return path
@@ -166,9 +173,9 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
     await input.run(input.database, `
       CREATE VIRTUAL TABLE IF NOT EXISTS ${tableName(dimensions)} USING vec0(
         embedding float[${dimensions}] distance_metric=cosine,
-        card_id text,
-        model_id text,
-        vector_space_id text,
+        card_id text partition key,
+        model_id text partition key,
+        vector_space_id text partition key,
         source text
       )
     `)
@@ -221,6 +228,27 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
         input.database,
         'CREATE INDEX IF NOT EXISTS idx_ltm_sqlite_vec_source ON long_term_memory_sqlite_vec_rows(card_id, source_id)',
       )
+      const existingVectorTables = await input.all<{ name: string, sql: string | null }>(
+        input.database,
+        `SELECT name, sql
+         FROM sqlite_master
+         WHERE type = 'table'
+           AND name GLOB 'long_term_memory_vec_[0-9]*'
+           AND sql LIKE 'CREATE VIRTUAL TABLE%'`,
+      )
+      for (const table of existingVectorTables) {
+        if (hasPartitionedScopeSchema(table.sql))
+          continue
+        const dimensions = normalizeDimensions(table.name.replace('long_term_memory_vec_', ''))
+        await input.run(input.database, `DROP TABLE IF EXISTS "${table.name.replaceAll('"', '""')}"`)
+        if (dimensions) {
+          await input.run(
+            input.database,
+            'DELETE FROM long_term_memory_sqlite_vec_rows WHERE dimensions = ?',
+            [dimensions],
+          )
+        }
+      }
       initialized = true
       lastError = null
     }

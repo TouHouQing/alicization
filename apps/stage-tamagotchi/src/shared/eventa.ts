@@ -151,6 +151,7 @@ import type {
   AlicizationPersonaReinforcementValence as SharedAlicizationPersonaReinforcementValence,
   AlicizationPersonaRelationshipPosture as SharedAlicizationPersonaRelationshipPosture,
   AlicizationPersonaTemperament as SharedAlicizationPersonaTemperament,
+  AlicizationPersonaTrainingSourceRef as SharedAlicizationPersonaTrainingSourceRef,
   AlicizationPersonaWorkshopSubmission as SharedAlicizationPersonaWorkshopSubmission,
   AlicizationPersonStateEvolutionEntryInput as SharedAlicizationPersonStateEvolutionEntryInput,
   AlicizationPersonStateEvolutionEntryRecord as SharedAlicizationPersonStateEvolutionEntryRecord,
@@ -1045,6 +1046,7 @@ export interface AlicizationPersonaTrainingDatasetExamplePolicyPayload extends A
   consent: Omit<AlicizationPersonaTrainingDatasetConsentSnapshot, 'capturedAt'> & { capturedAt?: number }
 }
 
+export type AlicizationPersonaTrainingSourceRef = SharedAlicizationPersonaTrainingSourceRef
 export type AlicizationPersonaTrainingDatasetRevokePayload = SharedMemoryWorkbench.AlicizationPersonaTrainingDatasetRevokePayload
 export type AlicizationPersonaTrainingSourceRevokeIntentStatus = SharedMemoryWorkbench.AlicizationPersonaTrainingSourceRevokeIntentStatus
 export type AlicizationPersonaTrainingSourceRevokeIntent = SharedMemoryWorkbench.AlicizationPersonaTrainingSourceRevokeIntent

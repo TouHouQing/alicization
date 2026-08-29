@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createMemoryQualityTrialCliReport,
   parseMemoryQualityTrialCliArgs,
+  resolveDefaultMemoryQualityTrialUserDataPath,
   runMemoryQualityTrialCli,
 } from './memory-quality-trial-cli'
 
@@ -111,6 +112,31 @@ function report(overrides: Partial<MemoryProductionTrialReport> = {}) {
 }
 
 describe('memory quality trial CLI', () => {
+  it('finds the installed macOS app data directory without requiring novice users to provide a path', () => {
+    const existing = new Set([
+      '/Users/alice/Library/Application Support/com.tohoqing.alicization/alicizations/alicization.db',
+    ])
+
+    expect(resolveDefaultMemoryQualityTrialUserDataPath({
+      platform: 'darwin',
+      homeDir: '/Users/alice',
+      env: {},
+      pathExists: path => existing.has(path),
+    })).toBe('/Users/alice/Library/Application Support/com.tohoqing.alicization')
+  })
+
+  it('allows the package command to run without path arguments on an installed macOS app', () => {
+    expect(parseMemoryQualityTrialCliArgs([], {
+      defaultUserDataPath: '/Users/alice/Library/Application Support/com.tohoqing.alicization',
+    })).toMatchObject({
+      userDataPath: '/Users/alice/Library/Application Support/com.tohoqing.alicization',
+      databasePath: null,
+      cardId: 'default',
+      mode: 'historical-replay',
+      readOnly: true,
+    })
+  })
+
   it('parses the local DB, card, mode, report, and primary session options', () => {
     expect(parseMemoryQualityTrialCliArgs([
       '--user-data-path',
@@ -251,6 +277,37 @@ describe('memory quality trial CLI', () => {
     expect(db.runMemoryWorkbenchProductionTrial).toHaveBeenCalledWith(expect.objectContaining({
       readOnly: true,
     }))
+  })
+
+  it('writes a private default JSON report and returns its path when --report is omitted', async () => {
+    const db = {
+      runMemoryWorkbenchProductionTrial: vi.fn(async () => report()),
+      close: vi.fn(async () => {}),
+    }
+    const writeReport = vi.fn(async () => {})
+    const result = await runMemoryQualityTrialCli({
+      args: {
+        userDataPath: '/tmp/alicization',
+        databasePath: '/tmp/alicization/alicizations/alicization.db',
+        cardId: 'default',
+        mode: 'historical-replay',
+        reportPath: null,
+        sessionId: null,
+        readOnly: true,
+      },
+      setupDb: vi.fn(async () => db),
+      writeReport,
+      writeOutput: vi.fn(),
+      now: () => 1_786_800_000_000,
+    })
+
+    expect(result.reportPath).toBe(
+      '/tmp/alicization/alicizations/quality-reports/memory-quality-trial-1786800000000.json',
+    )
+    expect(writeReport).toHaveBeenCalledWith(
+      result.reportPath,
+      expect.stringContaining('"version": "memory-production-trial-runner-v1"'),
+    )
   })
 
   it('creates an operational not-run report without hiding the real error', () => {

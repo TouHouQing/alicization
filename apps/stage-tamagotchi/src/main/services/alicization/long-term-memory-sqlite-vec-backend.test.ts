@@ -278,6 +278,34 @@ describe('sqlite-vec long-term memory vector backend', () => {
     })
   })
 
+  it('partitions native vector tables by the required retrieval scope', async () => {
+    const { harness, backend, upsertCanonical } = await createBackendHarness()
+    const record = {
+      id: 'vector-partitioned',
+      cardId: 'card-a',
+      sourceId: 'reflection-partitioned',
+      source: 'memory_reflections',
+      text: '分区后的原生索引应避免逐条比较高基数字符串作用域。',
+      vector: [1, 0, 0],
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
+      updatedAt: 10,
+      metadata: {},
+    }
+    await upsertCanonical([record])
+    await backend.upsert([record])
+
+    const table = await harness.get<{ sql: string }>(
+      'SELECT sql FROM sqlite_master WHERE type = ? AND name = ?',
+      ['table', 'long_term_memory_vec_3'],
+    )
+
+    expect(table?.sql).toContain('card_id text partition key')
+    expect(table?.sql).toContain('model_id text partition key')
+    expect(table?.sql).toContain('vector_space_id text partition key')
+  })
+
   it('reports an unsynchronized canonical space until rebuild completes', async () => {
     const { harness, backend } = await createBackendHarness()
     const vector = Buffer.from(new Float32Array([1, 0, 0]).buffer)

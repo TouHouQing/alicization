@@ -30,6 +30,39 @@ function mirror(input: Record<string, unknown> = {}) {
 }
 
 describe('autobiographical episode sync', () => {
+  it.each(['blocked', 'failed', 'cancelled', 'dead-lettered'] as const)(
+    'does not persist %s task-thread diagnostics as autobiographical memory',
+    (status) => {
+      const events = buildAutobiographicalEpisodesFromSessionMirrorSync({
+        cardId: 'default',
+        source: 'task-dispatch',
+        sessionId: 'session-failure',
+        turnId: 'turn-failure',
+        mirror: mirror(),
+        taskThread: {
+          id: `thread-${status}`,
+          decisionTraceId: 'trace-failure',
+          turnId: 'turn-failure',
+          sessionId: 'session-failure',
+          origin: 'user-turn',
+          goal: 'run the requested local task',
+          kind: 'unknown',
+          status,
+          selectedChannel: 'codex',
+          proposedChannel: 'codex',
+          summary: `diagnostic-${status}-must-stay-in-audit`,
+          metadata: null,
+          createdAt: 10,
+          updatedAt: 20,
+          lastEventAt: 20,
+          completedAt: null,
+        },
+      })
+
+      expect(events).toEqual([])
+    },
+  )
+
   it('persists task-thread status and result evidence without generated feeling or lesson text', () => {
     const [event] = buildAutobiographicalEpisodesFromSessionMirrorSync({
       cardId: 'default',

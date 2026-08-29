@@ -1,9 +1,11 @@
 import type { MemoryProductionTrialReport } from './memory-production-trial-runner'
 
-import process from 'node:process'
+import process, { env, platform } from 'node:process'
 
+import { existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { homedir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 
 import { alicizationPrimaryConversationSessionId } from '@proj-alicization/stage-shared'
 
@@ -59,7 +61,44 @@ export interface MemoryQualityTrialCliDependencies {
 export interface MemoryQualityTrialCliResult {
   exitCode: 0 | 1 | 2
   report: MemoryProductionTrialReport | MemoryQualityTrialCliOperationalFailureReport | null
+  reportPath: string | null
   error: string | null
+}
+
+export interface MemoryQualityTrialCliParseDefaults {
+  defaultUserDataPath?: string
+  defaultReadOnly?: boolean
+}
+
+export function resolveDefaultMemoryQualityTrialUserDataPath(input: {
+  platform?: NodeJS.Platform
+  homeDir?: string
+  env?: NodeJS.ProcessEnv
+  pathExists?: (path: string) => boolean
+} = {}) {
+  const currentPlatform = input.platform ?? platform
+  const currentHomeDir = input.homeDir ?? homedir()
+  const currentEnv = input.env ?? env
+  const pathExists = input.pathExists ?? existsSync
+  const candidates = currentPlatform === 'darwin'
+    ? [
+        join(currentHomeDir, 'Library', 'Application Support', 'com.tohoqing.alicization'),
+        join(currentHomeDir, 'Library', 'Application Support', 'Alicization'),
+      ]
+    : currentPlatform === 'win32'
+      ? [
+          join(currentEnv.APPDATA || join(currentHomeDir, 'AppData', 'Roaming'), 'com.tohoqing.alicization'),
+          join(currentEnv.APPDATA || join(currentHomeDir, 'AppData', 'Roaming'), 'Alicization'),
+        ]
+      : [
+          join(currentEnv.XDG_CONFIG_HOME || join(currentHomeDir, '.config'), 'com.tohoqing.alicization'),
+          join(currentEnv.XDG_CONFIG_HOME || join(currentHomeDir, '.config'), 'Alicization'),
+        ]
+
+  return candidates.find(candidate =>
+    pathExists(join(candidate, 'alicizations', 'alicization.db'))
+    || pathExists(join(candidate, 'alicizations', 'cards', 'default', 'alicization.db')),
+  ) ?? candidates[0]!
 }
 
 function requireOptionValue(args: string[], index: number, name: string) {
@@ -69,14 +108,19 @@ function requireOptionValue(args: string[], index: number, name: string) {
   return value
 }
 
-export function parseMemoryQualityTrialCliArgs(rawArgs: string[]): MemoryQualityTrialCliArgs {
-  let userDataPath = ''
+export function parseMemoryQualityTrialCliArgs(
+  rawArgs: string[],
+  defaults: MemoryQualityTrialCliParseDefaults = {},
+): MemoryQualityTrialCliArgs {
+  let userDataPath = defaults.defaultUserDataPath
+    ?? resolveDefaultMemoryQualityTrialUserDataPath()
   let databasePath: string | null = null
   let cardId = 'default'
   let mode: MemoryQualityTrialCliMode = 'historical-replay'
   let reportPath: string | null = null
   let sessionId: string | null = null
-  let readOnly = false
+  let readOnly = defaults.defaultReadOnly ?? rawArgs.length === 0
+  let userDataPathProvided = false
 
   for (let index = 0; index < rawArgs.length; index += 1) {
     const argument = rawArgs[index]
@@ -93,6 +137,7 @@ export function parseMemoryQualityTrialCliArgs(rawArgs: string[]): MemoryQuality
 
     if (name === '--user-data-path') {
       userDataPath = readValue()
+      userDataPathProvided = true
       continue
     }
     if (name === '--database-path' || name === '--db') {
@@ -127,10 +172,10 @@ export function parseMemoryQualityTrialCliArgs(rawArgs: string[]): MemoryQuality
     throw new Error(`不支持的选项：${name}。`)
   }
 
-  if (!userDataPath && !databasePath)
-    throw new Error('必须提供 --user-data-path，或使用 --database-path 指向本地 alicization.db。')
   if (!cardId)
     throw new Error('--card-id 不能为空。')
+  if (databasePath && !userDataPathProvided)
+    userDataPath = dirname(resolve(databasePath))
 
   return {
     userDataPath: userDataPath || dirname(resolve(databasePath!)),
@@ -179,11 +224,22 @@ export async function runMemoryQualityTrialCli(
   } & Partial<MemoryQualityTrialCliDependencies>,
 ): Promise<MemoryQualityTrialCliResult> {
   const now = input.now ?? (() => Date.now())
+  const createdAt = now()
+  const reportRoot = input.args.databasePath
+    ? dirname(resolve(input.args.databasePath))
+    : join(input.args.userDataPath, 'alicizations')
+  const reportPath = input.args.reportPath
+    ?? join(
+      reportRoot,
+      'quality-reports',
+      `memory-quality-trial-${createdAt}.json`,
+    )
   const primarySessionId = alicizationPrimaryConversationSessionId(input.args.cardId)
   if (input.args.sessionId && input.args.sessionId !== primarySessionId) {
     return {
       exitCode: 1,
       report: null,
+      reportPath: null,
       error: `只允许回放当前机体的主对话会话：${primarySessionId}。`,
     }
   }
@@ -214,12 +270,12 @@ export async function runMemoryQualityTrialCli(
       readOnly: input.args.readOnly === true,
     })
     const serialized = `${JSON.stringify(report, null, 2)}\n`
-    if (input.args.reportPath)
-      await writeReport(input.args.reportPath, serialized)
+    await writeReport(reportPath, serialized)
     writeOutput(serialized)
     return {
       exitCode: report.passed ? 0 : 2,
       report,
+      reportPath,
       error: null,
     }
   }
@@ -227,16 +283,16 @@ export async function runMemoryQualityTrialCli(
     const message = error instanceof Error ? error.message : String(error)
     const report = createMemoryQualityTrialCliReport({
       cardId: input.args.cardId,
-      createdAt: now(),
+      createdAt,
       error: message,
     })
     const serialized = `${JSON.stringify(report, null, 2)}\n`
-    if (input.args.reportPath)
-      await writeReport(input.args.reportPath, serialized)
+    await writeReport(reportPath, serialized)
     writeOutput(serialized)
     return {
       exitCode: 1,
       report,
+      reportPath,
       error: message,
     }
   }
