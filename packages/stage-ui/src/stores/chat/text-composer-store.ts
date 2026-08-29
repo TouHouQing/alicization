@@ -42,7 +42,7 @@ export const useChatTextComposerStore = defineStore('chat-text-composer', () => 
   }
 
   async function sendCurrentMessage() {
-    if (isComposing.value || sending.value)
+    if (isComposing.value)
       return false
 
     const providerId = resolvedProviderId.value

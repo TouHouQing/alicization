@@ -16,7 +16,7 @@ import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules
 import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
 import { BasicTextarea } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { widgetsTools } from '../stores/tools/builtin/widgets'
@@ -28,7 +28,7 @@ const chatOrchestrator = useChatOrchestratorStore()
 const chatSession = useChatSessionStore()
 const chatStream = useChatStreamStore()
 const { sending, aborting, abortReply } = useChatReplyAbort()
-const { ingest, onAfterMessageComposed, discoverToolsCompatibility } = chatOrchestrator
+const { ingest, discoverToolsCompatibility } = chatOrchestrator
 const { messages } = storeToRefs(chatSession)
 const { streamingMessage } = storeToRefs(chatStream)
 const { t } = useI18n()
@@ -37,7 +37,7 @@ const { activeModel, activeProvider } = storeToRefs(useConsciousnessStore())
 const isComposing = ref(false)
 
 async function handleSend() {
-  if (isComposing.value || sending.value) {
+  if (isComposing.value) {
     return
   }
 
@@ -110,15 +110,6 @@ watch([activeProvider, activeModel], async () => {
     await discoverToolsCompatibility(activeModel.value, await providersStore.getProviderInstance<ChatProvider>(activeProvider.value), [])
   }
 }, { immediate: true })
-
-const disposeAfterMessageComposed = onAfterMessageComposed(async () => {
-  messageInput.value = ''
-  attachments.value.forEach(att => URL.revokeObjectURL(att.url))
-  attachments.value = []
-})
-onUnmounted(() => {
-  disposeAfterMessageComposed?.()
-})
 
 const historyMessages = computed(() => messages.value as unknown as ChatHistoryItem[])
 

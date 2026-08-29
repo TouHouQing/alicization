@@ -92,7 +92,7 @@ const renderMessages = computed<ChatHistoryItem[]>(() => {
 <template>
   <div ref="chatHistoryRef" v-auto-animate flex="~ col" relative h-full w-full overflow-y-auto rounded-xl px="<sm:2" py="<sm:2" :class="variant === 'mobile' ? 'gap-1' : 'gap-2'">
     <template v-for="(message, index) in renderMessages" :key="getMessageRenderKey(message, index)">
-      <div v-if="message.role === 'error'">
+      <div v-if="message.role === 'error'" data-chat-message-role="error">
         <ChatErrorItem
           :message="message"
           :label="labels.error"
@@ -101,7 +101,7 @@ const renderMessages = computed<ChatHistoryItem[]>(() => {
         />
       </div>
 
-      <div v-else-if="message.role === 'assistant'">
+      <div v-else-if="message.role === 'assistant'" data-chat-message-role="assistant">
         <ChatAssistantItem
           :message="message"
           :label="labels.assistant"
@@ -111,7 +111,7 @@ const renderMessages = computed<ChatHistoryItem[]>(() => {
         />
       </div>
 
-      <div v-else-if="message.role === 'user'">
+      <div v-else-if="message.role === 'user'" data-chat-message-role="user">
         <ChatUserItem
           :message="message"
           :label="labels.user"

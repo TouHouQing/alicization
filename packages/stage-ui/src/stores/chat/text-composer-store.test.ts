@@ -98,6 +98,25 @@ describe('chat text composer', () => {
     }))
   })
 
+  it('queues a draft while the previous turn is still settling', async () => {
+    sending.value = true
+    ingestMock.mockResolvedValueOnce(undefined)
+
+    const store = useChatTextComposerStore()
+    store.setDraft('上一轮刚显示完，我继续说')
+
+    await expect(store.sendCurrentMessage()).resolves.toBe(true)
+
+    expect(ingestMock).toHaveBeenCalledWith(
+      '上一轮刚显示完，我继续说',
+      expect.objectContaining({
+        providerId: 'mock-provider',
+        model: 'mock-model',
+      }),
+    )
+    expect(store.draft).toBe('')
+  })
+
   it('leaves project progress questions to memory recall or real tool facts', async () => {
     ingestMock.mockResolvedValueOnce(undefined)
 

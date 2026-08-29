@@ -3,6 +3,22 @@ import { z } from 'zod'
 
 import { getMcpToolBridge } from '../stores/mcp-tool-bridge'
 
+export function decodeMcpArgumentValue(value: unknown): unknown {
+  if (typeof value !== 'string')
+    return value
+
+  const trimmed = value.trim()
+  if (!trimmed)
+    return value
+
+  try {
+    return JSON.parse(trimmed) as unknown
+  }
+  catch {
+    return value
+  }
+}
+
 const tools = [
   tool({
     name: 'mcp_list_tools',
@@ -20,10 +36,10 @@ const tools = [
   }),
   tool({
     name: 'mcp_call_tool',
-    description: 'Call a tool on the MCP server. The result is a list of content and a boolean indicating whether the tool call is an error.',
+    description: 'Call a tool on the MCP server. Parameter values are strings; JSON strings can represent numbers, booleans, arrays, objects, or null. The result is a list of content and a boolean indicating whether the tool call is an error.',
     execute: async ({ name, parameters }) => {
       try {
-        const parametersObject = Object.fromEntries(parameters.map(({ name, value }) => [name, value]))
+        const parametersObject = Object.fromEntries(parameters.map(({ name, value }) => [name, decodeMcpArgumentValue(value)]))
         const result = await getMcpToolBridge().callTool({
           name,
           arguments: parametersObject,
@@ -52,7 +68,7 @@ const tools = [
       name: z.string().describe('The qualified tool name to call. Use format "<serverName>::<toolName>"'),
       parameters: z.array(z.object({
         name: z.string().describe('The name of the parameter'),
-        value: z.unknown().describe('The value of the parameter'),
+        value: z.string().describe('The parameter value. Use a plain string or a JSON-encoded value for numbers, booleans, arrays, objects, or null.'),
       }).strict()).describe('The parameters to pass to the tool'),
     }).strict(),
   }),
