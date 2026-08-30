@@ -34,6 +34,17 @@ function isBoundaryLike(predicate: string) {
   return /boundary|preference|habit|procedure|constraint|limit|风格|边界|偏好|习惯|做法|限制/iu.test(predicate)
 }
 
+function isExplicitUserPreferenceUpdate(fact: AlicizationMemoryFactInput) {
+  const subject = fact.subject.trim().toLowerCase()
+  const predicate = fact.predicate.trim().toLowerCase()
+  const sourceLabel = typeof fact.sourceLabel === 'string'
+    ? fact.sourceLabel.trim().toLowerCase()
+    : ''
+  return subject === 'user'
+    && predicate === 'prefers'
+    && sourceLabel.startsWith('working-memory-owner:')
+}
+
 function tokenizeObjectText(raw: string) {
   return sanitizeText(raw, 180)
     .toLowerCase()
@@ -358,11 +369,13 @@ export function createAlicizationKnowledgeAssimilationRuntime() {
           .filter(item => item.object.trim().toLowerCase() !== normalized.object.trim().toLowerCase())
           .map(item => item.id),
       ])
+      const explicitUserPreferenceUpdate = isExplicitUserPreferenceUpdate(normalized)
 
       if (
         conflictingCandidates.length > 0
         && (
-          validationStatus === 'validated'
+          explicitUserPreferenceUpdate
+          || validationStatus === 'validated'
           || knowledgeStage === 'validated-knowledge'
           || knowledgeStage === 'internalized-long-horizon-knowledge'
         )

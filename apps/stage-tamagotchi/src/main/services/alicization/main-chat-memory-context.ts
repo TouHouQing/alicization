@@ -17,6 +17,12 @@ export interface AlicizationWorkingMemoryProviderContext {
     WorkingMemoryOwnerContext['current'],
     'threadTitle' | 'currentUserMove' | 'activeTask' | 'taskStatus'
   >
+  recentDialogue: Array<{
+    turnId: string
+    role: 'user' | 'alice'
+    text: string
+    createdAt: number
+  }>
   compressedTimeline: Array<{
     summary: string
     thread: string | null
@@ -95,6 +101,44 @@ export interface AlicizationMainChatMemoryContext {
   providerSystemBlock: string
 }
 
+function projectProviderRecentDialogue(
+  snapshot?: WorkingMemorySnapshot | null,
+): AlicizationWorkingMemoryProviderContext['recentDialogue'] {
+  if (!snapshot)
+    return []
+
+  const currentTurnId = snapshot.turnRange.toTurnId
+  return snapshot.recentRawTurns
+    .filter(turn =>
+      (turn.role === 'user' || turn.role === 'alice')
+      && turn.visibility === 'user-visible'
+      && !turn.failureKind
+      && !turn.failureSurface
+      && turn.contaminated !== true
+      && turn.turnId !== currentTurnId,
+    )
+    .slice(-8)
+    .map((turn) => {
+      const text = sanitizeAlicizationMemoryEvidenceText(
+        turn.text,
+        520,
+        {
+          role: turn.role,
+          source: turn.source,
+          origin: turn.origin,
+          visibility: turn.visibility,
+        },
+      )
+      return {
+        turnId: sanitizeAlicizationMemoryEvidenceText(turn.turnId, 120),
+        role: turn.role as 'user' | 'alice',
+        text,
+        createdAt: Number.isFinite(turn.createdAt) ? Number(turn.createdAt) : 0,
+      }
+    })
+    .filter(turn => turn.turnId && turn.text)
+}
+
 function projectProviderWorkingMemory(
   context: WorkingMemoryOwnerContext,
   snapshot?: WorkingMemorySnapshot | null,
@@ -143,6 +187,7 @@ function projectProviderWorkingMemory(
       activeTask: sanitizeProviderMemoryFactText(context.current.activeTask, 220) || null,
       taskStatus: context.current.taskStatus,
     },
+    recentDialogue: projectProviderRecentDialogue(snapshot),
     compressedTimeline: projectProviderCompressedTimeline(context),
     rememberedItems: context.obligations
       .map(normalizeProviderWorkingMemoryLine)

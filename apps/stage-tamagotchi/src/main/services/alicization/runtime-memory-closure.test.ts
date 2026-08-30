@@ -1,3 +1,5 @@
+import type { AlicizationOutcomeClosureResult } from './outcome-reinforcement'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -140,6 +142,59 @@ function expectNoValue(value: unknown, text: string) {
   expect(JSON.stringify(value)).not.toContain(text)
 }
 
+function createLeakingExecutionFailureClosure(signal: JsonRecord): AlicizationOutcomeClosureResult {
+  return {
+    relationshipOutcomes: [{
+      cardId: 'default',
+      sourceKind: 'execution',
+      actionSummary: 'execution-failure-audit',
+      closenessDelta: 0,
+      trustDelta: -0.08,
+      burdenDelta: 0.04,
+      boundaryDelta: -0.04,
+      misreadDelta: 0.02,
+      repairDelta: 0.02,
+      openLoopDelta: 0.04,
+      summary: 'execution failure audit must remain retained',
+      createdAt: 49_000,
+    }],
+    reinforcementEvents: [{
+      cardId: 'default',
+      sourceKind: 'execution',
+      dimension: 'truthful-grounding',
+      delta: 0.08,
+      valence: 'reinforce',
+      summary: 'leaked failure reinforcement must be dropped',
+      createdAt: 49_000,
+    }],
+    memoryFacts: [{
+      subject: 'execution',
+      predicate: 'failure-audit',
+      object: 'execution failure audit evidence must remain retained',
+      confidence: 0.9,
+      sourceLabel: 'execution-audit',
+    }],
+    reflections: [{
+      cardId: 'default',
+      sourceKind: 'execution',
+      targetScope: 'task',
+      summary: 'leaked failure reflection must be dropped',
+      lesson: 'leaked failure lesson must be dropped',
+      confidence: 0.9,
+      createdAt: 49_000,
+    }],
+    episodicEvents: [{
+      cardId: 'default',
+      sourceKind: 'execution-result',
+      provenance: 'observed',
+      occurredAt: 49_000,
+      whatHappened: 'leaked failure episode must be dropped',
+      confidence: 0.9,
+      executionResult: signal,
+    } as any],
+  } as any
+}
+
 describe('runtime memory closure', () => {
   it('只持久化显式反馈闭环，不把原始 reply transcript 写进长期记忆', async () => {
     const fixture = createRuntimeFixture()
@@ -232,6 +287,79 @@ describe('runtime memory closure', () => {
     expect(JSON.stringify(fixture.upsertMemoryFacts.mock.calls)).toContain(confirmationEvidence)
     expect(JSON.stringify(fixture.appendPersonaReinforcementEvents.mock.calls)).not.toContain(providerFailure)
     expect(JSON.stringify(fixture.appendMindTurnEvents.mock.calls)).not.toContain('humanlikeMemoryCandidate')
+  })
+
+  it.each([
+    ['failureKind', { failureKind: 'tool-execution' }],
+    ['timedOut', { timedOut: true }],
+    ['status=timeout', { status: 'timeout' }],
+    ['origin=failure-surface', { origin: 'failure-surface' }],
+    ['artifactRole=memory-side-failure', { artifactRole: 'memory-side-failure' }],
+  ] as const)('在统一入口隔离执行失败信号 %s，同时保留审计写入', async (_label, signal) => {
+    const fixture = createRuntimeFixture()
+
+    await fixture.runtime.persistOutcomeClosure(
+      'default',
+      createLeakingExecutionFailureClosure(signal),
+    )
+
+    expect(fixture.appendRelationshipOutcomes).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        summary: 'execution failure audit must remain retained',
+      }),
+    ]))
+    expect(fixture.upsertMemoryFacts).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        object: 'execution failure audit evidence must remain retained',
+      }),
+    ]), 'rule')
+    expect(fixture.appendEpisodicEvents).not.toHaveBeenCalled()
+    expect(fixture.upsertMemoryReflections).not.toHaveBeenCalled()
+    expect(fixture.appendPersonaReinforcementEvents).not.toHaveBeenCalled()
+    expect(fixture.appendPersonStateEvolutionEntries).not.toHaveBeenCalled()
+    expect(fixture.upsertMindHead).not.toHaveBeenCalled()
+    expect(fixture.appendMindTurnEvents).not.toHaveBeenCalled()
+  })
+
+  it('不会把普通成功工具执行的非失败元数据误判为失败', async () => {
+    const fixture = createRuntimeFixture()
+    const closure = buildExecutionResultFeedbackOutcomeClosure({
+      now: 49_000,
+      cardId: 'default',
+      turnId: 'turn-successful-execution',
+      sessionId: 'session-successful-execution',
+      decisionTraceId: 'trace-successful-execution',
+      feedback: 'valued',
+      thread: {
+        threadId: 'thread-successful-execution',
+        goal: 'verify the local process',
+        proposedChannel: 'executor',
+        selectedChannel: 'executor',
+        summary: 'command completed',
+        outcome: 'command completed successfully',
+      },
+    })
+
+    ;(closure as any).executionResult = {
+      failureKind: null,
+      timedOut: false,
+      status: 'completed',
+      origin: 'provider',
+      artifactRole: 'execution-result',
+    }
+
+    await fixture.runtime.persistOutcomeClosure('default', closure)
+
+    expect(fixture.appendRelationshipOutcomes).toHaveBeenCalled()
+    expect(fixture.appendEpisodicEvents).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        whatHappened: expect.stringContaining('command completed successfully'),
+      }),
+    ]))
+    expect(fixture.appendPersonaReinforcementEvents).toHaveBeenCalled()
+    expect(fixture.upsertMemoryFacts).toHaveBeenCalled()
+    expect(fixture.upsertMindHead).toHaveBeenCalled()
+    expect(fixture.appendMindTurnEvents).toHaveBeenCalled()
   })
 
   it('只带中性旧噪音时不会生成旧字段、节奏状态、固定 lesson 或人格强化内容', async () => {

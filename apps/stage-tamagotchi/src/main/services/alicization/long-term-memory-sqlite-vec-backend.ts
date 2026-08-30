@@ -454,20 +454,54 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
       return []
     const limit = Math.max(1, Math.min(32, Math.floor(Number(filters.limit ?? 8))))
     const nativeLimit = Math.min(64, Math.max(limit, limit * 4))
-    const nativeRows = await input.all<{ rowid: number, distance: number }>(
+    const nativeRows = await input.all<SqliteVecCanonicalRow & {
+      native_rowid: number
+      distance: number
+    }>(
       input.database,
       `
-      SELECT rowid, distance
-      FROM ${tableName(dimensions)}
-      WHERE embedding MATCH ?
-        AND k = ?
-        AND card_id = ?
-        AND model_id = ?
-        AND vector_space_id = ?
-        ${source ? 'AND source = ?' : ''}
-      ORDER BY distance
+      SELECT
+        native.rowid AS native_rowid,
+        native.distance AS distance,
+        canonical.*
+      FROM ${tableName(dimensions)} native
+      JOIN long_term_memory_sqlite_vec_rows mapping
+        ON mapping.native_rowid = native.rowid
+      JOIN long_term_memory_vectors canonical
+        ON canonical.id = mapping.record_id
+       AND canonical.card_id = ?
+       AND canonical.model_id = ?
+       AND canonical.dimensions = ?
+       AND canonical.vector_space_id = ?
+       AND canonical.status = 'indexed'
+       AND mapping.vector_space_id = canonical.vector_space_id
+       AND mapping.canonical_text_hash = canonical.text_hash
+      JOIN long_term_memory_search_documents doc
+        ON doc.card_id = canonical.card_id
+       AND doc.source = canonical.source
+       AND doc.source_id = canonical.source_id
+       AND doc.text_hash = canonical.text_hash
+       AND doc.tombstoned = 0
+      WHERE native.embedding MATCH ?
+        AND native.k = ?
+        AND native.card_id = ?
+        AND native.model_id = ?
+        AND native.vector_space_id = ?
+        ${source ? 'AND native.source = ?' : ''}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM long_term_memory_tombstones tomb
+          WHERE tomb.card_id = canonical.card_id
+            AND tomb.source_id = canonical.source_id
+            AND (tomb.source = canonical.source OR tomb.source = 'long_term_memory')
+        )
+      ORDER BY native.distance
       `,
       [
+        cardId,
+        modelId,
+        dimensions,
+        vectorSpaceId,
         encodeVector(queryVector),
         nativeLimit,
         cardId,
@@ -478,91 +512,9 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
     )
     if (nativeRows.length === 0)
       return []
-    const nativeRowIds = nativeRows.map(row => row.rowid)
-    const mappings = await input.all<SqliteVecMappingRow>(
-      input.database,
-      `
-      SELECT *
-      FROM long_term_memory_sqlite_vec_rows
-      WHERE native_rowid IN (${nativeRowIds.map(() => '?').join(', ')})
-      `,
-      nativeRowIds,
-    )
-    if (mappings.length === 0)
-      return []
-    const recordIds = [...new Set(mappings.map(mapping => mapping.record_id))]
-    const canonicalRows = await input.all<SqliteVecCanonicalRow>(
-      input.database,
-      `
-      SELECT *
-      FROM long_term_memory_vectors
-      WHERE id IN (${recordIds.map(() => '?').join(', ')})
-        AND card_id = ?
-        AND model_id = ?
-        AND dimensions = ?
-        AND vector_space_id = ?
-        AND status = 'indexed'
-      `,
-      [...recordIds, cardId, modelId, dimensions, vectorSpaceId],
-    )
-    if (canonicalRows.length === 0)
-      return []
-    const canonicalById = new Map(canonicalRows.map(row => [row.id, row]))
-    const candidates = mappings.flatMap((mapping) => {
-      const canonical = canonicalById.get(mapping.record_id)
-      if (!canonical
-        || mapping.vector_space_id !== canonical.vector_space_id
-        || mapping.canonical_text_hash !== canonical.text_hash) {
-        return []
-      }
-      return [{ mapping, canonical }]
-    })
-    if (candidates.length === 0)
-      return []
-    const sourceIds = [...new Set(candidates.map(candidate => candidate.canonical.source_id))]
-    const documents = await input.all<{
-      source_id: string
-      source: string
-      text_hash: string
-      tombstoned: number
-    }>(
-      input.database,
-      `
-      SELECT source_id, source, text_hash, tombstoned
-      FROM long_term_memory_search_documents
-      WHERE card_id = ?
-        AND source_id IN (${sourceIds.map(() => '?').join(', ')})
-        AND tombstoned = 0
-      `,
-      [cardId, ...sourceIds],
-    )
-    const activeDocuments = new Set(documents.map(document =>
-      `${document.source}\u0000${document.source_id}\u0000${document.text_hash}`))
-    const tombstones = await input.all<{ source_id: string, source: string }>(
-      input.database,
-      `
-      SELECT source_id, source
-      FROM long_term_memory_tombstones
-      WHERE card_id = ?
-        AND source_id IN (${sourceIds.map(() => '?').join(', ')})
-      `,
-      [cardId, ...sourceIds],
-    )
-    const tombstoned = new Set(tombstones.map(tombstone =>
-      `${tombstone.source_id}\u0000${tombstone.source}`))
-    const candidateByNativeRowId = new Map(candidates.map(candidate => [
-      candidate.mapping.native_rowid,
-      candidate.canonical,
-    ]))
     const results: LongTermMemoryVectorSearchResult[] = []
     for (const nativeRow of nativeRows) {
-      const row = candidateByNativeRowId.get(nativeRow.rowid)
-      if (!row)
-        continue
-      if (!activeDocuments.has(`${row.source}\u0000${row.source_id}\u0000${row.text_hash}`))
-        continue
-      if (tombstoned.has(`${row.source_id}\u0000${row.source}`) || tombstoned.has(`${row.source_id}\u0000long_term_memory`))
-        continue
+      const row = nativeRow
       const score = 1 - Number(nativeRow.distance)
       if (score > 0) {
         results.push({

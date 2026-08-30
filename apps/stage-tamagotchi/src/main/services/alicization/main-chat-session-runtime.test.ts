@@ -12,6 +12,9 @@ import type {
 } from './main-chat-session-runtime'
 
 import { readFileSync } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import {
   buildAlicizationProviderFactBlock,
@@ -20,6 +23,7 @@ import {
 import { describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationAgentRuntime } from './agent-runtime'
+import { setupAlicizationDb } from './db'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 import { createEmptyWorkingMemorySnapshot } from './life-core/working-memory'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
@@ -5342,6 +5346,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       .not
       .toContain('旧 transport 回复。')
     expect(providerMessagesText)
+      .toContain('checkpoint 中仍然活跃的用户轮。')
+    expect(providerMessagesText)
+      .toContain('checkpoint 中仍然活跃的助手轮。')
+    expect(providerMessagesText)
       .toContain('继续')
     expect(result.workingMemorySnapshot?.compressedTimeline).toEqual([
       expect.objectContaining({
@@ -5866,6 +5874,137 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         status: 'pending-cleaning',
       }),
     ])
+  })
+
+  it('extracts a natural Chinese preference with modifiers when a Provider returns ordinary text', async () => {
+    const enqueueWorkingMemoryLongTermQueue = vi.fn<WorkingMemoryLongTermQueueEnqueue>(async () => {})
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      enqueueWorkingMemoryLongTermQueue,
+      listConversationTurnsBySession: vi.fn(async () => []),
+    })
+    const messages: Message[] = [{
+      role: 'user',
+      content: '请记住，我最近更喜欢用中文交流，回答尽量直接。',
+    }]
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-natural-chinese-memory-evidence',
+        messages,
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({ messages }),
+    })
+
+    const intent = result.resolveMemoryWriteIntent?.({
+      assistantText: '记住了。之后我会优先用中文交流，回答尽量直接。',
+    })
+
+    expect(intent?.memoryWriteItems).toEqual([
+      expect.objectContaining({
+        kind: 'preference',
+        summary: '用户最近更喜欢用中文交流，回答尽量直接。',
+        status: 'pending-cleaning',
+        allowTraining: false,
+        evidenceSnippets: ['请记住，我最近更喜欢用中文交流，回答尽量直接。'],
+      }),
+    ])
+  })
+
+  it('persists a plain-text preference through the SQLite queue and recalls it on the next turn', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'alicization-main-chat-memory-closure-'))
+    const db = await setupAlicizationDb(userDataPath, {
+      cardId: 'default',
+    })
+
+    try {
+      const { runtime } = createWorkingMemoryRuntimeFixture({
+        getWorkingMemoryCheckpoint: async (cardId, sessionId) =>
+          await db.getWorkingMemoryCheckpoint(cardId, sessionId),
+        persistWorkingMemoryCheckpoint: async snapshot =>
+          await db.upsertWorkingMemoryCheckpoint(snapshot),
+        listConversationTurnsBySession: vi.fn(async () => []),
+        enqueueWorkingMemoryLongTermQueue: async input =>
+          await db.enqueueWorkingMemoryLongTermQueueItems(input),
+        drainWorkingMemoryLongTermQueueScoped: async input =>
+          await db.drainWorkingMemoryLongTermQueueScoped(input),
+        retrieveLongTermMemoryEvidence: async input =>
+          await db.retrieveLongTermMemoryEvidence(input),
+      })
+      const firstMessages: Message[] = [{
+        role: 'user',
+        content: '请记住，我最近更喜欢用中文交流，回答尽量直接。',
+      }]
+      const firstTurn = await runtime.prepareExecution({
+        payload: {
+          cardId: 'default',
+          turnId: 'turn-db-memory-write',
+          messages: firstMessages,
+          supportsTools: true,
+        } as any,
+        prelude: createReflectivePrelude({ messages: firstMessages }),
+      })
+
+      const committed = await firstTurn.commitMemoryWriteIntent?.({
+        assistantText: '记住了。之后我会优先用中文交流，回答尽量直接。',
+      })
+
+      expect(committed?.memoryWriteItems).toEqual([
+        expect.objectContaining({
+          kind: 'preference',
+          summary: '用户最近更喜欢用中文交流，回答尽量直接。',
+          allowTraining: false,
+        }),
+      ])
+      expect(committed?.ownerSettlements).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          owner: 'long-term-memory-drain',
+          status: 'succeeded',
+        }),
+      ]))
+      expect(await db.listMemoryFacts()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          object: expect.stringContaining('用中文交流'),
+        }),
+      ]))
+
+      const secondMessages: Message[] = [{
+        role: 'user',
+        content: '我刚才说过我最近更喜欢什么？',
+      }]
+      const secondTurn = await runtime.prepareExecution({
+        payload: {
+          cardId: 'default',
+          turnId: 'turn-db-memory-recall',
+          messages: secondMessages,
+          supportsTools: true,
+        } as any,
+        prelude: createReflectivePrelude({ messages: secondMessages }),
+      })
+
+      expect(secondTurn.memoryContext.workingMemory.recentDialogue).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            role: 'user',
+            text: '请记住，我最近更喜欢用中文交流，回答尽量直接。',
+          }),
+        ]),
+      )
+      expect(secondTurn.memoryContext.longTermRecall).toMatchObject({
+        status: 'recalled',
+        evidence: expect.arrayContaining([
+          expect.objectContaining({
+            source: 'memory_facts',
+            summary: expect.stringContaining('用中文交流'),
+          }),
+        ]),
+      })
+    }
+    finally {
+      await db.close()
+      await rm(userDataPath, { recursive: true, force: true })
+    }
   })
 
   it('does not report scoped long-term drain success when a current-turn queue item is missing', async () => {

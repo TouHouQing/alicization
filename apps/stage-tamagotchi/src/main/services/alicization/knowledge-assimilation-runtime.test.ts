@@ -63,6 +63,58 @@ describe('knowledge assimilation runtime', () => {
     ]))
   })
 
+  it('supersedes an older preference when an explicit user update changes the same slot without validating the replacement', () => {
+    const runtime = createAlicizationKnowledgeAssimilationRuntime()
+    const result = runtime.assimilateMemoryFactsDetailed({
+      source: 'rule',
+      existingFacts: [{
+        id: 'fact-preference-blue',
+        subject: 'user',
+        predicate: 'prefers',
+        object: '用户喜欢蓝色。',
+        confidence: 0.94,
+        source: 'rule',
+        dedupeKey: 'user|prefers|用户喜欢蓝色。',
+        createdAt: 1,
+        updatedAt: 10,
+        lastAccessAt: 11,
+        accessCount: 1,
+        validationCount: 0,
+        contradictionCount: 0,
+        memoryDomain: 'relationship',
+        knowledgeStage: 'working-understanding',
+        validationStatus: 'provisional',
+        sourceLabel: 'working-memory-owner:turn-blue',
+      }],
+      facts: [{
+        subject: 'user',
+        predicate: 'prefers',
+        object: '用户喜欢琥珀色。',
+        confidence: 0.94,
+        memoryDomain: 'relationship',
+        knowledgeStage: 'working-understanding',
+        validationStatus: 'provisional',
+        sourceLabel: 'working-memory-owner:turn-amber',
+      }],
+    })
+
+    expect(result.facts[0]).toEqual(expect.objectContaining({
+      object: '用户喜欢琥珀色。',
+      knowledgeStage: 'working-understanding',
+      validationStatus: 'provisional',
+      conflictsWith: ['fact-preference-blue'],
+      supersedes: ['fact-preference-blue'],
+    }))
+    expect(result.corrections).toEqual([
+      expect.objectContaining({
+        targetFactId: 'fact-preference-blue',
+        nextValidationStatus: 'superseded',
+        nextKnowledgeStage: 'working-understanding',
+        appendConflictsWith: ['user|prefers|用户喜欢琥珀色。'],
+      }),
+    ])
+  })
+
   it('promotes repeated validated procedural knowledge into internalized long-horizon knowledge', () => {
     const runtime = createAlicizationKnowledgeAssimilationRuntime()
     const result = runtime.assimilateMemoryFactsDetailed({

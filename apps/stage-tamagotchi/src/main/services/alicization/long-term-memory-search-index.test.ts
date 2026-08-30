@@ -7,6 +7,7 @@ import sqlite3 from 'sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { setupAlicizationDb } from './db'
+import { createLongTermMemorySearchIndexRuntime } from './long-term-memory-search-index'
 
 const sandboxDirs: string[] = []
 
@@ -76,6 +77,31 @@ afterEach(async () => {
 })
 
 describe('long-term memory search index', () => {
+  it('serializes projection reads on one sqlite connection during an index transaction', async () => {
+    let activeReads = 0
+    let maxConcurrentReads = 0
+    const runtime = createLongTermMemorySearchIndexRuntime({
+      database: {} as sqlite3.Database,
+      run: async () => ({ changes: 0 }),
+      get: async () => undefined,
+      all: async <T>(_database: sqlite3.Database, sql: string) => {
+        if (!sql.trimStart().startsWith('SELECT * FROM'))
+          return [] as T[]
+        activeReads += 1
+        maxConcurrentReads = Math.max(maxConcurrentReads, activeReads)
+        await new Promise(resolve => setTimeout(resolve, 0))
+        activeReads -= 1
+        return [] as T[]
+      },
+      enqueueWrite: async task => await task(),
+      runInTransaction: async (_database, task) => await task(),
+    })
+
+    await runtime.rebuildLongTermMemorySearchIndex({ cardId: 'default' })
+
+    expect(maxConcurrentReads).toBe(1)
+  })
+
   it('paginates every long-term item beyond the legacy source fetch window', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
@@ -1601,6 +1627,81 @@ describe('long-term memory search index', () => {
           action: 'long-term-memory-restored',
           payload_json: expect.stringContaining('trash-reflection-newer'),
         })
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('matches natural Chinese preference questions against the indexed fact text', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryFacts([{
+        subject: 'user',
+        predicate: 'prefers',
+        object: '用户喜欢琥珀色。',
+        confidence: 0.94,
+        memoryDomain: 'relationship',
+        validationStatus: 'provisional',
+      }], 'rule')
+
+      const page = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query: '我刚才说我喜欢什么颜色？',
+        source: 'memory_facts',
+        limit: 8,
+      })
+
+      expect(page.items).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          source: 'memory_facts',
+          summary: expect.stringContaining('琥珀色'),
+        }),
+      ]))
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('keeps fact source labels in database governance only, outside search and embedding text', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryFacts([{
+        subject: 'user',
+        predicate: 'prefers',
+        object: '用户喜欢琥珀色。',
+        confidence: 0.94,
+        memoryDomain: 'relationship',
+        validationStatus: 'provisional',
+        sourceLabel: 'working-memory-owner:cleaned:queue-1',
+      }], 'rule')
+
+      const [fact] = await db.listMemoryFacts()
+      expect(fact?.sourceLabel).toBe('working-memory-owner:cleaned:queue-1')
+
+      const rawDatabase = await openRawDatabase(db.dbPath)
+      try {
+        const rows = await queryRawRows<{
+          evidence_snippets_json: string
+          search_text: string
+          embedding_text: string
+        }>(
+          rawDatabase,
+          `SELECT evidence_snippets_json, search_text, embedding_text
+           FROM long_term_memory_search_documents
+           WHERE source = 'memory_facts'
+           LIMIT 1`,
+        )
+
+        expect(rows).toHaveLength(1)
+        expect(rows[0]?.evidence_snippets_json).not.toContain('working-memory-owner:cleaned:queue-1')
+        expect(rows[0]?.search_text).not.toContain('working-memory-owner:cleaned:queue-1')
+        expect(rows[0]?.embedding_text).not.toContain('working-memory-owner:cleaned:queue-1')
       }
       finally {
         await closeRawDatabase(rawDatabase)

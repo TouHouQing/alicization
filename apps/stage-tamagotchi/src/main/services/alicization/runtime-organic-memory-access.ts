@@ -150,6 +150,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     value: unknown
     expiresAt: number
   }>()
+  const inFlightRecallCache = new Map<string, Promise<unknown>>()
 
   function isHostFacingMemoryConsolidation(
     item: AlicizationMemoryConsolidationRecord,
@@ -180,6 +181,10 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     for (const key of transientRecallCache.keys()) {
       if (key.startsWith(prefix))
         transientRecallCache.delete(key)
+    }
+    for (const key of inFlightRecallCache.keys()) {
+      if (key.startsWith(prefix))
+        inFlightRecallCache.delete(key)
     }
   }
 
@@ -555,6 +560,18 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       }).catch(() => {})
       return cached
     }
+    const inFlight = inFlightRecallCache.get(cacheKey)
+    if (inFlight) {
+      void options.recordMemoryCacheAccess?.(true).catch(() => {})
+      if (plan.prewarmKey)
+        void options.recordMemoryPrewarmAccess?.(true).catch(() => {})
+      void options.recordMemoryHotKeyOutcome?.({
+        key: plan.prewarmKey ?? cacheKey,
+        hit: true,
+        won: false,
+      }).catch(() => {})
+      return await inFlight as AlicizationEpisodicEventRecord[]
+    }
     void options.recordMemoryCacheAccess?.(false).catch(() => {})
     if (plan.prewarmKey)
       void options.recordMemoryPrewarmAccess?.(false).catch(() => {})
@@ -564,17 +581,26 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       won: false,
     }).catch(() => {})
 
-    const rows = await options.searchEpisodicEvents({
+    const searchPromise = options.searchEpisodicEvents({
       recallSeed,
       limit: effectiveEpisodicLimit,
       sessionId: input.sessionId ?? null,
       turnId: input.turnId ?? null,
       ...episodicSearchParameters,
     }).catch(() => [])
-    if ((input.recallGovernor?.carryAsMemory ?? false) && rows.length > 0)
-      invalidateTransientRecallCacheNamespace('consolidation')
-    writeTransientRecallCache(cacheKey, rows, plan.cacheTtlMs)
-    return rows
+    inFlightRecallCache.set(cacheKey, searchPromise)
+    try {
+      const rows = await searchPromise
+      if ((input.recallGovernor?.carryAsMemory ?? false) && rows.length > 0)
+        invalidateTransientRecallCacheNamespace('consolidation')
+      if (inFlightRecallCache.get(cacheKey) === searchPromise)
+        writeTransientRecallCache(cacheKey, rows, plan.cacheTtlMs)
+      return rows
+    }
+    finally {
+      if (inFlightRecallCache.get(cacheKey) === searchPromise)
+        inFlightRecallCache.delete(cacheKey)
+    }
   }
 
   async function buildHostPersonModel(input?: {
@@ -661,6 +687,18 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       }).catch(() => {})
       return cached
     }
+    const inFlight = inFlightRecallCache.get(cacheKey)
+    if (inFlight) {
+      void options.recordMemoryCacheAccess?.(true).catch(() => {})
+      if (plan.prewarmKey)
+        void options.recordMemoryPrewarmAccess?.(true).catch(() => {})
+      void options.recordMemoryHotKeyOutcome?.({
+        key: plan.prewarmKey ?? cacheKey,
+        hit: true,
+        won: false,
+      }).catch(() => {})
+      return await inFlight as AlicizationMemoryConsolidationRecord[]
+    }
     void options.recordMemoryCacheAccess?.(false).catch(() => {})
     if (plan.prewarmKey)
       void options.recordMemoryPrewarmAccess?.(false).catch(() => {})
@@ -670,7 +708,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       won: false,
     }).catch(() => {})
 
-    const rows = await options.searchMemoryConsolidations({
+    const searchPromise = options.searchMemoryConsolidations({
       ...tuneMemoryConsolidationSearchInput({
         query: input.query,
         plan,
@@ -678,8 +716,17 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       }),
       limit: Math.max(input.limit ?? 0, plan.consolidationLimit),
     }).catch(() => [])
-    writeTransientRecallCache(cacheKey, rows, plan.cacheTtlMs)
-    return rows
+    inFlightRecallCache.set(cacheKey, searchPromise)
+    try {
+      const rows = await searchPromise
+      if (inFlightRecallCache.get(cacheKey) === searchPromise)
+        writeTransientRecallCache(cacheKey, rows, plan.cacheTtlMs)
+      return rows
+    }
+    finally {
+      if (inFlightRecallCache.get(cacheKey) === searchPromise)
+        inFlightRecallCache.delete(cacheKey)
+    }
   }
 
   async function resolveRecentContextualTurns(sessionId: string, turnCount: number) {

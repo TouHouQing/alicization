@@ -68,6 +68,66 @@ const workingMemorySnapshotFixture = createEmptyWorkingMemorySnapshot({
   now: 100,
 })
 
+workingMemorySnapshotFixture.turnRange = {
+  fromTurnId: 'turn-recent:user',
+  toTurnId: 'turn-current:user',
+}
+workingMemorySnapshotFixture.recentRawTurns = [
+  {
+    turnId: 'turn-recent:user',
+    role: 'user',
+    text: '我最近更喜欢用中文交流，回答尽量直接。',
+    createdAt: 80,
+    source: 'conversation-turn',
+    visibility: 'user-visible',
+    failureKind: null,
+    origin: 'provider',
+    learningPolicy: {
+      allowLongTermCondensation: true,
+      allowPersonaLearning: true,
+      allowTraining: false,
+    },
+    failureSurface: null,
+    contaminated: false,
+    importance: 0.9,
+  },
+  {
+    turnId: 'turn-recent:alice',
+    role: 'alice',
+    text: '记住了，之后会优先用中文并尽量直接。',
+    createdAt: 81,
+    source: 'conversation-turn',
+    visibility: 'user-visible',
+    failureKind: null,
+    origin: 'provider',
+    learningPolicy: {
+      allowLongTermCondensation: true,
+      allowPersonaLearning: true,
+      allowTraining: false,
+    },
+    failureSurface: null,
+    contaminated: false,
+    importance: 0.8,
+  },
+  {
+    turnId: 'turn-current:user',
+    role: 'user',
+    text: '我刚才说过我最近更喜欢什么？',
+    createdAt: 100,
+    source: 'conversation-turn',
+    visibility: 'user-visible',
+    failureKind: null,
+    origin: 'provider',
+    learningPolicy: {
+      allowLongTermCondensation: true,
+      allowPersonaLearning: true,
+      allowTraining: false,
+    },
+    failureSurface: null,
+    contaminated: false,
+    importance: 1,
+  },
+]
 workingMemorySnapshotFixture.unresolvedQuestions = [{
   text: '上下文压缩后如何继续追踪这个问题？',
   sourceTurnId: 'turn-1:user',
@@ -181,6 +241,20 @@ describe('main chat memory context', () => {
 
     expect(parsed).toMatchObject({
       owner: 'working-memory',
+      recentDialogue: [
+        {
+          turnId: 'turn-recent:user',
+          role: 'user',
+          text: '我最近更喜欢用中文交流，回答尽量直接。',
+          createdAt: 80,
+        },
+        {
+          turnId: 'turn-recent:alice',
+          role: 'alice',
+          text: '记住了，之后会优先用中文并尽量直接。',
+          createdAt: 81,
+        },
+      ],
       unresolvedQuestions: ['上下文压缩后如何继续追踪这个问题？'],
       commitments: ['保留当前任务的连续性'],
       corrections: [{
@@ -202,6 +276,9 @@ describe('main chat memory context', () => {
     })
     expect(parsed).not.toHaveProperty('queryHints')
     expect(parsed).not.toHaveProperty('audit')
+    expect(JSON.stringify(parsed.recentDialogue))
+      .not
+      .toContain('我刚才说过我最近更喜欢什么？')
     expect(context.workingMemory.owner).toBe('working-memory')
   })
 

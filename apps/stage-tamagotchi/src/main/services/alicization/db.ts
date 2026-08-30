@@ -229,7 +229,6 @@ import {
 } from './long-term-memory-recall'
 import {
   memoryWorkbenchItemToEvidenceCandidate,
-  persistentVectorRecordToEvidenceCandidate,
 } from './long-term-memory-recall-candidates'
 import {
   applyLongTermMemoryReviewDecision as applyLongTermMemoryReviewDecisionToTransaction,
@@ -7570,10 +7569,23 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       }])
       await drainMemoryIngestJournal()
     })
+    const dedupeKeys = [...new Set(normalizedFacts.map(fact => fact.dedupeKey))]
+    const persistedRows = dedupeKeys.length > 0
+      ? await all<{ id: string }>(
+          database,
+          `
+          SELECT id
+          FROM memory_facts
+          WHERE card_id = ?
+            AND dedupe_key IN (${dedupeKeys.map(() => '?').join(', ')})
+          `,
+          [cardId, ...dedupeKeys],
+        )
+      : []
     await refreshLongTermMemorySearchIndexForCard({
       cardId,
       source: 'memory_facts',
-      sourceIds: normalizedFacts.map(fact => fact.id),
+      sourceIds: persistedRows.map(row => row.id),
       operation: 'memory fact search index refresh',
     })
   }
@@ -7946,6 +7958,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   const memoryEpisodicReconsolidationRuntime = createAlicizationMemoryEpisodicReconsolidationRuntime({
     database,
     run,
+    enqueueWrite,
     runInTransaction,
   })
   const memoryRelationshipRuntime = createAlicizationMemoryRelationshipRuntime({
@@ -11958,47 +11971,52 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       }
     }
 
-    const recallSeed = [
+    const recallSeed = [...new Set([
       plan.normalizedQuery,
       ...plan.keywordQueries,
       ...plan.phraseQueries,
       ...plan.charGramQueries,
       ...plan.semanticQueries,
       ...plan.episodicQueries,
-    ].filter(Boolean).join(' ')
+      ...plan.threadHints,
+      ...(input.workingMemoryQueryHints ?? []),
+      input.currentThreadTitle ?? '',
+      input.activeTask ?? '',
+    ]
+      .map(value => normalizeOrganicMemoryText(value, 240))
+      .filter(Boolean),
+    )].join(' ')
     const sourceLimit = Math.max(8, safeLimit * 4)
     const degradedChannels: LongTermMemoryEvidenceRetrievalDiagnostics['degradedChannels'] = []
-    const [indexedResult, episodesResult] = await Promise.allSettled([
-      longTermMemorySearchIndexRuntime.listLongTermMemorySearchItems({
+    let indexed: { items: AlicizationMemoryWorkbenchItem[], nextCursor: string | null } = {
+      items: [],
+      nextCursor: null,
+    }
+    try {
+      indexed = await longTermMemorySearchIndexRuntime.listLongTermMemorySearchItems({
         cardId: input.cardId,
         query: recallSeed,
         limit: Math.max(32, safeLimit * 8),
-      }),
-      searchEpisodicEvents({
+      })
+    }
+    catch (error) {
+      degradedChannels.push({
+        channel: 'index',
+        error: errorMessageFrom(error) ?? String(error),
+      })
+    }
+    let episodes: Awaited<ReturnType<typeof searchEpisodicEvents>> = []
+    try {
+      episodes = await searchEpisodicEvents({
         recallSeed,
         limit: sourceLimit,
         readOnly: input.readOnly,
-      }),
-    ])
-    const indexed = indexedResult.status === 'fulfilled'
-      ? indexedResult.value
-      : {
-          items: [],
-          nextCursor: null,
-        }
-    if (indexedResult.status === 'rejected') {
-      degradedChannels.push({
-        channel: 'index',
-        error: errorMessageFrom(indexedResult.reason) ?? String(indexedResult.reason),
       })
     }
-    const episodes = episodesResult.status === 'fulfilled'
-      ? episodesResult.value
-      : []
-    if (episodesResult.status === 'rejected') {
+    catch (error) {
       degradedChannels.push({
         channel: 'episodic',
-        error: errorMessageFrom(episodesResult.reason) ?? String(episodesResult.reason),
+        error: errorMessageFrom(error) ?? String(error),
       })
     }
 
@@ -12127,7 +12145,17 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         [candidate.id, candidate.source].includes(metadataWorkbenchItemId)
         || candidate.id === result.record.sourceId,
       )
-      const candidate = matchingCandidate ?? persistentVectorRecordToEvidenceCandidate(result.record)
+      const canonicalItem = matchingCandidate
+        ? null
+        : await longTermMemorySearchIndexRuntime.getLongTermMemorySearchItem({
+            cardId: input.cardId,
+            memoryItemId: result.record.sourceId,
+            source: result.record.source,
+          })
+      const candidate = matchingCandidate
+        ?? (canonicalItem ? memoryWorkbenchItemToEvidenceCandidate(canonicalItem) : null)
+      if (!candidate)
+        continue
       if (!semanticCandidates.some(existing => existing.id === candidate.id && existing.source === candidate.source))
         semanticCandidates.push(candidate)
       semanticScores[candidate.id] = Math.max(semanticScores[candidate.id] ?? 0, result.score)

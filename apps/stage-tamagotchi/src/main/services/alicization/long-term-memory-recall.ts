@@ -212,10 +212,13 @@ export function deriveLongTermMemoryRecallIntent(input: {
   let confidence = 0.16
   let rationale = 'recall:none'
 
-  const recollectionCue = containsAny(normalized, [/记得|记不记得|还记得|想起|回想|上次|之前|以前|那次/u])
+  const recollectionCue = containsAny(normalized, [
+    /记得|记不记得|还记得|想起|回想|上次|之前|以前|那次/u,
+    /说过|提到|告诉过|刚才.*(?:说|提|告诉|表达|喜欢|偏好)/u,
+  ])
   const gameCue = containsAny(normalized, [/游戏|打游戏|开黑|联机|steam|minecraft|mc\b|原神|崩铁|lol|瓦|valorant/iu])
   const correctionCue = containsAny(normalized, [/你[搞弄说记]错|不是(?:这个|这样|那样)|我纠正过|别再/u])
-  const preferenceCue = containsAny(normalized, [/我喜欢|我不喜欢|偏好|习惯|以后.*(别|不要|要)|记住我/u])
+  const preferenceCue = containsAny(normalized, [/喜欢|偏好|习惯|以后.*(别|不要|要)|记住我/u])
   const procedureCue = containsAny(normalized, [/怎么做|按上次|照之前|流程|步骤|方案|继续.*做|接着.*做/u])
   const taskCue = containsAny(normalized, [/继续|接着|上次.*任务|刚才.*任务|开发|commit|编译|测试|计划|文档/u])
 
@@ -318,6 +321,7 @@ export function buildLongTermMemoryQueryPlan(input: {
   const threadHints = uniqueTexts([
     input.currentThreadTitle ?? '',
     input.activeTask ?? '',
+    ...hints,
   ], 6, 160)
 
   return {

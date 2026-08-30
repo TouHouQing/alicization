@@ -574,6 +574,37 @@ describe('working memory snapshot builder', () => {
     ]))
   })
 
+  it('uses recent successful user dialogue as recall hints for a referential memory question', () => {
+    const previousSnapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-referential-recall',
+      now: 15_000,
+      currentTurnId: 'turn-preference',
+      currentUserText: '请记住，我最近更喜欢用中文交流，回答尽量直接。',
+      currentAssistantText: '记住了。',
+      currentOrigin: 'provider',
+      currentLearningPolicy: {
+        allowLongTermCondensation: true,
+        allowPersonaLearning: true,
+        allowTraining: false,
+      },
+    })
+
+    const snapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-referential-recall',
+      now: 16_000,
+      currentTurnId: 'turn-recall',
+      currentUserText: '我刚才说过我最近更喜欢什么？',
+      previousSnapshot,
+    })
+
+    expect(snapshot.memoryQueryHints).toEqual(expect.arrayContaining([
+      '请记住，我最近更喜欢用中文交流，回答尽量直接。',
+    ]))
+    expect(snapshot.memoryQueryHints).not.toContain('我刚才说过我最近更喜欢什么？')
+  })
+
   it('preserves user correction text while dropping generic structured assistant residue', () => {
     const snapshot = buildWorkingMemorySnapshot({
       cardId: 'default',

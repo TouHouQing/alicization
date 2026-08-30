@@ -5,9 +5,11 @@ import { createAlicizationMemoryEpisodicReconsolidationRuntime } from './memory-
 describe('memory episodic reconsolidation runtime', () => {
   it('persists recalled episodic events through one transaction', async () => {
     const run = vi.fn(async () => ({}))
+    const enqueueWrite = async <T>(task: () => Promise<T>): Promise<T> => await task()
     const runtime = createAlicizationMemoryEpisodicReconsolidationRuntime({
       database: {} as never,
       run,
+      enqueueWrite,
       runInTransaction: async (_database, task) => await task(),
     })
 
@@ -41,9 +43,11 @@ describe('memory episodic reconsolidation runtime', () => {
 
   it('reconciles ranked candidates and persists the returned reconsolidated events', async () => {
     const run = vi.fn(async () => ({}))
+    const enqueueWrite = async <T>(task: () => Promise<T>): Promise<T> => await task()
     const runtime = createAlicizationMemoryEpisodicReconsolidationRuntime({
       database: {} as never,
       run,
+      enqueueWrite,
       runInTransaction: async (_database, task) => await task(),
     })
 
@@ -111,5 +115,31 @@ describe('memory episodic reconsolidation runtime', () => {
     expect(returned[0]?.latestReconsolidation?.decisionTraceId).toBe('trace-1')
     expect(run).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('INSERT INTO episodic_reconsolidation_overlays'), expect.any(Array))
     expect(run).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('UPDATE episodic_events'), expect.any(Array))
+  })
+
+  it('serializes reconsolidation writes through the host database write queue', async () => {
+    const run = vi.fn(async () => ({}))
+    const enqueueWrite = vi.fn(<T>(task: () => Promise<T>): Promise<T> => task())
+    const runtime = createAlicizationMemoryEpisodicReconsolidationRuntime({
+      database: {} as never,
+      run,
+      enqueueWrite: enqueueWrite as unknown as <T>(task: () => Promise<T>) => Promise<T>,
+      runInTransaction: async (_database, task) => await task(),
+    })
+
+    await runtime.persistRecalledEvents([{
+      id: 'episode-queued',
+      confidence: 0.8,
+      emotionTags: [],
+      relationshipMeaning: null,
+      lesson: null,
+      updatedAt: 10,
+      lastRecalledAt: 10,
+      recallCount: 1,
+      reconsolidationCount: 0,
+      latestReconsolidation: null,
+    } as any])
+
+    expect(enqueueWrite).toHaveBeenCalledOnce()
   })
 })

@@ -41,7 +41,6 @@ export function memoryFactToLongTermEvidenceCandidate(fact: AlicizationMemoryFac
       fact.predicate,
       fact.object,
       fact.memoryDomain ?? '',
-      fact.sourceLabel ?? '',
     ], 10, 120),
     entities: uniqueTexts([fact.subject], 4, 80),
     sensitivity: 'personal',

@@ -54,6 +54,7 @@ function createSqliteHarness(): Promise<SqliteHarness> {
 
 async function createBackendHarness() {
   const harness = await createSqliteHarness()
+  const allCalls: string[] = []
   let writeQueue = Promise.resolve<unknown>(undefined)
   const enqueueWrite = async <T>(task: () => Promise<T>) => {
     const next = writeQueue.then(task, task)
@@ -104,7 +105,10 @@ async function createBackendHarness() {
     now: () => 100,
     run: async (_database, sql, params = []) => await harness.run(sql, params),
     get: async <T>(_database: sqlite3.Database, sql: string, params: unknown[] = []) => await harness.get<T>(sql, params),
-    all: async <T>(_database: sqlite3.Database, sql: string, params: unknown[] = []) => await harness.all<T>(sql, params),
+    all: async <T>(_database: sqlite3.Database, sql: string, params: unknown[] = []) => {
+      allCalls.push(sql)
+      return await harness.all<T>(sql, params)
+    },
     enqueueWrite,
   })
   await backend.initialize()
@@ -158,7 +162,7 @@ async function createBackendHarness() {
       ])
     }
   }
-  return { harness, backend, upsertCanonical }
+  return { harness, backend, upsertCanonical, allCalls }
 }
 
 afterEach(async () => {
@@ -212,7 +216,7 @@ describe('sqlite-vec long-term memory vector backend', () => {
   })
 
   it('isolates native search by card, model, dimensions, and source', async () => {
-    const { backend, upsertCanonical } = await createBackendHarness()
+    const { backend, upsertCanonical, allCalls } = await createBackendHarness()
     const records = [
       {
         id: 'vector-a-reflection',
@@ -256,6 +260,7 @@ describe('sqlite-vec long-term memory vector backend', () => {
     ]
     await upsertCanonical(records)
     await backend.upsert(records)
+    allCalls.splice(0)
 
     const results = await backend.search([1, 0, 0], {
       cardId: 'card-a',
@@ -267,6 +272,9 @@ describe('sqlite-vec long-term memory vector backend', () => {
     })
 
     expect(results.map(result => result.record.id)).toEqual(['vector-a-reflection'])
+    expect(allCalls).toHaveLength(1)
+    expect(allCalls[0]).toContain('JOIN long_term_memory_sqlite_vec_rows')
+    expect(allCalls[0]).toContain('NOT EXISTS')
     await expect(backend.getHealth({
       cardId: 'card-a',
       modelId: 'model-a',

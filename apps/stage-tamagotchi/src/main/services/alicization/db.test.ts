@@ -4752,6 +4752,140 @@ describe('alicization sqlite dao', () => {
     }
   })
 
+  it('projects semantic-only vector hits from the canonical memory summary', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+      embeddingProvider: {
+        modelId: 'semantic-only-embedding',
+        dimensions: 3,
+        vectorSpaceId: 'semantic-only-embedding:3',
+        embedTexts: async texts => texts.map(text => ({
+          text,
+          vector: [1, 0, 0],
+        })),
+      },
+    })
+
+    try {
+      await db.upsertMemoryFacts([{
+        subject: 'user',
+        predicate: 'prefers',
+        object: '用户喜欢蓝色。',
+        confidence: 0.94,
+        memoryDomain: 'relationship',
+        validationStatus: 'provisional',
+      }], 'rule')
+
+      let embeddingHealth = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
+      const embeddingDeadline = Date.now() + 5_000
+      while (
+        Date.now() < embeddingDeadline
+        && (embeddingHealth.reindexRequired || embeddingHealth.indexedCount < 1)
+      ) {
+        await new Promise(resolve => setTimeout(resolve, 10))
+        embeddingHealth = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
+      }
+      const recalled = await db.retrieveLongTermMemoryEvidence({
+        cardId: 'default',
+        userId: 'local-user',
+        currentUserText: '你还记得我的色彩偏好吗？',
+        limit: 8,
+      })
+      const fact = recalled.evidence.find(item => item.candidate.source === 'memory_facts')
+
+      expect(fact?.candidate.summary).toBe('用户喜欢蓝色。')
+      expect(fact?.candidate.summary).not.toContain('user prefers')
+      expect(fact?.candidate.summary).not.toContain('relationship')
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('refreshes the long-term search projection when an idempotent fact upsert keeps the existing row id', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+    let rawDatabase: any = null
+
+    try {
+      rawDatabase = await openActualSqlite(db.dbPath)
+      await runActualSqlite(rawDatabase, `
+        INSERT INTO memory_facts (
+          id,
+          card_id,
+          subject,
+          predicate,
+          object,
+          confidence,
+          source,
+          dedupe_key,
+          created_at,
+          updated_at,
+          last_access_at,
+          access_count,
+          knowledge_stage,
+          validation_status,
+          memory_domain,
+          validation_count,
+          contradiction_count,
+          source_label,
+          conflicts_with_json,
+          supersedes_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        'existing-purple-preference',
+        'default',
+        'user',
+        'prefers',
+        '用户喜欢紫色。',
+        0.94,
+        'async-llm',
+        'user|prefers|用户喜欢紫色。',
+        1,
+        1,
+        null,
+        0,
+        'working-understanding',
+        'provisional',
+        'self-model',
+        0,
+        0,
+        'existing-fact',
+        '[]',
+        '[]',
+      ])
+      await closeActualSqlite(rawDatabase)
+      rawDatabase = null
+
+      await db.upsertMemoryFacts([{
+        subject: 'user',
+        predicate: 'prefers',
+        object: '用户喜欢紫色。',
+        confidence: 0.94,
+      }], 'async-llm')
+
+      const page = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query: '紫色',
+        limit: 8,
+      })
+
+      expect(page.items).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          id: 'existing-purple-preference',
+          source: 'memory_facts',
+          summary: expect.stringContaining('用户喜欢紫色。'),
+        }),
+      ]))
+    }
+    finally {
+      if (rawDatabase)
+        await closeActualSqlite(rawDatabase)
+      await db.close()
+    }
+  })
+
   it('cleans WorkingMemory long-term correction candidates before writing memory facts and reflections', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
 
@@ -5465,6 +5599,152 @@ describe('alicization sqlite dao', () => {
     ]))
 
     await db.close()
+  })
+
+  it('uses WorkingMemory hints to resolve a topicless same-session recall question', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'default',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+
+    try {
+      await db.upsertMemoryFacts([{
+        subject: 'user',
+        predicate: 'prefers',
+        object: '用户喜欢琥珀色。',
+        confidence: 0.94,
+        memoryDomain: 'relationship',
+        validationStatus: 'provisional',
+      }], 'rule')
+
+      const bundle = await db.retrieveLongTermMemoryEvidence({
+        cardId: 'default',
+        userId: 'local-user',
+        currentUserText: '请告诉我你现在记得的这件事。',
+        workingMemoryQueryHints: ['记住我喜欢琥珀色，之后可以自然地用到这个偏好。'],
+        limit: 8,
+      })
+
+      expect(bundle.intent.shouldRecall).toBe(true)
+      expect(bundle.evidence).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          candidate: expect.objectContaining({
+            source: 'memory_facts',
+            summary: expect.stringContaining('琥珀色'),
+          }),
+        }),
+      ]))
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('recalls a same-session WorkingMemory preference through a natural Chinese question', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'default',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+
+    try {
+      await db.enqueueWorkingMemoryLongTermQueueItems({
+        cardId: 'default',
+        sessionId: 'session-natural-color-recall',
+        items: [{
+          id: 'queue-natural-color-preference',
+          source: 'working-memory-owner',
+          memoryEvidence: {
+            version: 'working-memory-long-term-evidence-v1',
+            source: 'explicit-structured-memory-evidence',
+            kind: 'preference',
+            summary: '用户喜欢琥珀色。',
+            reason: '用户刚才明确说希望记住这个颜色偏好。',
+            evidenceSnippets: ['记住我喜欢琥珀色。'],
+            salience: 0.9,
+            sensitivity: 'personal',
+            confidence: 0.94,
+          },
+          kind: 'preference',
+          summary: '用户喜欢琥珀色。',
+          reason: '用户刚才明确说希望记住这个颜色偏好。',
+          sourceTurnIds: ['turn-natural-color-recall:user'],
+          evidenceSnippets: ['记住我喜欢琥珀色。'],
+          salience: 0.9,
+          confidence: 0.94,
+          sensitivity: 'personal',
+          allowTraining: false,
+          status: 'pending-cleaning',
+          rejectionReasons: [],
+          contaminationFlags: [],
+          createdAt: Date.now(),
+        }],
+      })
+      await expect(db.drainWorkingMemoryLongTermQueue(4)).resolves.toEqual(expect.objectContaining({
+        cleaned: 1,
+        applied: 1,
+        failed: 0,
+      }))
+
+      const recalled = await db.retrieveLongTermMemoryEvidence({
+        cardId: 'default',
+        userId: 'local-user',
+        currentUserText: '我刚才说我喜欢什么颜色？',
+        limit: 8,
+      })
+
+      expect(recalled.evidence).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          candidate: expect.objectContaining({
+            source: 'memory_facts',
+            summary: expect.stringContaining('琥珀色'),
+          }),
+        }),
+      ]))
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('keeps concurrent read-only recalls isolated on one sqlite connection', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'default',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+
+    try {
+      await db.upsertMemoryFacts([{
+        subject: 'user',
+        predicate: 'prefers',
+        object: '用户喜欢靛蓝色。',
+        confidence: 0.94,
+        memoryDomain: 'relationship',
+        validationStatus: 'provisional',
+      }], 'rule')
+
+      const recallTasks = Array.from({ length: 4 }, () => db.retrieveLongTermMemoryEvidenceReadOnly({
+        cardId: 'default',
+        userId: 'local-user',
+        currentUserText: '我刚才说我喜欢什么颜色？',
+        limit: 8,
+      }))
+      const recalls = await Promise.all(recallTasks)
+
+      expect(recalls).toHaveLength(4)
+      for (const recalled of recalls) {
+        expect(recalled.evidence).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            candidate: expect.objectContaining({
+              source: 'memory_facts',
+              summary: expect.stringContaining('靛蓝色'),
+            }),
+          }),
+        ]))
+      }
+    }
+    finally {
+      await db.close()
+    }
   })
 
   it('filters tombstoned long-term memory sources from unified recall evidence', async () => {

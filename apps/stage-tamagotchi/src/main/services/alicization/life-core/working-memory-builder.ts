@@ -107,6 +107,28 @@ function looksLikeThinContinuationCue(text: string) {
   return /^(继续|继续吧|接着|接着说|继续这个|继续上面|go on|continue|keep going)[。.!！?？]*$/iu.test(normalized)
 }
 
+function looksLikeReferentialMemoryQuery(text: string) {
+  const normalized = normalizeWorkingMemoryText(text, 220)
+  return /刚才|之前|前面|上面|刚刚|还记得|记不记得|提到|说过|告诉过|那个|那件事|这个偏好|什么偏好/u.test(normalized)
+}
+
+function buildRecentDialogueRecallHints(
+  turns: WorkingMemoryTurn[],
+  currentUserTurnId: string,
+) {
+  return turns
+    .filter(turn =>
+      turn.role === 'user'
+      && turn.visibility === 'user-visible'
+      && !turn.failureKind
+      && !turn.failureSurface
+      && turn.contaminated !== true
+      && turn.turnId !== currentUserTurnId,
+    )
+    .slice(-3)
+    .map(turn => turn.text)
+}
+
 function matchesResolvedWorkingMemoryText(text: string, resolvedTexts: string[]) {
   const normalized = normalizeWorkingMemoryText(text, 220)
   return resolvedTexts.some((resolved) => {
@@ -528,7 +550,15 @@ export function buildWorkingMemorySnapshot(input: BuildWorkingMemorySnapshotInpu
       && input.now - Number(previousSnapshot.executionState.observedAt) < activeExecutionStateRetentionMs
       ? previousSnapshot.executionState
       : null
+  const currentUserTurnId = `${
+    normalizeWorkingMemoryText(input.currentTurnId, 120)
+    || `turn-at-${Math.max(0, Math.floor(input.now))}`
+  }:user`
+  const recentDialogueRecallHints = looksLikeReferentialMemoryQuery(input.currentUserText)
+    ? buildRecentDialogueRecallHints(recentRawTurns, currentUserTurnId)
+    : []
   const mergedMemoryQueryHints = mergeWorkingMemoryStrings([
+    ...recentDialogueRecallHints,
     ...(input.conversationState?.memoryQueryHints ?? []),
     ...(input.dialogueWorldThread?.recallKeys ?? []),
   ], previousSnapshot?.memoryQueryHints, 8, 120)

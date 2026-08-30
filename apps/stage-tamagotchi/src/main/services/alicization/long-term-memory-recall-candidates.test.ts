@@ -33,6 +33,33 @@ describe('long-term memory recall candidate projection', () => {
     })
   })
 
+  it('keeps internal source labels and duplicate summary text out of provider-facing evidence', () => {
+    const candidate = memoryWorkbenchItemToEvidenceCandidate({
+      id: 'fact-1',
+      kind: 'fact',
+      summary: '用户喜欢琥珀色。',
+      evidenceSnippets: [
+        '用户喜欢琥珀色。',
+        'working-memory-owner:cleaned:queue-1',
+        '用户希望在需要时使用这个偏好。',
+      ],
+      sourceIds: ['fact-1'],
+      confidence: 0.9,
+      salience: 0.7,
+      sensitivity: 'personal',
+      visibility: 'explicit',
+      training: 'blocked',
+      source: 'memory_facts',
+      createdAt: 10,
+      updatedAt: 20,
+      lastAccessedAt: null,
+      tombstoned: false,
+    })
+
+    expect(candidate.summary).toBe('用户喜欢琥珀色。 用户希望在需要时使用这个偏好。')
+    expect(candidate.summary).not.toContain('working-memory-owner:cleaned:queue-1')
+  })
+
   it('projects a semantic vector hit even when lexical search returned no candidate', () => {
     expect(persistentVectorRecordToEvidenceCandidate({
       id: 'vector-1',
@@ -58,5 +85,63 @@ describe('long-term memory recall candidate projection', () => {
       sensitivity: 'personal',
       updatedAt: 30,
     })
+  })
+
+  it('cleans governance suffixes from legacy vector text before provider projection', () => {
+    const candidate = persistentVectorRecordToEvidenceCandidate({
+      id: 'vector-legacy-1',
+      sourceId: 'fact-legacy-1',
+      source: 'memory_facts',
+      text: 'user prefers 用户喜欢琥珀色。 relationship working-memory-owner:cleaned:queue-1',
+      vector: [1, 0, 0],
+      modelId: 'embedding-a',
+      dimensions: 3,
+      updatedAt: 30,
+      metadata: {
+        kind: 'fact',
+        confidence: 0.88,
+      },
+    })
+
+    expect(candidate.summary).toBe('用户喜欢琥珀色。')
+    expect(candidate.summary).not.toContain('working-memory-owner:cleaned:queue-1')
+  })
+
+  it('does not truncate ordinary semantic text that mentions learning', () => {
+    const candidate = persistentVectorRecordToEvidenceCandidate({
+      id: 'vector-learning-1',
+      sourceId: 'reflection-learning-1',
+      source: 'memory_reflections',
+      text: '用户正在 learning 新方法来整理长期记忆。',
+      vector: [1, 0, 0],
+      modelId: 'embedding-a',
+      dimensions: 3,
+      updatedAt: 30,
+      metadata: {
+        kind: 'reflection',
+        confidence: 0.88,
+      },
+    })
+
+    expect(candidate.summary).toBe('用户正在 learning 新方法来整理长期记忆。')
+  })
+
+  it('cleans learning governance labels without removing the surrounding memory', () => {
+    const candidate = persistentVectorRecordToEvidenceCandidate({
+      id: 'vector-learning-governance-1',
+      sourceId: 'reflection-learning-governance-1',
+      source: 'memory_reflections',
+      text: '用户喜欢先验证再长期记住。 learning-internalized-relationship-cadence',
+      vector: [1, 0, 0],
+      modelId: 'embedding-a',
+      dimensions: 3,
+      updatedAt: 30,
+      metadata: {
+        kind: 'reflection',
+        confidence: 0.88,
+      },
+    })
+
+    expect(candidate.summary).toBe('用户喜欢先验证再长期记住。')
   })
 })

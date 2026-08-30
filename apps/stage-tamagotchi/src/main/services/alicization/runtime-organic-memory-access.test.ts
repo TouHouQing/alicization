@@ -579,8 +579,22 @@ describe('runtime-organic-memory-access', () => {
   })
 
   it('prewarms hot retrieval lines for deep-thread recall seeds', async () => {
-    const searchEpisodicEvents = vi.fn(async () => [])
-    const searchMemoryConsolidations = vi.fn(async () => [])
+    let resolveEpisodicSearch: (() => void) | undefined
+    let resolveConsolidationSearch: (() => void) | undefined
+    const episodicSearchPending = new Promise<void>((resolve) => {
+      resolveEpisodicSearch = resolve
+    })
+    const consolidationSearchPending = new Promise<void>((resolve) => {
+      resolveConsolidationSearch = resolve
+    })
+    const searchEpisodicEvents = vi.fn(async () => {
+      await episodicSearchPending
+      return []
+    })
+    const searchMemoryConsolidations = vi.fn(async () => {
+      await consolidationSearchPending
+      return []
+    })
 
     const runtime = createAlicizationOrganicMemoryAccessRuntime({
       getActiveCardId: () => 'default',
@@ -628,20 +642,22 @@ describe('runtime-organic-memory-access', () => {
       listConversationTurnsBySession: async () => [],
     })
 
+    const recallGovernor = {
+      recollectionIntent: {
+        mode: 'experience-pattern',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchProceduralExperience: true,
+        queryHints: ['旧方法', '接回去'],
+        rationale: 'Task migration should reopen prior procedure continuity.',
+        confidence: 0.82,
+      },
+      threadAnchors: ['runtime seam'],
+    } as any
+    const recallSeed = '换了这么久，这种活你还是会沿旧方法接吗'
     const plan = await runtime.prewarmAccessibilityLine({
-      recallSeed: '换了这么久，这种活你还是会沿旧方法接吗',
-      recallGovernor: {
-        recollectionIntent: {
-          mode: 'experience-pattern',
-          temporalFocus: 'experience-matched',
-          searchEpisodes: true,
-          searchProceduralExperience: true,
-          queryHints: ['旧方法', '接回去'],
-          rationale: 'Task migration should reopen prior procedure continuity.',
-          confidence: 0.82,
-        },
-        threadAnchors: ['runtime seam'],
-      } as any,
+      recallSeed,
+      recallGovernor,
       sessionId: 'session-1',
       turnId: 'turn-1',
     })
@@ -649,6 +665,24 @@ describe('runtime-organic-memory-access', () => {
     expect(plan?.prewarmKey).toContain('runtime seam')
     expect(searchEpisodicEvents).toHaveBeenCalledTimes(1)
     expect(searchMemoryConsolidations).toHaveBeenCalledTimes(1)
+
+    const episodicRecallPromise = runtime.recallEpisodicEventsWithGovernor({
+      recallSeed,
+      recallGovernor,
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+    })
+    const consolidationRecallPromise = runtime.recallMemoryConsolidations({
+      query: recallSeed,
+    })
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    expect(searchEpisodicEvents).toHaveBeenCalledTimes(1)
+    expect(searchMemoryConsolidations).toHaveBeenCalledTimes(1)
+
+    resolveEpisodicSearch?.()
+    resolveConsolidationSearch?.()
+    await Promise.all([episodicRecallPromise, consolidationRecallPromise])
   })
 
   it('keeps scene episodic recall active without a structured governor intent', async () => {

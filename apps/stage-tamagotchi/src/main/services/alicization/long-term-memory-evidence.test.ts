@@ -112,4 +112,31 @@ describe('long-term memory evidence mappers', () => {
       summary: expect.stringContaining('先做召回'),
     }))
   })
+
+  it('keeps fact source labels out of semantic cues', () => {
+    const candidate = memoryFactToLongTermEvidenceCandidate({
+      id: 'fact-with-governance-label',
+      subject: 'user',
+      predicate: 'prefers',
+      object: '用户喜欢琥珀色。',
+      confidence: 0.9,
+      source: 'rule',
+      dedupeKey: 'user|prefers|amber',
+      createdAt: 1,
+      updatedAt: 2,
+      lastAccessAt: null,
+      accessCount: 0,
+      memoryDomain: 'relationship',
+      validationStatus: 'provisional',
+      knowledgeStage: 'working-understanding',
+      sourceLabel: 'working-memory-owner:cleaned:queue-1',
+    })
+
+    expect(candidate.cues).toEqual([
+      'user',
+      'prefers',
+      '用户喜欢琥珀色。',
+      'relationship',
+    ])
+  })
 })

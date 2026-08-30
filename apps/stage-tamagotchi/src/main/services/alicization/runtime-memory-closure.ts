@@ -50,6 +50,27 @@ function sanitizeMemoryClosureWritebackValue<T>(value: T, key = ''): T {
   return next as T
 }
 
+function containsExecutionFailureSignal(value: unknown): boolean {
+  if (Array.isArray(value))
+    return value.some(item => containsExecutionFailureSignal(item))
+  if (!value || typeof value !== 'object')
+    return false
+
+  const record = value as Record<string, unknown>
+  if (typeof record.failureKind === 'string' && record.failureKind.trim())
+    return true
+  if (record.timedOut === true)
+    return true
+  if (typeof record.status === 'string' && record.status.trim().toLowerCase() === 'timeout')
+    return true
+  if (record.origin === 'failure-surface')
+    return true
+  if (record.artifactRole === 'memory-side-failure')
+    return true
+
+  return Object.values(record).some(item => containsExecutionFailureSignal(item))
+}
+
 interface CreateAlicizationRuntimeMemoryClosureOptions {
   now: () => number
   normalizeCardId: (raw: unknown) => string
@@ -148,7 +169,16 @@ interface CreateAlicizationRuntimeMemoryClosureOptions {
 export function createAlicizationRuntimeMemoryClosure(options: CreateAlicizationRuntimeMemoryClosureOptions) {
   async function persistOutcomeClosure(cardIdRaw: unknown, input: AlicizationOutcomeClosureResult) {
     const cardId = options.normalizeCardId(cardIdRaw)
-    const closure = attachSynthesizedReflections(input)
+    const attachedClosure = attachSynthesizedReflections(input)
+    const executionFailureDetected = containsExecutionFailureSignal(attachedClosure)
+    const closure = executionFailureDetected
+      ? {
+          ...attachedClosure,
+          episodicEvents: [],
+          reflections: [],
+          reinforcementEvents: [],
+        }
+      : attachedClosure
     if (
       closure.relationshipOutcomes.length === 0
       && closure.reinforcementEvents.length === 0
@@ -165,69 +195,71 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
           sanitizeMemoryClosureWritebackValue(closure.relationshipOutcomes, 'relationshipOutcomes'),
         )
       }
-      if (closure.reinforcementEvents.length > 0) {
+      if (!executionFailureDetected && closure.reinforcementEvents.length > 0) {
         await options.alicizationDb.appendPersonaReinforcementEvents(
           sanitizeMemoryClosureWritebackValue(closure.reinforcementEvents, 'personaReinforcementEvents'),
         )
       }
-      const previousPersonStateUpdateSurface = await options.alicizationDb.readMindHead<AlicizationPersonStateUpdateSurface>(cardId, 'person-state-update-surface').catch(() => null)
-      const basePersonStateUpdateSurface = buildAlicizationPersonStateUpdateSurface({
-        closure,
-        previous: previousPersonStateUpdateSurface,
-        now: options.now(),
-      })
-      const episodicEventsToPersist = sanitizeMemoryClosureWritebackValue(closure.episodicEvents, 'episodicEvents')
-      if (episodicEventsToPersist.length > 0)
-        await options.alicizationDb.appendEpisodicEvents(episodicEventsToPersist)
-      const reflectionsToPersist = sanitizeMemoryClosureWritebackValue(closure.reflections, 'memoryReflections')
-      if (reflectionsToPersist.length > 0)
-        await options.alicizationDb.upsertMemoryReflections(reflectionsToPersist)
-      const nextPersonStateUpdateSurface = basePersonStateUpdateSurface
-      const personStateSurfaceToPersist = sanitizeMemoryClosureWritebackValue(nextPersonStateUpdateSurface, 'personStateUpdateSurface')
-      await options.alicizationDb.upsertMindHead(cardId, 'person-state-update-surface', personStateSurfaceToPersist)
-      if (
-        closure.relationshipOutcomes.length > 0
-        || closure.reinforcementEvents.length > 0
-        || closure.episodicEvents.length > 0
-      ) {
-        const personStateUpdateRecord = buildAlicizationPersonStateUpdateRecord({
-          closure,
-          surface: nextPersonStateUpdateSurface,
-        })
-        const evolutionEntry = buildAlicizationPersonStateEvolutionEntry({
+      if (!executionFailureDetected) {
+        const previousPersonStateUpdateSurface = await options.alicizationDb.readMindHead<AlicizationPersonStateUpdateSurface>(cardId, 'person-state-update-surface').catch(() => null)
+        const basePersonStateUpdateSurface = buildAlicizationPersonStateUpdateSurface({
           closure,
           previous: previousPersonStateUpdateSurface,
-          next: nextPersonStateUpdateSurface,
-          record: personStateUpdateRecord,
+          now: options.now(),
         })
-        if (evolutionEntry)
-          await options.alicizationDb.appendPersonStateEvolutionEntries(sanitizeMemoryClosureWritebackValue([evolutionEntry], 'personStateEvolutionEntries'))
-        await options.alicizationDb.appendMindTurnEvents([sanitizeMemoryClosureWritebackValue({
-          decisionTraceId: options.ensureMindGovernanceDecisionTraceId(personStateUpdateRecord.decisionTraceId, personStateUpdateRecord.createdAt),
-          turnId: personStateUpdateRecord.turnId,
-          sessionId: personStateUpdateRecord.sessionId,
-          origin: personStateUpdateRecord.origin,
-          kind: 'person-state-updated',
-          payload: {
-            version: personStateUpdateRecord.version,
-            updatedAt: personStateUpdateRecord.updatedAt,
-            summary: personStateUpdateRecord.summary,
-            dominantContexts: personStateUpdateRecord.dominantContexts,
-            relationshipShift: personStateUpdateRecord.relationshipShift,
-            reinforcementBias: personStateUpdateRecord.reinforcementBias,
-            preferenceHints: personStateUpdateRecord.preferenceHints,
-            sensitivityHints: personStateUpdateRecord.sensitivityHints,
-            repairHints: personStateUpdateRecord.repairHints,
-            burdenHints: personStateUpdateRecord.burdenHints,
-            narrative: personStateUpdateRecord.narrative,
-            sourceTrail: personStateUpdateRecord.sourceTrail,
-            sourceKinds: personStateUpdateRecord.sourceKinds,
-            sourceCounts: personStateUpdateRecord.sourceCounts,
-            affectiveResidue: personStateUpdateRecord.affectiveResidue ?? null,
-            activeThreadId: personStateUpdateRecord.activeThreadId,
-          },
-          createdAt: personStateUpdateRecord.createdAt,
-        }, 'mindTurnEvent')])
+        const episodicEventsToPersist = sanitizeMemoryClosureWritebackValue(closure.episodicEvents, 'episodicEvents')
+        if (episodicEventsToPersist.length > 0)
+          await options.alicizationDb.appendEpisodicEvents(episodicEventsToPersist)
+        const reflectionsToPersist = sanitizeMemoryClosureWritebackValue(closure.reflections, 'memoryReflections')
+        if (reflectionsToPersist.length > 0)
+          await options.alicizationDb.upsertMemoryReflections(reflectionsToPersist)
+        const nextPersonStateUpdateSurface = basePersonStateUpdateSurface
+        const personStateSurfaceToPersist = sanitizeMemoryClosureWritebackValue(nextPersonStateUpdateSurface, 'personStateUpdateSurface')
+        await options.alicizationDb.upsertMindHead(cardId, 'person-state-update-surface', personStateSurfaceToPersist)
+        if (
+          closure.relationshipOutcomes.length > 0
+          || closure.reinforcementEvents.length > 0
+          || closure.episodicEvents.length > 0
+        ) {
+          const personStateUpdateRecord = buildAlicizationPersonStateUpdateRecord({
+            closure,
+            surface: nextPersonStateUpdateSurface,
+          })
+          const evolutionEntry = buildAlicizationPersonStateEvolutionEntry({
+            closure,
+            previous: previousPersonStateUpdateSurface,
+            next: nextPersonStateUpdateSurface,
+            record: personStateUpdateRecord,
+          })
+          if (evolutionEntry)
+            await options.alicizationDb.appendPersonStateEvolutionEntries(sanitizeMemoryClosureWritebackValue([evolutionEntry], 'personStateEvolutionEntries'))
+          await options.alicizationDb.appendMindTurnEvents([sanitizeMemoryClosureWritebackValue({
+            decisionTraceId: options.ensureMindGovernanceDecisionTraceId(personStateUpdateRecord.decisionTraceId, personStateUpdateRecord.createdAt),
+            turnId: personStateUpdateRecord.turnId,
+            sessionId: personStateUpdateRecord.sessionId,
+            origin: personStateUpdateRecord.origin,
+            kind: 'person-state-updated',
+            payload: {
+              version: personStateUpdateRecord.version,
+              updatedAt: personStateUpdateRecord.updatedAt,
+              summary: personStateUpdateRecord.summary,
+              dominantContexts: personStateUpdateRecord.dominantContexts,
+              relationshipShift: personStateUpdateRecord.relationshipShift,
+              reinforcementBias: personStateUpdateRecord.reinforcementBias,
+              preferenceHints: personStateUpdateRecord.preferenceHints,
+              sensitivityHints: personStateUpdateRecord.sensitivityHints,
+              repairHints: personStateUpdateRecord.repairHints,
+              burdenHints: personStateUpdateRecord.burdenHints,
+              narrative: personStateUpdateRecord.narrative,
+              sourceTrail: personStateUpdateRecord.sourceTrail,
+              sourceKinds: personStateUpdateRecord.sourceKinds,
+              sourceCounts: personStateUpdateRecord.sourceCounts,
+              affectiveResidue: personStateUpdateRecord.affectiveResidue ?? null,
+              activeThreadId: personStateUpdateRecord.activeThreadId,
+            },
+            createdAt: personStateUpdateRecord.createdAt,
+          }, 'mindTurnEvent')])
+        }
       }
       if (closure.memoryFacts.length > 0) {
         const existingFacts = options.alicizationDb.listMemoryFacts

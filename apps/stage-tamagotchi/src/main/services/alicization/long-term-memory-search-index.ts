@@ -15,6 +15,7 @@ import {
   hashLongTermMemoryEmbeddingText,
   normalizeLongTermMemoryEmbeddingText,
 } from './long-term-memory-embedding-text'
+import { buildCjkCharGramQueries } from './long-term-memory-query-expansion'
 
 export interface LongTermMemoryEmbeddingCorpusEntry {
   cardId: string
@@ -283,7 +284,6 @@ function mapFactDocument(row: DbMemoryFactRow): SearchDocument | null {
     row.predicate,
     row.object,
     row.memory_domain,
-    row.source_label,
   ], 10, 120)
   const source = 'memory_facts'
   const kind: AlicizationMemoryWorkbenchKind = 'fact'
@@ -293,7 +293,6 @@ function mapFactDocument(row: DbMemoryFactRow): SearchDocument | null {
     row.predicate,
     row.object,
     row.memory_domain,
-    row.source_label,
   ])
   return {
     id: documentId({ cardId, source, sourceId }),
@@ -562,12 +561,46 @@ function buildFtsQuery(query: string) {
   const normalized = normalizeText(query, 240)
   if (!normalized)
     return ''
-  return [...new Set(normalized
-    .split(/\s+/)
+  const terms: string[] = []
+  for (const segment of normalized.match(/[\u4E00-\u9FFF]+|[^\u4E00-\u9FFF\s]+/gu) ?? []) {
+    if (/^[\u4E00-\u9FFF]+$/u.test(segment) && segment.length >= 2) {
+      terms.push(...buildCjkCharGramQueries(segment, {
+        minGram: 2,
+        maxGram: 3,
+        maxItems: 48,
+      }))
+      continue
+    }
+    terms.push(segment)
+  }
+  return [...new Set(terms
     .map(term => term.trim())
     .filter(Boolean))]
     .map(term => `"${term.replace(/"/g, '""')}"`)
     .join(' OR ')
+}
+
+function buildCjkSearchLikeQueries(query: string) {
+  const normalized = normalizeText(query, 240)
+  const terms: string[] = []
+  for (const segment of normalized.match(/[\u4E00-\u9FFF]+/gu) ?? []) {
+    if (segment.length < 2)
+      continue
+    terms.push(...buildCjkCharGramQueries(segment, {
+      minGram: 2,
+      maxGram: 2,
+      maxItems: 24,
+    }))
+  }
+  return [...new Set(terms)]
+}
+
+function appendSearchPredicate(clauses: string[], params: unknown[], query: string) {
+  const ftsQuery = buildFtsQuery(query)
+  if (!ftsQuery)
+    return
+  clauses.push('long_term_memory_search_documents_fts MATCH ?')
+  params.push(ftsQuery)
 }
 
 function buildLikeQuery(query: string) {
@@ -761,44 +794,42 @@ export function createLongTermMemorySearchIndexRuntime(input: {
       ? ` AND id IN (${sourceIds.map(() => '?').join(', ')})`
       : ''
     const sourceParams = sourceIds.length > 0 ? sourceIds : []
-    const [facts, reflections, episodes, consolidations] = await Promise.all([
-      !source || source === 'memory_facts'
-        ? input.all<DbMemoryFactRow>(
-            input.database,
-            `SELECT *
-         FROM memory_facts
-         WHERE card_id = ?
-           AND COALESCE(validation_status, '') != 'superseded'
-           ${sourceIdClause}`,
-            [cardId, ...sourceParams],
-          )
-        : Promise.resolve([]),
-      !source || source === 'memory_reflections'
-        ? input.all<DbMemoryReflectionRow>(
-            input.database,
-            `SELECT *
-         FROM memory_reflections
-         WHERE card_id = ?
-           AND status = 'confirmed'
-           ${sourceIdClause}`,
-            [cardId, ...sourceParams],
-          )
-        : Promise.resolve([]),
-      !source || source === 'episodic_events'
-        ? input.all<DbEpisodicEventRow>(
-            input.database,
-            `SELECT * FROM episodic_events WHERE card_id = ?${sourceIdClause}`,
-            [cardId, ...sourceParams],
-          )
-        : Promise.resolve([]),
-      !source || source === 'memory_consolidations'
-        ? input.all<DbMemoryConsolidationRow>(
-            input.database,
-            `SELECT * FROM memory_consolidations WHERE card_id = ?${sourceIdClause}`,
-            [cardId, ...sourceParams],
-          )
-        : Promise.resolve([]),
-    ])
+    const facts = !source || source === 'memory_facts'
+      ? await input.all<DbMemoryFactRow>(
+          input.database,
+          `SELECT *
+       FROM memory_facts
+       WHERE card_id = ?
+         AND COALESCE(validation_status, '') != 'superseded'
+         ${sourceIdClause}`,
+          [cardId, ...sourceParams],
+        )
+      : []
+    const reflections = !source || source === 'memory_reflections'
+      ? await input.all<DbMemoryReflectionRow>(
+          input.database,
+          `SELECT *
+       FROM memory_reflections
+       WHERE card_id = ?
+         AND status = 'confirmed'
+         ${sourceIdClause}`,
+          [cardId, ...sourceParams],
+        )
+      : []
+    const episodes = !source || source === 'episodic_events'
+      ? await input.all<DbEpisodicEventRow>(
+          input.database,
+          `SELECT * FROM episodic_events WHERE card_id = ?${sourceIdClause}`,
+          [cardId, ...sourceParams],
+        )
+      : []
+    const consolidations = !source || source === 'memory_consolidations'
+      ? await input.all<DbMemoryConsolidationRow>(
+          input.database,
+          `SELECT * FROM memory_consolidations WHERE card_id = ?${sourceIdClause}`,
+          [cardId, ...sourceParams],
+        )
+      : []
     return [
       ...facts.map(mapFactDocument),
       ...reflections.map(mapReflectionDocument),
@@ -1232,8 +1263,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
         const params: unknown[] = []
         appendCommonFilters(clauses, params, listInput)
         if (mode === 'search') {
-          clauses.push('long_term_memory_search_documents_fts MATCH ?')
-          params.push(buildFtsQuery(query))
+          appendSearchPredicate(clauses, params, query)
         }
         else if (mode === 'short-search') {
           clauses.push('doc.search_text LIKE ? ESCAPE \'\\\'')
@@ -1248,57 +1278,97 @@ export function createLongTermMemorySearchIndexRuntime(input: {
         const rankExpression = mode === 'search'
           ? 'bm25(long_term_memory_search_documents_fts)'
           : 'NULL'
-        await input.run(
-          input.database,
-          `
-          INSERT INTO long_term_memory_search_snapshot_items (
-            snapshot_id,
-            document_id,
-            card_id,
-            source,
-            source_id,
-            kind,
-            summary,
-            evidence_snippets_json,
-            source_ids_json,
-            confidence,
-            salience,
-            sensitivity,
-            created_at,
-            updated_at,
-            last_accessed_at,
-            tombstoned,
-            visibility,
-            training,
-            rank
+        const insertSnapshotRows = async (rowInput: {
+          clauses: string[]
+          params: unknown[]
+          searchJoin: string
+          rankExpression: string
+        }) => {
+          return await input.run(
+            input.database,
+            `
+            INSERT INTO long_term_memory_search_snapshot_items (
+              snapshot_id,
+              document_id,
+              card_id,
+              source,
+              source_id,
+              kind,
+              summary,
+              evidence_snippets_json,
+              source_ids_json,
+              confidence,
+              salience,
+              sensitivity,
+              created_at,
+              updated_at,
+              last_accessed_at,
+              tombstoned,
+              visibility,
+              training,
+              rank
+            )
+            SELECT
+              ?,
+              doc.id,
+              doc.card_id,
+              doc.source,
+              doc.source_id,
+              doc.kind,
+              doc.summary,
+              doc.evidence_snippets_json,
+              doc.source_ids_json,
+              doc.confidence,
+              doc.salience,
+              doc.sensitivity,
+              doc.created_at,
+              doc.updated_at,
+              doc.last_accessed_at,
+              doc.tombstoned,
+              COALESCE(policy.visible_mode, CASE WHEN doc.sensitivity IN ('private', 'secret') THEN 'inward-only' ELSE 'explicit' END),
+              CASE WHEN COALESCE(policy.allow_training, 0) = 1 THEN 'allowed' ELSE 'blocked' END,
+              ${rowInput.rankExpression}
+            FROM long_term_memory_search_documents doc
+            ${rowInput.searchJoin}
+            ${projectionJoins()}
+            WHERE ${rowInput.clauses.join(' AND ')}
+            `,
+            rowInput.params,
           )
-          SELECT
-            ?,
-            doc.id,
-            doc.card_id,
-            doc.source,
-            doc.source_id,
-            doc.kind,
-            doc.summary,
-            doc.evidence_snippets_json,
-            doc.source_ids_json,
-            doc.confidence,
-            doc.salience,
-            doc.sensitivity,
-            doc.created_at,
-            doc.updated_at,
-            doc.last_accessed_at,
-            doc.tombstoned,
-            COALESCE(policy.visible_mode, CASE WHEN doc.sensitivity IN ('private', 'secret') THEN 'inward-only' ELSE 'explicit' END),
-            CASE WHEN COALESCE(policy.allow_training, 0) = 1 THEN 'allowed' ELSE 'blocked' END,
-            ${rankExpression}
-          FROM long_term_memory_search_documents doc
-          ${searchJoin}
-          ${projectionJoins()}
-          WHERE ${clauses.join(' AND ')}
-          `,
-          [snapshotId, ...params],
-        )
+        }
+
+        const lexicalInsert = await insertSnapshotRows({
+          clauses,
+          params: [snapshotId, ...params],
+          searchJoin,
+          rankExpression,
+        })
+
+        if (mode === 'search') {
+          const fallbackTerms = buildCjkSearchLikeQueries(query)
+          if (Number((lexicalInsert as { changes?: unknown } | undefined)?.changes ?? 0) === 0 && fallbackTerms.length > 0) {
+            const fallbackClauses: string[] = []
+            const fallbackParams: unknown[] = []
+            appendCommonFilters(fallbackClauses, fallbackParams, listInput)
+            fallbackClauses.push(`(${fallbackTerms.map(() => 'doc.search_text LIKE ? ESCAPE \'\\\'').join(' OR ')})`)
+            fallbackParams.push(...fallbackTerms.map(buildLikeQuery))
+            fallbackClauses.push(`
+              NOT EXISTS (
+                SELECT 1
+                FROM long_term_memory_search_snapshot_items existing
+                WHERE existing.snapshot_id = ?
+                  AND existing.document_id = doc.id
+              )
+            `)
+            fallbackParams.push(snapshotId)
+            await insertSnapshotRows({
+              clauses: fallbackClauses,
+              params: [snapshotId, ...fallbackParams],
+              searchJoin: '',
+              rankExpression: '0',
+            })
+          }
+        }
       })
     })
     return {
@@ -1412,8 +1482,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     const params: unknown[] = []
     appendCommonFilters(clauses, params, inputRaw)
     if (mode === 'search') {
-      clauses.push('long_term_memory_search_documents_fts MATCH ?')
-      params.push(buildFtsQuery(query ?? ''))
+      appendSearchPredicate(clauses, params, query ?? '')
     }
     if (mode === 'short-search') {
       clauses.push('doc.search_text LIKE ? ESCAPE \'\\\'')
@@ -1542,8 +1611,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     const clauses: string[] = []
     const params: unknown[] = []
     appendCommonFilters(clauses, params, inputRaw)
-    clauses.push('long_term_memory_search_documents_fts MATCH ?')
-    params.push(buildFtsQuery(query))
+    appendSearchPredicate(clauses, params, query)
     const cursorClauses: string[] = []
     const cursorParams: unknown[] = []
     if (legacyCursor?.mode === 'search') {

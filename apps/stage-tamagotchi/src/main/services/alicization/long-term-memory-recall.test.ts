@@ -252,6 +252,42 @@ describe('long-term memory recall owner', () => {
     expect(plan.semanticQueries).toContain(text)
   })
 
+  it('recognizes a natural same-session question about what the user just said', () => {
+    const text = '我刚才说过我最近更喜欢什么？'
+    const intent = deriveLongTermMemoryRecallIntent({
+      currentUserText: text,
+    })
+
+    expect(intent).toMatchObject({
+      mode: 'preference',
+      shouldRecall: true,
+      rationale: 'recall:preference',
+      temporalFocus: 'current',
+      targetKinds: ['fact', 'reflection'],
+    })
+  })
+
+  it('carries WorkingMemory recent topics into thread hints for pronoun recall', () => {
+    const currentUserText = '请告诉我你现在记得的这件事。'
+    const workingMemoryQueryHints = ['刚才聊到用户喜欢琥珀色这个偏好。']
+    const intent = deriveLongTermMemoryRecallIntent({
+      currentUserText,
+      workingMemoryQueryHints,
+    })
+    const plan = buildLongTermMemoryQueryPlan({
+      intent,
+      currentUserText,
+      workingMemoryQueryHints,
+      currentThreadTitle: '最近的颜色偏好',
+    })
+
+    expect(intent.shouldRecall).toBe(true)
+    expect(plan.threadHints).toEqual(expect.arrayContaining([
+      '最近的颜色偏好',
+      '刚才聊到用户喜欢琥珀色这个偏好。',
+    ]))
+  })
+
   it('does not turn personality-related topics into a special recall mode', () => {
     const text = '我在设计数字生命人格界面的信息层级。'
     const intent = deriveLongTermMemoryRecallIntent({
