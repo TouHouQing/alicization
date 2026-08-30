@@ -1022,6 +1022,25 @@ function registerCodexProcessGroup(child: ReturnType<typeof spawn>) {
   }
 }
 
+function buildCodexSpawnInvocation(command: string, args: string[]) {
+  if (processPlatform === 'win32') {
+    return {
+      command,
+      args,
+    }
+  }
+
+  // The current Codex CLI can stall after turn.started when launched directly
+  // from a non-interactive Node child, even with stdin closed. A POSIX shell
+  // exec preserves every argv boundary while matching the CLI's stable
+  // non-interactive launch path. `exec` keeps the Codex process as the group
+  // leader so the existing interrupt/reap logic still owns its lifecycle.
+  return {
+    command: '/bin/sh',
+    args: ['-c', 'exec "$0" "$@"', command, ...args],
+  }
+}
+
 function buildCodexExecArgs(
   spec: AlicizationCodexCommandSpec,
   inheritedConfig: AlicizationCodexInheritedConfig | null,
@@ -1057,11 +1076,8 @@ function buildCodexExecArgs(
 
   const modelProvider = inheritedConfig?.modelProvider ?? null
   appendCodexConfigOverride(args, 'model_provider', modelProvider)
-  const reasoningEffort = spec.profile
-    ? inheritedConfig?.modelReasoningEffort ?? null
-    : spec.effect === 'observe'
-      ? 'medium'
-      : 'high'
+  const reasoningEffort = inheritedConfig?.modelReasoningEffort
+    ?? (spec.effect === 'observe' ? 'medium' : 'high')
   appendCodexConfigOverride(args, 'model_reasoning_effort', reasoningEffort)
   appendCodexConfigOverride(args, 'model_catalog_json', inheritedConfig?.modelCatalogJson ?? null)
   appendCodexConfigOverride(args, 'model_context_window', inheritedConfig?.modelContextWindow ?? null)
@@ -2225,15 +2241,16 @@ async function runCodexCommandAttempt(
       settleFromProcessState()
     }
 
+    const spawnInvocation = buildCodexSpawnInvocation(command, args)
     try {
-      child = spawn(command, args, {
+      child = spawn(spawnInvocation.command, spawnInvocation.args, {
         cwd: spec.cwd,
         detached: processPlatform !== 'win32',
         env,
-        // The prompt is already an argv value. Keeping stdin ignored prevents
-        // Codex from entering its appended-stdin input mode while still leaving
-        // stdout/stderr available for diagnostics.
-        stdio: ['ignore', 'pipe', 'pipe'],
+        // Codex probes stdin even when a prompt is supplied as argv. A real
+        // pipe that is closed immediately gives it EOF and avoids the
+        // platform-specific hang observed with /dev/null-backed "ignore".
+        stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
       })
     }
@@ -2242,6 +2259,7 @@ async function runCodexCommandAttempt(
       return
     }
     const spawnedChild = child
+    spawnedChild.stdin?.end()
     unregisterProcessGroup = registerCodexProcessGroup(spawnedChild)
     activityHeartbeatTimer = setInterval(() => {
       if (
@@ -2785,11 +2803,10 @@ export async function executeCodexTaskThread(input: AlicizationCodexAdapterInput
 
   const hasAssistantOutput = Boolean(assistantOutput.trim())
   const emptyOutput = runtimeResult.ok
-    && runtimeResult.exitCode === 0
     && !hasAssistantOutput
   const success = runtimeResult.ok
     && (runtimeResult.exitCode === 0 || runtimeResult.outputReady === true)
-    && !emptyOutput
+    && hasAssistantOutput
   const output = success
     ? assistantOutput.trim().slice(0, codexMaxPreviewChars)
     : diagnosticOutput

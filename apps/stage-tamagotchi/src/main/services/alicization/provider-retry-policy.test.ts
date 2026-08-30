@@ -90,6 +90,30 @@ describe('provider retry policy', () => {
     expect(invoke).toHaveBeenCalledTimes(2)
   })
 
+  it('retries an OpenAI-compatible rate-limit error when the Provider omits HTTP status metadata', () => {
+    const decision = resolveAlicizationProviderRetryDecision(
+      new Error(
+        'Error from server: {"error":{"message":"Upstream rate limit exceeded, please retry later","type":"rate_limit_error"}}',
+      ),
+      {
+        attempt: 0,
+        options: {
+          operation: 'main-chat-stream',
+          baseDelayMs: 0,
+          maxDelayMs: 0,
+          random: () => 0,
+        },
+      },
+    )
+
+    expect(decision).toEqual(expect.objectContaining({
+      retry: true,
+      status: 429,
+      reason: 'retryable-status',
+      nextAttempt: 1,
+    }))
+  })
+
   it('retries transport failures but does not retry auth or unknown failures', async () => {
     const transport = vi.fn()
       .mockRejectedValueOnce(Object.assign(new Error('socket reset'), { code: 'ECONNRESET' }))
@@ -121,6 +145,32 @@ describe('provider retry policy', () => {
       sleep: vi.fn(async () => {}),
     })).rejects.toThrow('unexpected application bug')
     expect(unknown).toHaveBeenCalledOnce()
+  })
+
+  it('retries an empty Provider completion when no visible progress or side effect occurred', () => {
+    const decision = resolveAlicizationProviderRetryDecision(
+      Object.assign(
+        new Error('Provider completed without a reply or tool action'),
+        {
+          code: 'chat-provider-empty-completion',
+        },
+      ),
+      {
+        attempt: 0,
+        options: {
+          operation: 'main-chat-stream',
+          baseDelayMs: 0,
+          maxDelayMs: 0,
+          random: () => 0,
+        },
+      },
+    )
+
+    expect(decision).toEqual(expect.objectContaining({
+      retry: true,
+      nextAttempt: 1,
+      reason: 'retryable-transport',
+    }))
   })
 
   it('keeps retry-after as a lower bound and respects the deadline', () => {

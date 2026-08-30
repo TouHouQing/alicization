@@ -381,13 +381,14 @@ describe('codex executor adapter', () => {
   })
 
   it('dispatches codex execution and records dispatch, step, and result events', async () => {
+    let child: ReturnType<typeof createMockCodexChild> | undefined
     spawnMock.mockImplementation((_command: string, _args: string[]) => {
-      const child = createMockCodexChild()
+      child = createMockCodexChild()
       void Promise.resolve()
         .then(() => {
-          child.stdout.emit('data', Buffer.from('codex stdout\n'))
-          emitCodexAssistantResult(child, 'codex assistant output')
-          child.emit('exit', 0, null)
+          child?.stdout.emit('data', Buffer.from('codex stdout\n'))
+          emitCodexAssistantResult(child!, 'codex assistant output')
+          child?.emit('exit', 0, null)
         })
       return child
     })
@@ -436,8 +437,10 @@ describe('codex executor adapter', () => {
     const taskFact = parseProviderFact(taskFactRaw)
 
     expect(spawnMock).toBeCalledWith(
-      expect.stringMatching(/(?:^|\/)codex$/),
+      '/bin/sh',
       expect.arrayContaining([
+        '-c',
+        'exec "$0" "$@"',
         'exec',
         '--ignore-user-config',
         '--ephemeral',
@@ -450,9 +453,10 @@ describe('codex executor adapter', () => {
       ]),
       expect.objectContaining({
         detached: process.platform !== 'win32',
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ['pipe', 'pipe', 'pipe'],
       }),
     )
+    expect(child?.stdin.end).toHaveBeenCalledOnce()
     expect(runtimeFact).toEqual(expect.objectContaining({
       type: 'alicization-execution-runtime-context',
       data: expect.objectContaining({
@@ -2461,7 +2465,7 @@ describe('codex executor adapter', () => {
     })
   })
 
-  it('inherits the user Codex model provider without loading user MCP or plugin configuration', async () => {
+  it('inherits the user Codex model runtime without loading user MCP or plugin configuration', async () => {
     const codexHome = await createCodexHome()
     process.env.CODEX_HOME = codexHome
     await writeFile(resolve(codexHome, 'config.toml'), [
@@ -2555,7 +2559,7 @@ describe('codex executor adapter', () => {
     expect(args.join(' ')).not.toContain('must-not-leak')
   })
 
-  it('uses task-level medium reasoning for observe-only work instead of inheriting global max effort', async () => {
+  it('preserves the configured reasoning effort for observe-only work', async () => {
     const codexHome = await createCodexHome('alicization-codex-observe-home-')
     process.env.CODEX_HOME = codexHome
     await writeFile(resolve(codexHome, 'config.toml'), [
@@ -2595,8 +2599,7 @@ describe('codex executor adapter', () => {
     })
 
     const [, args] = spawnMock.mock.calls[0] ?? []
-    expect(args).toContain('model_reasoning_effort="medium"')
-    expect(args).not.toContain('model_reasoning_effort="max"')
+    expect(args).toContain('model_reasoning_effort="max"')
   })
 
   it('reads the default user configuration from ~/.codex when CODEX_HOME is unset', async () => {

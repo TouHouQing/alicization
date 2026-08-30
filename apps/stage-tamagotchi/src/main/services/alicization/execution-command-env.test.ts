@@ -3,6 +3,7 @@ import { delimiter } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  buildAlicizationExecutionEnv,
   buildAlicizationExecutionPath,
   locateAlicizationExecutionBinary,
 } from './execution-command-env'
@@ -16,6 +17,35 @@ describe('execution command env', () => {
     expect(entries).toContain('/opt/homebrew/bin')
     expect(entries).toContain('/Applications/Codex.app/Contents/Resources')
     expect(entries).toContain('/Applications/ChatGPT.app/Contents/Resources')
+  })
+
+  it('removes parent Codex control variables before launching a nested execution agent', () => {
+    const executionEnv = buildAlicizationExecutionEnv({
+      CODEX_CI: '1',
+      CODEX_INTERNAL_ORIGINATOR_OVERRIDE: 'Codex Desktop',
+      CODEX_PERMISSION_PROFILE: ':danger-full-access',
+      CODEX_THREAD_ID: 'parent-thread',
+      CODEX_HOME: '/parent/codex-home',
+      NODE_ENV: 'test',
+      TEST: 'true',
+      VITEST: 'true',
+      VITEST_MODE: 'RUN',
+      VITEST_WORKER_ID: '0',
+      PATH: '/usr/bin',
+    }, {
+      CODEX_HOME: '/isolated/codex-home',
+    }, '/Users/tester')
+
+    expect(executionEnv.CODEX_HOME).toBe('/isolated/codex-home')
+    expect(executionEnv).not.toHaveProperty('CODEX_CI')
+    expect(executionEnv).not.toHaveProperty('CODEX_INTERNAL_ORIGINATOR_OVERRIDE')
+    expect(executionEnv).not.toHaveProperty('CODEX_PERMISSION_PROFILE')
+    expect(executionEnv).not.toHaveProperty('CODEX_THREAD_ID')
+    expect(executionEnv).not.toHaveProperty('NODE_ENV')
+    expect(executionEnv).not.toHaveProperty('TEST')
+    expect(executionEnv).not.toHaveProperty('VITEST')
+    expect(executionEnv).not.toHaveProperty('VITEST_MODE')
+    expect(executionEnv).not.toHaveProperty('VITEST_WORKER_ID')
   })
 
   it('prefers an explicitly configured Codex CLI path from the app environment', async () => {
@@ -124,5 +154,33 @@ describe('execution command env', () => {
       pathValue: '/usr/bin:/bin',
       platform: 'darwin',
     })).resolves.toBe('/Users/tester/.nvm/versions/node/v22.22.2/bin/codex')
+  })
+
+  it('chooses the highest verified Codex CLI version when multiple binaries are available', async () => {
+    const accessImpl = vi.fn(async (candidate: string) => {
+      if (
+        candidate === '/Users/tester/custom-tools/bin/codex'
+        || candidate === '/Applications/ChatGPT.app/Contents/Resources/codex'
+      ) {
+        return
+      }
+      throw new Error('ENOENT')
+    })
+
+    const versionImpl = vi.fn(async (candidate: string) => {
+      if (candidate === '/Users/tester/custom-tools/bin/codex')
+        return 'codex-cli 0.142.0'
+      if (candidate === '/Applications/ChatGPT.app/Contents/Resources/codex')
+        return 'codex-cli 0.147.0-alpha.1.2'
+      throw new Error('version probe failed')
+    })
+
+    await expect(locateAlicizationExecutionBinary('codex', {
+      accessImpl,
+      versionImpl,
+      homeDir: '/Users/tester',
+      pathValue: '/Users/tester/custom-tools/bin:/usr/bin:/bin',
+      platform: 'darwin',
+    })).resolves.toBe('/Applications/ChatGPT.app/Contents/Resources/codex')
   })
 })

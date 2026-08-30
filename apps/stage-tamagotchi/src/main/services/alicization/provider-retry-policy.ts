@@ -12,8 +12,12 @@ export const alicizationProviderRetryDefaults = {
   maxTotalRetryWindowMs: 120_000,
 } as const
 
+export const alicizationProviderEmptyCompletionErrorCode
+  = 'chat-provider-empty-completion'
+
 const retryableStatuses = new Set([408, 409, 429, 500, 502, 503, 504])
 const retryableErrorCodes = new Set([
+  alicizationProviderEmptyCompletionErrorCode.toUpperCase(),
   'ECONNRESET',
   'EPIPE',
   'ECONNREFUSED',

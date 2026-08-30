@@ -355,6 +355,97 @@ describe('main chat stream runner', () => {
     expect(readCount).toBe(2)
   })
 
+  it('retries a Provider finish with no visible reply before failing the turn', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: '第二次 Provider 尝试返回了可见回复。',
+    })
+    const streamTextImpl = vi.fn()
+      .mockImplementationOnce(() => ({
+        fullStream: {
+          getReader: () => {
+            let readCount = 0
+            return {
+              read: vi.fn(async () => {
+                readCount += 1
+                if (readCount === 1) {
+                  return {
+                    done: false,
+                    value: {
+                      type: 'finish',
+                      finishReason: 'stop',
+                    },
+                  }
+                }
+                return { done: true }
+              }),
+              cancel: vi.fn(async () => {}),
+              releaseLock: vi.fn(),
+            }
+          },
+        },
+      }))
+      .mockImplementationOnce(() => ({
+        fullStream: {
+          getReader: () => {
+            let readCount = 0
+            return {
+              read: vi.fn(async () => {
+                readCount += 1
+                if (readCount === 1) {
+                  return {
+                    done: false,
+                    value: {
+                      type: 'text-delta',
+                      text: providerText,
+                    },
+                  }
+                }
+                return {
+                  done: false,
+                  value: {
+                    type: 'finish',
+                    finishReason: 'stop',
+                  },
+                }
+              }),
+              cancel: vi.fn(async () => {}),
+              releaseLock: vi.fn(),
+            }
+          },
+        },
+      }))
+    const sleep = vi.fn(async () => {})
+
+    const result = await runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-empty-completion-retry',
+      } as any,
+      prepared: createPrepared(),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      appendRuntimeDebugLine: vi.fn(),
+      providerRetryPolicy: {
+        maxRetries: 1,
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        sleep,
+      },
+      streamTextImpl,
+    })
+
+    expect(result).toMatchObject({
+      kind: 'reply',
+      fullText: providerText,
+    })
+    expect(streamTextImpl).toHaveBeenCalledTimes(2)
+    expect(sleep).toHaveBeenCalledOnce()
+  })
+
   it('clears the first-event watchdog after the first Provider progress event', async () => {
     vi.useFakeTimers()
     const providerText = createProviderResponsePayload({

@@ -193,13 +193,13 @@ describe('codex real CLI replay', () => {
             '命令结束后只需说明长任务已完成，并保留终端实际执行结果。',
           ].join('\n'),
           sandbox: 'read-only',
-          timeoutMs: 120_000,
+          timeoutMs: 300_000,
         },
         lifecycle: {
-          startupTimeoutMs: 30_000,
-          activeStepTimeoutMs: 60_000,
-          providerRecoveryTimeoutMs: 15_000,
-          totalTimeoutMs: 120_000,
+          startupTimeoutMs: 120_000,
+          activeStepTimeoutMs: 120_000,
+          providerRecoveryTimeoutMs: 30_000,
+          totalTimeoutMs: 300_000,
         },
         workspaceRoot: process.cwd(),
       })
@@ -225,6 +225,7 @@ describe('codex real CLI replay', () => {
           errorCode: result.errorCode ?? null,
           errorMessage: result.errorMessage ?? null,
           externalSessionId: result.externalSessionId ?? null,
+          output: result.output ?? null,
         },
         metrics: {
           stepEventCount: stepPayloads.length,
@@ -245,6 +246,23 @@ describe('codex real CLI replay', () => {
           terminalSettlementCount: turnTerminalEvents.length,
           automaticContinuation: false,
         },
+        diagnostics: result.events
+          .filter(event => event.kind === 'result')
+          .map(event => event.payload)
+          .filter((payload): payload is Record<string, unknown> => (
+            payload != null
+            && typeof payload === 'object'
+          ))
+          .map(payload => ({
+            exitCode: payload.exitCode ?? null,
+            signal: payload.signal ?? null,
+            timedOut: payload.timedOut ?? null,
+            timeoutKind: payload.timeoutKind ?? null,
+            timedOutActiveWork: payload.timedOutActiveWork ?? null,
+            assistant: payload.assistant ?? null,
+            stdout: payload.stdout ?? null,
+            stderr: payload.stderr ?? null,
+          })),
       }
       await persistSoakReport(report)
 
@@ -275,6 +293,6 @@ describe('codex real CLI replay', () => {
         }),
       ])
     },
-    180_000,
+    360_000,
   )
 })

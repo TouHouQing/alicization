@@ -46,6 +46,7 @@ import {
 } from './main-chat-stream-primitives'
 import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import {
+  alicizationProviderEmptyCompletionErrorCode,
   resolveAlicizationProviderRetryDeadline,
   resolveAlicizationProviderRetryDecision,
   waitForAlicizationProviderRetry,
@@ -448,6 +449,16 @@ function createProviderFinishMissingError() {
     new Error('chat-provider-finish-missing: Provider stream reached EOF without a finish event'),
     {
       code: 'chat-provider-finish-missing',
+      name: 'AlicizationProviderProtocolError',
+    },
+  )
+}
+
+function createProviderEmptyCompletionError() {
+  return Object.assign(
+    new Error('Provider completed without a reply or tool action'),
+    {
+      code: alicizationProviderEmptyCompletionErrorCode,
       name: 'AlicizationProviderProtocolError',
     },
   )
@@ -907,7 +918,7 @@ export async function runAlicizationMainChatProviderStep(
     if (!text && !outputObserved)
       throw createAbortError('chat-first-event-timeout')
     if (!text)
-      throw new Error('Provider completed without a reply or tool action')
+      throw createProviderEmptyCompletionError()
 
     return {
       kind: 'reply',
