@@ -175,6 +175,7 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
       ? {
           ...attachedClosure,
           episodicEvents: [],
+          memoryFacts: [],
           reflections: [],
           reinforcementEvents: [],
         }

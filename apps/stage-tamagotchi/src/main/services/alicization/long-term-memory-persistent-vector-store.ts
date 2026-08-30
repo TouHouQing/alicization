@@ -434,19 +434,37 @@ export function createPersistentLongTermMemoryVectorStore(input: {
     const cardId = normalizeText(inputDelete.cardId, 120)
     const sourceIds = inputDelete.sourceIds.map(id => normalizeText(id, 240)).filter(Boolean)
     const source = normalizeText(inputDelete.source, 120)
+    const modelId = normalizeText(inputDelete.modelId, 160)
+    const dimensions = Number.isFinite(Number(inputDelete.dimensions))
+      ? Math.floor(Number(inputDelete.dimensions))
+      : null
+    const vectorSpaceId = normalizeText(inputDelete.vectorSpaceId, 240)
+    const hasPartialVectorSpaceFilter = Boolean(modelId || dimensions !== null || vectorSpaceId)
+    const hasCompleteVectorSpaceFilter = Boolean(modelId && dimensions !== null && dimensions >= 1 && vectorSpaceId)
     if (!cardId || sourceIds.length === 0)
+      return 0
+    if (hasPartialVectorSpaceFilter && !hasCompleteVectorSpaceFilter)
       return 0
     let deleted = 0
     await input.enqueueWrite(async () => {
       const sourceClause = source && source !== 'long_term_memory' ? ' AND source = ?' : ''
+      const vectorSpaceClause = hasCompleteVectorSpaceFilter
+        ? ' AND model_id = ? AND dimensions = ? AND vector_space_id = ?'
+        : ''
       const rows = await input.all<{ id: string }>(
         input.database,
         `SELECT id
          FROM long_term_memory_vectors
          WHERE card_id = ?
            AND source_id IN (${sourceIds.map(() => '?').join(', ')})
-           ${sourceClause}`,
-        [cardId, ...sourceIds, ...(sourceClause ? [source] : [])],
+           ${sourceClause}
+           ${vectorSpaceClause}`,
+        [
+          cardId,
+          ...sourceIds,
+          ...(sourceClause ? [source] : []),
+          ...(vectorSpaceClause ? [modelId, dimensions, vectorSpaceId] : []),
+        ],
       )
       if (rows.length === 0)
         return

@@ -150,7 +150,7 @@ async function createBackendHarness() {
         record.updatedAt,
       ])
       await harness.run(`
-        INSERT INTO long_term_memory_search_documents (
+        INSERT OR IGNORE INTO long_term_memory_search_documents (
           id, card_id, source, source_id, text_hash, tombstoned
         ) VALUES (?, ?, ?, ?, ?, 0)
       `, [
@@ -569,6 +569,61 @@ describe('sqlite-vec long-term memory vector backend', () => {
       dimensions: 3,
       vectorSpaceId: modelAVectorSpaceId,
       source: 'episodic_events',
+      limit: 4,
+    })).resolves.toHaveLength(1)
+  })
+
+  it('removes only the matching embedding space when source ids are reused', async () => {
+    const { backend, upsertCanonical } = await createBackendHarness()
+    const records = [
+      {
+        id: 'vector-space-a',
+        cardId: 'card-shared-vector-space',
+        sourceId: 'shared-source',
+        source: 'memory_reflections',
+        text: '原生索引删除必须严格限定向量空间。',
+        vector: [1, 0, 0],
+        modelId: 'model-a',
+        dimensions: 3,
+        vectorSpaceId: modelAVectorSpaceId,
+        updatedAt: 10,
+      },
+      {
+        id: 'vector-space-b',
+        cardId: 'card-shared-vector-space',
+        sourceId: 'shared-source',
+        source: 'memory_reflections',
+        text: '原生索引删除必须严格限定向量空间。',
+        vector: [0, 1, 0],
+        modelId: 'model-b',
+        dimensions: 3,
+        vectorSpaceId: 'model-b:3',
+        updatedAt: 10,
+      },
+    ]
+    await upsertCanonical(records)
+    await backend.upsert(records)
+
+    expect(await backend.delete({
+      cardId: 'card-shared-vector-space',
+      sourceIds: ['shared-source'],
+      source: 'memory_reflections',
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
+    })).toBe(1)
+    await expect(backend.search([1, 0, 0], {
+      cardId: 'card-shared-vector-space',
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
+      limit: 4,
+    })).resolves.toEqual([])
+    await expect(backend.search([0, 1, 0], {
+      cardId: 'card-shared-vector-space',
+      modelId: 'model-b',
+      dimensions: 3,
+      vectorSpaceId: 'model-b:3',
       limit: 4,
     })).resolves.toHaveLength(1)
   })

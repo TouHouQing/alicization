@@ -308,11 +308,7 @@ describe('runtime memory closure', () => {
         summary: 'execution failure audit must remain retained',
       }),
     ]))
-    expect(fixture.upsertMemoryFacts).toHaveBeenCalledWith(expect.arrayContaining([
-      expect.objectContaining({
-        object: 'execution failure audit evidence must remain retained',
-      }),
-    ]), 'rule')
+    expect(fixture.upsertMemoryFacts).not.toHaveBeenCalled()
     expect(fixture.appendEpisodicEvents).not.toHaveBeenCalled()
     expect(fixture.upsertMemoryReflections).not.toHaveBeenCalled()
     expect(fixture.appendPersonaReinforcementEvents).not.toHaveBeenCalled()

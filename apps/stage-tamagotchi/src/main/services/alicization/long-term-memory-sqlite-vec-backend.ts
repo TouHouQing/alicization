@@ -404,17 +404,35 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
     const cardId = normalizeText(deleteInput.cardId, 120)
     const sourceIds = [...new Set(deleteInput.sourceIds.map(id => normalizeText(id, 240)).filter(Boolean))]
     const source = normalizeText(deleteInput.source, 120)
+    const modelId = normalizeText(deleteInput.modelId, 160)
+    const dimensions = Number.isFinite(Number(deleteInput.dimensions))
+      ? Math.floor(Number(deleteInput.dimensions))
+      : null
+    const vectorSpaceId = normalizeText(deleteInput.vectorSpaceId, 240)
+    const hasPartialVectorSpaceFilter = Boolean(modelId || dimensions !== null || vectorSpaceId)
+    const hasCompleteVectorSpaceFilter = Boolean(modelId && dimensions !== null && dimensions >= 1 && vectorSpaceId)
     if (!cardId || sourceIds.length === 0)
       return 0
+    if (hasPartialVectorSpaceFilter && !hasCompleteVectorSpaceFilter)
+      return 0
     return await input.enqueueWrite(async () => {
+      const vectorSpaceClause = hasCompleteVectorSpaceFilter
+        ? ' AND model_id = ? AND dimensions = ? AND vector_space_id = ?'
+        : ''
       const rows = await input.all<SqliteVecMappingRow>(
         input.database,
         `SELECT *
          FROM long_term_memory_sqlite_vec_rows
          WHERE card_id = ?
            AND source_id IN (${sourceIds.map(() => '?').join(', ')})
-           ${source && source !== 'long_term_memory' ? 'AND source = ?' : ''}`,
-        [cardId, ...sourceIds, ...(source && source !== 'long_term_memory' ? [source] : [])],
+           ${source && source !== 'long_term_memory' ? 'AND source = ?' : ''}
+           ${vectorSpaceClause}`,
+        [
+          cardId,
+          ...sourceIds,
+          ...(source && source !== 'long_term_memory' ? [source] : []),
+          ...(vectorSpaceClause ? [modelId, dimensions, vectorSpaceId] : []),
+        ],
       )
       for (const row of rows) {
         await input.run(

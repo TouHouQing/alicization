@@ -586,4 +586,72 @@ describe('persistent long-term memory vector store', () => {
       limit: 4,
     })).resolves.toHaveLength(1)
   })
+
+  it('deletes only the requested embedding space when source ids are reused', async () => {
+    const database = await createSandboxDatabase()
+    const store = createPersistentLongTermMemoryVectorStore({
+      database,
+      run,
+      all,
+      enqueueWrite: task => task(),
+      now: () => 10,
+    })
+    await store.initialize()
+    await upsertCanonicalDocument(database, {
+      cardId: 'card-shared-vector-space',
+      sourceId: 'shared-id',
+      source: 'memory_reflections',
+      text: '同一来源在不同向量空间中必须独立删除。',
+    })
+    await store.upsertVectors([
+      {
+        id: 'vector-space-a',
+        cardId: 'card-shared-vector-space',
+        sourceId: 'shared-id',
+        source: 'memory_reflections',
+        text: '同一来源在不同向量空间中必须独立删除。',
+        vector: [1, 0, 0],
+        modelId: 'model-a',
+        dimensions: 3,
+        vectorSpaceId: 'model-a:3',
+        updatedAt: 10,
+      },
+      {
+        id: 'vector-space-b',
+        cardId: 'card-shared-vector-space',
+        sourceId: 'shared-id',
+        source: 'memory_reflections',
+        text: '同一来源在不同向量空间中必须独立删除。',
+        vector: [0, 1, 0],
+        modelId: 'model-b',
+        dimensions: 3,
+        vectorSpaceId: 'model-b:3',
+        updatedAt: 10,
+      },
+    ])
+
+    await expect(store.deleteVectorsBySource({
+      cardId: 'card-shared-vector-space',
+      sourceIds: ['shared-id'],
+      source: 'memory_reflections',
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: 'model-a:3',
+    })).resolves.toBe(1)
+
+    await expect(store.searchVectors([1, 0, 0], {
+      cardId: 'card-shared-vector-space',
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: 'model-a:3',
+      limit: 4,
+    })).resolves.toEqual([])
+    await expect(store.searchVectors([0, 1, 0], {
+      cardId: 'card-shared-vector-space',
+      modelId: 'model-b',
+      dimensions: 3,
+      vectorSpaceId: 'model-b:3',
+      limit: 4,
+    })).resolves.toHaveLength(1)
+  })
 })
