@@ -33,8 +33,18 @@ const { messages } = storeToRefs(chatSession)
 const { streamingMessage } = storeToRefs(chatStream)
 const { t } = useI18n()
 const providersStore = useProvidersStore()
-const { activeModel, activeProvider } = storeToRefs(useConsciousnessStore())
+const consciousnessStore = useConsciousnessStore()
+const { activeModel, activeProvider } = storeToRefs(consciousnessStore)
 const isComposing = ref(false)
+const runtimeConfigWaitTimeoutMs = 1500
+
+function failChatSend(message: string): never {
+  messages.value.push({
+    role: 'error',
+    content: message,
+  })
+  throw new Error(message)
+}
 
 async function handleSend() {
   if (isComposing.value) {
@@ -53,11 +63,24 @@ async function handleSend() {
   attachments.value = []
 
   try {
-    const providerConfig = providersStore.getProviderConfig(activeProvider.value)
+    const ready = await consciousnessStore.waitForRuntimeConfig({ timeoutMs: runtimeConfigWaitTimeoutMs })
+    if (!ready)
+      failChatSend('对话配置加载超时，请稍后重试。')
+
+    const providerId = activeProvider.value.trim()
+    const model = activeModel.value.trim()
+    if (!providerId || !model)
+      failChatSend('对话模型尚未配置。')
+
+    const providerConfig = providersStore.getProviderConfig(providerId)
+    const chatProvider = await providersStore.getProviderInstance<ChatProvider>(providerId)
+    if (!chatProvider)
+      failChatSend('对话服务不可用，请检查 Provider 配置。')
+
     await ingest(textToSend, {
-      providerId: activeProvider.value,
-      model: activeModel.value,
-      chatProvider: await providersStore.getProviderInstance<ChatProvider>(activeProvider.value),
+      providerId,
+      model,
+      chatProvider,
       providerConfig,
       attachments: attachmentsToSend,
       tools: widgetsTools,
@@ -106,6 +129,10 @@ function removeAttachment(index: number) {
 }
 
 watch([activeProvider, activeModel], async () => {
+  const ready = await consciousnessStore.waitForRuntimeConfig({ timeoutMs: runtimeConfigWaitTimeoutMs })
+  if (!ready)
+    return
+
   if (activeProvider.value && activeModel.value) {
     await discoverToolsCompatibility(activeModel.value, await providersStore.getProviderInstance<ChatProvider>(activeProvider.value), [])
   }

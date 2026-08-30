@@ -429,6 +429,17 @@ function parseEmbeddedJsonObject(raw: string) {
   }
 }
 
+function inferProviderStatusFromCode(code: string | null) {
+  switch (code?.trim().toLowerCase()) {
+    case 'rate_limit_error':
+    case 'rate_limit':
+    case 'too_many_requests':
+      return 429
+    default:
+      return null
+  }
+}
+
 export function extractAlicizationProviderRequestFailure(
   error: unknown,
 ): AlicizationProviderRequestFailure | null {
@@ -444,7 +455,6 @@ export function extractAlicizationProviderRequestFailure(
       )
     : null
   const statusFromMessage = /\b(?:remote sent|http status|http|status code|status)[:=\s]+(\d{3})\b/iu.exec(rawMessage)?.[1]
-  const status = statusFromError ?? readFiniteStatus(statusFromMessage)
   const code = readStringField(
     nestedError?.code
     ?? nestedError?.type
@@ -452,6 +462,9 @@ export function extractAlicizationProviderRequestFailure(
     ?? parsed?.type
     ?? /\bresponse:\s*([a-z][\w.-]{2,80})\b/iu.exec(rawMessage)?.[1],
   )
+  const status = statusFromError
+    ?? readFiniteStatus(statusFromMessage)
+    ?? inferProviderStatusFromCode(code)
   const message = sanitizeProviderFailureMessage(
     nestedError?.message
     ?? parsed?.message
@@ -461,6 +474,7 @@ export function extractAlicizationProviderRequestFailure(
   if (
     status === null
     && !/invalid_request_error|upstream request failed|remote sent \d{3}/iu.test(rawMessage)
+    && (!nestedError || (!code && !message))
   ) {
     return null
   }

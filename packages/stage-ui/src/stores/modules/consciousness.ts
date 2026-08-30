@@ -1,7 +1,7 @@
 import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
 import { refManualReset } from '@vueuse/core'
 import { defineStore } from 'pinia'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import { useProvidersStore } from '../providers'
 
@@ -14,9 +14,16 @@ export const useConsciousnessStore = defineStore('consciousness', () => {
   const activeCustomModelName = useLocalStorageManualReset<string>('settings/consciousness/active-custom-model', '')
   const expandedDescriptions = refManualReset<Record<string, boolean>>(() => ({}))
   const modelSearchQuery = refManualReset<string>('')
+  const runtimeConfigHydrated = ref(false)
+  let resolveRuntimeConfigReady: () => void = () => {}
+  const runtimeConfigReady = new Promise<void>((resolve) => {
+    resolveRuntimeConfigReady = resolve
+  })
 
   // Computed properties
   const supportsModelListing = computed(() => {
+    if (!activeProvider.value)
+      return false
     return providersStore.getProviderMetadata(activeProvider.value)?.capabilities.listModels !== undefined
   })
 
@@ -75,6 +82,33 @@ export const useConsciousnessStore = defineStore('consciousness', () => {
     resetModelSelection()
   }
 
+  function markRuntimeConfigHydrated() {
+    if (runtimeConfigHydrated.value)
+      return
+
+    runtimeConfigHydrated.value = true
+    resolveRuntimeConfigReady()
+  }
+
+  async function waitForRuntimeConfig(options?: { timeoutMs?: number }) {
+    if (runtimeConfigHydrated.value)
+      return true
+
+    const timeoutMs = Math.max(0, options?.timeoutMs ?? 1500)
+    if (timeoutMs === 0)
+      return runtimeConfigHydrated.value
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<boolean>((resolve) => {
+      timeoutHandle = setTimeout(() => resolve(false), timeoutMs)
+    })
+    const ready = runtimeConfigReady.then(() => true)
+    const result = await Promise.race([ready, timeout])
+    if (timeoutHandle)
+      clearTimeout(timeoutHandle)
+    return result
+  }
+
   return {
     // State
     configured,
@@ -83,6 +117,7 @@ export const useConsciousnessStore = defineStore('consciousness', () => {
     customModelName: activeCustomModelName,
     expandedDescriptions,
     modelSearchQuery,
+    runtimeConfigHydrated,
 
     // Computed
     supportsModelListing,
@@ -96,5 +131,7 @@ export const useConsciousnessStore = defineStore('consciousness', () => {
     loadModelsForProvider,
     getModelsForProvider,
     resetState,
+    markRuntimeConfigHydrated,
+    waitForRuntimeConfig,
   }
 })

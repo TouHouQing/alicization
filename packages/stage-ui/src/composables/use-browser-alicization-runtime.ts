@@ -100,6 +100,7 @@ export function useBrowserAlicizationRuntime(options: UseBrowserAlicizationRunti
     finally {
       llmConfigHydrating = false
       llmConfigHydrated.value = true
+      consciousnessStore.markRuntimeConfigHydrated()
     }
   }
 

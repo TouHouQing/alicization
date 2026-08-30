@@ -208,17 +208,17 @@ if (hasSingleInstanceLock) {
     })
 
     const chatWindow = injeca.provide('windows:chat', {
-      dependsOn: { widgetsManager, serverChannel, mcpStdioManager, i18n },
+      dependsOn: { alicizationRuntime, widgetsManager, serverChannel, mcpStdioManager, i18n },
       build: ({ dependsOn }) => setupChatWindowReusableFunc(dependsOn),
     })
 
     const settingsWindow = injeca.provide('windows:settings', {
-      dependsOn: { widgetsManager, beatSync, autoUpdater, devtoolsMarkdownStressWindow, serverChannel, mcpStdioManager, i18n },
+      dependsOn: { alicizationRuntime, widgetsManager, beatSync, autoUpdater, devtoolsMarkdownStressWindow, serverChannel, mcpStdioManager, i18n },
       build: async ({ dependsOn }) => setupSettingsWindowReusableFunc(dependsOn),
     })
 
     const mainWindow = injeca.provide('windows:main', {
-      dependsOn: { settingsWindow, chatWindow, widgetsManager, noticeWindow, beatSync, autoUpdater, serverChannel, mcpStdioManager, i18n, onboardingWindowManager },
+      dependsOn: { alicizationRuntime, settingsWindow, chatWindow, widgetsManager, noticeWindow, beatSync, autoUpdater, serverChannel, mcpStdioManager, i18n, onboardingWindowManager },
       build: async ({ dependsOn }) => setupMainWindow(dependsOn),
     })
 

@@ -98,13 +98,16 @@ import {
   electronAlicizationMemoryImportLegacy,
   electronAlicizationMemoryRetrieveFacts,
   electronAlicizationMemoryUpsertFacts,
+  electronAlicizationMemoryWorkbenchActivatePersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchApplyLongTermAction,
   electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
   electronAlicizationMemoryWorkbenchApplyReviewAction,
   electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression,
   electronAlicizationMemoryWorkbenchCancelPersonaTraining,
   electronAlicizationMemoryWorkbenchCancelQualityTrial,
+  electronAlicizationMemoryWorkbenchExportPersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchGetPersonaRuntimeConfig,
+  electronAlicizationMemoryWorkbenchGetPersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingExecutorConfig,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingRun,
   electronAlicizationMemoryWorkbenchGetSnapshot,
@@ -113,6 +116,7 @@ import {
   electronAlicizationMemoryWorkbenchListPersonaCandidates,
   electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements,
   electronAlicizationMemoryWorkbenchListPersonaTrainingRuns,
+  electronAlicizationMemoryWorkbenchListPersonaTrainingSourceRevokeIntents,
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchListQualityTrialReports,
   electronAlicizationMemoryWorkbenchListReplaySessions,
@@ -124,11 +128,16 @@ import {
   electronAlicizationMemoryWorkbenchRecordQualityGoldLabel,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
   electronAlicizationMemoryWorkbenchRestoreTombstone,
+  electronAlicizationMemoryWorkbenchRetryPersonaTrainingSourceRevokeIntent,
+  electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource,
+  electronAlicizationMemoryWorkbenchRollbackPersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchRollbackPersonaTrainingIncrement,
   electronAlicizationMemoryWorkbenchRunPersonaTraining,
   electronAlicizationMemoryWorkbenchRunQualityTrial,
   electronAlicizationMemoryWorkbenchSetPersonaRuntimeConfig,
+  electronAlicizationMemoryWorkbenchSetPersonaTrainingDatasetExamplePolicy,
   electronAlicizationMemoryWorkbenchSetPersonaTrainingExecutorConfig,
+  electronAlicizationMemoryWorkbenchStagePersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchTestEmbeddingConnection,
   electronAlicizationMemoryWorkbenchTestPersonaRuntime,
   electronAlicizationMemoryWorkbenchTestPersonaTrainingExecutor,
@@ -292,6 +301,15 @@ const memoryWorkbenchApplyReviewAction = useElectronEventaInvoke(electronAliciza
 const memoryWorkbenchRecallProbe = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRecallProbe)
 const memoryWorkbenchListPersonaCandidates = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListPersonaCandidates)
 const memoryWorkbenchApplyPersonaCandidateAction = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction)
+const memoryWorkbenchGetPersonaTrainingDataset = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchGetPersonaTrainingDataset)
+const memoryWorkbenchStagePersonaTrainingDataset = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchStagePersonaTrainingDataset)
+const memoryWorkbenchExportPersonaTrainingDataset = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchExportPersonaTrainingDataset)
+const memoryWorkbenchActivatePersonaTrainingDataset = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchActivatePersonaTrainingDataset)
+const memoryWorkbenchRollbackPersonaTrainingDataset = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRollbackPersonaTrainingDataset)
+const memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchSetPersonaTrainingDatasetExamplePolicy)
+const memoryWorkbenchRevokePersonaTrainingDatasetSource = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource)
+const memoryWorkbenchListPersonaTrainingSourceRevokeIntents = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListPersonaTrainingSourceRevokeIntents)
+const memoryWorkbenchRetryPersonaTrainingSourceRevokeIntent = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRetryPersonaTrainingSourceRevokeIntent)
 const memoryWorkbenchRunPersonaTraining = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRunPersonaTraining)
 const memoryWorkbenchGetPersonaTrainingRun = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchGetPersonaTrainingRun)
 const memoryWorkbenchListPersonaTrainingRuns = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListPersonaTrainingRuns)
@@ -1020,6 +1038,7 @@ async function hydrateMainLlmConfig() {
   finally {
     llmConfigHydrating = false
     llmConfigHydrated.value = true
+    consciousnessStore.markRuntimeConfigHydrated()
   }
 }
 
@@ -1390,6 +1409,15 @@ setAlicizationBridge({
   memoryWorkbenchRecallProbe: async payload => await memoryWorkbenchRecallProbe({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListPersonaCandidates: async payload => await memoryWorkbenchListPersonaCandidates({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchApplyPersonaCandidateAction: async payload => await memoryWorkbenchApplyPersonaCandidateAction({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchGetPersonaTrainingDataset: async () => await memoryWorkbenchGetPersonaTrainingDataset(resolveAlicizationScope()),
+  memoryWorkbenchStagePersonaTrainingDataset: async payload => await memoryWorkbenchStagePersonaTrainingDataset({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchExportPersonaTrainingDataset: async payload => await memoryWorkbenchExportPersonaTrainingDataset({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchActivatePersonaTrainingDataset: async payload => await memoryWorkbenchActivatePersonaTrainingDataset({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchRollbackPersonaTrainingDataset: async payload => await memoryWorkbenchRollbackPersonaTrainingDataset({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy: async payload => await memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchRevokePersonaTrainingDatasetSource: async payload => await memoryWorkbenchRevokePersonaTrainingDatasetSource({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchListPersonaTrainingSourceRevokeIntents: async payload => await memoryWorkbenchListPersonaTrainingSourceRevokeIntents({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchRetryPersonaTrainingSourceRevokeIntent: async payload => await memoryWorkbenchRetryPersonaTrainingSourceRevokeIntent({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchRunPersonaTraining: async payload => await memoryWorkbenchRunPersonaTraining({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchGetPersonaTrainingRun: async payload => await memoryWorkbenchGetPersonaTrainingRun({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListPersonaTrainingRuns: async payload => await memoryWorkbenchListPersonaTrainingRuns({ ...resolveAlicizationScope(), ...payload }),
@@ -1939,10 +1967,11 @@ onMounted(async () => {
 
   analyticsStore.initialize()
   cardStore.initialize()
+  const llmConfigHydration = hydrateMainLlmConfig()
   await alicizationEpoch1Store.initialize()
 
   await chatSessionStore.initialize()
-  await hydrateMainLlmConfig()
+  await llmConfigHydration
   scheduleMainLlmConfigSync()
   if (activeSessionId.value?.trim()) {
     await Promise.all([

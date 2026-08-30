@@ -133,6 +133,16 @@ describe('alicization chat failure surface', () => {
     })
   })
 
+  it('parses Provider rate-limit errors that arrive without an HTTP status field', () => {
+    expect(extractAlicizationProviderRequestFailure(new Error(
+      'Error from server: {"error":{"message":"Upstream rate limit exceeded, please retry later","type":"rate_limit_error"}}',
+    ))).toEqual({
+      status: 429,
+      code: 'rate_limit_error',
+      message: 'Upstream rate limit exceeded, please retry later',
+    })
+  })
+
   it('redacts credentials and user input from Provider request diagnostics', () => {
     const failure = extractAlicizationProviderRequestFailure(new Error(
       'Remote sent 400 response: {"error":{"message":"Authorization: Bearer secret-token api_key=private-key user_input=private-message","type":"invalid_request_error"}}',

@@ -19,6 +19,7 @@ import { useCanvasPixelIsTransparentAtPoint } from '@proj-alicization/stage-ui/c
 import { useVAD } from '@proj-alicization/stage-ui/stores/ai/models/vad'
 import { getAlicizationBridge, hasAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
+import { useChatSessionStore } from '@proj-alicization/stage-ui/stores/chat/session-store'
 import { useDisplayModelsStore } from '@proj-alicization/stage-ui/stores/display-models'
 import { useLive2d } from '@proj-alicization/stage-ui/stores/live2d'
 import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
@@ -371,6 +372,7 @@ const providersStore = useProvidersStore()
 const consciousnessStore = useConsciousnessStore()
 const { activeProvider: activeChatProvider, activeModel: activeChatModel } = storeToRefs(consciousnessStore)
 const chatStore = useChatOrchestratorStore()
+const chatSession = useChatSessionStore()
 const shouldUseStreamInput = computed(() => supportsStreamInput.value && !!stream.value)
 
 const {
@@ -395,6 +397,16 @@ type CaptionChannelEvent
   = | { type: 'caption-speaker', text: string }
     | { type: 'caption-assistant', text: string }
 const captionPoster = createLazyBroadcastPoster<CaptionChannelEvent>('airi-caption-overlay')
+
+function surfaceVoiceSendFailure(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  chatSession.messages.push({
+    role: 'error',
+    content: message,
+  })
+  if (chatSession.activeSessionId)
+    chatSession.persistSessionMessages(chatSession.activeSessionId)
+}
 
 async function handleSpeechStart() {
   if (shouldUseStreamInput.value) {
@@ -449,24 +461,32 @@ async function startAudioInteraction() {
 
           void (async () => {
             try {
-              const provider = await providersStore.getProviderInstance(activeChatProvider.value)
-              if (!provider || !activeChatModel.value) {
-                console.warn('[Main Page] No provider or model available, skipping chat send')
-                return
-              }
+              const ready = await consciousnessStore.waitForRuntimeConfig({ timeoutMs: 1500 })
+              if (!ready)
+                throw new Error('语音对话配置加载超时，请稍后重试。')
+
+              const providerId = activeChatProvider.value.trim()
+              const model = activeChatModel.value.trim()
+              if (!providerId || !model)
+                throw new Error('语音对话模型尚未配置。')
+
+              const provider = await providersStore.getProviderInstance(providerId)
+              if (!provider)
+                throw new Error('语音对话服务不可用，请检查 Provider 配置。')
 
               console.info('[Main Page] Sending transcription to chat:', finalText)
               await dispatchDesktopVoiceTurn({
                 text: finalText,
-                providerId: activeChatProvider.value,
-                model: activeChatModel.value,
+                providerId,
+                model,
                 chatProvider: provider as ChatProvider,
-                providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
+                providerConfig: providersStore.getProviderConfig(providerId),
                 origin: 'ui-user',
                 ingest: chatStore.ingest,
               })
             }
             catch (err) {
+              surfaceVoiceSendFailure(err)
               console.error('[Main Page] Failed to send chat from voice:', err)
             }
           })()
@@ -500,21 +520,31 @@ async function startAudioInteraction() {
       captionPoster.post({ type: 'caption-speaker', text })
 
       try {
-        const provider = await providersStore.getProviderInstance(activeChatProvider.value)
-        if (!provider || !activeChatModel.value)
-          return
+        const ready = await consciousnessStore.waitForRuntimeConfig({ timeoutMs: 1500 })
+        if (!ready)
+          throw new Error('语音对话配置加载超时，请稍后重试。')
+
+        const providerId = activeChatProvider.value.trim()
+        const model = activeChatModel.value.trim()
+        if (!providerId || !model)
+          throw new Error('语音对话模型尚未配置。')
+
+        const provider = await providersStore.getProviderInstance(providerId)
+        if (!provider)
+          throw new Error('语音对话服务不可用，请检查 Provider 配置。')
 
         await dispatchDesktopVoiceTurn({
           text,
-          providerId: activeChatProvider.value,
-          model: activeChatModel.value,
+          providerId,
+          model,
           chatProvider: provider as ChatProvider,
-          providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
+          providerConfig: providersStore.getProviderConfig(providerId),
           origin: 'ui-user',
           ingest: chatStore.ingest,
         })
       }
       catch (err) {
+        surfaceVoiceSendFailure(err)
         console.error('Failed to send chat from voice:', err)
       }
     })

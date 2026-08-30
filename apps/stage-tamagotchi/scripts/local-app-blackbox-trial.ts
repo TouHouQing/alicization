@@ -6,17 +6,21 @@ import type {
 import process from 'node:process'
 
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 
 import sqlite3 from 'sqlite3'
 
 import { chromium } from 'playwright'
 
+import { runMemoryQualityTrialCli } from '../src/main/services/alicization/memory-quality-trial-cli'
 import {
+  countFailedTurnMemoryLeaks,
   createPlaywrightLocalAppBlackboxAutomation,
   parseLocalAppBlackboxTrialArgs,
+  readLocalAppRuntimeRecall,
   readRuntimeDebugTraceSince,
+  resolveLocalAppMemoryDatabasePath,
   runLocalAppBlackboxTrial,
+  runLocalAppProductionTrial,
 } from './local-app-blackbox-trial-runtime'
 
 const help = `用法：
@@ -26,6 +30,7 @@ const help = `用法：
   --message <文本>           发送一轮真实对话；可重复提供多轮
   --app <path>               App 路径，默认 ~/Applications/Alicization Local.app
   --user-data-path <path>    用户数据目录
+  --card-id <id>             当前机体，默认 default
   --output <path>            trace 输出目录，默认在桌面创建时间戳目录
   --port <number>            远程调试端口，默认 9222
   --launch-timeout-ms <ms>   App 启动与窗口等待上限
@@ -33,6 +38,9 @@ const help = `用法：
   --attach                   连接已经以远程调试模式启动的 App
   --keep-open                完成后不关闭由本命令启动的 App
   --no-memory-workbench      跳过记忆页面检查
+  --quality-trial             黑盒回放结束后运行同一机体的 DB 质量试用
+  --quality-mode <mode>       historical-replay 或 live-provider，默认 historical-replay
+  --quality-read-only         质量试用只读，不写入 gold pack 或质量状态
   --help                     显示帮助
 
 示例：
@@ -90,27 +98,19 @@ function findMemoryRecallQuery(messages: string[]) {
     ?? ''
 }
 
-function findMemoryNeed(messages: string[], query: string) {
-  const queryIndex = messages.lastIndexOf(query)
-  const source = messages
-    .slice(0, queryIndex)
-    .reverse()
-    .find(message => /记住|喜欢|偏好/u.test(message))
-  if (!source)
-    return ''
-  const match = source.match(/(?<prefix>记住我|记住|喜欢|偏好)(?<value>[^。！？!?,，\n]{1,80})/u)
-  return match?.groups?.value?.trim() ?? ''
-}
-
 async function inspectLocalAppMemory(input: {
   userDataPath: string
+  cardId: string
   messages: string[]
   chatTurns: LocalAppBlackboxChatTurnEvidence[]
 }): Promise<LocalAppBlackboxMemoryAssertions> {
-  const cardId = 'default'
-  const dbPath = join(input.userDataPath, 'alicizations', 'alicization.db')
+  const cardId = input.cardId.trim() || 'default'
+  const dbPath = resolveLocalAppMemoryDatabasePath({
+    userDataPath: input.userDataPath,
+    cardId,
+  })
   const recallQuery = findMemoryRecallQuery(input.messages)
-  const memoryNeed = findMemoryNeed(input.messages, recallQuery)
+  const failedTurns = input.chatTurns.filter(turn => turn.status !== 'completed')
   if (!existsSync(dbPath)) {
     return {
       cardId,
@@ -131,16 +131,24 @@ async function inspectLocalAppMemory(input: {
       recall: {
         query: recallQuery,
         matched: !recallQuery,
+        status: recallQuery ? 'unknown' : 'not-requested',
+        turnId: null,
         matchedIds: [],
         summaries: [],
+        evidence: [],
+        events: [],
+        errors: [],
       },
+      failedTurnCount: failedTurns.length,
+      failedTurnMemoryLeakCount: 0,
+      failureIsolationPassed: failedTurns.length === 0,
       errors: [`找不到黑盒 App 数据库：${dbPath}`],
     }
   }
 
   const database = await openDatabase(dbPath)
   try {
-    const [checkpointRows, queueRows, factRows, reflectionRows, searchRows, vectorRows, recallRows] = await Promise.all([
+    const [checkpointRows, queueRows, factRows, reflectionRows, searchRows, vectorRows] = await Promise.all([
       all<{ count: number }>(
         database,
         'SELECT COUNT(*) AS count FROM working_memory_checkpoints WHERE card_id = ?',
@@ -171,27 +179,20 @@ async function inspectLocalAppMemory(input: {
         'SELECT COUNT(*) AS count FROM long_term_memory_vectors WHERE card_id = ? AND status = \'indexed\'',
         [cardId],
       ),
-      memoryNeed
-        ? all<{ id: string, source: string, summary: string }>(
-            database,
-            `
-            SELECT id, source, summary
-            FROM long_term_memory_search_documents
-            WHERE card_id = ?
-              AND tombstoned = 0
-              AND (summary LIKE ? OR search_text LIKE ?)
-            ORDER BY updated_at DESC, id ASC
-            LIMIT 8
-            `,
-            [cardId, `%${memoryNeed}%`, `%${memoryNeed}%`],
-          )
-        : Promise.resolve([]),
     ])
 
-    const matchedIds = recallRows.map(row => `${row.source}:${row.id}`)
-    const errors = input.chatTurns
-      .filter(turn => turn.status !== 'completed')
-      .map(turn => turn.error ?? `对话未完成：${turn.message}`)
+    const recall = await readLocalAppRuntimeRecall({
+      database,
+      cardId,
+      query: recallQuery,
+      chatTurns: input.chatTurns,
+    })
+    const errors = [...(recall.errors ?? [])]
+    const failedTurnMemoryLeakCount = await countFailedTurnMemoryLeaks({
+      database,
+      cardId,
+      failedTurns,
+    })
     return {
       cardId,
       checkpointCount: Number(checkpointRows[0]?.count ?? 0),
@@ -208,12 +209,10 @@ async function inspectLocalAppMemory(input: {
         searchDocumentCount: Number(searchRows[0]?.count ?? 0),
         vectorCount: Number(vectorRows[0]?.count ?? 0),
       },
-      recall: {
-        query: recallQuery,
-        matched: !recallQuery || recallRows.length > 0,
-        matchedIds,
-        summaries: recallRows.map(row => `${row.source}: ${row.summary}`),
-      },
+      recall,
+      failedTurnCount: failedTurns.length,
+      failedTurnMemoryLeakCount,
+      failureIsolationPassed: failedTurnMemoryLeakCount === 0,
       errors,
     }
   }
@@ -234,12 +233,40 @@ async function main() {
     args,
     connectOverCDP: async endpoint => await chromium.connectOverCDP(endpoint),
   })
-  const report = await runLocalAppBlackboxTrial({
+  const report = await runLocalAppProductionTrial({
     args,
-    automation,
-    inspectMemory: async input => await inspectLocalAppMemory(input),
-    readRuntimeDebugTrace: async input =>
-      await readRuntimeDebugTraceSince(input.path, input.since),
+    runBlackbox: async () =>
+      await runLocalAppBlackboxTrial({
+        args,
+        automation,
+        inspectMemory: async input => await inspectLocalAppMemory(input),
+        readRuntimeDebugTrace: async input =>
+          await readRuntimeDebugTraceSince(input.path, input.since),
+      }),
+    runQualityTrial: args.runQualityTrial
+      ? async (qualityInput) => {
+        const result = await runMemoryQualityTrialCli({
+          args: {
+            userDataPath: qualityInput.userDataPath,
+            databasePath: null,
+            cardId: qualityInput.cardId,
+            mode: qualityInput.mode,
+            reportPath: qualityInput.reportPath,
+            sessionId: null,
+            readOnly: qualityInput.readOnly,
+          },
+          writeOutput: () => {},
+        })
+        const qualityReport = result.report?.version === 'memory-production-trial-runner-v1'
+          ? result.report
+          : null
+        return {
+          report: qualityReport,
+          error: result.error
+            ?? (result.report && 'error' in result.report ? result.report.error : null),
+        }
+      }
+      : undefined,
   })
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
   process.stderr.write(`黑盒 trace 已写入：${args.outputDir}\n`)
