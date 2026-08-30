@@ -74,6 +74,38 @@ describe('alicization performance manifest clamp', () => {
     expect(source).toContain('memoryWorkbenchBuildMonthlyGoldRegression')
   })
 
+  it('exposes the persona dataset lifecycle through the desktop bridge', () => {
+    const source = readFileSync(new URL('../../../../apps/stage-tamagotchi/src/renderer/App.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain('electronAlicizationMemoryWorkbenchGetPersonaTrainingDataset')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchStagePersonaTrainingDataset')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchExportPersonaTrainingDataset')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchActivatePersonaTrainingDataset')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchRollbackPersonaTrainingDataset')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchSetPersonaTrainingDatasetExamplePolicy')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchListPersonaTrainingSourceRevokeIntents')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchRetryPersonaTrainingSourceRevokeIntent')
+    expect(source).toContain('const memoryWorkbenchGetPersonaTrainingDataset = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchGetPersonaTrainingDataset)')
+    expect(source).toContain('const memoryWorkbenchStagePersonaTrainingDataset = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchStagePersonaTrainingDataset)')
+    expect(source).toContain('const memoryWorkbenchExportPersonaTrainingDataset = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchExportPersonaTrainingDataset)')
+    expect(source).toContain('const memoryWorkbenchActivatePersonaTrainingDataset = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchActivatePersonaTrainingDataset)')
+    expect(source).toContain('const memoryWorkbenchRollbackPersonaTrainingDataset = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRollbackPersonaTrainingDataset)')
+    expect(source).toContain('const memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchSetPersonaTrainingDatasetExamplePolicy)')
+    expect(source).toContain('const memoryWorkbenchRevokePersonaTrainingDatasetSource = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource)')
+    expect(source).toContain('const memoryWorkbenchListPersonaTrainingSourceRevokeIntents = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListPersonaTrainingSourceRevokeIntents)')
+    expect(source).toContain('const memoryWorkbenchRetryPersonaTrainingSourceRevokeIntent = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRetryPersonaTrainingSourceRevokeIntent)')
+    expect(source).toContain('memoryWorkbenchGetPersonaTrainingDataset: async () => await memoryWorkbenchGetPersonaTrainingDataset(resolveAlicizationScope())')
+    expect(source).toContain('memoryWorkbenchStagePersonaTrainingDataset: async payload => await memoryWorkbenchStagePersonaTrainingDataset({ ...resolveAlicizationScope(), ...payload })')
+    expect(source).toContain('memoryWorkbenchExportPersonaTrainingDataset: async payload => await memoryWorkbenchExportPersonaTrainingDataset({ ...resolveAlicizationScope(), ...payload })')
+    expect(source).toContain('memoryWorkbenchActivatePersonaTrainingDataset: async payload => await memoryWorkbenchActivatePersonaTrainingDataset({ ...resolveAlicizationScope(), ...payload })')
+    expect(source).toContain('memoryWorkbenchRollbackPersonaTrainingDataset: async payload => await memoryWorkbenchRollbackPersonaTrainingDataset({ ...resolveAlicizationScope(), ...payload })')
+    expect(source).toContain('memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy: async payload => await memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy({ ...resolveAlicizationScope(), ...payload })')
+    expect(source).toContain('memoryWorkbenchRevokePersonaTrainingDatasetSource: async payload => await memoryWorkbenchRevokePersonaTrainingDatasetSource({ ...resolveAlicizationScope(), ...payload })')
+    expect(source).toContain('memoryWorkbenchListPersonaTrainingSourceRevokeIntents: async payload => await memoryWorkbenchListPersonaTrainingSourceRevokeIntents({ ...resolveAlicizationScope(), ...payload })')
+    expect(source).toContain('memoryWorkbenchRetryPersonaTrainingSourceRevokeIntent: async payload => await memoryWorkbenchRetryPersonaTrainingSourceRevokeIntent({ ...resolveAlicizationScope(), ...payload })')
+  })
+
   it('summarizes visible-reply critic and closure before the desktop renderer forwards finish events', () => {
     const source = readFileSync(new URL('../../../../apps/stage-tamagotchi/src/renderer/App.vue', import.meta.url), 'utf8')
 

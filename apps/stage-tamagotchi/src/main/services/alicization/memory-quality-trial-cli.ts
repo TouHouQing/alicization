@@ -1,15 +1,17 @@
+import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
 import type { MemoryProductionTrialReport } from './memory-production-trial-runner'
 
 import process, { env, platform } from 'node:process'
 
 import { existsSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
 
 import { alicizationPrimaryConversationSessionId } from '@proj-alicization/stage-shared'
 
 import { setupAlicizationDb } from './db'
+import { resolveOpenAICompatibleLongTermMemoryEmbeddingProvider } from './long-term-memory-openai-embedding-provider'
 
 export type MemoryQualityTrialCliMode = 'historical-replay' | 'live-provider'
 
@@ -52,9 +54,11 @@ export interface MemoryQualityTrialCliDependencies {
     databasePath: string | null
     cardId: string
     readOnly?: boolean
+    embeddingProvider?: LongTermMemoryEmbeddingProvider | null
   }) => Promise<MemoryQualityTrialCliDb>
   writeReport: (path: string, content: string) => Promise<void>
   writeOutput: (content: string) => void
+  readText: (path: string) => Promise<string>
   now?: () => number
 }
 
@@ -68,6 +72,54 @@ export interface MemoryQualityTrialCliResult {
 export interface MemoryQualityTrialCliParseDefaults {
   defaultUserDataPath?: string
   defaultReadOnly?: boolean
+}
+
+function resolveLlmConfigUserDataPath(userDataPath: string) {
+  const absolutePath = resolve(userDataPath)
+  const alicizationsMarker = `${sep}alicizations${sep}`
+  const markerIndex = absolutePath.indexOf(alicizationsMarker)
+  return markerIndex >= 0
+    ? absolutePath.slice(0, markerIndex)
+    : absolutePath
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+export async function resolvePersistedMemoryEmbeddingProvider(input: {
+  userDataPath: string
+  readText?: (path: string) => Promise<string>
+  fetch?: typeof fetch
+}): Promise<LongTermMemoryEmbeddingProvider | null> {
+  const readText = input.readText ?? (async path => await readFile(path, 'utf8'))
+  const configPath = join(
+    resolveLlmConfigUserDataPath(input.userDataPath),
+    'alicizations',
+    'llm-config.json',
+  )
+  try {
+    const parsed = JSON.parse(await readText(configPath)) as {
+      activeProviderId?: unknown
+      providerCredentials?: unknown
+    }
+    if (!isRecord(parsed.providerCredentials))
+      return null
+    const providerCredentials = Object.fromEntries(
+      Object.entries(parsed.providerCredentials)
+        .filter(([, value]) => isRecord(value)),
+    ) as Record<string, Record<string, unknown>>
+    return resolveOpenAICompatibleLongTermMemoryEmbeddingProvider({
+      activeProviderId: typeof parsed.activeProviderId === 'string'
+        ? parsed.activeProviderId
+        : null,
+      providerCredentials,
+      fetch: input.fetch,
+    })
+  }
+  catch {
+    return null
+  }
 }
 
 export function resolveDefaultMemoryQualityTrialUserDataPath(input: {
@@ -251,9 +303,14 @@ export async function runMemoryQualityTrialCli(
         ? { rootDir: dirname(resolve(setupInput.databasePath)) }
         : {}),
       readOnly: setupInput.readOnly === true,
+      embeddingProvider: setupInput.embeddingProvider ?? null,
     }))
   const writeOutput = input.writeOutput ?? ((content: string) => process.stdout.write(`${content}\n`))
   const writeReport = input.writeReport ?? writeJsonReport
+  const embeddingProvider = await resolvePersistedMemoryEmbeddingProvider({
+    userDataPath: input.args.userDataPath,
+    readText: input.readText,
+  })
 
   let db: MemoryQualityTrialCliDb | null = null
   try {
@@ -262,6 +319,7 @@ export async function runMemoryQualityTrialCli(
       databasePath: input.args.databasePath,
       cardId: input.args.cardId,
       readOnly: input.args.readOnly === true,
+      embeddingProvider,
     })
     const report = await db.runMemoryWorkbenchProductionTrial({
       cardId: input.args.cardId,

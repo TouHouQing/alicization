@@ -31,14 +31,6 @@ export interface PersonaCandidateReviewState {
   updatedAt: number
 }
 
-interface PersonaCandidateReviewRow {
-  candidate_id: string
-  status: string
-  allow_training: number
-  reason: string | null
-  updated_at: number
-}
-
 interface PersonaCandidateProjectionRow {
   candidate_id: string
   root_source_id: string
@@ -84,7 +76,7 @@ function normalizeCandidateStatus(raw: unknown): AlicizationPersonaCandidateWork
     : 'candidate'
 }
 
-function statusForDecision(decision: AlicizationPersonaCandidateWorkbenchDecision): AlicizationPersonaCandidateWorkbenchStatus {
+function statusForDecision(decision: AlicizationPersonaCandidateWorkbenchDecision): Exclude<AlicizationPersonaCandidateWorkbenchStatus, 'candidate'> {
   if (decision === 'approve')
     return 'approved'
   if (decision === 'reject')
@@ -136,6 +128,19 @@ function candidateSourceRefs(input: {
     }))
 }
 
+function hasPersonaCandidateTemplateResidue(candidate: Pick<
+  PersonaTrainingCandidate,
+  'behaviorLesson' | 'positiveExample' | 'negativeExample'
+>) {
+  return containsAlicizationFixedTemplateResidue([
+    candidate.behaviorLesson,
+    candidate.positiveExample,
+    candidate.negativeExample,
+  ].filter(Boolean).join(' '), {
+    provenance: 'internal-structured-fact',
+  })
+}
+
 function encodeCursor(input: {
   updatedAt: number
   id: string
@@ -166,16 +171,6 @@ function decodeCursor(raw: string | null | undefined) {
   }
   catch {
     return null
-  }
-}
-
-function mapReviewRow(row: PersonaCandidateReviewRow): PersonaCandidateReviewState {
-  return {
-    candidateId: normalizeText(row.candidate_id),
-    status: normalizeCandidateStatus(row.status),
-    allowTraining: row.allow_training === 1,
-    reason: normalizeText(row.reason, 240) || null,
-    updatedAt: Number.isFinite(row.updated_at) ? Math.max(0, Math.floor(row.updated_at)) : 0,
   }
 }
 
@@ -309,25 +304,6 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     sourceId: string
   }
 
-  async function listReviews(cardId: string, candidateIds: string[]) {
-    const normalizedCandidateIds = candidateIds
-      .map(candidateId => normalizeText(candidateId, 240))
-      .filter(Boolean)
-    if (normalizedCandidateIds.length === 0)
-      return new Map<string, PersonaCandidateReviewState>()
-    const rows = await input.all<PersonaCandidateReviewRow>(
-      input.database,
-      `
-      SELECT candidate_id, status, allow_training, reason, updated_at
-      FROM persona_training_candidate_reviews
-      WHERE card_id = ?
-        AND candidate_id IN (${normalizedCandidateIds.map(() => '?').join(', ')})
-      `,
-      [cardId, ...normalizedCandidateIds],
-    )
-    return new Map(rows.map(row => mapReviewRow(row)).map(review => [review.candidateId, review]))
-  }
-
   const maxReinforcementSourcesPerCandidate = 7
 
   async function listLatestReinforcements(cardId: string) {
@@ -350,6 +326,13 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
         cardId,
         'persona_reinforcement_events',
       )
+      const pageProvenanceKeys = await listProvenanceKeys(
+        cardId,
+        page.items.map(reinforcement => ({
+          sourceId: reinforcement.id,
+          sourceKind: 'persona-reinforcement',
+        })),
+      )
       for (const sourceId of pageTombstonedSourceIds)
         tombstonedSourceIds.add(sourceId)
 
@@ -357,12 +340,20 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
         if (reinforcement.valence !== 'reinforce') {
           continue
         }
-        if (containsAlicizationFixedTemplateResidue(`${reinforcement.dimension} ${reinforcement.summary}`, {
+        if (containsAlicizationFixedTemplateResidue(reinforcement.dimension, {
+          provenance: 'internal-structured-fact',
+        }) || containsAlicizationFixedTemplateResidue(reinforcement.summary, {
           provenance: 'internal-structured-fact',
         })) {
           continue
         }
         if (pageTombstonedSourceIds.has(reinforcement.id)) {
+          continue
+        }
+        if (!pageProvenanceKeys.has(personaTrainingSourceRefKey({
+          sourceId: reinforcement.id,
+          sourceKind: 'persona-reinforcement',
+        }))) {
           continue
         }
         reinforcements.push(reinforcement)
@@ -440,22 +431,51 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
   ) {
     if (candidates.length === 0)
       return candidates
+    const reflectionTombstoneIds = await input.listTombstonedLongTermMemorySourceIds(
+      candidates.map(item => item.sourceId),
+      cardId,
+      'memory_reflections',
+    )
     const confirmedReflectionIds = await listConfirmedReflectionIds(
       cardId,
       candidates.map(item => item.sourceId),
     )
-    const sourceRefs = candidates.flatMap(item => candidateSourceRefs({
-      sourceId: item.sourceId,
-      sourceMemoryIds: item.candidate.sourceMemoryIds,
-    }))
-    const provenanceKeys = await listProvenanceKeys(cardId, sourceRefs)
-    return candidates.filter(item =>
-      confirmedReflectionIds.has(item.sourceId)
-      && candidateSourceRefs({
+    const candidateReinforcementIds = new Set(
+      candidates.flatMap(item => item.candidate.sourceMemoryIds.slice(1)),
+    )
+    const validReinforcementIds = candidateReinforcementIds.size > 0
+      ? new Set((await listLatestReinforcements(cardId)).reinforcements.map(reinforcement => reinforcement.id))
+      : new Set<string>()
+    const sanitizedCandidates = candidates
+      .filter(item =>
+        confirmedReflectionIds.has(item.sourceId)
+        && !reflectionTombstoneIds.has(item.sourceId)
+        && !hasPersonaCandidateTemplateResidue(item.candidate),
+      )
+      .map(item => ({
+        ...item,
+        candidate: {
+          ...item.candidate,
+          sourceMemoryIds: [
+            item.sourceId,
+            ...item.candidate.sourceMemoryIds
+              .filter(sourceId => sourceId !== item.sourceId)
+              .filter(sourceId => validReinforcementIds.has(sourceId)),
+          ],
+        },
+      }))
+    const candidatesWithSourceRefs = sanitizedCandidates.map(item => ({
+      ...item,
+      sourceRefs: candidateSourceRefs({
         sourceId: item.sourceId,
         sourceMemoryIds: item.candidate.sourceMemoryIds,
-      }).every(sourceRef => provenanceKeys.has(personaTrainingSourceRefKey(sourceRef))),
-    )
+      }),
+    }))
+    const sourceRefs = candidatesWithSourceRefs.flatMap(item => item.sourceRefs)
+    const provenanceKeys = await listProvenanceKeys(cardId, sourceRefs)
+    return candidatesWithSourceRefs
+      .filter(item => item.sourceRefs.every(sourceRef => provenanceKeys.has(personaTrainingSourceRefKey(sourceRef))))
+      .map(({ sourceRefs: _sourceRefs, ...item }) => item)
   }
 
   function buildCandidatesFromReflections(inputData: {
@@ -502,13 +522,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
           allowPersonaLearning: true,
           allowTraining: false,
         },
-        contaminated: containsAlicizationFixedTemplateResidue([
-          candidate.behaviorLesson,
-          candidate.positiveExample,
-          candidate.negativeExample,
-        ].filter(Boolean).join(' '), {
-          provenance: 'internal-structured-fact',
-        }),
+        contaminated: hasPersonaCandidateTemplateResidue(candidate),
       }).allowPersonaLearning)
       .map(candidate => ({
         candidate,
@@ -1003,27 +1017,48 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
         limit: sourcePageLimit,
       })
       const eligiblePageCandidates = await filterPersistedCandidatesWithProvenance(cardId, pageCandidates)
-      const candidateIds = eligiblePageCandidates.map(item => item.candidate.id)
-      const reviews = await listReviews(cardId, candidateIds)
+      const sourceRefs = eligiblePageCandidates.flatMap(item => candidateSourceRefs({
+        sourceId: item.sourceId,
+        sourceMemoryIds: item.candidate.sourceMemoryIds,
+      }))
       const sourceIds = eligiblePageCandidates.flatMap(item => item.candidate.sourceMemoryIds)
-      const policies = await input.policyStore.listPolicyOverrides({ cardId, sourceIds })
-      const noTrainingSources = new Set(
-        policies
-          .filter(policy => policy.reviewState === 'no-training' || policy.allowTraining === false)
-          .map(policy => policy.sourceId),
+      const [policies, candidatePolicies] = await Promise.all([
+        input.policyStore.listPolicyOverrides({ cardId, sourceRefs }),
+        input.policyStore.listPolicyOverrides({ cardId, sourceIds }),
+      ])
+      const policiesBySourceRef = new Map(policies.map(policy => [
+        `${policy.sourceKind}\0${policy.sourceId}`,
+        policy,
+      ]))
+      const policiesByCandidateSourceId = new Map(
+        candidatePolicies
+          .filter(policy => policy.source === 'working_memory_long_term_candidate')
+          .map(policy => [policy.sourceId, policy]),
       )
       matched.push(...eligiblePageCandidates
         .map(({ candidate, sourceCreatedAt, sourceUpdatedAt, sourceId }) => {
-          const review = reviews.get(candidate.id)
-            ?? (candidate.sourceMemoryIds.some(sourceId => noTrainingSources.has(sourceId))
-              ? {
-                  candidateId: candidate.id,
-                  status: 'no-training' as const,
-                  allowTraining: false,
-                  reason: 'memory policy blocks persona training',
-                  updatedAt: sourceUpdatedAt,
-                }
-              : null)
+          const rootPolicy = policiesBySourceRef.get(`${'cleaned-long-term-reflection'}\0${sourceId}`)
+          const noTrainingPolicy = candidate.sourceMemoryIds
+            .slice(1)
+            .map(reinforcementId => policiesBySourceRef.get(`${'persona-reinforcement'}\0${reinforcementId}`))
+            .find(policy => policy?.reviewState === 'no-training')
+          const candidatePolicy = candidate.sourceMemoryIds
+            .map(candidateSourceId => policiesByCandidateSourceId.get(candidateSourceId))
+            .find(policy => policy?.reviewState === 'inward-only' || policy?.reviewState === 'no-training')
+          const policy = rootPolicy?.reviewState && rootPolicy.reviewState !== 'none'
+            ? rootPolicy
+            : noTrainingPolicy ?? candidatePolicy
+          const review = policy
+            ? {
+                candidateId: candidate.id,
+                status: policy.reviewState === 'inward-only'
+                  ? 'no-training' as const
+                  : normalizeCandidateStatus(policy.reviewState),
+                allowTraining: false,
+                reason: policy.reason,
+                updatedAt: policy.updatedAt,
+              }
+            : null
           return {
             item: mergePersonaCandidateReviewState({
               candidate,
@@ -1082,68 +1117,40 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     if (!cardId || !candidateId)
       return null
 
-    const candidate = await getProjectionCandidate(cardId, candidateId)
+    const projectedCandidate = await getProjectionCandidate(cardId, candidateId)
       ?? await refreshProjectionForCandidateId(cardId, candidateId)
-    if (!candidate)
+    if (!projectedCandidate)
       return null
     const eligible = await filterPersistedCandidatesWithProvenance(cardId, [{
-      candidate: candidate.candidate,
-      sourceId: candidate.sourceId,
-      sourceCreatedAt: candidate.sourceCreatedAt,
-      sourceUpdatedAt: candidate.sourceUpdatedAt,
+      candidate: projectedCandidate.candidate,
+      sourceId: projectedCandidate.sourceId,
+      sourceCreatedAt: projectedCandidate.sourceCreatedAt,
+      sourceUpdatedAt: projectedCandidate.sourceUpdatedAt,
     }])
     if (eligible.length === 0)
       return null
+    const candidate = eligible[0]!
 
     const status = statusForDecision(payload.decision)
-    const allowTraining = false
     const reason = normalizeText(payload.reason, 240) || null
-    const updatedAt = input.now()
-    await input.enqueueWrite(async () => {
-      await input.runInTransaction(input.database, async () => {
-        await input.run(
-          input.database,
-          `
-          INSERT INTO persona_training_candidate_reviews (
-            id,
-            card_id,
-            candidate_id,
-            status,
-            allow_training,
-            reason,
-            created_at,
-            updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(card_id, candidate_id) DO UPDATE SET
-            status = excluded.status,
-            allow_training = excluded.allow_training,
-            reason = excluded.reason,
-            updated_at = excluded.updated_at
-          `,
-          [
-            `persona-candidate-review:${input.randomUUID()}`,
-            cardId,
-            candidateId,
-            status,
-            allowTraining ? 1 : 0,
-            reason,
-            updatedAt,
-            updatedAt,
-          ],
-        )
-      })
+    const policy = await input.policyStore.upsertPolicyOverride({
+      cardId,
+      sourceId: candidate.sourceId,
+      source: 'memory_reflections',
+      sourceKind: 'cleaned-long-term-reflection',
+      visibleMode: 'explicit',
+      allowTraining: false,
+      reviewState: status,
+      reason,
     })
-
-    const reviews = await listReviews(cardId, [candidateId])
-    const review = reviews.get(candidateId)
     return mergePersonaCandidateReviewState({
       candidate: candidate.candidate,
-      review: review ?? {
+      review: {
         candidateId,
         status,
         allowTraining: false,
-        reason,
-        updatedAt,
+        reason: policy.reason ?? reason,
+        updatedAt: policy.updatedAt,
       },
       now: candidate.sourceUpdatedAt,
       createdAt: candidate.sourceCreatedAt,

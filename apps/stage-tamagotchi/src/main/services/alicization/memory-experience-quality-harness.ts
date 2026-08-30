@@ -120,6 +120,16 @@ function containsBoastfulMemoryCue(replyText: string) {
   return /我当然记得|我一直都记得|记得很清楚|根据我的记忆|我的记忆告诉我|我不会忘/u.test(replyText)
 }
 
+function containsAbstentionCue(replyText: string) {
+  return /不确定|没有足够的?证据|无法确认|不能确认|不想先猜|不敢确定|记不清|不知道/u.test(replyText)
+}
+
+function containsTransparentFailureCue(replyText: string) {
+  const hasFailureCue = /失败|错误|超时|不可用|拒绝|没有生成|未能/u.test(replyText)
+  const hasDisclosureCue = /原始|原因|透明|说明|告诉|报告|状态|保留/u.test(replyText)
+  return hasFailureCue && hasDisclosureCue
+}
+
 function echoesMemorySummary(replyText: string, memory: MemoryExperienceQualityMemory) {
   const reply = normalizeText(replyText)
   const summary = normalizeText(memory.summary)
@@ -157,6 +167,7 @@ function evaluateFixture(input: {
   const surfacedMemoryIds = fixture.surfacedMemoryIds ?? recalledMemoryIds
   const recalledSet = new Set(recalledMemoryIds)
   const surfacedSet = new Set(surfacedMemoryIds)
+  const abstained = fixture.abstained ?? containsAbstentionCue(fixture.replyText)
   const missingExpectedMemoryIds = expectedUsedMemoryIds.filter(id => !recalledSet.has(id) && !surfacedSet.has(id))
   const usedForbiddenMemoryIds = forbiddenMemoryIds.filter(id => recalledSet.has(id) || surfacedSet.has(id))
   const missingAgentExperienceIds = (fixture.agentExperience?.expectedIds ?? []).filter(id =>
@@ -195,13 +206,23 @@ function evaluateFixture(input: {
     }))
   }
 
-  if (fixture.expectedAbstain && fixture.abstained !== true) {
+  if (fixture.expectedAbstain && !abstained) {
     findings.push(finding({
       code: 'abstention-miss',
       fixtureId: fixture.id,
       dimension: 'abstention',
       message: '证据不足时没有选择 abstain，仍然给出了具体记忆断言。',
       suggestedAction: '在 LongTermMemoryRecall 低置信或证据缺失时，保留拒答/不确定决策并让用户可见。',
+    }))
+  }
+
+  if (fixture.agentExperience?.dimensions.includes('failure-mode') && !containsTransparentFailureCue(fixture.replyText)) {
+    findings.push(finding({
+      code: 'agent-experience-miss',
+      fixtureId: fixture.id,
+      dimension: 'agent-experience',
+      message: '失败场景回复没有透明说明失败事实或真实原因。',
+      suggestedAction: '保留 Provider、工具或执行失败的真实状态与原因，不要用正常人格回复掩盖失败。',
     }))
   }
 
@@ -255,7 +276,7 @@ function evaluateFixture(input: {
     userText: fixture.userText,
     shouldRecall: fixture.shouldRecall,
     expectedAbstain: fixture.expectedAbstain === true,
-    abstained: fixture.abstained === true,
+    abstained,
     expectedUsedMemoryIds,
     forbiddenMemoryIds,
     recalledMemoryIds,

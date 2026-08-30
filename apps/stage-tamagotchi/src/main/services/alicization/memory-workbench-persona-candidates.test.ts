@@ -1,5 +1,10 @@
 import type sqlite3 from 'sqlite3'
 
+import type {
+  MemoryWorkbenchPolicyOverride,
+  MemoryWorkbenchPolicyStoreRuntime,
+} from './memory-workbench-policy-store'
+
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -308,6 +313,246 @@ describe('memory workbench persona candidates', () => {
     finally {
       await db.close()
     }
+  })
+
+  it('filters unprovenanced reinforcement sources before applying the source limit', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryReflections([{
+        id: 'reflection-reinforcement-window',
+        cardId: 'card-reinforcement-window',
+        sourceKind: 'reply',
+        targetScope: 'habit',
+        summary: '只保留有清洗证明的 persona reinforcement。',
+        lesson: '人格候选必须继续保留真实 provenance。',
+        status: 'confirmed',
+        confidence: 0.95,
+        createdAt: 10,
+        updatedAt: 20,
+      }])
+      await db.appendPersonaReinforcementEvents([
+        ...Array.from({ length: 7 }, (_, index) => ({
+          id: `reinforcement-without-provenance-${index}`,
+          cardId: 'card-reinforcement-window',
+          sourceKind: 'reply' as const,
+          dimension: 'companionship' as const,
+          delta: 0.1,
+          valence: 'reinforce' as const,
+          summary: `没有清洗证明的早期来源 ${index}。`,
+          createdAt: 200 - index,
+        })),
+        {
+          id: 'reinforcement-with-provenance-after-window',
+          cardId: 'card-reinforcement-window',
+          sourceKind: 'reply' as const,
+          dimension: 'companionship' as const,
+          delta: 0.1,
+          valence: 'reinforce' as const,
+          summary: '窗口之后仍然有效的真实来源。',
+          createdAt: 190,
+        },
+      ])
+      await markPersonaSourcesCleaned(db, 'card-reinforcement-window', [
+        {
+          sourceId: 'reflection-reinforcement-window',
+          sourceKind: 'cleaned-long-term-reflection',
+        },
+        {
+          sourceId: 'reinforcement-with-provenance-after-window',
+          sourceKind: 'persona-reinforcement',
+        },
+      ])
+
+      await expect(db.listMemoryWorkbenchPersonaCandidates({
+        cardId: 'card-reinforcement-window',
+        limit: 10,
+      })).resolves.toMatchObject({
+        items: [{
+          id: 'persona-candidate:reflection-reinforcement-window',
+          sourceMemoryIds: [
+            'reflection-reinforcement-window',
+            'reinforcement-with-provenance-after-window',
+          ],
+        }],
+      })
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('removes stale template and suppress reinforcement sources from persisted projections', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryReflections([{
+        id: 'reflection-stale-reinforcement',
+        cardId: 'card-stale-reinforcement',
+        sourceKind: 'reply',
+        targetScope: 'habit',
+        summary: '投影中的 reinforcement 来源也必须经过治理。',
+        lesson: '只保留自然且有效的 reinforcement 来源。',
+        status: 'confirmed',
+        confidence: 0.95,
+        createdAt: 10,
+        updatedAt: 20,
+      }])
+      await markPersonaSourcesCleaned(db, 'card-stale-reinforcement', [{
+        sourceId: 'reflection-stale-reinforcement',
+        sourceKind: 'cleaned-long-term-reflection',
+      }])
+
+      await db.appendPersonaReinforcementEvents([
+        {
+          id: 'reinforcement-template-residue',
+          cardId: 'card-stale-reinforcement',
+          sourceKind: 'reply',
+          dimension: 'companionship',
+          delta: 0.1,
+          valence: 'reinforce',
+          summary: '这条来源带有模板残留。',
+          createdAt: 30,
+        },
+        {
+          id: 'reinforcement-suppress',
+          cardId: 'card-stale-reinforcement',
+          sourceKind: 'reply',
+          dimension: 'companionship',
+          delta: -0.1,
+          valence: 'suppress',
+          summary: '这条来源不是 reinforce。',
+          createdAt: 29,
+        },
+      ])
+      await db.recordPersonaTrainingSourceProvenance({
+        cardId: 'card-stale-reinforcement',
+        cleaningTransactionId: 'test-cleaning:stale-reinforcement',
+        cleanedAt: 40,
+        sources: [{
+          sourceId: 'reinforcement-template-residue',
+          sourceKind: 'persona-reinforcement',
+        }, {
+          sourceId: 'reinforcement-suppress',
+          sourceKind: 'persona-reinforcement',
+        }],
+      })
+
+      const listed = await db.listMemoryWorkbenchPersonaCandidates({
+        cardId: 'card-stale-reinforcement',
+        limit: 10,
+      })
+
+      expect(listed.items).toHaveLength(1)
+      expect(listed.items[0]?.sourceMemoryIds).toEqual([
+        'reflection-stale-reinforcement',
+      ])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('stores persona candidate decisions in policy overlays without writing candidate review rows', async () => {
+    const policyOverrides: MemoryWorkbenchPolicyOverride[] = []
+    const upsertPolicyOverride = vi.fn(async (
+      policyInput: Parameters<MemoryWorkbenchPolicyStoreRuntime['upsertPolicyOverride']>[0],
+    ) => {
+      const policy: MemoryWorkbenchPolicyOverride = {
+        sourceId: policyInput.sourceId,
+        source: policyInput.source,
+        sourceKind: policyInput.sourceKind ?? null,
+        visibleMode: policyInput.visibleMode,
+        allowTraining: policyInput.allowTraining,
+        reviewState: policyInput.reviewState,
+        reason: policyInput.reason ?? null,
+        updatedAt: 200,
+      }
+      policyOverrides.push(policy)
+      return policy
+    })
+    const run = vi.fn(async (_database: sqlite3.Database, _sql: string) => undefined)
+    const runtime = createMemoryWorkbenchPersonaCandidateRuntime({
+      database: {} as never,
+      now: () => 200,
+      randomUUID: () => 'unused-review-id',
+      run,
+      all: async <T>(_database: sqlite3.Database, sql: string): Promise<T[]> => {
+        if (sql.includes('FROM persona_training_candidate_projections')) {
+          return [{
+            candidate_id: 'persona-candidate:reflection-policy-overlay',
+            root_source_id: 'reflection-policy-overlay',
+            source_memory_ids_json: JSON.stringify(['reflection-policy-overlay']),
+            behavior_lesson: '候选审核只改变治理策略。',
+            positive_example: '候选审核只改变治理策略。',
+            negative_example: null,
+            privacy_class: 'personal-redacted',
+            source_created_at: 10,
+            source_updated_at: 20,
+            updated_at: 20,
+          }] as T[]
+        }
+        if (sql.includes('FROM memory_reflections'))
+          return [{ id: 'reflection-policy-overlay' }] as T[]
+        return []
+      },
+      enqueueWrite: async task => await task(),
+      runInTransaction: async (_database, task) => await task(),
+      policyStore: {
+        upsertPolicyOverride,
+        listPolicyOverrides: async ({ sourceIds, sourceRefs }) => policyOverrides.filter((policy) => {
+          if (sourceRefs?.length) {
+            return sourceRefs.some(sourceRef =>
+              sourceRef.sourceId === policy.sourceId
+              && sourceRef.sourceKind === policy.sourceKind,
+            )
+          }
+          return !sourceIds?.length || sourceIds.includes(policy.sourceId)
+        }),
+        inheritCandidatePolicies: async () => [],
+      },
+      listPersonaTrainingSourceProvenance: async input => mockPersonaTrainingSourceProvenance(input),
+      listMemoryReflectionsPage: async () => {
+        throw new Error('policy overlay candidate listing must not scan reflection sources')
+      },
+      listPersonaReinforcementEventsPage: async () => ({
+        items: [],
+        nextCursor: null,
+      }),
+      listTombstonedLongTermMemorySourceIds: async () => new Set(),
+    })
+
+    const result = await runtime.applyPersonaCandidateAction({
+      cardId: 'card-policy-overlay',
+      candidateId: 'persona-candidate:reflection-policy-overlay',
+      decision: 'approve',
+      reason: '只记录候选治理策略',
+    })
+
+    expect(result).toMatchObject({
+      id: 'persona-candidate:reflection-policy-overlay',
+      status: 'approved',
+      allowTraining: false,
+    })
+    expect(upsertPolicyOverride).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'card-policy-overlay',
+      sourceId: 'reflection-policy-overlay',
+      source: 'memory_reflections',
+      sourceKind: 'cleaned-long-term-reflection',
+      allowTraining: false,
+      reviewState: 'approved',
+      reason: '只记录候选治理策略',
+    }))
+    expect(run.mock.calls.some(([sql]) => String(sql).includes('persona_training_candidate_reviews'))).toBe(false)
+
+    await expect(runtime.listPersonaCandidates({
+      cardId: 'card-policy-overlay',
+      limit: 10,
+    })).resolves.toMatchObject({
+      items: [{
+        id: 'persona-candidate:reflection-policy-overlay',
+        status: 'approved',
+        allowTraining: false,
+      }],
+    })
   })
 
   it('pages beyond the old source window and updates a tail candidate', async () => {
@@ -898,15 +1143,6 @@ describe('memory workbench persona candidates', () => {
             updated_at: 20,
           }] as T[]
         }
-        if (sql.includes('FROM persona_training_candidate_reviews')) {
-          return [{
-            candidate_id: 'persona-candidate:reflection-direct',
-            status: 'no-training',
-            allow_training: 0,
-            reason: '用户不允许训练',
-            updated_at: 200,
-          }] as T[]
-        }
         if (sql.includes('FROM memory_reflections'))
           return [{ id: 'reflection-direct' }] as T[]
         return []
@@ -914,9 +1150,16 @@ describe('memory workbench persona candidates', () => {
       enqueueWrite: async task => await task(),
       runInTransaction: async (_database, task) => await task(),
       policyStore: {
-        upsertPolicyOverride: async () => {
-          throw new Error('not used')
-        },
+        upsertPolicyOverride: async policy => ({
+          sourceId: policy.sourceId,
+          source: policy.source,
+          sourceKind: policy.sourceKind ?? null,
+          visibleMode: policy.visibleMode,
+          allowTraining: policy.allowTraining,
+          reviewState: policy.reviewState,
+          reason: policy.reason ?? null,
+          updatedAt: 200,
+        }),
         listPolicyOverrides: async () => [],
         inheritCandidatePolicies: async () => [],
       },

@@ -6,6 +6,7 @@ import {
   createMemoryQualityTrialCliReport,
   parseMemoryQualityTrialCliArgs,
   resolveDefaultMemoryQualityTrialUserDataPath,
+  resolvePersistedMemoryEmbeddingProvider,
   runMemoryQualityTrialCli,
 } from './memory-quality-trial-cli'
 
@@ -112,6 +113,36 @@ function report(overrides: Partial<MemoryProductionTrialReport> = {}) {
 }
 
 describe('memory quality trial CLI', () => {
+  it('loads the persisted production embedding provider from the app config for a direct DB trial', async () => {
+    const readText = vi.fn(async (path: string) => {
+      expect(path).toBe('/tmp/alicization/alicizations/llm-config.json')
+      return JSON.stringify({
+        activeProviderId: 'openai-compatible',
+        providerCredentials: {
+          __alicizationMemoryEmbedding: {
+            apiKey: 'secret-not-in-report',
+            baseUrl: 'https://api.siliconflow.cn/v1',
+            dimensions: 1024,
+            model: 'BAAI/bge-m3',
+          },
+        },
+      })
+    })
+
+    const provider = await resolvePersistedMemoryEmbeddingProvider({
+      userDataPath: '/tmp/alicization/alicizations/cards/default',
+      readText,
+      fetch: vi.fn(),
+    })
+
+    expect(provider).toMatchObject({
+      modelId: 'BAAI/bge-m3',
+      dimensions: 1024,
+    })
+    expect(provider?.vectorSpaceId).toMatch(/^embedding-space:v1:/u)
+    expect(readText).toHaveBeenCalledOnce()
+  })
+
   it('finds the installed macOS app data directory without requiring novice users to provide a path', () => {
     const existing = new Set([
       '/Users/alice/Library/Application Support/com.tohoqing.alicization/alicizations/alicization.db',
@@ -276,6 +307,47 @@ describe('memory quality trial CLI', () => {
     }))
     expect(db.runMemoryWorkbenchProductionTrial).toHaveBeenCalledWith(expect.objectContaining({
       readOnly: true,
+    }))
+  })
+
+  it('injects the persisted embedding provider into the real DB quality trial', async () => {
+    const db = {
+      runMemoryWorkbenchProductionTrial: vi.fn(async () => report()),
+      close: vi.fn(async () => {}),
+    }
+    const setupDb = vi.fn(async () => db)
+    const readText = vi.fn(async () => JSON.stringify({
+      activeProviderId: 'openai-compatible',
+      providerCredentials: {
+        __alicizationMemoryEmbedding: {
+          baseUrl: 'https://api.siliconflow.cn',
+          dimensions: 1024,
+          model: 'BAAI/bge-m3',
+        },
+      },
+    }))
+
+    await runMemoryQualityTrialCli({
+      args: {
+        userDataPath: '/tmp/alicization',
+        databasePath: '/tmp/alicization/alicizations/cards/default/alicization.db',
+        cardId: 'default',
+        mode: 'historical-replay',
+        reportPath: null,
+        sessionId: null,
+        readOnly: true,
+      },
+      setupDb,
+      readText,
+      writeReport: vi.fn(),
+      writeOutput: vi.fn(),
+    })
+
+    expect(setupDb).toHaveBeenCalledWith(expect.objectContaining({
+      embeddingProvider: expect.objectContaining({
+        modelId: 'BAAI/bge-m3',
+        dimensions: 1024,
+      }),
     }))
   })
 

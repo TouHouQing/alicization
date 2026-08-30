@@ -106,7 +106,7 @@ function recallBundle(query: string): LongTermMemoryEvidenceBundle {
 }
 
 describe('memory production trial runner', () => {
-  it('marks the human gold regression stage as not-run when no frozen pack is available', async () => {
+  it('keeps the human gold regression stage not-run and blocks the production gate', async () => {
     const report = await runMemoryProductionTrialRunner({
       id: 'production-trial-no-human-gold',
       cardId: 'alice-main',
@@ -119,6 +119,7 @@ describe('memory production trial runner', () => {
       status: 'not-run',
       passed: false,
     })
+    expect(report.summary.failingStageIds).not.toContain('gold-regression')
     expect(report.passed).toBe(false)
   })
 
@@ -642,7 +643,7 @@ describe('memory production trial runner', () => {
     expect(report.quality.summary.workingMemoryFixtureCount).toBe(1)
   })
 
-  it('marks missing production quality stages as not-run instead of treating them as passed', async () => {
+  it('reports missing production quality stages as not-run and blocks the production gate', async () => {
     const report = await runMemoryProductionTrialRunner({
       id: 'production-trial-not-run',
       cardId: 'alice-main',
@@ -651,20 +652,7 @@ describe('memory production trial runner', () => {
     })
 
     expect(report.passed).toBe(false)
-    expect(report.summary.failingStageIds).toEqual(expect.arrayContaining([
-      'dialogue-replay',
-      'runtime-health',
-      'working-memory-compression',
-      'compressed-context-behavior',
-      'long-term-recall',
-      'gold-regression',
-      'temporal-conflict',
-      'semantic-scale-soak',
-      'experience-quality',
-      'scope-fuzz',
-      'persona-dataset-hygiene',
-      'final-replay-gate',
-    ]))
+    expect(report.summary.failingStageIds).toEqual([])
     expect(report.summary.notRunStageIds).toEqual(expect.arrayContaining([
       'gold-regression',
       'temporal-conflict',
@@ -679,6 +667,9 @@ describe('memory production trial runner', () => {
       'persona-dataset-hygiene',
     ]))
     expect(report.summary.notRunStageIds).toHaveLength(12)
+    expect(report.summary.failingStageIds).not.toEqual(
+      expect.arrayContaining(report.summary.notRunStageIds),
+    )
     expect(report.stages).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: 'temporal-conflict',

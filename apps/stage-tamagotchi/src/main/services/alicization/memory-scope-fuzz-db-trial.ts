@@ -138,16 +138,15 @@ async function createVectorScopeAdapter() {
 
 async function enqueueScopeReviewCandidate(input: {
   db: MemoryScopeTrialDb
-  cardId: string
-  sourceId: string
+  record: MemoryScopeFuzzRecord
   kind: 'correction' | 'relationship'
 }) {
-  const summary = `scope ${input.kind} target ${input.sourceId} [${input.cardId}]`
+  const summary = `scope ${input.kind} target ${input.record.sourceId} [${input.record.cardId}] [${input.record.userId}]`
   await input.db.enqueueWorkingMemoryLongTermQueueItems({
-    cardId: input.cardId,
-    sessionId: `session-${input.kind}-${input.cardId}-${input.sourceId}`,
+    cardId: input.record.cardId,
+    sessionId: `session-${input.kind}-${input.record.id}`,
     items: [{
-      id: `${input.kind}-${input.cardId}-${input.sourceId}`,
+      id: `${input.kind}-${input.record.id}`,
       source: 'working-memory-owner',
       memoryEvidence: {
         version: 'working-memory-long-term-evidence-v1',
@@ -162,8 +161,8 @@ async function enqueueScopeReviewCandidate(input: {
       },
       kind: input.kind,
       summary,
-      reason: 'Scope fuzz repository target.',
-      sourceTurnIds: [`turn-${input.cardId}-${input.sourceId}:user`],
+      reason: `Scope fuzz repository target for ${input.record.userId}.`,
+      sourceTurnIds: [`turn-${input.record.id}:user`],
       evidenceSnippets: [summary],
       salience: input.kind === 'relationship' ? 0.92 : 0.82,
       confidence: input.kind === 'relationship' ? 0.92 : 0.68,
@@ -181,27 +180,26 @@ async function enqueueScopeReviewCandidate(input: {
 
 async function stageScopePersonaDataset(input: {
   db: MemoryScopeTrialDb
-  cardId: string
-  sourceId: string
+  record: MemoryScopeFuzzRecord
 }) {
   const summary = await enqueueScopeReviewCandidate({
     ...input,
     kind: 'relationship',
   })
   const reviewItem = (await input.db.listMemoryWorkbenchReviewItems({
-    cardId: input.cardId,
+    cardId: input.record.cardId,
     limit: 64,
   })).items.find(item => item.summary === summary)
   if (reviewItem) {
     await input.db.applyMemoryWorkbenchReviewAction({
-      cardId: input.cardId,
+      cardId: input.record.cardId,
       reviewItemId: reviewItem.id,
       decision: 'approve',
     })
     await input.db.drainWorkingMemoryLongTermQueue(4)
   }
   const reflection = (await input.db.listMemoryReflections({
-    cardId: input.cardId,
+    cardId: input.record.cardId,
     limit: 64,
   })).find(item => item.summary === summary)
   if (reflection) {
@@ -212,7 +210,7 @@ async function stageScopePersonaDataset(input: {
     }])
   }
   return await input.db.stagePersonaTrainingDataset({
-    cardId: input.cardId,
+    cardId: input.record.cardId,
     consent: {
       granted: true,
       policyVersion: 'persona-training-consent-v1',
@@ -228,150 +226,146 @@ export async function runMemoryScopeFuzzDbTrial(input: {
   createDb: (userDataPath: string, cardId: string) => Promise<MemoryScopeTrialDb>
 }): Promise<MemoryScopeFuzzReport> {
   const sandboxPath = await mkdtemp(join(tmpdir(), 'alicization-memory-scope-fuzz-trial-'))
-  let dbResource: MemoryScopeTrialDb | null = null
-  let foreignDbResource: MemoryScopeTrialDb | null = null
+  const dbResources = new Map<string, MemoryScopeTrialDb>()
   let vectorResource: Awaited<ReturnType<typeof createVectorScopeAdapter>> | null = null
   try {
-    const db = await input.createDb(sandboxPath, input.cardId)
-    dbResource = db
-    const foreignCardId = `${input.cardId}-foreign`
-    const foreignDb = await input.createDb(sandboxPath, foreignCardId)
-    foreignDbResource = foreignDb
+    const getDb = async (cardId: string) => {
+      const existing = dbResources.get(cardId)
+      if (existing)
+        return existing
+      const created = await input.createDb(sandboxPath, cardId)
+      dbResources.set(cardId, created)
+      return created
+    }
     const vector = await createVectorScopeAdapter()
     vectorResource = vector
     return await runMemoryScopeFuzzHarness({
-      seed: `production:${input.cardId}`,
+      seed: `production:${input.cardId}:${input.userId}`,
       caseCount: Math.max(1, Math.min(16, Math.floor(input.caseCount ?? 4))),
-      cardId: input.cardId,
-      userId: input.userId,
       views: {
-        memory_facts: async ({ query }) => {
-          await foreignDb.upsertMemoryFacts([{
-            subject: query.sourceId,
-            predicate: 'belongs-to',
-            object: `${query.userId}-foreign`,
-            confidence: 0.95,
-            sourceLabel: query.sourceId,
-            validationStatus: 'validated',
-          }], 'rule')
-          await db.upsertMemoryFacts([{
-            subject: query.sourceId,
-            predicate: 'belongs-to',
-            object: query.userId,
-            confidence: 0.95,
-            sourceLabel: query.sourceId,
-            validationStatus: 'validated',
-          }], 'rule')
+        memory_facts: async ({ query, records }) => {
+          for (const record of records) {
+            const db = await getDb(record.cardId)
+            await db.upsertMemoryFacts([{
+              subject: record.sourceId,
+              predicate: 'belongs-to',
+              object: record.userId,
+              confidence: 0.95,
+              sourceLabel: record.id,
+              validationStatus: 'validated',
+            }], 'rule')
+          }
+          const db = await getDb(query.cardId)
           return (await db.listMemoryFacts())
-            .filter(fact => fact.subject === query.sourceId)
+            .filter(fact =>
+              fact.subject === query.sourceId
+              && fact.object === query.userId,
+            )
             .map(fact => scopeRecord({
-              id: String(fact.id || `fact:${query.sourceId}`),
-              cardId: fact.object === query.userId ? query.cardId : foreignCardId,
+              id: String(fact.id || fact.sourceLabel || `fact:${query.sourceId}`),
+              cardId: query.cardId,
               userId: fact.object,
-              sourceId: query.sourceId,
+              sourceId: fact.subject,
             }))
         },
-        memory_consolidations: async ({ query }) => {
-          await foreignDb.upsertMemoryConsolidations([{
-            id: `consolidation-${foreignCardId}-${query.sourceId}`,
-            kind: 'daily',
-            facet: null,
-            periodKey: query.sourceId,
-            periodStartedAt: 1,
-            periodEndedAt: 10,
-            summary: `scope consolidation target ${query.sourceId} [${foreignCardId}]`,
-            lesson: `scope lesson ${query.sourceId}`,
-            cues: [query.sourceId],
-            confidence: 0.92,
-            dominantProvenance: 'remembered',
-            derivedEventIds: [],
-            updatedAt: 10,
-          }])
-          await db.upsertMemoryConsolidations([{
-            id: `consolidation-${query.cardId}-${query.sourceId}`,
-            kind: 'daily',
-            facet: null,
-            periodKey: query.sourceId,
-            periodStartedAt: 1,
-            periodEndedAt: 10,
-            summary: `scope consolidation target ${query.sourceId} [${query.cardId}]`,
-            lesson: `scope lesson ${query.sourceId}`,
-            cues: [query.sourceId],
-            confidence: 0.92,
-            dominantProvenance: 'remembered',
-            derivedEventIds: [],
-            updatedAt: 10,
-          }])
+        memory_consolidations: async ({ query, records }) => {
+          for (const record of records) {
+            const db = await getDb(record.cardId)
+            await db.upsertMemoryConsolidations([{
+              id: `consolidation-${record.id}`,
+              kind: 'daily',
+              facet: null,
+              periodKey: record.sourceId,
+              periodStartedAt: 1,
+              periodEndedAt: 10,
+              summary: `scope consolidation target ${record.sourceId} [${record.cardId}] [${record.userId}]`,
+              lesson: `scope lesson ${record.sourceId} [${record.userId}]`,
+              cues: [record.sourceId, record.userId],
+              confidence: 0.92,
+              dominantProvenance: 'remembered',
+              derivedEventIds: [],
+              updatedAt: 10,
+            }])
+          }
+          const db = await getDb(query.cardId)
           return (await db.searchMemoryConsolidations({
             query: query.sourceId,
             limit: 32,
           }))
-            .filter(item => item.cues.includes(query.sourceId))
+            .filter(item =>
+              item.periodKey === query.sourceId
+              && item.cues.includes(query.userId),
+            )
             .map(item => scopeRecord({
               id: item.id,
-              cardId: item.id.includes(foreignCardId) ? foreignCardId : query.cardId,
+              cardId: query.cardId,
               userId: query.userId,
-              sourceId: query.sourceId,
+              sourceId: item.periodKey,
             }))
         },
-        search_documents: async ({ query }) => {
+        search_documents: async ({ query, records }) => {
+          for (const record of records) {
+            await enqueueScopeReviewCandidate({
+              db: await getDb(record.cardId),
+              record,
+              kind: 'correction',
+            })
+          }
+          const db = await getDb(query.cardId)
+          await db.drainWorkingMemoryLongTermQueue(64)
           const listed = await db.listMemoryWorkbenchLongTermItems({
             cardId: query.cardId,
             query: query.sourceId,
             limit: 128,
           })
           return listed.items
-            .filter(item => item.summary.includes(query.sourceId) || item.evidenceSnippets.some(snippet => snippet.includes(query.sourceId)))
+            .filter(item =>
+              item.summary.includes(`[${query.userId}]`)
+              && (item.summary.includes(query.sourceId) || item.evidenceSnippets.some(snippet => snippet.includes(query.sourceId))),
+            )
             .map(item => scopeRecord({
               id: item.id,
-              cardId: item.summary.includes(`[${foreignCardId}]`) ? foreignCardId : query.cardId,
+              cardId: query.cardId,
               userId: query.userId,
               sourceId: query.sourceId,
             }))
         },
-        vectors: async ({ query }) => {
+        vectors: async ({ query, records }) => {
           const source = 'memory_reflections'
-          const text = `vector target ${query.sourceId}`
-          await vector.prepareCanonical({
-            cardId: query.cardId,
-            source,
-            sourceId: query.sourceId,
-            text,
-          })
-          await vector.prepareCanonical({
-            cardId: `${query.cardId}-foreign`,
-            source,
-            sourceId: query.sourceId,
-            text,
-          })
-          await vector.adapter.upsert([
-            {
-              id: `vector:${query.cardId}:${query.sourceId}`,
-              cardId: query.cardId,
-              sourceId: query.sourceId,
+          const orderedRecords = [
+            ...records.filter(record =>
+              record.cardId !== query.cardId
+              || record.userId !== query.userId
+              || record.sourceId !== query.sourceId,
+            ),
+            ...records.filter(record =>
+              record.cardId === query.cardId
+              && record.userId === query.userId
+              && record.sourceId === query.sourceId,
+            ),
+          ]
+          for (const record of orderedRecords) {
+            const text = `vector target ${record.sourceId} [${record.userId}]`
+            await vector.prepareCanonical({
+              cardId: record.cardId,
+              source,
+              sourceId: record.sourceId,
+              text,
+            })
+            await vector.adapter.upsert([{
+              id: `vector:${record.id}`,
+              cardId: record.cardId,
+              sourceId: record.sourceId,
               source,
               text,
-              vector: deterministicVector(query.sourceId),
+              vector: deterministicVector(record.sourceId),
               modelId: 'scope-model',
               dimensions: 3,
               vectorSpaceId,
               updatedAt: 10,
-              metadata: {},
-            },
-            {
-              id: `vector:${query.cardId}-foreign:${query.sourceId}`,
-              cardId: `${query.cardId}-foreign`,
-              sourceId: query.sourceId,
-              source,
-              text,
-              vector: deterministicVector(query.sourceId),
-              modelId: 'scope-model',
-              dimensions: 3,
-              vectorSpaceId,
-              updatedAt: 10,
-              metadata: {},
-            },
-          ])
+              metadata: { scopeUserId: record.userId },
+            }])
+          }
           const found = await vector.adapter.search({
             queryVector: deterministicVector(query.sourceId),
             cardId: query.cardId,
@@ -381,60 +375,76 @@ export async function runMemoryScopeFuzzDbTrial(input: {
             limit: 16,
           })
           return found
-            .map(result => ({
-              result,
-              cardId: result.record.id === `vector:${query.cardId}:${result.record.sourceId}`
-                ? query.cardId
-                : `${query.cardId}-foreign`,
-            }))
-            .filter(item =>
-              item.cardId !== query.cardId
-              || item.result.record.sourceId === query.sourceId,
+            .filter(result =>
+              result.record.sourceId === query.sourceId
+              && result.record.metadata?.scopeUserId === query.userId,
             )
-            .map(item => scopeRecord({
-              id: item.result.record.id,
-              cardId: item.cardId,
+            .map(result => scopeRecord({
+              id: result.record.id,
+              cardId: query.cardId,
               userId: query.userId,
-              sourceId: item.result.record.sourceId,
+              sourceId: result.record.sourceId,
             }))
         },
-        review_queue: async ({ query }) => {
-          await enqueueScopeReviewCandidate({
-            db: foreignDb,
-            cardId: foreignCardId,
-            sourceId: query.sourceId,
-            kind: 'correction',
-          })
-          await enqueueScopeReviewCandidate({
-            db,
+        review_queue: async ({ query, records }) => {
+          for (const record of records) {
+            await enqueueScopeReviewCandidate({
+              db: await getDb(record.cardId),
+              record,
+              kind: 'correction',
+            })
+          }
+          const db = await getDb(query.cardId)
+          await db.drainWorkingMemoryLongTermQueue(64)
+          return (await db.listMemoryWorkbenchReviewItems({
             cardId: query.cardId,
-            sourceId: query.sourceId,
-            kind: 'correction',
-          })
-          return (await db.listMemoryWorkbenchReviewItems({ cardId: query.cardId, limit: 8 })).items.filter(item => item.summary.includes(query.sourceId)).map(item => scopeRecord({
+            query: query.sourceId,
+            limit: 64,
+          })).items.filter(item => item.summary.includes(`[${query.userId}]`)).map(item => scopeRecord({
             id: item.id,
-            cardId: item.summary.includes(`[${foreignCardId}]`) ? foreignCardId : query.cardId,
+            cardId: query.cardId,
             userId: query.userId,
             sourceId: query.sourceId,
           }))
         },
-        persona_dataset: async ({ query }) => {
-          await stageScopePersonaDataset({
-            db: foreignDb,
-            cardId: foreignCardId,
-            sourceId: query.sourceId,
-          })
-          const dataset = await stageScopePersonaDataset({
-            db,
-            cardId: query.cardId,
-            sourceId: query.sourceId,
-          })
-          return (await db.getPersonaTrainingDataset({ cardId: query.cardId })).examples.filter(example => example.datasetId === dataset.id).map(example => scopeRecord({
-            id: example.id,
-            cardId: example.cardId,
-            userId: query.userId,
-            sourceId: query.sourceId,
-          }))
+        persona_dataset: async ({ query, records }) => {
+          const orderedRecords = [
+            ...records.filter(record =>
+              record.cardId !== query.cardId
+              || record.userId !== query.userId
+              || record.sourceId !== query.sourceId,
+            ),
+            ...records.filter(record =>
+              record.cardId === query.cardId
+              && record.userId === query.userId
+              && record.sourceId === query.sourceId,
+            ),
+          ]
+          let datasetId: string | null = null
+          for (const record of orderedRecords) {
+            const dataset = await stageScopePersonaDataset({
+              db: await getDb(record.cardId),
+              record,
+            })
+            if (record.cardId === query.cardId && record.userId === query.userId && record.sourceId === query.sourceId)
+              datasetId = dataset.id
+          }
+          if (!datasetId)
+            return []
+          const db = await getDb(query.cardId)
+          const snapshot = await db.getPersonaTrainingDataset({ cardId: query.cardId })
+          return snapshot.examples
+            .filter(example =>
+              example.datasetId === datasetId
+              && example.positiveExample.includes(query.sourceId)
+              && example.positiveExample.includes(`[${query.userId}]`),
+            )
+            .map(example => scopeRecord({
+              id: example.id,
+              cardId: example.cardId,
+              userId: query.userId,
+              sourceId: query.sourceId,
+            }))
         },
       },
     })
@@ -442,8 +452,7 @@ export async function runMemoryScopeFuzzDbTrial(input: {
   finally {
     await Promise.allSettled([
       vectorResource?.close(),
-      dbResource?.close(),
-      foreignDbResource?.close(),
+      ...[...dbResources.values()].map(db => db.close()),
     ])
     await rm(sandboxPath, { recursive: true, force: true })
   }

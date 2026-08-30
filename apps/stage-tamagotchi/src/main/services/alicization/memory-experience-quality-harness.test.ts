@@ -49,6 +49,22 @@ describe('memory experience quality harness', () => {
             summary: '打包前要避免把 apps/stage-tamagotchi/tsconfig.node.tsbuildinfo 混进提交。',
           }],
         },
+        {
+          id: 'failure-transparent-recall',
+          cardId: 'alice-main',
+          userText: '刚才 Provider 失败了，接下来怎么处理？',
+          replyText: '这次 Provider 请求失败了，我会保留原始错误并把失败原因写进报告，再决定下一步。',
+          shouldRecall: true,
+          expectedUsedMemoryIds: ['memory-provider-failure-transparent'],
+          recalledMemoryIds: ['memory-provider-failure-transparent'],
+          agentExperience: {
+            expectedIds: ['memory-provider-failure-transparent'],
+            dimensions: ['failure-mode'],
+          },
+          rankReasonsById: {
+            'memory-provider-failure-transparent': ['rrf:semantic:failure-transparency'],
+          },
+        },
       ],
     })
 
@@ -147,5 +163,55 @@ describe('memory experience quality harness', () => {
       '把 agent workflow、环境 affordance、gotcha 和 premise awareness 纳入长期记忆召回评测集。',
     ]))
     expect(JSON.parse(JSON.stringify(report))).toEqual(report)
+  })
+
+  it('recognizes natural low-evidence abstention and rejects opaque failure handling', () => {
+    const abstentionReport = runMemoryExperienceQualityHarness({
+      id: 'experience-quality-abstention-language',
+      cardId: 'alice-main',
+      createdAt: now,
+      fixtures: [{
+        id: 'natural-abstention',
+        cardId: 'alice-main',
+        userText: '我上个月说过哪个模型最好？',
+        replyText: '我现在没有足够证据确认，不想先猜一个答案。',
+        shouldRecall: true,
+        expectedAbstain: true,
+      }],
+    })
+
+    expect(abstentionReport.passed).toBe(true)
+    expect(abstentionReport.summary.abstentionMissCount).toBe(0)
+
+    const failureReport = runMemoryExperienceQualityHarness({
+      id: 'experience-quality-opaque-failure',
+      cardId: 'alice-main',
+      createdAt: now,
+      fixtures: [{
+        id: 'opaque-provider-failure',
+        cardId: 'alice-main',
+        userText: 'Provider 刚才失败了，告诉我真实情况。',
+        replyText: '没事，我继续处理就好。',
+        shouldRecall: true,
+        expectedUsedMemoryIds: ['memory-provider-failure-transparent'],
+        recalledMemoryIds: ['memory-provider-failure-transparent'],
+        agentExperience: {
+          expectedIds: ['memory-provider-failure-transparent'],
+          dimensions: ['failure-mode'],
+        },
+        rankReasonsById: {
+          'memory-provider-failure-transparent': ['rrf:semantic:failure-transparency'],
+        },
+      }],
+    })
+
+    expect(failureReport.passed).toBe(false)
+    expect(failureReport.summary.agentExperienceMissCount).toBe(1)
+    expect(failureReport.findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'agent-experience-miss',
+        fixtureId: 'opaque-provider-failure',
+      }),
+    ]))
   })
 })

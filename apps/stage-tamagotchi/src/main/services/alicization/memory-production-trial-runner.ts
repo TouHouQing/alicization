@@ -556,7 +556,7 @@ export async function runMemoryProductionTrialRunner(
   )
 
   const failingStageIds = stages
-    .filter(stage => !stage.passed)
+    .filter(stage => stage.status !== 'not-run' && !stage.passed)
     .map(stage => stage.id)
   const notRunStageIds = stages
     .filter(stage => stage.status === 'not-run')
