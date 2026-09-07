@@ -279,6 +279,13 @@ describe('memory workbench settings page', () => {
     expect(source).not.toContain('deadLettered: {{')
   })
 
+  it('uses the effective dataset snapshot active id for version status after revocation or rollback', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain('personaTrainingDataset.activeVersionId === version.id')
+    expect(source).not.toContain('formatBoolean(version.activeAt !== null)')
+  })
+
   it('renders durable reindex progress, cancellation, retry, and transparent provider errors', () => {
     const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
 

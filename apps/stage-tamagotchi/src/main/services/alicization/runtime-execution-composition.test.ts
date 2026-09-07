@@ -130,6 +130,7 @@ describe('runtime execution composition', () => {
         activityAt,
         threadId: 'thread-b',
       }),
+      undefined,
     )
   })
 
@@ -185,6 +186,7 @@ describe('runtime execution composition', () => {
         activityAt,
         threadId: 'thread-b',
       }),
+      undefined,
     )
   })
 })

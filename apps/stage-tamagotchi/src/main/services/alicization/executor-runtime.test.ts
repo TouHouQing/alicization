@@ -578,7 +578,7 @@ describe('executor runtime capability resolution', () => {
       metadata: {
         source: 'runtime-default-probe',
       },
-    }))
+    }), { signal: undefined })
   })
 
   it('persists and audits a transparent diagnostic when an expired capability probe fails', async () => {
@@ -618,7 +618,7 @@ describe('executor runtime capability resolution', () => {
       ready: false,
       reason: 'codex-capability-probe-failed: probe permission denied',
       lastCheckedAt: Date.now(),
-    }))
+    }), { signal: undefined })
     expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
       category: 'alicization.executor.capability-manifest',
       action: 'probe-failed',

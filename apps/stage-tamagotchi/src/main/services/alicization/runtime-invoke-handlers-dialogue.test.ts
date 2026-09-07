@@ -7,7 +7,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   electronAlicizationAckDialogue,
+  electronAlicizationListConversationTurns,
   electronAlicizationListHumanlikeMemoryAudit,
+  electronAlicizationListTurnToolProjections,
   electronAlicizationReplayDialogues,
   electronAlicizationReportProactiveFeedback,
 } from '../../../shared/eventa'
@@ -392,12 +394,20 @@ describe('runtime invoke handlers dialogue', () => {
     const registerInvokeHandler = vi.fn()
     const withCardScopeCalls: Array<{
       cardId: unknown
-      options?: { label?: string, skipQueueWhenScopeAlreadyActive?: boolean }
+      options?: {
+        label?: string
+        lane?: 'foreground' | 'background'
+        skipQueueWhenScopeAlreadyActive?: boolean
+      }
     }> = []
     const withCardScope = async <T>(
       nextCardIdRaw: unknown,
       task: () => Promise<T>,
-      options?: { label?: string, skipQueueWhenScopeAlreadyActive?: boolean },
+      options?: {
+        label?: string
+        lane?: 'foreground' | 'background'
+        skipQueueWhenScopeAlreadyActive?: boolean
+      },
     ): Promise<T> => {
       withCardScopeCalls.push({
         cardId: nextCardIdRaw,
@@ -482,12 +492,113 @@ describe('runtime invoke handlers dialogue', () => {
         cardId: 'card-fast-dialogue',
         options: expect.objectContaining({
           label: 'dialogue-replay:card-fast-dialogue',
+          lane: 'foreground',
           skipQueueWhenScopeAlreadyActive: true,
         }),
       }),
     ]))
     expect(ackDialogueDelivery).toHaveBeenCalled()
     expect(listConversationTurnsBySession).toHaveBeenCalled()
+  })
+
+  it('marks conversation history and tool projection reads as foreground scope work', async () => {
+    const registerInvokeHandler = vi.fn()
+    const withCardScopeCalls: Array<{
+      cardId: unknown
+      options?: {
+        label?: string
+        lane?: 'foreground' | 'background'
+        skipQueueWhenScopeAlreadyActive?: boolean
+      }
+    }> = []
+    const withCardScope = async <T>(
+      nextCardIdRaw: unknown,
+      task: () => Promise<T>,
+      options?: {
+        label?: string
+        lane?: 'foreground' | 'background'
+        skipQueueWhenScopeAlreadyActive?: boolean
+      },
+    ): Promise<T> => {
+      withCardScopeCalls.push({
+        cardId: nextCardIdRaw,
+        options,
+      })
+      return await task()
+    }
+
+    registerAlicizationDialogueInvokeHandlers({
+      registerInvokeHandler,
+      withCardScope,
+      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      appendRuntimeDebugLine: vi.fn(async () => {}),
+      getActiveCardId: () => 'card-dialogue-history',
+      localRuntimeUserId: 'local-user',
+      persistActiveSessionId: vi.fn(async () => {}),
+      appendConversationTurnWithGuards: vi.fn(async () => true),
+      getDialogueAckCursor: vi.fn(() => 0),
+      ackDialogueDelivery: vi.fn(async () => {}),
+      ensureProactiveLoopState: vi.fn(async () => ({ outcomes: [] }) as any),
+      reportExplicitProactiveFeedback: vi.fn(() => ({ appliedOutcomes: [], state: { outcomes: [] } }) as any),
+      persistProactiveLoopState: vi.fn(async () => {}),
+      persistProactiveFeedbackOutcomeClosure: vi.fn(async () => {}),
+      syncSessionMirrorFromCurrentCardState: vi.fn(async () => {}),
+      appendAuditLog: vi.fn(async () => {}),
+      queueSubconsciousWake: vi.fn(),
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listConversationTurnsBySession: vi.fn(async () => []),
+        listRuntimeEventScopes: vi.fn(async () => []),
+        loadRuntimeCheckpoint: vi.fn(async () => null),
+        listRuntimeEvents: vi.fn(async () => []),
+        getMemoryStats: vi.fn(async () => ({})),
+        listMindTurnEvents: vi.fn(async () => []),
+        overrideMemoryStats: vi.fn(async () => ({})),
+        getMetaValue: vi.fn(async () => undefined),
+        setMetaValue: vi.fn(async () => {}),
+      }),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSelfEvolutionState: vi.fn(async () => ({}) as any),
+      toReplayDialogueRespondedPayload: vi.fn(() => null),
+      clearAllConversationData: vi.fn(async () => {}),
+      parseStructuredHint: () => ({}),
+    })
+
+    const listTurnsHandler = registerInvokeHandler.mock.calls.find(call => call[0] === electronAlicizationListConversationTurns)?.[1] as (payload: {
+      cardId: string
+      sessionId: string
+    }) => Promise<unknown>
+    const listToolProjectionsHandler = registerInvokeHandler.mock.calls.find(call => call[0] === electronAlicizationListTurnToolProjections)?.[1] as (payload: {
+      cardId: string
+      sessionId: string
+      limit?: number
+    }) => Promise<unknown>
+
+    await listTurnsHandler({
+      cardId: 'card-dialogue-history',
+      sessionId: 'session-dialogue-history',
+    })
+    await listToolProjectionsHandler({
+      cardId: 'card-dialogue-history',
+      sessionId: 'session-dialogue-history',
+      limit: 1,
+    })
+
+    expect(withCardScopeCalls).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        options: expect.objectContaining({
+          lane: 'foreground',
+          skipQueueWhenScopeAlreadyActive: true,
+        }),
+      }),
+      expect.objectContaining({
+        options: expect.objectContaining({
+          lane: 'foreground',
+          skipQueueWhenScopeAlreadyActive: true,
+        }),
+      }),
+    ]))
   })
 
   it('replays canonical tool projections for one card, user, and conversation without re-executing actions', async () => {

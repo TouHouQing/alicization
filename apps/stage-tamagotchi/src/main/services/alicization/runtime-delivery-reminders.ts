@@ -68,6 +68,7 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
       decisionTraceId?: string | null
     },
     agentTurn?: AlicizationAgentTurnRuntime | null,
+    providerOptions?: { signal?: AbortSignal },
   ) => Promise<any>
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
   buildReminderContinuitySignal: (input: any) => any
@@ -166,7 +167,13 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
   async function processDueRemindersForCurrentCard(
     trigger: 'timer' | 'force' | 'startup',
     agentTurn?: AlicizationAgentTurnRuntime | null,
+    processOptions: { signal?: AbortSignal } = {},
   ) {
+    const assertNotAborted = () => {
+      if (processOptions.signal?.aborted)
+        throw processOptions.signal.reason ?? new DOMException('Reminder processing aborted', 'AbortError')
+    }
+    assertNotAborted()
     const cardId = options.getActiveCardId()
     await options.hydrateAgentTurnFromCurrentCardState({
       agentTurn,
@@ -183,7 +190,8 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
     }
 
     const nowMs = Date.now()
-    const pendingPreview = await options.getAlicizationDb().listPendingScheduledTasks(1).catch(() => [])
+    const pendingPreview = await options.getAlicizationDb().listPendingScheduledTasks(1, processOptions).catch(() => [])
+    assertNotAborted()
     const nextPending = pendingPreview.at(0)
     await options.appendRuntimeDebugLine('reminder.scan-started', {
       cardId: options.getActiveCardId(),
@@ -195,7 +203,8 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
       nextPendingTriggerIso: typeof nextPending?.triggerAt === 'number' ? new Date(nextPending.triggerAt).toISOString() : undefined,
       nextPendingDueInMs: typeof nextPending?.triggerAt === 'number' ? nextPending.triggerAt - nowMs : undefined,
     })
-    const dueTasks = await options.getAlicizationDb().claimDueScheduledTasks(nowMs, options.reminderClaimBatchSize)
+    const dueTasks = await options.getAlicizationDb().claimDueScheduledTasks(nowMs, options.reminderClaimBatchSize, processOptions)
+    assertNotAborted()
     if (dueTasks.length === 0) {
       await options.appendRuntimeDebugLine('reminder.scan-empty', {
         cardId: options.getActiveCardId(),
@@ -224,6 +233,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
     let requeued = 0
 
     for (const task of dueTasks) {
+      assertNotAborted()
       const delayMinutes = Math.max(0, (nowMs - task.triggerAt) / 60_000)
       const tier = delayMinutes >= options.reminderOverdueTierThresholdMinutes ? 'severe' : 'mild'
       const reminderInput = {
@@ -299,10 +309,11 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         })
         const llmStructured = await options.generateReminderStructuredWithGateway(personality, reminderInput, {
           turnId: firedTurnId,
-        }, agentTurn)
+        }, agentTurn, processOptions)
+        assertNotAborted()
         if (!llmStructured) {
           const nextTriggerAt = Date.now() + options.reminderLlmRetryDelayMs
-          await options.getAlicizationDb().requeueScheduledTask(task.taskId, 'llm-unavailable', nextTriggerAt)
+          await options.getAlicizationDb().requeueScheduledTask(task.taskId, 'llm-unavailable', nextTriggerAt, processOptions)
           requeued += 1
           await options.appendRuntimeDebugLine('reminder.task-requeued', {
             cardId: options.getActiveCardId(),
@@ -350,7 +361,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         })
         if (!reminderVisibleUtterance.shouldPersistVisibleUtterance) {
           const nextTriggerAt = Date.now() + options.reminderLlmRetryDelayMs
-          await options.getAlicizationDb().requeueScheduledTask(task.taskId, reminderVisibleUtterance.decision.reason, nextTriggerAt)
+          await options.getAlicizationDb().requeueScheduledTask(task.taskId, reminderVisibleUtterance.decision.reason, nextTriggerAt, processOptions)
           requeued += 1
           await options.appendAuditLog({
             level: 'warning',
@@ -391,6 +402,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           origin: resolveAlicizationAutonomousDialogueOrigin('proactive'),
           createdAt: Date.now(),
           visibleReplyRealization: reminderVisibleUtterance.visibleReplyRealization,
+          abortSignal: processOptions.signal,
         })
 
         if (!persisted) {
@@ -456,7 +468,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           })
         }
 
-        await options.getAlicizationDb().completeScheduledTask(task.taskId, firedTurnId, Date.now())
+        await options.getAlicizationDb().completeScheduledTask(task.taskId, firedTurnId, Date.now(), processOptions)
         completed += 1
         await options.appendRuntimeDebugLine('reminder.task-completed', {
           cardId: options.getActiveCardId(),
@@ -481,9 +493,11 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         })
       }
       catch (error) {
+        if (processOptions.signal?.aborted)
+          throw processOptions.signal.reason
         failed += 1
         const reason = options.sanitizeBriefText(error instanceof Error ? error.message : String(error), 300) || 'unknown reminder execution failure'
-        await options.getAlicizationDb().failScheduledTask?.(task.taskId, reason, Date.now()).catch(() => {})
+        await options.getAlicizationDb().failScheduledTask?.(task.taskId, reason, Date.now(), processOptions).catch(() => {})
         await options.appendRuntimeDebugLine('reminder.task-failed', {
           cardId: options.getActiveCardId(),
           trigger,

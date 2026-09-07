@@ -40,6 +40,7 @@ export function createAlicizationRuntimeMemoryRuntime(
   )
   const {
     getOrganicMemorySnapshot,
+    getOrganicMemoryPromptSnapshot,
     recallSubconsciousFragmentsWithGovernor,
     recallEpisodicEventsWithGovernor,
     buildHostPersonModel,
@@ -54,6 +55,7 @@ export function createAlicizationRuntimeMemoryRuntime(
     organicMemoryPrompt: {
       ...options.organicMemorySearch,
       getOrganicMemorySnapshot,
+      getOrganicMemoryPromptSnapshot,
       recallSubconsciousFragmentsWithGovernor,
       recallEpisodicEventsWithGovernor,
       buildHostPersonModel,

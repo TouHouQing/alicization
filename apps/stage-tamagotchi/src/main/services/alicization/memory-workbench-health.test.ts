@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import sqlite3 from 'sqlite3'
 
+import { getLoadablePath } from 'sqlite-vec'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { setupAlicizationDb } from './db'
@@ -52,6 +53,12 @@ function closeRawDatabase(database: sqlite3.Database) {
       else
         resolve()
     })
+  })
+}
+
+function loadSqliteVec(database: sqlite3.Database) {
+  return new Promise<void>((resolve, reject) => {
+    database.loadExtension(getLoadablePath(), error => error ? reject(error) : resolve())
   })
 }
 
@@ -392,7 +399,7 @@ describe('memory workbench health', () => {
         modelId: 'test-embedding',
         dimensions: 3,
         indexMode: 'sqlite-vec',
-        approximate: false,
+        approximate: true,
         degraded: false,
         nativeIndexReady: true,
         searchReady: false,
@@ -405,6 +412,193 @@ describe('memory workbench health', () => {
     }
     finally {
       await db.close()
+    }
+  })
+
+  it('keeps current index health separate from a historical failed reindex job', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const db = await setupAlicizationDb(userDataPath, {
+      embeddingProvider: {
+        modelId: 'failed-job-health-embedding',
+        dimensions: 3,
+        vectorSpaceId: 'failed-job-health-embedding:3',
+        embedTexts: async texts => texts.map(text => ({ text, vector: [1, 0, 0] })),
+      },
+    })
+    let rawDatabase: sqlite3.Database | null = null
+    try {
+      await db.upsertMemoryReflections([{
+        id: 'reflection-failed-job-health',
+        cardId: 'default',
+        sourceKind: 'reply',
+        targetScope: 'task',
+        summary: '当前索引健康，但历史修复任务可以单独失败。',
+        lesson: '任务状态不应伪装成当前长期记忆不可搜索。',
+        status: 'confirmed',
+        confidence: 0.9,
+      }])
+      const scheduled = await db.reindexMemoryWorkbenchEmbeddings({
+        cardId: 'default',
+        sourceIds: ['reflection-failed-job-health'],
+        limit: 1,
+      })
+      await waitFor(
+        async () => await db.reindexMemoryWorkbenchEmbeddings({
+          cardId: 'default',
+          action: 'status',
+          jobId: scheduled.jobId!,
+        }),
+        progress => progress.status === 'completed',
+      )
+
+      rawDatabase = await openRawDatabase(db.dbPath)
+      await executeRawSql(rawDatabase, `
+        UPDATE memory_embedding_reindex_jobs
+        SET status = 'failed',
+            stage = 'failed',
+            last_error = 'historical repair failure'
+        WHERE id = '${scheduled.jobId}';
+      `)
+      await closeRawDatabase(rawDatabase)
+      rawDatabase = null
+
+      await expect(db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })).resolves.toMatchObject({
+        reindexRequired: false,
+        searchReady: true,
+        reindexJob: {
+          status: 'failed',
+        },
+      })
+    }
+    finally {
+      if (rawDatabase)
+        await closeRawDatabase(rawDatabase)
+      await db.close()
+    }
+  })
+
+  it('schedules an asynchronous native index rebuild after restart finds a missing index', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const provider = {
+      modelId: 'migration-embedding',
+      dimensions: 3,
+      vectorSpaceId: 'migration-embedding:3',
+      embedTexts: async (texts: string[]) => texts.map(text => ({
+        text,
+        vector: [1, 0, 0],
+      })),
+    }
+    const db = await setupAlicizationDb(userDataPath, {
+      cardId: 'card-native-migration',
+      embeddingProvider: provider,
+    })
+    let dbPath = ''
+    let initialJobId: string | null = null
+    try {
+      dbPath = db.dbPath
+      await db.upsertMemoryReflections([{
+        id: 'reflection-native-migration',
+        cardId: 'card-native-migration',
+        sourceKind: 'reply',
+        targetScope: 'task',
+        summary: '索引迁移必须在后台完成。',
+        lesson: '启动不能被大规模原生索引重建阻塞。',
+        status: 'confirmed',
+        confidence: 0.9,
+      }])
+      const initialJob = await db.reindexMemoryWorkbenchEmbeddings({
+        cardId: 'card-native-migration',
+        sourceIds: ['reflection-native-migration'],
+        limit: 1,
+      })
+      expect(initialJob.jobId).toBeTruthy()
+      initialJobId = initialJob.jobId ?? null
+      await waitFor(
+        async () => await db.reindexMemoryWorkbenchEmbeddings({
+          cardId: 'card-native-migration',
+          action: 'status',
+          jobId: initialJob.jobId!,
+        }),
+        progress => progress.status === 'completed',
+      )
+    }
+    finally {
+      await db.close()
+    }
+
+    const rawDatabase = await openRawDatabase(dbPath)
+    try {
+      await loadSqliteVec(rawDatabase)
+      await executeRawSql(rawDatabase, `
+        DROP TABLE IF EXISTS long_term_memory_vec_3;
+        DELETE FROM long_term_memory_sqlite_vec_rows;
+        UPDATE memory_embedding_reindex_jobs
+        SET status = 'cancelled',
+            stage = 'cancelled',
+            last_error = 'previous native index rebuild was cancelled'
+        WHERE id = '${initialJobId}';
+      `)
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+
+    let releaseEmbedding!: () => void
+    const embeddingGate = new Promise<void>((resolve) => {
+      releaseEmbedding = resolve
+    })
+    const reopened = await setupAlicizationDb(userDataPath, {
+      cardId: 'card-native-migration',
+      embeddingProvider: {
+        ...provider,
+        embedTexts: async (texts: string[]) => {
+          await embeddingGate
+          return texts.map(text => ({
+            text,
+            vector: [1, 0, 0],
+          }))
+        },
+      },
+    })
+    try {
+      const rebuilding = await waitFor(
+        async () => await reopened.getMemoryWorkbenchEmbeddingHealth({
+          cardId: 'card-native-migration',
+        }),
+        value => value.reindexJob?.status === 'running' && value.searchReady,
+      )
+      expect(rebuilding).toMatchObject({
+        reindexRequired: true,
+        indexMode: 'brute-force',
+        degraded: true,
+        nativeIndexReady: false,
+        searchReady: true,
+        reindexJob: {
+          status: 'running',
+        },
+      })
+      expect(rebuilding.reindexJob?.jobId).not.toBe(initialJobId)
+
+      releaseEmbedding()
+      const health = await waitFor(
+        async () => await reopened.getMemoryWorkbenchEmbeddingHealth({
+          cardId: 'card-native-migration',
+        }),
+        value => value.reindexJob?.status === 'completed' && value.nativeIndexReady,
+      )
+
+      expect(health).toMatchObject({
+        reindexRequired: false,
+        nativeIndexReady: true,
+        degraded: false,
+        reindexJob: {
+          status: 'completed',
+        },
+      })
+    }
+    finally {
+      releaseEmbedding()
+      await reopened.close()
     }
   })
 
@@ -438,7 +632,10 @@ describe('memory workbench health', () => {
       }])
       const readyA = await waitFor(
         async () => await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' }),
-        health => health.searchReady && health.vectorSpaceId === 'space-a',
+        health =>
+          health.searchReady
+          && !health.reindexRequired
+          && health.vectorSpaceId === 'space-a',
       )
       expect(readyA).toMatchObject({
         searchReady: true,

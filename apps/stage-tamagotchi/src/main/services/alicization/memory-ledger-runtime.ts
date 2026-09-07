@@ -38,8 +38,14 @@ export const emptyAlicizationExecutionLedgerContext: AlicizationExecutionLedgerC
 
 interface AlicizationExecutionLedgerRuntimeOptions {
   getNow?: () => number
-  listExecutionEvents: (input?: AlicizationListExecutionEventsInput) => Promise<AlicizationExecutionEventRecord[]>
-  listTaskThreads: (input?: AlicizationListTaskThreadsInput) => Promise<AlicizationTaskThreadRecord[]>
+  listExecutionEvents: (
+    input?: AlicizationListExecutionEventsInput,
+    options?: { signal?: AbortSignal },
+  ) => Promise<AlicizationExecutionEventRecord[]>
+  listTaskThreads: (
+    input?: AlicizationListTaskThreadsInput,
+    options?: { signal?: AbortSignal },
+  ) => Promise<AlicizationTaskThreadRecord[]>
 }
 
 const ledgerMaxThreadAgeMs = 15 * 60_000
@@ -48,6 +54,42 @@ const activeExecutionThreadStatuses = new Set([
   'planned',
   'running',
 ])
+
+function throwIfExecutionLedgerAborted(signal?: AbortSignal) {
+  if (signal?.aborted)
+    throw signal.reason ?? new DOMException('Execution ledger read aborted', 'AbortError')
+}
+
+function readExecutionLedgerRows<TInput, TResult>(
+  read: (
+    input?: TInput,
+    options?: { signal?: AbortSignal },
+  ) => Promise<TResult>,
+  input: TInput,
+  signal?: AbortSignal,
+) {
+  return signal
+    ? read(input, { signal })
+    : read(input)
+}
+
+async function readExecutionLedgerOwner<T>(
+  read: () => Promise<T>,
+  fallback: T,
+  signal?: AbortSignal,
+) {
+  throwIfExecutionLedgerAborted(signal)
+  try {
+    const value = await read()
+    throwIfExecutionLedgerAborted(signal)
+    return value
+  }
+  catch (error) {
+    if (signal?.aborted || error instanceof Error && error.name === 'AbortError')
+      throw error
+    return fallback
+  }
+}
 
 function buildExecutionLedgerItem(input: {
   events: AlicizationExecutionEventRecord[]
@@ -98,15 +140,21 @@ export function createAlicizationMemoryLedgerRuntime(options: AlicizationExecuti
 
   async function buildExecutionLedgerContext(input: {
     sessionId: string
+    signal?: AbortSignal
   }): Promise<AlicizationExecutionLedgerContext> {
+    throwIfExecutionLedgerAborted(input.signal)
     const sessionId = sanitizeExecutionLedgerText(input.sessionId, 160)
     if (!sessionId)
       return emptyAlicizationExecutionLedgerContext
 
-    const rawThreads = await options.listTaskThreads({
-      sessionId,
-      limit: 6,
-    }).catch(() => [])
+    const rawThreads = await readExecutionLedgerOwner(
+      () => readExecutionLedgerRows(options.listTaskThreads, {
+        sessionId,
+        limit: 6,
+      }, input.signal),
+      [],
+      input.signal,
+    )
     const recentThreads = rawThreads
       .filter(thread => getNow() - readTaskThreadActivityAt(thread) <= ledgerMaxThreadAgeMs)
       .filter(thread => activeExecutionThreadStatuses.has(thread.status))
@@ -117,10 +165,14 @@ export function createAlicizationMemoryLedgerRuntime(options: AlicizationExecuti
       return emptyAlicizationExecutionLedgerContext
 
     const items = await Promise.all(recentThreads.map(async (thread) => {
-      const events = await options.listExecutionEvents({
-        threadId: thread.id,
-        limit: 8,
-      }).catch(() => [])
+      const events = await readExecutionLedgerOwner(
+        () => readExecutionLedgerRows(options.listExecutionEvents, {
+          threadId: thread.id,
+          limit: 8,
+        }, input.signal),
+        [],
+        input.signal,
+      )
       return buildExecutionLedgerItem({
         thread,
         events,

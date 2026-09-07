@@ -134,17 +134,17 @@ export function resolveDefaultMemoryQualityTrialUserDataPath(input: {
   const pathExists = input.pathExists ?? existsSync
   const candidates = currentPlatform === 'darwin'
     ? [
-        join(currentHomeDir, 'Library', 'Application Support', 'com.tohoqing.alicization'),
         join(currentHomeDir, 'Library', 'Application Support', 'Alicization'),
+        join(currentHomeDir, 'Library', 'Application Support', 'com.tohoqing.alicization'),
       ]
     : currentPlatform === 'win32'
       ? [
-          join(currentEnv.APPDATA || join(currentHomeDir, 'AppData', 'Roaming'), 'com.tohoqing.alicization'),
           join(currentEnv.APPDATA || join(currentHomeDir, 'AppData', 'Roaming'), 'Alicization'),
+          join(currentEnv.APPDATA || join(currentHomeDir, 'AppData', 'Roaming'), 'com.tohoqing.alicization'),
         ]
       : [
-          join(currentEnv.XDG_CONFIG_HOME || join(currentHomeDir, '.config'), 'com.tohoqing.alicization'),
           join(currentEnv.XDG_CONFIG_HOME || join(currentHomeDir, '.config'), 'Alicization'),
+          join(currentEnv.XDG_CONFIG_HOME || join(currentHomeDir, '.config'), 'com.tohoqing.alicization'),
         ]
 
   return candidates.find(candidate =>

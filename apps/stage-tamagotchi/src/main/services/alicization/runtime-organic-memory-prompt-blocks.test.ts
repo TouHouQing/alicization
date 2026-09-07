@@ -363,4 +363,68 @@ describe('runtime-organic-memory-prompt-blocks', () => {
       /surfacePolicy|shouldStayInward|shouldDelayUntilAfterPayoff|stableCoreOnly|suppressionTags|recollectionIntent|recollectionAgenda|内部召回理由|内部计划理由|内部表层理由|内部开场草稿/u,
     )
   })
+
+  it('removes internal governance cues from every Provider-facing organic memory field', () => {
+    const serialized = buildOrganicMemoryProviderFactBlocks(buildContext({
+      hostAttitude: 'opening_policy=measured；保持真实和克制。',
+      coreIncarnation: 'relationship_cadence:steady visibility=redacted_internal',
+      activeThoughts: [{
+        id: 'thought-cue-residue',
+        text: 'recollection:session-1 cleaned:working-memory-long-term:turn-1 继续确认真实进展。',
+      } as any],
+      retrievedFacts: [{
+        id: 'cleaned:fact-1',
+        subject: '用户',
+        predicate: '记得',
+        object: '用户喜欢安静的工作环境。 opening_policy=measured',
+        confidence: 0.9,
+        provenance: 'remembered',
+        source: 'cleaned:memory-facts',
+      } as any],
+      recalledFragments: [{
+        id: 'fragment-cleaned:1',
+        text: '上次任务已经完成。 recollection:session-1 visibility=redacted_internal',
+        sourceKind: 'mind-continuity',
+        provenance: 'remembered',
+        createdAt: 1,
+      } as any],
+      recalledEpisodes: [{
+        id: 'episode-1',
+        occurredAt: 1,
+        whatHappened: '用户完成了修复。 relationship_cadence:steady',
+        felt: 'recollection:episode-1',
+        whatChanged: 'cleaned:episode-1 现在可以继续验证。',
+        confidence: 0.8,
+        provenance: 'remembered',
+        sourceKind: 'reply',
+      } as any],
+      consolidatedMemories: [{
+        id: 'cleaned:consolidation-1',
+        kind: 'daily',
+        periodKey: 'cleaned:2026-09-01',
+        summary: '用户完成了修复。 visibility=redacted_internal',
+        lesson: 'recollection:lesson-1 保留真实结果。',
+        cues: ['cleaned:cue-1', '自然记忆线索'],
+        confidence: 0.8,
+        dominantProvenance: 'remembered',
+      } as any],
+      proceduralMemories: [{
+        id: 'procedure-1',
+        label: 'cleaned:procedure-1',
+        approach: '先检查结果。 relationship_cadence=steady',
+        pitfalls: ['opening_policy=none', '保留真实错误'],
+        confidence: 0.8,
+        cues: ['recollection:procedure-1', '真实线索'],
+      } as any],
+    })).join('\n')
+
+    expect(serialized).toContain('保持真实和克制。')
+    expect(serialized).toContain('用户喜欢安静的工作环境。')
+    expect(serialized).toContain('继续确认真实进展。')
+    expect(serialized).toContain('自然记忆线索')
+    expect(serialized).toContain('保留真实错误')
+    expect(serialized).not.toMatch(
+      /opening_policy|relationship_cadence|visibility\s*=\s*redacted_internal|recollection:[^\s;；|,，。.!！?？(){}]+|cleaned:[^\s;；|,，。.!！?？(){}]+/iu,
+    )
+  })
 })

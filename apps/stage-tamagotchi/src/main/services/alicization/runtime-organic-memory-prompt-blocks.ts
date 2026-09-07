@@ -7,15 +7,77 @@ import {
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
-function sanitizeOrganicMemoryProviderText(raw: unknown, maxChars = 220) {
-  const normalized = sanitizeAlicizationProviderFacingText(raw, maxChars)
+const organicMemoryInternalCuePatterns = [
+  /\bautobiographical\s+phase\b/giu,
+  /\bemotion:[^\s;；|,，。.!！?？(){}]+/giu,
+  /\b(?:opening[_-]policy|relationship[_-]cadence)\s*(?:[:=]\s*[^\s;；|,，。.!！?？(){}]*)?/giu,
+  /\bvisibility\s*[:=]\s*redacted[_-]internal\b/giu,
+  /\brecollection:[^\s;；|,，。.!！?？(){}]*/giu,
+  /\bcleaned:[^\s;；|,，。.!！?？(){}]*/giu,
+  /\b(?:pre_turn_context_digest|structured[-_]state|project[-_]state[-_]brief|runtime[-_]mind[-_]state)\b/giu,
+]
+
+function stripOrganicMemoryInternalCueFragments(text: string) {
+  let stripped = text
+  let changed = false
+  for (const pattern of organicMemoryInternalCuePatterns) {
+    pattern.lastIndex = 0
+    const next = stripped.replace(pattern, ' ')
+    changed ||= next !== stripped
+    stripped = next
+  }
+
+  if (!changed)
+    return text
+
+  return stripped
+    .replace(/\s+/gu, ' ')
+    .replace(/([。.!！?？])\s*[,，;；|:：]\s*/gu, '$1 ')
+    .replace(/^[\s,，;；|:：]+|[\s,，;；|:：]+$/gu, '')
+    .trim()
+}
+
+function sanitizeOrganicMemoryText(
+  raw: unknown,
+  maxChars: number,
+  sanitize: (value: unknown, chars: number) => string,
+) {
+  const normalized = sanitize(raw, maxChars)
   if (!normalized || normalized === alicizationFixedTemplateReplacement)
     return ''
-  return normalized
+
+  const stripped = stripOrganicMemoryInternalCueFragments(normalized)
+  return stripped.slice(0, Math.max(0, maxChars)).trim()
+}
+
+function sanitizeOrganicMemoryProviderText(raw: unknown, maxChars = 220) {
+  return sanitizeOrganicMemoryText(
+    raw,
+    maxChars,
+    (value, chars) => sanitizeAlicizationProviderFacingText(value, chars),
+  )
 }
 
 function sanitizeOrganicMemoryEvidenceText(raw: unknown, maxChars = 220) {
-  return sanitizeAlicizationMemoryEvidenceText(raw, maxChars)
+  return sanitizeOrganicMemoryText(
+    raw,
+    maxChars,
+    (value, chars) => sanitizeAlicizationMemoryEvidenceText(value, chars),
+  )
+}
+
+function sanitizeOrganicMemoryIdentifier(raw: unknown, maxChars = 160) {
+  const normalized = sanitizeAlicizationMemoryEvidenceText(raw, maxChars)
+  if (!normalized || normalized === alicizationFixedTemplateReplacement)
+    return ''
+
+  for (const pattern of organicMemoryInternalCuePatterns) {
+    pattern.lastIndex = 0
+    if (pattern.test(normalized))
+      return ''
+  }
+
+  return normalized
 }
 
 function sanitizeOrganicMemoryEvidenceList(
@@ -51,7 +113,7 @@ export function buildOrganicMemoryProviderFactBlocks(
   const retrievedFacts = context.retrievedFacts
     .slice(0, 12)
     .map(fact => ({
-      id: fact.id,
+      id: sanitizeOrganicMemoryIdentifier(fact.id) || null,
       subject: sanitizeOrganicMemoryEvidenceText(fact.subject, 120) || null,
       predicate: sanitizeOrganicMemoryEvidenceText(fact.predicate, 120) || null,
       object: sanitizeOrganicMemoryEvidenceText(fact.object, 260) || null,
@@ -64,7 +126,7 @@ export function buildOrganicMemoryProviderFactBlocks(
   const recalledFragments = context.recalledFragments
     .slice(0, 10)
     .map(fragment => ({
-      id: fragment.id,
+      id: sanitizeOrganicMemoryIdentifier(fragment.id) || null,
       text: sanitizeOrganicMemoryEvidenceText(fragment.text, 320) || null,
       sourceKind: fragment.sourceKind,
       provenance: fragment.provenance ?? 'remembered',
@@ -74,7 +136,7 @@ export function buildOrganicMemoryProviderFactBlocks(
   const recalledEpisodes = (context.recalledEpisodes ?? [])
     .slice(0, 8)
     .map(episode => ({
-      id: episode.id,
+      id: sanitizeOrganicMemoryIdentifier(episode.id) || null,
       occurredAt: episode.occurredAt,
       whatHappened: sanitizeOrganicMemoryEvidenceText(episode.whatHappened, 320) || null,
       felt: sanitizeOrganicMemoryEvidenceText(episode.felt ?? '', 180) || null,
@@ -88,10 +150,10 @@ export function buildOrganicMemoryProviderFactBlocks(
   const consolidatedMemories = (context.consolidatedMemories ?? [])
     .slice(0, 8)
     .map(memory => ({
-      id: memory.id,
+      id: sanitizeOrganicMemoryIdentifier(memory.id) || null,
       kind: memory.kind,
       facet: memory.facet ?? null,
-      periodKey: memory.periodKey,
+      periodKey: sanitizeOrganicMemoryIdentifier(memory.periodKey) || null,
       summary: sanitizeOrganicMemoryEvidenceText(memory.summary, 280) || null,
       lesson: sanitizeOrganicMemoryEvidenceText(memory.lesson ?? '', 220) || null,
       cues: sanitizeOrganicMemoryEvidenceList(memory.cues, 6, 100),
@@ -103,7 +165,7 @@ export function buildOrganicMemoryProviderFactBlocks(
   const proceduralMemories = (context.proceduralMemories ?? [])
     .slice(0, 8)
     .map(memory => ({
-      id: memory.id,
+      id: sanitizeOrganicMemoryIdentifier(memory.id) || null,
       label: sanitizeOrganicMemoryEvidenceText(memory.label, 140) || null,
       approach: sanitizeOrganicMemoryEvidenceText(memory.approach, 280) || null,
       pitfalls: sanitizeOrganicMemoryEvidenceList(memory.pitfalls, 5, 140),

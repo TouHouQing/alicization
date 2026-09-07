@@ -29,11 +29,12 @@ export interface LongTermMemoryEmbeddingCorpusEntry {
 
 export interface LongTermMemorySearchIndexRuntime {
   initializeSchema: () => Promise<void>
-  rebuildLongTermMemorySearchIndex: (input: { cardId: string }) => Promise<{ indexed: number }>
+  rebuildLongTermMemorySearchIndex: (input: { cardId: string, signal?: AbortSignal }) => Promise<{ indexed: number }>
   refreshLongTermMemorySearchIndex: (input: {
     cardId: string
     source: string
     sourceIds?: string[]
+    signal?: AbortSignal
   }) => Promise<{ indexed: number }>
   listLongTermMemoryEmbeddingCorpus: (input: {
     cardId: string
@@ -191,6 +192,12 @@ interface SearchSnapshotRow {
   mode: 'recent' | 'search' | 'tombstones'
   request_hash: string
   expires_at: number
+}
+
+function assertNotAborted(signal?: AbortSignal) {
+  if (!signal?.aborted)
+    return
+  throw signal.reason ?? new DOMException('Long-term memory search projection aborted', 'AbortError')
 }
 
 const searchSnapshotTtlMs = 30 * 60 * 1000
@@ -632,7 +639,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
   run: (database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<unknown>
   get: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T | undefined>
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
-  enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
+  enqueueWrite: <T>(task: () => Promise<T>, writeOptions?: { signal?: AbortSignal }) => Promise<T>
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
 }): LongTermMemorySearchIndexRuntime {
   async function tableHasColumns(tableName: string, columnNames: string[]) {
@@ -782,8 +789,10 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     projection?: {
       source?: string
       sourceIds?: string[]
+      signal?: AbortSignal
     },
   ) {
+    assertNotAborted(projection?.signal)
     const source = normalizeSource(projection?.source)
     const sourceIds = [...new Set(
       (projection?.sourceIds ?? [])
@@ -830,6 +839,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
           [cardId, ...sourceParams],
         )
       : []
+    assertNotAborted(projection?.signal)
     return [
       ...facts.map(mapFactDocument),
       ...reflections.map(mapReflectionDocument),
@@ -838,7 +848,8 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     ].filter((document): document is SearchDocument => Boolean(document))
   }
 
-  async function upsertDocument(document: SearchDocument) {
+  async function upsertDocument(document: SearchDocument, signal?: AbortSignal) {
+    assertNotAborted(signal)
     await input.run(
       input.database,
       `
@@ -907,6 +918,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
         document.lastAccessedAt,
       ],
     )
+    assertNotAborted(signal)
     await input.run(
       input.database,
       `
@@ -930,27 +942,32 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     )
   }
 
-  async function rebuildLongTermMemorySearchIndex(rebuildInput: { cardId: string }) {
+  async function rebuildLongTermMemorySearchIndex(rebuildInput: { cardId: string, signal?: AbortSignal }) {
     const cardId = normalizeCardId(rebuildInput.cardId)
     if (!cardId)
       return { indexed: 0 }
+    assertNotAborted(rebuildInput.signal)
     return await input.enqueueWrite(async () => {
       const indexed = await input.runInTransaction(input.database, async () => {
-        const documents = await loadProjectionDocuments(cardId)
+        const documents = await loadProjectionDocuments(cardId, {
+          signal: rebuildInput.signal,
+        })
+        assertNotAborted(rebuildInput.signal)
         await input.run(input.database, 'DELETE FROM long_term_memory_search_documents WHERE card_id = ?', [cardId])
         await input.run(input.database, 'DELETE FROM long_term_memory_search_documents_fts WHERE card_id = ?', [cardId])
         for (const document of documents)
-          await upsertDocument(document)
+          await upsertDocument(document, rebuildInput.signal)
         return documents.length
       })
       return { indexed }
-    })
+    }, { signal: rebuildInput.signal })
   }
 
   async function refreshLongTermMemorySearchIndex(refreshInput: {
     cardId: string
     source: string
     sourceIds?: string[]
+    signal?: AbortSignal
   }) {
     const cardId = normalizeCardId(refreshInput.cardId)
     const source = normalizeSource(refreshInput.source)
@@ -961,12 +978,15 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     )]
     if (!cardId || !source)
       return { indexed: 0 }
+    assertNotAborted(refreshInput.signal)
     return await input.enqueueWrite(async () => {
       const indexed = await input.runInTransaction(input.database, async () => {
         const documents = await loadProjectionDocuments(cardId, {
           source,
           sourceIds,
+          signal: refreshInput.signal,
         })
+        assertNotAborted(refreshInput.signal)
         if (sourceIds.length > 0) {
           const placeholders = sourceIds.map(() => '?').join(', ')
           await input.run(
@@ -995,11 +1015,11 @@ export function createLongTermMemorySearchIndexRuntime(input: {
           )
         }
         for (const document of documents)
-          await upsertDocument(document)
+          await upsertDocument(document, refreshInput.signal)
         return documents.length
       })
       return { indexed }
-    })
+    }, { signal: refreshInput.signal })
   }
 
   async function listLongTermMemoryEmbeddingCorpus(corpusInput: {
@@ -1093,6 +1113,18 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     params.push(listInput.cardId)
     clauses.push('tomb.source_id IS NULL')
     clauses.push('doc.tombstoned = 0')
+    clauses.push(`
+      (
+        doc.source != 'memory_facts'
+        OR EXISTS (
+          SELECT 1
+          FROM memory_facts fact
+          WHERE fact.card_id = doc.card_id
+            AND fact.id = doc.source_id
+            AND COALESCE(fact.validation_status, '') != 'superseded'
+        )
+      )
+    `)
     if (listInput.kind && listInput.kind !== 'all') {
       clauses.push('doc.kind = ?')
       params.push(listInput.kind)

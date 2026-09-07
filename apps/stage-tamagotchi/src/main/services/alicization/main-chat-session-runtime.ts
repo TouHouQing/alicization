@@ -235,6 +235,8 @@ function resolveProviderMemoryEvidenceForWorkingMemory(
     salience: evidence.salience,
     sensitivity: evidence.sensitivity,
     confidence: evidence.confidence,
+    supersedesText: evidence.supersedesText,
+    claim: evidence.claim,
   })
 }
 
@@ -256,7 +258,9 @@ export interface AlicizationPreparedMainChatExecutionResult extends PreparedMain
     assistantText: string
     memoryEvidence?: AlicizationProviderMemoryEvidence | null
     intent?: AlicizationMemoryWriteIntent
+    deferPostCommit?: boolean
   }) => Promise<AlicizationCommittedMemoryWrite>
+  waitForDeferredMemoryPostCommit?: () => Promise<AlicizationMemoryOwnerSettlement[]>
   promptBudgetReport?: PromptBudgetReport
   mindTurnContract: AlicizationMindTurnContractSnapshot | null
   organicMemoryContext?: OrganicMemoryPromptContext
@@ -285,6 +289,7 @@ interface PreparedRuntimeSurfaceChainDiagnostics {
 }
 
 interface CreateAlicizationMainChatSessionRuntimeOptions {
+  appendRuntimeDebugLine?: (event: string, payload?: Record<string, unknown>) => Promise<void>
   buildMainRuntimeCorePromptBlocks: (input: {
     hostName: string
     personaKernel?: AlicizationPersonaKernelSnapshot | null
@@ -310,6 +315,7 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     cardId: string
     sessionId: string
     queueItemIds: string[]
+    signal?: AbortSignal
   }) => Promise<{
     cleaned: number
     admitted: number
@@ -336,11 +342,19 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   }>
   listConversationTurnsBySession?: (
     sessionId: string,
-    options?: { limit?: number },
+    options?: { limit?: number, signal?: AbortSignal },
   ) => Promise<WorkingMemoryConversationTurnRecord[]>
+  redactStaleInspectionHistoryMessages?: (
+    messages: AlicizationChatStartPayload['messages'],
+    latestUserText: string,
+  ) => AlicizationChatStartPayload['messages']
   buildToolRegistry?: () => ToolRegistry | Promise<ToolRegistry>
   workingMemoryHistoryOwner?: WorkingMemoryHistoryOwner
-  getWorkingMemoryCheckpoint?: (cardId: string, sessionId: string) => Promise<WorkingMemorySnapshot | null>
+  getWorkingMemoryCheckpoint?: (
+    cardId: string,
+    sessionId: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<WorkingMemorySnapshot | null>
   persistWorkingMemoryCheckpoint?: (snapshot: WorkingMemorySnapshot) => Promise<void>
   promptBudgetTokens?: number
   retrieveLongTermMemoryEvidence?: (input: {
@@ -351,6 +365,7 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     currentThreadTitle?: string | null
     activeTask?: string | null
     limit?: number
+    signal?: AbortSignal
   }) => Promise<LongTermMemoryEvidenceBundle>
   persistAutobiographicalEpisodesFromPreparedMirror?: (input: {
     cardId: string
@@ -359,12 +374,14 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     sessionId: string
     previousMirror?: AlicizationDialogueSessionMirror | null
     mirror: AlicizationDialogueSessionMirror
+    signal?: AbortSignal
   }) => Promise<void> | void
+  getDeferredMemoryAbortSignal?: () => AbortSignal | undefined
   executionCapabilityChannels: readonly AlicizationExecutionCapabilityChannel[]
   executeMainGatewayTaskThread: BuildMainGatewayToolsOptions['executeTaskThread']
   resumeMainGatewayTaskThread?: BuildMainGatewayToolsOptions['resumeTaskThread']
   getNow?: () => number
-  getPerformanceManifest: () => Promise<CharacterPerformanceCapabilitiesManifest | null>
+  getPerformanceManifest: (options?: { signal?: AbortSignal }) => Promise<CharacterPerformanceCapabilitiesManifest | null>
   getSensorySnapshot: () => Promise<AlicizationSensoryCacheSnapshot> | AlicizationSensoryCacheSnapshot
   latestUserMessageContainsVisualInput: (messages: Message[]) => boolean
   openAgentTurn: (input: {
@@ -372,11 +389,12 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     conversationSessionId?: string | null
     decisionTraceId?: string | null
     turnId: string
+    signal?: AbortSignal
   }) => Promise<AlicizationAgentTurnRuntime> | AlicizationAgentTurnRuntime
-  resolveCardCustomDirectives: (cardId: string, input: { messages: Message[] }) => Promise<ResolvedCardCustomDirectives>
-  resolveCardPersonaKernel: (cardId: string, input: { messages: Message[] }) => Promise<AlicizationPersonaKernelSnapshot | null>
-  resolveCardHostName: (cardId: string, input: { messages: Message[] }) => Promise<string>
-  resolveExecutionCapabilitiesForPrompt: () => Promise<AlicizationChannelCapability[]>
+  resolveCardCustomDirectives: (cardId: string, input: { messages: Message[], signal?: AbortSignal }) => Promise<ResolvedCardCustomDirectives>
+  resolveCardPersonaKernel: (cardId: string, input: { messages: Message[], signal?: AbortSignal }) => Promise<AlicizationPersonaKernelSnapshot | null>
+  resolveCardHostName: (cardId: string, input: { messages: Message[], signal?: AbortSignal }) => Promise<string>
+  resolveExecutionCapabilitiesForPrompt: (options?: { signal?: AbortSignal }) => Promise<AlicizationChannelCapability[]>
   resolveOrganicMemoryPromptContext: (input: {
     recallSeed: string
     recallGovernor: AlicizationRecallGovernorSnapshot | null | undefined
@@ -387,18 +405,20 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
     digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
     providerPlanning?: 'enabled' | 'disabled'
+    signal?: AbortSignal
   }) => Promise<OrganicMemoryPromptContext>
   scheduleOrganicLearningAction?: (input: {
     context: OrganicMemoryPromptContext
     turnId?: string | null
+    signal?: AbortSignal
   }) => Promise<unknown>
-  listMemoryReflections?: (cardId: string, limit?: number) => Promise<Array<{
+  listMemoryReflections?: (cardId: string, limit?: number, readOptions?: { signal?: AbortSignal }) => Promise<Array<{
     id: string
     summary: string
     lesson: string
     status: 'pending' | 'confirmed' | 'denied' | 'superseded'
   }>>
-  listRelationshipOutcomes?: (cardId: string, limit?: number) => Promise<Array<{
+  listRelationshipOutcomes?: (cardId: string, limit?: number, readOptions?: { signal?: AbortSignal }) => Promise<Array<{
     id: string
     summary: string
   }>>
@@ -409,16 +429,19 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
+    signal?: AbortSignal
   }) => Promise<unknown>
   resolveTurnRetrievalPolicySnapshot?: (input: {
     recallSeed: string
     recallGovernor: AlicizationRecallGovernorSnapshot | null | undefined
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    signal?: AbortSignal
   }) => Promise<AlicizationTurnRetrievalPolicySnapshot>
-  getActiveSelfEvolutionSnapshot?: () => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot | null>
+  getActiveSelfEvolutionSnapshot?: (options?: { signal?: AbortSignal }) => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot | null>
   resolveSessionContinuitySignals?: (input: {
     cardId: string
     turnId: string
+    signal?: AbortSignal
   }) => Promise<AlicizationAgentSessionContinuityInput[]>
   browserOpenUrl?: BuildMainGatewayToolsOptions['browserOpenUrl']
   browserSearchWeb?: BuildMainGatewayToolsOptions['browserSearchWeb']
@@ -565,6 +588,50 @@ function normalizeAlicizationMemoryFailureErrorSummary(error: unknown) {
     .trim()
 
   return errorSummary || 'Long-term memory recall failed.'
+}
+
+function throwIfMainChatPreparationAborted(signal?: AbortSignal) {
+  if (signal?.aborted)
+    throw signal.reason ?? new DOMException('Main chat preparation aborted', 'AbortError')
+}
+
+function awaitMainChatPreparationOwner<T>(
+  promise: Promise<T>,
+  signal?: AbortSignal,
+) {
+  if (!signal)
+    return promise
+  if (signal.aborted)
+    return Promise.reject(signal.reason ?? new DOMException('Main chat preparation aborted', 'AbortError'))
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const onAbort = () => {
+      if (settled)
+        return
+      settled = true
+      signal.removeEventListener('abort', onAbort)
+      reject(signal.reason ?? new DOMException('Main chat preparation aborted', 'AbortError'))
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    void promise.then(
+      (value) => {
+        if (settled)
+          return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error) => {
+        if (settled)
+          return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
 }
 
 function buildUnavailableLongTermMemoryEvidenceBundle(
@@ -809,6 +876,106 @@ function scopeProviderMessagesToWorkingMemoryOwner(
     message?.role === 'system'
     || index >= currentTurnStart,
   )
+}
+
+function redactWorkingMemoryRecentTurnsForInspection(input: {
+  recentTurns: WorkingMemoryRecentTurnInput[]
+  currentUserText?: string | null
+  redactStaleInspectionHistoryMessages?: CreateAlicizationMainChatSessionRuntimeOptions['redactStaleInspectionHistoryMessages']
+}) {
+  const currentUserText = normalizePreparedExecutionText(input.currentUserText, 1200) || ''
+  if (
+    !currentUserText
+    || !input.redactStaleInspectionHistoryMessages
+    || input.recentTurns.length === 0
+  ) {
+    return input.recentTurns
+  }
+
+  interface HistoryPart {
+    key: string
+    field: 'userText' | 'assistantText'
+    message: AlicizationChatStartPayload['messages'][number]
+  }
+  const parts: HistoryPart[] = []
+  for (const [turnIndex, turn] of input.recentTurns.entries()) {
+    const userText = normalizePreparedExecutionText(turn.userText, 1200)
+    if (userText) {
+      parts.push({
+        key: `${turnIndex}:user`,
+        field: 'userText',
+        message: {
+          role: 'user',
+          content: userText,
+        } as AlicizationChatStartPayload['messages'][number],
+      })
+    }
+    const assistantText = normalizePreparedExecutionText(turn.assistantText, 1200)
+    if (assistantText) {
+      parts.push({
+        key: `${turnIndex}:assistant`,
+        field: 'assistantText',
+        message: {
+          role: 'assistant',
+          content: assistantText,
+        } as AlicizationChatStartPayload['messages'][number],
+      })
+    }
+  }
+  if (parts.length === 0)
+    return input.recentTurns
+
+  const redactedMessages = input.redactStaleInspectionHistoryMessages(
+    [
+      ...parts.map(part => part.message),
+      {
+        role: 'user',
+        content: currentUserText,
+      } as AlicizationChatStartPayload['messages'][number],
+    ],
+    currentUserText,
+  )
+  const retainedMessages = new Set(redactedMessages)
+  const retainedParts = new Set(
+    parts
+      .filter(part => retainedMessages.has(part.message))
+      .map(part => part.key),
+  )
+
+  return input.recentTurns.flatMap((turn, turnIndex) => {
+    const nextTurn = {
+      ...turn,
+      userText: retainedParts.has(`${turnIndex}:user`) ? turn.userText : null,
+      assistantText: retainedParts.has(`${turnIndex}:assistant`) ? turn.assistantText : null,
+    }
+    return nextTurn.userText || nextTurn.assistantText ? [nextTurn] : []
+  })
+}
+
+function redactWorkingMemorySnapshotForInspection(input: {
+  snapshot: WorkingMemorySnapshot
+  currentUserText?: string | null
+  redactStaleInspectionHistoryMessages?: CreateAlicizationMainChatSessionRuntimeOptions['redactStaleInspectionHistoryMessages']
+}) {
+  const recentTurns = input.snapshot.recentRawTurns.map((turn, index) => ({
+    turnId: `working-memory-snapshot:${index}`,
+    userText: turn.role === 'user' ? turn.text : null,
+    assistantText: turn.role === 'alice' ? turn.text : null,
+  }))
+  const retainedTurnIds = new Set(
+    redactWorkingMemoryRecentTurnsForInspection({
+      recentTurns,
+      currentUserText: input.currentUserText,
+      redactStaleInspectionHistoryMessages: input.redactStaleInspectionHistoryMessages,
+    }).map(turn => turn.turnId),
+  )
+
+  return {
+    ...structuredClone(input.snapshot),
+    recentRawTurns: input.snapshot.recentRawTurns.filter((_turn, index) =>
+      retainedTurnIds.has(`working-memory-snapshot:${index}`),
+    ),
+  }
 }
 
 function buildWorkingMemoryOwnerContextFromRuntime(input: {
@@ -1601,7 +1768,10 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     cardId: string
     turnId: string
     sessionId: string
+    currentUserText?: string | null
+    abortSignal?: AbortSignal
   }): Promise<AlicizationWorkingMemoryHydration> {
+    throwIfMainChatPreparationAborted(input.abortSignal)
     const cachedSnapshot = workingMemoryStore.get(input.cardId, input.sessionId)
     if (cachedSnapshot) {
       return {
@@ -1609,7 +1779,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         cardId: input.cardId,
         turnId: input.turnId,
         sessionId: input.sessionId,
-        snapshot: structuredClone(cachedSnapshot),
+        snapshot: redactWorkingMemorySnapshotForInspection({
+          snapshot: cachedSnapshot,
+          currentUserText: input.currentUserText,
+          redactStaleInspectionHistoryMessages: options.redactStaleInspectionHistoryMessages,
+        }),
         recentTurns: [],
         failures: [],
       }
@@ -1619,12 +1793,21 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     let snapshot: WorkingMemorySnapshot | null = null
     if (options.getWorkingMemoryCheckpoint) {
       try {
-        snapshot = await options.getWorkingMemoryCheckpoint(
-          input.cardId,
-          input.sessionId,
-        )
+        snapshot = input.abortSignal
+          ? await options.getWorkingMemoryCheckpoint(
+              input.cardId,
+              input.sessionId,
+              { signal: input.abortSignal },
+            )
+          : await options.getWorkingMemoryCheckpoint(
+              input.cardId,
+              input.sessionId,
+            )
+        throwIfMainChatPreparationAborted(input.abortSignal)
       }
       catch (error) {
+        if (input.abortSignal?.aborted)
+          throw input.abortSignal.reason ?? error
         failures.push({
           ...resolveAlicizationChatFailureSurface({
             kind: 'recall-failure',
@@ -1642,9 +1825,13 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       try {
         recentTurns = await workingMemoryHistoryOwner.loadFallback(
           input.sessionId,
+          { signal: input.abortSignal },
         )
+        throwIfMainChatPreparationAborted(input.abortSignal)
       }
       catch (error) {
+        if (input.abortSignal?.aborted)
+          throw input.abortSignal.reason ?? error
         failures.push({
           ...resolveAlicizationChatFailureSurface({
             kind: 'recall-failure',
@@ -1658,12 +1845,26 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       }
     }
 
+    throwIfMainChatPreparationAborted(input.abortSignal)
+    const filteredSnapshot = snapshot
+      ? redactWorkingMemorySnapshotForInspection({
+          snapshot,
+          currentUserText: input.currentUserText,
+          redactStaleInspectionHistoryMessages: options.redactStaleInspectionHistoryMessages,
+        })
+      : null
+    recentTurns = redactWorkingMemoryRecentTurnsForInspection({
+      recentTurns,
+      currentUserText: input.currentUserText,
+      redactStaleInspectionHistoryMessages: options.redactStaleInspectionHistoryMessages,
+    })
+
     return {
       version: 'working-memory-hydration-v1',
       cardId: input.cardId,
       turnId: input.turnId,
       sessionId: input.sessionId,
-      snapshot: snapshot ? structuredClone(snapshot) : null,
+      snapshot: filteredSnapshot,
       recentTurns: structuredClone(recentTurns),
       failures,
     }
@@ -1679,6 +1880,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
   }): Promise<AlicizationPreparedMainChatExecutionResult> {
     const payload = input.payload
     const rawPayload = payload
+    throwIfMainChatPreparationAborted(input.abortSignal)
     const { prelude } = input
     if (!payload.turnId.trim())
       throw new TypeError('main chat payload requires a real turnId')
@@ -1689,7 +1891,10 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     })
 
     const now = getNow()
-    const activeSelfEvolutionSnapshot = await options.getActiveSelfEvolutionSnapshot?.().catch(() => null) ?? null
+    const activeSelfEvolutionSnapshot = await options.getActiveSelfEvolutionSnapshot?.({
+      signal: input.abortSignal,
+    }) ?? null
+    throwIfMainChatPreparationAborted(input.abortSignal)
     const turnContext = turnRuntime.beginTurn({
       cardId: payload.cardId,
       turnId: payload.turnId,
@@ -1748,6 +1953,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       cardId: payload.cardId,
       turnId: payload.turnId,
       decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
+      signal: input.abortSignal,
     })
     turnContext.sessionId = agentTurn.conversationSessionId
     let messages = prelude.messages
@@ -1762,6 +1968,8 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           cardId: payload.cardId,
           turnId: payload.turnId,
           sessionId: workingMemorySessionId,
+          currentUserText: readLatestUserMessageText(payload.messages),
+          abortSignal: input.abortSignal,
         })
     const memoryFailures: AlicizationMainChatMemoryFailureSurface[] = [
       ...workingMemoryHydration.failures,
@@ -1810,7 +2018,9 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         const signals = await options.resolveSessionContinuitySignals?.({
           cardId: payload.cardId,
           turnId: payload.turnId,
+          signal: input.abortSignal,
         }) ?? []
+        throwIfMainChatPreparationAborted(input.abortSignal)
         const digitalLifeSignal = digitalLifeSpine?.continuitySignal ?? null
         const mergedSignals = digitalLifeSignal
           ? [...signals, digitalLifeSignal]
@@ -1821,6 +2031,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         cardId: payload.cardId,
       }),
     ])
+    throwIfMainChatPreparationAborted(input.abortSignal)
     agentTurn.ingestContinuitySignals(executionCallbackContext.continuitySignals)
     agentTurn.ingestContinuitySignals(sessionContinuitySignals)
 
@@ -1848,6 +2059,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           recallSeed: organicRecallSeed,
           recallGovernor: prelude.perceptionAugmentation.recallGovernor,
           budgetClass: organicMemoryBudgetClass,
+          signal: input.abortSignal,
         }) ?? null, {
           budgetClass: organicMemoryBudgetClass,
         })
@@ -1861,13 +2073,20 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           turnId: payload.turnId,
           budgetClass: effectiveOrganicMemoryBudgetClass,
           retrievalPolicySnapshot: organicMemoryRetrievalPolicySnapshot,
+          signal: input.abortSignal,
         })
       }
       if (organicMemoryRetrievalPolicySnapshot?.plan.budgetClass === 'realtime-reply') {
         void agentTurn.trackPhase('organic-memory-prewarm-background', runOrganicMemoryPrewarm, {
           personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
           budgetClass: effectiveOrganicMemoryBudgetClass,
-        }).catch(() => {})
+        }).catch((error) => {
+          void options.appendRuntimeDebugLine?.('organic-memory.prewarm-background-failed', {
+            cardId: payload.cardId,
+            turnId: payload.turnId,
+            reason: errorMessageFrom(error) ?? String(error),
+          }).catch(() => {})
+        })
       }
       else {
         await agentTurn.trackPhase('organic-memory-prewarm', runOrganicMemoryPrewarm, {
@@ -1892,6 +2111,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           digitalLifeRuntimeSurface: digitalLifeSpine?.runtimeSurface
             ?? prelude.perceptionAugmentation.digitalLifeRuntimeSurface
             ?? null,
+          signal: input.abortSignal,
           resolveContext: async () => await options.resolveOrganicMemoryPromptContext({
             recallSeed: organicRecallSeed,
             recallGovernor: prelude.perceptionAugmentation.recallGovernor,
@@ -1903,6 +2123,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
               ?? prelude.perceptionAugmentation.digitalLifeRuntimeSurface
               ?? null,
             providerPlanning: 'disabled',
+            signal: input.abortSignal,
           }),
           tuneContext: input => options.tuneOrganicMemoryPromptContextForExecutiveTurn({
             context: input.context,
@@ -1925,6 +2146,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         ],
       }),
     })
+    throwIfMainChatPreparationAborted(input.abortSignal)
     const organicPromptContext = memoryOsRuntime.context
     const memoryTurnArtifact = memoryOsRuntime.artifact
     const {
@@ -2430,18 +2652,41 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     }
 
     const [performanceManifest, customDirectivesResolution, hostName, personaKernel, builtTools, executionCapabilities] = await Promise.all([
-      agentTurn.trackPhase('performance-manifest', async () => await options.getPerformanceManifest(), {
-        cardId: payload.cardId,
-      }),
-      agentTurn.trackPhase('card-directives', async () => await options.resolveCardCustomDirectives(payload.cardId, { messages }), {
-        cardId: payload.cardId,
-      }),
-      agentTurn.trackPhase('host-name', async () => await options.resolveCardHostName(payload.cardId, { messages }), {
-        cardId: payload.cardId,
-      }),
-      agentTurn.trackPhase('persona-kernel', async () => await options.resolveCardPersonaKernel(payload.cardId, { messages }), {
-        cardId: payload.cardId,
-      }),
+      awaitMainChatPreparationOwner(
+        agentTurn.trackPhase('performance-manifest', async () => await options.getPerformanceManifest({
+          signal: input.abortSignal,
+        }), {
+          cardId: payload.cardId,
+        }),
+        input.abortSignal,
+      ),
+      awaitMainChatPreparationOwner(
+        agentTurn.trackPhase('card-directives', async () => await options.resolveCardCustomDirectives(payload.cardId, {
+          messages,
+          signal: input.abortSignal,
+        }), {
+          cardId: payload.cardId,
+        }),
+        input.abortSignal,
+      ),
+      awaitMainChatPreparationOwner(
+        agentTurn.trackPhase('host-name', async () => await options.resolveCardHostName(payload.cardId, {
+          messages,
+          signal: input.abortSignal,
+        }), {
+          cardId: payload.cardId,
+        }),
+        input.abortSignal,
+      ),
+      awaitMainChatPreparationOwner(
+        agentTurn.trackPhase('persona-kernel', async () => await options.resolveCardPersonaKernel(payload.cardId, {
+          messages,
+          signal: input.abortSignal,
+        }), {
+          cardId: payload.cardId,
+        }),
+        input.abortSignal,
+      ),
       allowTools
         ? agentTurn.trackPhase('tool-registry', async () => await buildMainGatewayTools({
             toolSurface: 'main-chat',
@@ -2485,11 +2730,18 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             toolsOffered: allowTools,
           })
         : Promise.resolve(undefined),
-      agentTurn.trackPhase('execution-capabilities', async () => await options.resolveExecutionCapabilitiesForPrompt(), {
-        toolsOffered: allowTools,
-      }),
+      awaitMainChatPreparationOwner(
+        agentTurn.trackPhase('execution-capabilities', async () => await options.resolveExecutionCapabilitiesForPrompt({
+          signal: input.abortSignal,
+        }), {
+          toolsOffered: allowTools,
+        }),
+        input.abortSignal,
+      ),
     ])
     const tools = builtTools
+    const toolsOfferedThisTurn = Boolean(tools?.length)
+    throwIfMainChatPreparationAborted(input.abortSignal)
 
     const runtimeCorePromptBlocks = options.buildMainRuntimeCorePromptBlocks({
       hostName,
@@ -2565,7 +2817,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           executionCapabilities,
           options.executionCapabilityChannels,
           {
-            toolsOfferedThisTurn: allowTools,
+            toolsOfferedThisTurn,
             providerToolCapabilityObservation: payload.providerToolCapabilityObservation ?? null,
           },
         ),
@@ -2597,7 +2849,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       })
     }, {
       hasVisualGrounding,
-      toolsOffered: allowTools,
+      toolsOffered: toolsOfferedThisTurn,
       sessionPhases: sessionPhases.join(' -> '),
     })
     turnRuntime.settleStage(turnContext, 'deliberation', {
@@ -2643,7 +2895,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       workingMemoryBuildInput,
     )
     let longTermMemoryBundle: LongTermMemoryEvidenceBundle | null = null
+    // Keep retrieval anchored to the actual incoming turn. The provider-facing
+    // list may be reduced by checkpoint scoping or prompt projection before the
+    // memory owner runs, but LongTermMemoryRecall must still see the user's
+    // current words.
     const currentUserText = readLatestUserMessageText(ownerScopedProviderMessages)
+      || readLatestUserMessageText(payload.messages)
     if (options.retrieveLongTermMemoryEvidence) {
       try {
         longTermMemoryBundle = await options.retrieveLongTermMemoryEvidence({
@@ -2654,9 +2911,13 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           currentThreadTitle: workingMemoryOwner.ownerContext.current.threadTitle,
           activeTask: workingMemoryOwner.ownerContext.current.activeTask,
           limit: 5,
+          signal: input.abortSignal,
         })
+        throwIfMainChatPreparationAborted(input.abortSignal)
       }
       catch (error) {
+        if (input.abortSignal?.aborted)
+          throw input.abortSignal.reason ?? error
         longTermMemoryBundle = buildUnavailableLongTermMemoryEvidenceBundle(
           currentUserText,
           'recall-failed',
@@ -2832,10 +3093,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       }
     }
     let memoryWriteCommitPromise: Promise<AlicizationCommittedMemoryWrite> | null = null
+    let memoryPostCommitPromise: Promise<AlicizationMemoryOwnerSettlement[]> | null = null
     const commitMemoryWriteIntent = (commitInput: {
       assistantText: string
       memoryEvidence?: AlicizationProviderMemoryEvidence | null
       intent?: AlicizationMemoryWriteIntent
+      deferPostCommit?: boolean
     }) => {
       if (memoryWriteCommitPromise)
         return memoryWriteCommitPromise
@@ -2844,7 +3107,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         const intent = commitInput.intent
           ? structuredClone(commitInput.intent)
           : resolveMemoryWriteIntent(commitInput)
-        const ownerSettlements: AlicizationMemoryOwnerSettlement[] = []
+        let ownerSettlements: AlicizationMemoryOwnerSettlement[] = []
         const recordOwnerFailure = (
           owner: AlicizationMemoryOwnerSettlement['owner'],
           stage: AlicizationChatMemoryFailureStage,
@@ -2946,95 +3209,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           }
         }
 
-        if (intent.memoryWriteItems.length === 0) {
-          ownerSettlements.push({
-            owner: 'long-term-memory-drain',
-            status: 'skipped',
-            reason: 'no-items',
-          })
-        }
-        else if (!options.enqueueWorkingMemoryLongTermQueue) {
-          ownerSettlements.push({
-            owner: 'long-term-memory-drain',
-            status: 'skipped',
-            reason: 'queue-owner-unavailable',
-          })
-        }
-        else if (!longTermQueueEnqueued) {
-          ownerSettlements.push({
-            owner: 'long-term-memory-drain',
-            status: 'skipped',
-            reason: 'queue-enqueue-failed',
-          })
-        }
-        else if (!options.drainWorkingMemoryLongTermQueueScoped) {
-          ownerSettlements.push({
-            owner: 'long-term-memory-drain',
-            status: 'skipped',
-            reason: 'owner-unavailable',
-          })
-        }
-        else {
-          try {
-            const queueItemIds = intent.memoryWriteItems.map(item => item.id)
-            const drainResult = await options.drainWorkingMemoryLongTermQueueScoped({
-              cardId: payload.cardId,
-              sessionId: workingMemorySessionId,
-              queueItemIds,
-            })
-            const settlementByQueueItemId = new Map(
-              drainResult.settlements.map(settlement => [settlement.queueItemId, settlement]),
-            )
-            const settlements = queueItemIds.map(queueItemId =>
-              settlementByQueueItemId.get(queueItemId) ?? {
-                queueItemId,
-                transactionId: null,
-                status: 'missing' as const,
-                errorSummary: 'queue item settlement was not returned',
-              },
-            )
-            const failed = settlements.filter(settlement =>
-              settlement.status === 'failed' || settlement.status === 'dead-lettered',
-            ).length
-            const pending = settlements.filter(settlement =>
-              settlement.status === 'pending-cleaning'
-              || settlement.status === 'cleaning'
-              || settlement.status === 'admitted',
-            ).length
-            const missing = settlements.filter(settlement => settlement.status === 'missing').length
-            const applied = settlements.filter(settlement => settlement.status === 'applied').length
-            const review = settlements.filter(settlement => settlement.status === 'needs-user-review').length
-            const rejected = settlements.filter(settlement => settlement.status === 'rejected').length
-            if (failed > 0 || pending > 0 || missing > 0) {
-              recordOwnerFailure(
-                'long-term-memory-drain',
-                'working-memory-long-term-drain',
-                new Error([
-                  `failed=${failed}`,
-                  `pending=${pending}`,
-                  `missing=${missing}`,
-                  `applied=${applied}`,
-                  `review=${review}`,
-                  `rejected=${rejected}`,
-                ].join(' ')),
-              )
-            }
-            else {
-              ownerSettlements.push({
-                owner: 'long-term-memory-drain',
-                status: 'succeeded',
-              })
-            }
-          }
-          catch (error) {
-            recordOwnerFailure(
-              'long-term-memory-drain',
-              'working-memory-long-term-drain',
-              error,
-            )
-          }
-        }
-
         if (!rawGeneratedSessionMirror) {
           ownerSettlements.push({
             owner: 'dialogue-session-mirror',
@@ -3059,84 +3233,229 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           }
         }
 
-        if (!agentTurn.conversationSessionId || !sessionMirror) {
-          ownerSettlements.push({
-            owner: 'autobiographical-memory',
-            status: 'skipped',
-            reason: 'no-session-mirror',
-          })
-        }
-        else if (!options.persistAutobiographicalEpisodesFromPreparedMirror) {
-          ownerSettlements.push({
-            owner: 'autobiographical-memory',
-            status: 'skipped',
-            reason: 'owner-unavailable',
-          })
-        }
-        else {
-          try {
-            await options.persistAutobiographicalEpisodesFromPreparedMirror({
-              cardId: payload.cardId,
-              decisionTraceId: runtimeSurface.trace.decisionTraceId ?? null,
-              turnId: payload.turnId,
-              sessionId: agentTurn.conversationSessionId,
-              previousMirror: previousSessionMirror,
-              mirror: sessionMirror,
+        const coreOwnerSettlements = ownerSettlements
+        const runPostCommitOwners = async () => {
+          const deferredMemorySignal = options.getDeferredMemoryAbortSignal?.()
+          const settleAbortedOwner = (
+            owner: AlicizationMemoryOwnerSettlement['owner'],
+            error: unknown,
+          ) => {
+            if (
+              !deferredMemorySignal?.aborted
+              && (!(error instanceof Error) || error.name !== 'AbortError')
+            ) {
+              return false
+            }
+            ownerSettlements.push({
+              owner,
+              status: 'skipped',
+              reason: 'runtime-shutdown',
             })
+            return true
+          }
+          const throwIfDeferredMemoryAborted = () => {
+            if (deferredMemorySignal?.aborted) {
+              throw deferredMemorySignal.reason
+                ?? new DOMException('Deferred memory post-commit aborted', 'AbortError')
+            }
+          }
+          ownerSettlements = []
+          if (intent.memoryWriteItems.length === 0) {
+            ownerSettlements.push({
+              owner: 'long-term-memory-drain',
+              status: 'skipped',
+              reason: 'no-items',
+            })
+          }
+          else if (!options.enqueueWorkingMemoryLongTermQueue) {
+            ownerSettlements.push({
+              owner: 'long-term-memory-drain',
+              status: 'skipped',
+              reason: 'queue-owner-unavailable',
+            })
+          }
+          else if (!longTermQueueEnqueued) {
+            ownerSettlements.push({
+              owner: 'long-term-memory-drain',
+              status: 'skipped',
+              reason: 'queue-enqueue-failed',
+            })
+          }
+          else if (!options.drainWorkingMemoryLongTermQueueScoped) {
+            ownerSettlements.push({
+              owner: 'long-term-memory-drain',
+              status: 'skipped',
+              reason: 'owner-unavailable',
+            })
+          }
+          else {
+            try {
+              throwIfDeferredMemoryAborted()
+              const queueItemIds = intent.memoryWriteItems.map(item => item.id)
+              const drainResult = await options.drainWorkingMemoryLongTermQueueScoped({
+                cardId: payload.cardId,
+                sessionId: workingMemorySessionId,
+                queueItemIds,
+                signal: deferredMemorySignal,
+              })
+              const settlementByQueueItemId = new Map(
+                drainResult.settlements.map(settlement => [settlement.queueItemId, settlement]),
+              )
+              const settlements = queueItemIds.map(queueItemId =>
+                settlementByQueueItemId.get(queueItemId) ?? {
+                  queueItemId,
+                  transactionId: null,
+                  status: 'missing' as const,
+                  errorSummary: 'queue item settlement was not returned',
+                },
+              )
+              const failed = settlements.filter(settlement =>
+                settlement.status === 'failed' || settlement.status === 'dead-lettered',
+              ).length
+              const pending = settlements.filter(settlement =>
+                settlement.status === 'pending-cleaning'
+                || settlement.status === 'cleaning'
+                || settlement.status === 'admitted',
+              ).length
+              const missing = settlements.filter(settlement => settlement.status === 'missing').length
+              const applied = settlements.filter(settlement => settlement.status === 'applied').length
+              const review = settlements.filter(settlement => settlement.status === 'needs-user-review').length
+              const rejected = settlements.filter(settlement => settlement.status === 'rejected').length
+              if (failed > 0 || pending > 0 || missing > 0) {
+                recordOwnerFailure(
+                  'long-term-memory-drain',
+                  'working-memory-long-term-drain',
+                  new Error([
+                    `failed=${failed}`,
+                    `pending=${pending}`,
+                    `missing=${missing}`,
+                    `applied=${applied}`,
+                    `review=${review}`,
+                    `rejected=${rejected}`,
+                  ].join(' ')),
+                )
+              }
+              else {
+                ownerSettlements.push({
+                  owner: 'long-term-memory-drain',
+                  status: 'succeeded',
+                })
+              }
+            }
+            catch (error) {
+              if (!settleAbortedOwner('long-term-memory-drain', error)) {
+                recordOwnerFailure(
+                  'long-term-memory-drain',
+                  'working-memory-long-term-drain',
+                  error,
+                )
+              }
+            }
+          }
+
+          if (!agentTurn.conversationSessionId || !sessionMirror) {
             ownerSettlements.push({
               owner: 'autobiographical-memory',
-              status: 'succeeded',
+              status: 'skipped',
+              reason: 'no-session-mirror',
             })
           }
-          catch (error) {
-            recordOwnerFailure(
-              'autobiographical-memory',
-              'autobiographical-memory-write',
-              error,
-            )
+          else if (!options.persistAutobiographicalEpisodesFromPreparedMirror) {
+            ownerSettlements.push({
+              owner: 'autobiographical-memory',
+              status: 'skipped',
+              reason: 'owner-unavailable',
+            })
           }
-        }
+          else {
+            try {
+              throwIfDeferredMemoryAborted()
+              await options.persistAutobiographicalEpisodesFromPreparedMirror({
+                cardId: payload.cardId,
+                decisionTraceId: runtimeSurface.trace.decisionTraceId ?? null,
+                turnId: payload.turnId,
+                sessionId: agentTurn.conversationSessionId,
+                previousMirror: previousSessionMirror,
+                mirror: sessionMirror,
+                signal: deferredMemorySignal,
+              })
+              ownerSettlements.push({
+                owner: 'autobiographical-memory',
+                status: 'succeeded',
+              })
+            }
+            catch (error) {
+              if (!settleAbortedOwner('autobiographical-memory', error)) {
+                recordOwnerFailure(
+                  'autobiographical-memory',
+                  'autobiographical-memory-write',
+                  error,
+                )
+              }
+            }
+          }
 
-        if (!options.scheduleOrganicLearningAction) {
-          ownerSettlements.push({
-            owner: 'persona-learning',
-            status: 'skipped',
-            reason: 'owner-unavailable',
-          })
-        }
-        else {
-          try {
-            await runOrganicLearningGovernor({
-              agentTurn,
-              cardId: payload.cardId,
-              turnId: payload.turnId,
-              personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
-              organicPromptContext,
-              scheduleOrganicLearningAction: options.scheduleOrganicLearningAction,
-              listMemoryReflections: options.listMemoryReflections,
-              listRelationshipOutcomes: options.listRelationshipOutcomes,
-            })
+          if (!options.scheduleOrganicLearningAction) {
             ownerSettlements.push({
               owner: 'persona-learning',
-              status: 'succeeded',
+              status: 'skipped',
+              reason: 'owner-unavailable',
             })
           }
-          catch (error) {
-            recordOwnerFailure(
-              'persona-learning',
-              'persona-learning-schedule',
-              error,
-            )
+          else {
+            try {
+              throwIfDeferredMemoryAborted()
+              await runOrganicLearningGovernor({
+                agentTurn,
+                cardId: payload.cardId,
+                turnId: payload.turnId,
+                personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
+                organicPromptContext,
+                scheduleOrganicLearningAction: options.scheduleOrganicLearningAction,
+                listMemoryReflections: options.listMemoryReflections,
+                listRelationshipOutcomes: options.listRelationshipOutcomes,
+                signal: deferredMemorySignal,
+              })
+              ownerSettlements.push({
+                owner: 'persona-learning',
+                status: 'succeeded',
+              })
+            }
+            catch (error) {
+              if (!settleAbortedOwner('persona-learning', error)) {
+                recordOwnerFailure(
+                  'persona-learning',
+                  'persona-learning-schedule',
+                  error,
+                )
+              }
+            }
           }
+
+          return ownerSettlements
         }
 
-        return {
+        memoryPostCommitPromise = runPostCommitOwners()
+        const committedCore = {
           ...structuredClone(intent),
-          ownerSettlements,
+          ownerSettlements: coreOwnerSettlements,
+        }
+        if (commitInput.deferPostCommit)
+          return committedCore
+        const postCommitOwnerSettlements = await memoryPostCommitPromise
+        return {
+          ...committedCore,
+          ownerSettlements: [
+            ...coreOwnerSettlements,
+            ...postCommitOwnerSettlements,
+          ],
         }
       })()
       return memoryWriteCommitPromise
     }
+
+    const waitForDeferredMemoryPostCommit = async () =>
+      await (memoryPostCommitPromise ?? Promise.resolve([]))
 
     const preparedResultBase = {
       agentSessionId: agentTurn.agentSessionId,
@@ -3158,6 +3477,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       memoryWriteItems,
       resolveMemoryWriteIntent,
       commitMemoryWriteIntent,
+      waitForDeferredMemoryPostCommit,
       promptBudgetReport: promptBudgetResult.report,
       mindTurnContract: finalizedReturnedMindTurnContract,
       organicMemoryContext: organicPromptContext,
@@ -3197,7 +3517,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       actionObligation: prelude.actionObligation,
       memory: memoryTurnArtifact,
       surface: null,
-      toolsOffered: allowTools,
+      toolsOffered: toolsOfferedThisTurn,
     })
 
     return {

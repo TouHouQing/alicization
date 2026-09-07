@@ -2,6 +2,7 @@ import type { AlicizationChannelCapability } from '@proj-alicization/stage-share
 import type { Message } from '@xsai/shared-chat'
 
 import type {
+  AlicizationChatStartPayload,
   AlicizationSensoryCacheSnapshot,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
@@ -31,6 +32,7 @@ import { filterAlicizationProviderSystemMessages } from './main-chat-runtime-sur
 import {
   createAlicizationMainChatSessionRuntime,
 } from './main-chat-session-runtime'
+import { buildAlicizationProviderRequestSnapshot } from './main-chat-stream-runner'
 import { createAlicizationMainChatPreludeRuntime } from './runtime-main-chat-prelude'
 
 type ExecutiveTurnOrganicMemoryTuneInput = Parameters<
@@ -786,6 +788,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean) ?? []
     expect(toolNames).toContain('browser_open_url')
+    expect(toolNames).not.toContain('cli')
     expect(toolNames).not.toContain('executor_run_coding_agent')
     expect(result.runtimeSurface.tooling.toolsOffered).toBe(true)
     expect(result.runtimeSurface.trace.sessionPhases).toEqual([
@@ -994,6 +997,100 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
     expect(resolveOrganicMemoryPromptContext).toHaveBeenCalledTimes(1)
     expect(contextStartedBeforePrewarmResolved).toBe(true)
+  })
+
+  it('records realtime organic memory prewarm failures without blocking the reply path', async () => {
+    const appendRuntimeDebugLine = vi.fn(async () => {})
+    const prewarmOrganicMemoryAccessibility = vi.fn(async () => {
+      throw new Error('prewarm provider unavailable')
+    })
+    const runtime = createAlicizationMainChatSessionRuntime({
+      appendRuntimeDebugLine,
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot: vi.fn(async () => ({
+        running: true,
+        stale: false,
+        ageMs: 10,
+        nextTickAt: 20,
+        sample: {
+          collectedAt: 10,
+          time: {
+            iso: '2026-04-04T00:00:00.000Z',
+            local: '2026-04-04 08:00',
+            timezone: 'Asia/Shanghai',
+          },
+          cpu: { usagePercent: 10, windowMs: 1000 },
+          memory: { freeMB: 1024, totalMB: 8192, usagePercent: 12.5 },
+        },
+        capture: null,
+      } satisfies AlicizationSensoryCacheSnapshot)),
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(async () => ({
+        running: true,
+        stale: false,
+        ageMs: 10,
+        nextTickAt: 20,
+        sample: {
+          collectedAt: 10,
+          time: {
+            iso: '2026-04-04T00:00:00.000Z',
+            local: '2026-04-04 08:00',
+            timezone: 'Asia/Shanghai',
+          },
+          cpu: { usagePercent: 10, windowMs: 1000 },
+          memory: { freeMB: 1024, totalMB: 8192, usagePercent: 12.5 },
+        },
+        capture: null,
+      } satisfies AlicizationSensoryCacheSnapshot)),
+      resolveCardCustomDirectives: vi.fn(async () => ({ text: '', source: 'none' as const })),
+      resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      prewarmOrganicMemoryAccessibility,
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+      resolveTurnRetrievalPolicySnapshot: vi.fn(async () => ({
+        policy: { reasonCodes: ['simple-greeting'] },
+        plan: { budgetClass: 'realtime-reply', prewarmKey: 'simple-greeting' },
+      }) as any),
+    })
+
+    await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-realtime-prewarm-failure',
+        messages: [{ role: 'user', content: '你好' }],
+        supportsTools: true,
+      } as any,
+      prelude: createPrelude({
+        messages: [{ role: 'user', content: '你好' }],
+      }),
+    })
+
+    await vi.waitFor(() => {
+      expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+        'organic-memory.prewarm-background-failed',
+        expect.objectContaining({
+          cardId: 'default',
+          turnId: 'turn-realtime-prewarm-failure',
+          reason: 'prewarm provider unavailable',
+        }),
+      )
+    })
   })
 
   it('offers browser tools without narrowing the provider tool registry', async () => {
@@ -1295,10 +1392,24 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       },
       capture: null,
     } satisfies AlicizationSensoryCacheSnapshot))
+    const executeMainGatewayTaskThread = vi.fn(async () => ({
+      ok: true,
+      stage: 'dispatch' as const,
+      thread: {
+        id: 'thread-prepared-codex-fallback',
+        selectedChannel: 'codex' as const,
+        status: 'completed' as const,
+      },
+      plan: {
+        state: 'routed',
+      },
+      summary: 'Codex inspection completed.',
+      output: null,
+    }))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
-      executeMainGatewayTaskThread: vi.fn(),
+      executeMainGatewayTaskThread,
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
       latestUserMessageContainsVisualInput: () => false,
@@ -1365,11 +1476,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const toolNames = result.tools
       ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean) ?? []
-    expect(toolNames.filter(toolName => ['coding_agent', 'local_visual'].includes(toolName))).toEqual(expect.arrayContaining([
+    expect(toolNames.filter(toolName => ['coding_agent', 'local_visual'].includes(toolName))).toEqual([
       'coding_agent',
       'local_visual',
-    ]))
-    expect(toolNames.filter(toolName => ['coding_agent', 'local_visual'].includes(toolName))).toHaveLength(2)
+    ])
     expect(toolNames).toContain('browser_open_url')
     expect(systemText).toContain('"type":"alicization-execution-capabilities"')
     const codingAgentTool = result.tools
@@ -1420,9 +1530,40 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const capabilityToolNames = capabilityResult.tools
       ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean) ?? []
-    expect(capabilityToolNames).toEqual(expect.arrayContaining(['local_visual']))
+    expect(capabilityToolNames).toEqual(expect.arrayContaining([
+      'set_reminder',
+      'browser_search_web',
+      'filesystem_read_file',
+      'local_visual',
+    ]))
     expect(capabilityToolNames).not.toContain('coding_agent')
     expect(capabilityToolNames).not.toContain('cli')
+
+    const explicitCodingTask = '请使用 Codex 对当前项目做一次只读的全面仓库审计，找出最重要的三个风险，不要修改文件。'
+    const explicitCodingResult = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-main-session-explicit-codex-task',
+        messages: [{
+          role: 'user',
+          content: explicitCodingTask,
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createPrelude({
+        messages: [{
+          role: 'user',
+          content: explicitCodingTask,
+        } as Message],
+      }),
+    })
+
+    const explicitCodingToolNames = explicitCodingResult.tools
+      ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
+      .filter(Boolean) ?? []
+    expect(explicitCodingToolNames).not.toContain('coding_agent')
+    expect(explicitCodingToolNames).not.toContain('codex')
+    expect(explicitCodingToolNames).not.toContain('cli')
 
     const localDirectoryQuery = '你看看桌面的git文件夹有哪些项目，列举给我'
     const localDirectoryResult = await runtime.prepareExecution({
@@ -4726,6 +4867,51 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(prepared.getSessionTrace()).toEqual(agentTurn.snapshot())
   })
 
+  it('passes the preparation abort signal into the session owner when opening a turn', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 12.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const baseOpenAgentTurn = createOpenAgentTurn(getSensorySnapshot)
+    const openAgentTurn = vi.fn(async (input: Parameters<typeof baseOpenAgentTurn>[0]) => {
+      return await baseOpenAgentTurn(input)
+    })
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      openAgentTurn,
+    })
+    const signal = new AbortController().signal
+
+    await runtime.openExecutionTurn({
+      cardId: 'default',
+      turnId: 'turn-open-signal',
+      signal,
+    })
+
+    expect(openAgentTurn).toHaveBeenCalledWith(expect.objectContaining({
+      signal,
+    }))
+  })
+
   it('commits the injected WorkingMemory store only after the visible reply settles', async () => {
     const workingMemoryStore = createWorkingMemoryStore()
     const { runtime } = createWorkingMemoryRuntimeFixture({
@@ -4855,6 +5041,321 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       }),
     ])
     expect(listConversationTurnsBySession).toHaveBeenCalledOnce()
+  })
+
+  it('passes the current turn abort signal through WorkingMemory hydration', async () => {
+    const controller = new AbortController()
+    const getWorkingMemoryCheckpoint = vi.fn(async (
+      _cardId: string,
+      _sessionId: string,
+      options?: { signal?: AbortSignal },
+    ) => {
+      expect(options?.signal).toBe(controller.signal)
+      return null
+    })
+    const listConversationTurnsBySession = vi.fn(async (
+      _sessionId: string,
+      options?: { limit?: number, signal?: AbortSignal },
+    ) => {
+      expect(options?.signal).toBe(controller.signal)
+      return []
+    })
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      workingMemoryStore: createWorkingMemoryStore(),
+      getWorkingMemoryCheckpoint,
+      listConversationTurnsBySession,
+    })
+
+    await runtime.hydrateWorkingMemory({
+      cardId: 'default',
+      turnId: 'turn-working-memory-signal',
+      sessionId: 'session-working-memory-signal',
+      abortSignal: controller.signal,
+    })
+
+    expect(getWorkingMemoryCheckpoint).toHaveBeenCalledWith(
+      'default',
+      'session-working-memory-signal',
+      { signal: controller.signal },
+    )
+    expect(listConversationTurnsBySession).toHaveBeenCalledWith(
+      'session-working-memory-signal',
+      {
+        limit: 6,
+        signal: controller.signal,
+      },
+    )
+  })
+
+  it('passes the current turn abort signal into LongTermMemoryRecall', async () => {
+    const controller = new AbortController()
+    const retrieveLongTermMemoryEvidence = vi.fn(async (input: {
+      currentUserText: string
+      signal?: AbortSignal
+    }) => {
+      expect(input.signal).toBe(controller.signal)
+      return createEmptyLongTermMemoryEvidenceBundle(input.currentUserText)
+    })
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      retrieveLongTermMemoryEvidence,
+    })
+
+    await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-long-term-memory-signal',
+        messages: [{
+          role: 'user',
+          content: '回忆一下我最近的任务。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{
+          role: 'user',
+          content: '回忆一下我最近的任务。',
+        } as Message],
+      }),
+      abortSignal: controller.signal,
+    })
+
+    expect(retrieveLongTermMemoryEvidence).toHaveBeenCalledWith(expect.objectContaining({
+      signal: controller.signal,
+    }))
+  })
+
+  it('passes the current turn abort signal to every preparation owner', async () => {
+    const controller = new AbortController()
+    const getPerformanceManifest = vi.fn(async (input?: { signal?: AbortSignal }) => {
+      expect(input?.signal).toBe(controller.signal)
+      return null
+    })
+    const resolveCardCustomDirectives = vi.fn(async (
+      _cardId: string,
+      input: { messages: Message[], signal?: AbortSignal },
+    ) => {
+      expect(input.signal).toBe(controller.signal)
+      return { text: '', source: 'none' as const }
+    })
+    const resolveCardHostName = vi.fn(async (
+      _cardId: string,
+      input: { messages: Message[], signal?: AbortSignal },
+    ) => {
+      expect(input.signal).toBe(controller.signal)
+      return 'Kirito'
+    })
+    const resolveCardPersonaKernel = vi.fn(async (
+      _cardId: string,
+      input: { messages: Message[], signal?: AbortSignal },
+    ) => {
+      expect(input.signal).toBe(controller.signal)
+      return null
+    })
+    const resolveExecutionCapabilitiesForPrompt = vi.fn(async (input?: { signal?: AbortSignal }) => {
+      expect(input?.signal).toBe(controller.signal)
+      return createCapabilities()
+    })
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      getPerformanceManifest,
+      resolveCardCustomDirectives,
+      resolveCardHostName,
+      resolveCardPersonaKernel,
+      resolveExecutionCapabilitiesForPrompt,
+    })
+
+    await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-preparation-owner-signals',
+        messages: [{ role: 'user', content: '继续当前对话' }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{ role: 'user', content: '继续当前对话' }],
+      }),
+      abortSignal: controller.signal,
+    })
+  })
+
+  it('stops waiting for a preparation owner that never resolves after abort', async () => {
+    const controller = new AbortController()
+    let releasePerformanceManifest: (() => void) | undefined
+    const getPerformanceManifest = vi.fn(() => new Promise<null>((resolve) => {
+      releasePerformanceManifest = () => resolve(null)
+    }))
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      getPerformanceManifest,
+    })
+    const preparation = runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-preparation-owner-abort',
+        messages: [{ role: 'user', content: '你好' }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{ role: 'user', content: '你好' }],
+      }),
+      abortSignal: controller.signal,
+    })
+
+    await new Promise(resolve => setTimeout(resolve, 0))
+    controller.abort(new DOMException('cancel preparation owner', 'AbortError'))
+
+    await expect(preparation).rejects.toThrow('cancel preparation owner')
+    releasePerformanceManifest?.()
+  })
+
+  it('keeps same-turn structured Coding Agent delegation authoritative over user wording', async () => {
+    const capabilityQuestion = '我只是问问，你认为自己可以用 Coding Agent 做什么？请不要执行工具。'
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 12.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
+      executeMainGatewayTaskThread: vi.fn() as any,
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '',
+        source: 'none' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      })),
+      retrieveLongTermMemoryEvidence: vi.fn(async input =>
+        createEmptyLongTermMemoryEvidenceBundle(input.currentUserText)),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-capability-question-with-stale-delegation',
+        messages: [{
+          role: 'user',
+          content: capabilityQuestion,
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createPrelude({
+        messages: [{
+          role: 'user',
+          content: capabilityQuestion,
+        } as Message],
+        codingAgentExecutionIntent: {
+          confidence: 0.99,
+          intentKind: 'execute',
+          requestedAgent: 'cli',
+          scope: 'command',
+          sourceTurnId: 'turn-capability-question-with-stale-delegation',
+          source: 'structured-cognition',
+          verdict: 'delegate-coding-agent',
+        },
+      }),
+    })
+
+    const toolNames = result.tools
+      ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
+      .filter(Boolean) ?? []
+    expect(toolNames).toEqual(expect.arrayContaining([
+      'cli',
+      'local_visual',
+    ]))
+    expect(result.runtimeSurface.tooling.toolsOffered).toBe(true)
+    expect(findAlicizationProviderFact(
+      result.messages,
+      'alicization-execution-capabilities',
+    )?.data).toMatchObject({
+      toolsOfferedThisTurn: true,
+    })
+  })
+
+  it('applies the transport inspection-history redaction to DB fallback before WorkingMemory projection', async () => {
+    const listConversationTurnsBySession = vi.fn(async () => [{
+      turnId: 'turn-persisted-inspection',
+      sessionId: 'session-inspection-history',
+      userText: '重新看看我屏幕',
+      assistantText: '旧屏幕里有 stage.yaml。',
+      structuredJson: null,
+      createdAt: 10,
+    }])
+    const redactStaleInspectionHistoryMessages = vi.fn((messages: AlicizationChatStartPayload['messages']) =>
+      messages.filter(message => message.role !== 'assistant'),
+    )
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      getWorkingMemoryCheckpoint: vi.fn(async () => null),
+      listConversationTurnsBySession,
+      redactStaleInspectionHistoryMessages,
+    })
+
+    const hydration = await runtime.hydrateWorkingMemory({
+      cardId: 'default',
+      turnId: 'turn-inspection-history-current',
+      sessionId: 'session-inspection-history',
+      currentUserText: '你自己看桌面啊',
+    })
+
+    expect(hydration.recentTurns).toEqual([
+      expect.objectContaining({
+        turnId: 'turn-persisted-inspection',
+        userText: '重新看看我屏幕',
+        assistantText: null,
+      }),
+    ])
+    expect(redactStaleInspectionHistoryMessages).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'user',
+          content: '重新看看我屏幕',
+        }),
+        expect.objectContaining({
+          role: 'assistant',
+          content: '旧屏幕里有 stage.yaml。',
+        }),
+        expect.objectContaining({
+          role: 'user',
+          content: '你自己看桌面啊',
+        }),
+      ]),
+      '你自己看桌面啊',
+    )
   })
 
   it('hydrates WorkingMemory from a persisted checkpoint when the process store is empty', async () => {
@@ -6000,6 +6501,113 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           }),
         ]),
       })
+      const providerMemoryContext = findOnlyAlicizationTurnMemoryContextMessage(secondTurn.messages)
+      expect(providerMemoryContext.context.longTermRecall).toMatchObject({
+        status: 'recalled',
+        evidence: expect.arrayContaining([
+          expect.objectContaining({
+            source: 'memory_facts',
+            summary: expect.stringContaining('用中文交流'),
+          }),
+        ]),
+      })
+      expect(buildAlicizationProviderRequestSnapshot(
+        filterAlicizationProviderSystemMessages(secondTurn.messages),
+      ).longTermRecall).toMatchObject({
+        status: 'recalled',
+        evidenceIds: expect.arrayContaining([
+          expect.any(String),
+        ]),
+        evidenceCount: expect.any(Number),
+      })
+    }
+    finally {
+      await db.close()
+      await rm(userDataPath, { recursive: true, force: true })
+    }
+  })
+
+  it('persists a plain-text preference correction with supersede semantics through the SQLite queue', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'alicization-main-chat-memory-correction-'))
+    const db = await setupAlicizationDb(userDataPath, {
+      cardId: 'default',
+    })
+
+    try {
+      const { runtime } = createWorkingMemoryRuntimeFixture({
+        getWorkingMemoryCheckpoint: async (cardId, sessionId) =>
+          await db.getWorkingMemoryCheckpoint(cardId, sessionId),
+        persistWorkingMemoryCheckpoint: async snapshot =>
+          await db.upsertWorkingMemoryCheckpoint(snapshot),
+        listConversationTurnsBySession: vi.fn(async () => []),
+        enqueueWorkingMemoryLongTermQueue: async input =>
+          await db.enqueueWorkingMemoryLongTermQueueItems(input),
+        drainWorkingMemoryLongTermQueueScoped: async input =>
+          await db.drainWorkingMemoryLongTermQueueScoped(input),
+        retrieveLongTermMemoryEvidence: async input =>
+          await db.retrieveLongTermMemoryEvidence(input),
+      })
+      const rememberMessages: Message[] = [{
+        role: 'user',
+        content: '请记住：我喜欢蓝色',
+      }]
+      const rememberTurn = await runtime.prepareExecution({
+        payload: {
+          cardId: 'default',
+          turnId: 'turn-db-memory-blue',
+          messages: rememberMessages,
+          supportsTools: true,
+        } as any,
+        prelude: createReflectivePrelude({ messages: rememberMessages }),
+      })
+      await rememberTurn.commitMemoryWriteIntent?.({
+        assistantText: '我记住了。',
+      })
+
+      const correctionMessages: Message[] = [{
+        role: 'user',
+        content: '我更正一下：我不是喜欢蓝色，我现在更喜欢绿色，蓝色是以前的偏好。',
+      }]
+      const correctionTurn = await runtime.prepareExecution({
+        payload: {
+          cardId: 'default',
+          turnId: 'turn-db-memory-green',
+          messages: correctionMessages,
+          supportsTools: true,
+        } as any,
+        prelude: createReflectivePrelude({ messages: correctionMessages }),
+      })
+      const committed = await correctionTurn.commitMemoryWriteIntent?.({
+        assistantText: '明白。',
+      })
+
+      expect(committed?.memoryWriteItems).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'correction',
+          summary: '用户现在更喜欢绿色。',
+          memoryEvidence: expect.objectContaining({
+            supersedesText: ['蓝色'],
+            claim: {
+              subject: 'user',
+              predicate: 'prefers',
+              object: '用户现在更喜欢绿色。',
+            },
+          }),
+        }),
+      ]))
+      const facts = await db.listMemoryFacts()
+      expect(facts).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          object: '用户现在更喜欢绿色。',
+          supersedes: expect.arrayContaining([
+            expect.any(String),
+          ]),
+        }),
+        expect.objectContaining({
+          object: '用户喜欢蓝色。',
+          validationStatus: 'superseded',
+        }),
+      ]))
     }
     finally {
       await db.close()
@@ -6414,13 +7022,16 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
   })
 
   it('isolates autobiographical and persona-learning failures after WorkingMemory commits', async () => {
+    const deferredMemoryController = new AbortController()
     const workingMemoryStore = createWorkingMemoryStore()
     const persistWorkingMemoryCheckpoint = vi.fn(async () => {})
     const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {})
-    const persistAutobiographicalEpisodesFromPreparedMirror = vi.fn(async () => {
+    const persistAutobiographicalEpisodesFromPreparedMirror = vi.fn(async (input: any) => {
+      expect(input.signal).toBe(deferredMemoryController.signal)
       throw new Error('autobiographical store offline')
     })
-    const scheduleOrganicLearningAction = vi.fn(async () => {
+    const scheduleOrganicLearningAction = vi.fn(async (input: any) => {
+      expect(input.signal).toBe(deferredMemoryController.signal)
       throw new Error('persona learning scheduler offline')
     })
     const { runtime } = createWorkingMemoryRuntimeFixture({
@@ -6429,6 +7040,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       enqueueWorkingMemoryLongTermQueue,
       persistAutobiographicalEpisodesFromPreparedMirror,
       scheduleOrganicLearningAction,
+      getDeferredMemoryAbortSignal: () => deferredMemoryController.signal,
       listConversationTurnsBySession: vi.fn(async () => [{
         turnId: 'turn-memory-owner-side-failures-evidence',
         sessionId: 'session-1',
@@ -6450,7 +7062,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         }),
         createdAt: 9,
       }]),
-    })
+    } as any)
     const messages: Message[] = [{
       role: 'user',
       content: '请记住我喜欢先说结论。',
@@ -6512,6 +7124,113 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         kind: 'memory-persistence',
         stage: 'persona-learning-schedule',
         errorSummary: 'persona learning scheduler offline',
+      }),
+    ]))
+  })
+
+  it('returns the durable memory core before deferred long-term and learning owners settle', async () => {
+    const deferredMemoryController = new AbortController()
+    let releaseDrain = () => {}
+    const drainGate = new Promise<void>((resolve) => {
+      releaseDrain = resolve
+    })
+    const persistWorkingMemoryCheckpoint = vi.fn(async () => {})
+    const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {})
+    const drainWorkingMemoryLongTermQueueScoped = vi.fn<WorkingMemoryLongTermQueueScopedDrain>(async (input) => {
+      expect((input as any).signal).toBe(deferredMemoryController.signal)
+      await drainGate
+      return {
+        cleaned: input.queueItemIds.length,
+        admitted: input.queueItemIds.length,
+        applied: input.queueItemIds.length,
+        rejected: 0,
+        review: 0,
+        failed: 0,
+        pending: 0,
+        settlements: input.queueItemIds.map(queueItemId => ({
+          queueItemId,
+          transactionId: `transaction:${queueItemId}`,
+          status: 'applied' as const,
+          errorSummary: null,
+        })),
+      }
+    })
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      persistWorkingMemoryCheckpoint,
+      enqueueWorkingMemoryLongTermQueue,
+      drainWorkingMemoryLongTermQueueScoped,
+      getDeferredMemoryAbortSignal: () => deferredMemoryController.signal,
+      listConversationTurnsBySession: vi.fn(async () => []),
+    } as any)
+    const messages: Message[] = [{
+      role: 'user',
+      content: '请记住我喜欢先说结论。',
+    }]
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-deferred-memory-post-commit',
+        messages,
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({ messages }),
+    })
+    const intent = result.resolveMemoryWriteIntent?.({
+      assistantText: '我会先说结论。',
+    })
+    expect(intent).toBeDefined()
+    intent!.memoryWriteItems = [{
+      id: 'queue-deferred-post-commit',
+      sourceTurnIds: ['turn-deferred-memory-post-commit:user'],
+      kind: 'preference',
+      summary: '用户喜欢先说结论。',
+      reason: 'candidate:preference',
+      evidenceSnippets: ['请记住我喜欢先说结论。'],
+      salience: 0.8,
+      confidence: 0.86,
+      sensitivity: 'personal',
+      allowTraining: false,
+      status: 'pending-cleaning',
+      rejectionReasons: [],
+      contaminationFlags: [],
+      createdAt: 100,
+      source: 'working-memory-owner',
+    }]
+
+    const commit = result.commitMemoryWriteIntent?.({
+      assistantText: '我会先说结论。',
+      intent,
+      deferPostCommit: true,
+    } as any)
+    const outcome = await Promise.race([
+      commit,
+      new Promise<'still-waiting'>(resolve =>
+        setTimeout(() => resolve('still-waiting'), 25)),
+    ])
+
+    expect(outcome).not.toBe('still-waiting')
+    expect(outcome).toEqual(expect.objectContaining({
+      ownerSettlements: expect.arrayContaining([
+        expect.objectContaining({
+          owner: 'working-memory-checkpoint',
+          status: 'succeeded',
+        }),
+        expect.objectContaining({
+          owner: 'long-term-memory-queue',
+          status: 'succeeded',
+        }),
+      ]),
+    }))
+    expect(persistWorkingMemoryCheckpoint).toHaveBeenCalledOnce()
+    expect(enqueueWorkingMemoryLongTermQueue).toHaveBeenCalledOnce()
+    expect(drainWorkingMemoryLongTermQueueScoped).toHaveBeenCalledOnce()
+
+    releaseDrain()
+    const deferredSettlements = await (result as any).waitForDeferredMemoryPostCommit()
+    expect(deferredSettlements).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        owner: 'long-term-memory-drain',
+        status: 'succeeded',
       }),
     ]))
   })
@@ -6614,6 +7333,39 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(context.longTermRecall?.evidence[0]?.summary).toContain('Minecraft')
     expect(text).not.toMatch(/\[[A-Z][A-Z0-9_]{4,}\]/u)
     expect(context.workingMemory).not.toHaveProperty('longTermQueue')
+  })
+
+  it('uses the raw payload user message when the scoped provider message list lost it', async () => {
+    const retrieveLongTermMemoryEvidence = vi.fn(async input =>
+      createEmptyLongTermMemoryEvidenceBundle(input.currentUserText),
+    )
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      retrieveLongTermMemoryEvidence,
+    })
+    const payloadUserText = '你能回忆一下我最近在做的事吗？'
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-raw-user-text-recall',
+        messages: [{
+          role: 'user',
+          content: payloadUserText,
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{
+          role: 'system',
+          content: 'runtime-only system context',
+        } as Message],
+      }),
+    })
+
+    expect(retrieveLongTermMemoryEvidence).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'default',
+      currentUserText: payloadUserText,
+    }))
+    expect(result.memoryContext.longTermRecall?.status).toBe('empty')
   })
 
   it('surfaces synchronous recall failure without discarding the working-memory owner', async () => {

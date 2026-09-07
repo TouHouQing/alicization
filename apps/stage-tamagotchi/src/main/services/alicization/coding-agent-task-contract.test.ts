@@ -14,6 +14,7 @@ describe('coding agent task contract', () => {
 
     expect(source).not.toContain('userText')
     expect(source).not.toContain('normalizeCodingAgentMentionText')
+    expect(source).not.toContain('resolveAlicizationExplicitCodingAgentDelegation')
   })
 
   it('defaults an underspecified coding request to read-only investigation', () => {

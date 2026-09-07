@@ -71,6 +71,52 @@ describe('working memory long-term candidate queue', () => {
     expect(queue[0]?.createdAt).toBe(2000)
   })
 
+  it('carries correction replacement metadata into the long-term queue', () => {
+    const snapshot = createEmptyWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-project-correction',
+      now: 2_000,
+    })
+    snapshot.longTermCandidates = [{
+      sourceTurnIds: ['turn-project-correction:user'],
+      kind: 'correction',
+      summary: '项目界面强调色现在是绿色。',
+      reason: '用户明确纠正了之前的长期记忆事实。',
+      salience: 0.94,
+      sensitivity: 'personal',
+      confidence: 0.98,
+      allowTraining: false,
+      memoryEvidence: {
+        version: 'working-memory-long-term-evidence-v1',
+        source: 'explicit-structured-memory-evidence',
+        kind: 'correction',
+        summary: '项目界面强调色现在是绿色。',
+        reason: '用户明确纠正了之前的长期记忆事实。',
+        evidenceSnippets: ['更正一下：项目界面强调色已经从蓝色改成绿色，蓝色是旧信息。'],
+        salience: 0.94,
+        sensitivity: 'personal',
+        confidence: 0.98,
+        supersedesText: ['蓝色'],
+        claim: {
+          subject: '项目界面强调色',
+          predicate: 'is',
+          object: '绿色',
+        },
+      },
+    }]
+
+    const [queueItem] = buildWorkingMemoryLongTermCandidateQueue(snapshot)
+
+    expect(queueItem?.memoryEvidence).toEqual(expect.objectContaining({
+      supersedesText: ['蓝色'],
+      claim: {
+        subject: '项目界面强调色',
+        predicate: 'is',
+        object: '绿色',
+      },
+    }))
+  })
+
   it('builds fixed-length canonical queue ids without leaking long candidate text', () => {
     const longSessionId = `session-private-${'s'.repeat(180)}`
     const sourceTurnIds = Array.from(

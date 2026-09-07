@@ -386,6 +386,38 @@ export function createAlicizationMemoryParticipant(options: {
     }
   }
 
+  const recordOwnerSettlements = async (input: {
+    proposal: AlicizationMemoryWriteProposal
+    ownerSettlements: AlicizationMemoryOwnerSettlement[]
+  }) => {
+    const proposal = parseMemoryWriteProposal(input.proposal, scope)
+    const ownerSettlements = structuredClone(input.ownerSettlements)
+    const unpersistedOwnerSettlements: Array<
+      AlicizationMemoryOwnerSettlement & {
+        persistenceError: string
+      }
+    > = []
+    for (const [index, settlement] of ownerSettlements.entries()) {
+      const persistedSettlement = await appendSafely(
+        'memory.owner.settled',
+        {
+          version: proposal.version,
+          scope,
+          sessionId: proposal.sessionId,
+          ...settlement,
+        },
+        `${scope.turnId}:memory-owner:${settlement.owner}:${index}`,
+      )
+      if (!persistedSettlement.persisted) {
+        unpersistedOwnerSettlements.push({
+          ...settlement,
+          persistenceError: persistedSettlement.error,
+        })
+      }
+    }
+    return unpersistedOwnerSettlements
+  }
+
   return {
     async recordWorkingMemory(input: {
       sessionId: string
@@ -506,6 +538,8 @@ export function createAlicizationMemoryParticipant(options: {
       }
     },
 
+    recordOwnerSettlements,
+
     async settleWrite(input: {
       proposal: AlicizationMemoryWriteProposal
       status: MemorySettlementStatus
@@ -588,29 +622,10 @@ export function createAlicizationMemoryParticipant(options: {
           )
         }
       }
-      const unpersistedOwnerSettlements: Array<
-        AlicizationMemoryOwnerSettlement & {
-          persistenceError: string
-        }
-      > = []
-      for (const [index, settlement] of ownerSettlements.entries()) {
-        const persistedSettlement = await appendSafely(
-          'memory.owner.settled',
-          {
-            version: proposal.version,
-            scope,
-            sessionId: proposal.sessionId,
-            ...settlement,
-          },
-          `${scope.turnId}:memory-owner:${settlement.owner}:${index}`,
-        )
-        if (!persistedSettlement.persisted) {
-          unpersistedOwnerSettlements.push({
-            ...settlement,
-            persistenceError: persistedSettlement.error,
-          })
-        }
-      }
+      const unpersistedOwnerSettlements = await recordOwnerSettlements({
+        proposal,
+        ownerSettlements,
+      })
       const failedOwnerCount = ownerSettlements.filter(
         settlement => settlement.status === 'failed',
       ).length

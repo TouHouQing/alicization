@@ -66,7 +66,7 @@ export interface MemoryWorkbenchPolicyStoreRuntime {
       source: string
       sourceKind?: AlicizationPersonaTrainingSourceKind | null
     }>
-  }) => Promise<MemoryWorkbenchPolicyOverride[]>
+  }, writeOptions?: { signal?: AbortSignal }) => Promise<MemoryWorkbenchPolicyOverride[]>
 }
 
 function normalizeText(raw: unknown, maxChars = 240) {
@@ -205,7 +205,7 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
   now: () => number
   run: (database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<unknown>
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
-  enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
+  enqueueWrite: <T>(task: () => Promise<T>, writeOptions?: { signal?: AbortSignal }) => Promise<T>
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
 }): MemoryWorkbenchPolicyStoreRuntime {
   async function upsertPolicyOverride(policyInput: {
@@ -357,7 +357,7 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
       source: string
       sourceKind?: AlicizationPersonaTrainingSourceKind | null
     }>
-  }) {
+  }, writeOptions: { signal?: AbortSignal } = {}) {
     const candidatePolicies = (await listPolicyOverrides({
       cardId: inheritInput.cardId,
       sourceIds: inheritInput.candidateSourceIds,
@@ -371,6 +371,8 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
     await input.enqueueWrite(async () => {
       await input.runInTransaction(input.database, async () => {
         for (const policy of inherited) {
+          if (writeOptions.signal?.aborted)
+            throw writeOptions.signal.reason ?? new DOMException('Memory policy inheritance aborted', 'AbortError')
           const sourceKind = policy.sourceKind ?? ''
           const id = `ltm-policy:${normalizeText(inheritInput.cardId, 120)}:${policy.source}:${sourceKind || 'generic'}:${policy.sourceId}`
           await input.run(
@@ -412,7 +414,7 @@ export function createMemoryWorkbenchPolicyStoreRuntime(input: {
           )
         }
       })
-    })
+    }, writeOptions)
     return inherited
   }
 

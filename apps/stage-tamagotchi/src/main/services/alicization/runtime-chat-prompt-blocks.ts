@@ -42,9 +42,7 @@ export function buildChatPerceptionSystemBlock(input: {
   }
   suppressWeakGenericBrowserAnchor?: boolean
 }) {
-  const anchor = getActiveAttentionAnchor(input.state, input.now)
-  const recentObservations = input.state.recentObservations.slice(-3)
-  if (!input.inspectionRequested && !anchor && recentObservations.length === 0)
+  if (!input.inspectionRequested)
     return ''
 
   const continuityLines = buildPerceptionContinuityLines({

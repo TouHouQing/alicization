@@ -228,6 +228,57 @@ describe('openai-compatible long-term memory embedding provider', () => {
     expect(embeddings[32]).toEqual({ text: 'memory-32', vector: [0, 0, 0] })
   })
 
+  it('retries transient embedding transport failures but keeps the original batch intact', async () => {
+    let requestCount = 0
+    const fetchImpl = vi.fn(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      requestCount += 1
+      if (requestCount === 1) {
+        return {
+          ok: false,
+          status: 503,
+          json: async () => ({}),
+          text: async () => 'service unavailable',
+        } as Response
+      }
+
+      const body = JSON.parse(String(init?.body)) as { input: string[] }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: body.input.map((_, index) => ({ index, embedding: [1, 0, 0] })),
+        }),
+        text: async () => '',
+      } as Response
+    })
+    const provider = createOpenAICompatibleLongTermMemoryEmbeddingProvider({
+      baseUrl: 'https://api.siliconflow.cn',
+      dimensions: 3,
+      fetch: fetchImpl,
+      model: 'BAAI/bge-m3',
+      maxRetries: 1,
+      retryBaseDelayMs: 0,
+    })
+
+    await expect(provider.embedTexts(['记忆一', '记忆二'])).resolves.toEqual([
+      { text: '记忆一', vector: [1, 0, 0] },
+      { text: '记忆二', vector: [1, 0, 0] },
+    ])
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(String(
+      (fetchImpl.mock.calls[0]?.[1] as RequestInit).body,
+    ))).toEqual({
+      input: ['记忆一', '记忆二'],
+      model: 'BAAI/bge-m3',
+    })
+    expect(JSON.parse(String(
+      (fetchImpl.mock.calls[1]?.[1] as RequestInit).body,
+    ))).toEqual({
+      input: ['记忆一', '记忆二'],
+      model: 'BAAI/bge-m3',
+    })
+  })
+
   it('aborts an in-flight embedding request when the caller cancels it', async () => {
     let observedSignal: AbortSignal | undefined
     let releaseFetch: (() => void) | undefined

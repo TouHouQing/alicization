@@ -147,7 +147,12 @@ export interface PersonaTrainingDatasetRepository {
   markExported?: (cardId: string, datasetId: string, exportedAt: number) => Promise<void>
   setActiveVersion: (cardId: string, datasetId: string, at: number) => Promise<PersonaTrainingDatasetVersion | null>
   rollbackToVersion: (cardId: string, datasetId: string, at: number) => Promise<PersonaTrainingDatasetVersion | null>
-  revokeSource: (cardId: string, sourceRef: AlicizationPersonaTrainingSourceRef, at: number) => Promise<number>
+  revokeSource: (
+    cardId: string,
+    sourceRef: AlicizationPersonaTrainingSourceRef,
+    at: number,
+    options?: { signal?: AbortSignal },
+  ) => Promise<number>
   updateExamplePolicy: (input: {
     cardId: string
     exampleId: string
@@ -180,7 +185,9 @@ export interface PersonaTrainingDatasetRuntime {
   }>
   activateVersion: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
   rollbackVersion: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
-  revokeSource: (input: { cardId: string } & AlicizationPersonaTrainingSourceRef) => Promise<{ affected: number }>
+  revokeSource: (
+    input: { cardId: string } & AlicizationPersonaTrainingSourceRef & { signal?: AbortSignal },
+  ) => Promise<{ affected: number }>
   setExamplePolicy: (input: {
     cardId: string
     exampleId: string
@@ -815,7 +822,15 @@ export function createPersonaTrainingDatasetRuntime(input: {
     return await input.repository.rollbackToVersion(cardId, dataset.id, input.now())
   }
 
-  async function revokeSource(revokeInput: { cardId: string } & AlicizationPersonaTrainingSourceRef) {
+  async function revokeSource(
+    revokeInput: { cardId: string } & AlicizationPersonaTrainingSourceRef & { signal?: AbortSignal },
+  ) {
+    const assertNotAborted = () => {
+      if (!revokeInput.signal?.aborted)
+        return
+      throw revokeInput.signal.reason ?? new DOMException('Persona training source revoke aborted', 'AbortError')
+    }
+    assertNotAborted()
     const cardId = normalizeCardId(revokeInput.cardId)
     const sourceId = normalizePersonaTrainingDatasetText(revokeInput.sourceId, 240)
     if (!sourceId)
@@ -829,7 +844,9 @@ export function createPersonaTrainingDatasetRuntime(input: {
         sourceKind: revokeInput.sourceKind,
       },
       input.now(),
+      { signal: revokeInput.signal },
     )
+    assertNotAborted()
     return { affected }
   }
 

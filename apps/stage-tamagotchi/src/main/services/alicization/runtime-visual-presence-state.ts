@@ -11,7 +11,7 @@ interface CreateAlicizationRuntimeVisualPresenceStateOptions {
   getActiveCardId: () => string
   withCardScope: <T>(nextCardIdRaw: unknown, task: () => Promise<T>, options?: CardScopeOptions) => Promise<T>
   alicizationDb: {
-    getMetaValue: (key: string) => Promise<string | undefined>
+    getMetaValue: (key: string, options?: { signal?: AbortSignal }) => Promise<string | undefined>
     setMetaValue: (key: string, value: string, options?: { signal?: AbortSignal }) => Promise<void>
     upsertMindHead: (cardId: string, key: AlicizationMindHeadKey, value: unknown, options?: { signal?: AbortSignal }) => Promise<void>
   }
@@ -97,24 +97,43 @@ export function createAlicizationRuntimeVisualPresenceState(
     })
   }
 
-  async function persistPerceptionState(cardIdRaw: unknown, state: AlicizationPerceptionState) {
+  async function persistPerceptionState(
+    cardIdRaw: unknown,
+    state: AlicizationPerceptionState,
+    persistOptions: { signal?: AbortSignal } = {},
+  ) {
+    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     const cardId = normalizeCardId(cardIdRaw)
-    perceptionStateByCard.set(cardId, state)
     if (cardId === getActiveCardId()) {
-      await alicizationDb.setMetaValue(perceptionMetaKey, JSON.stringify(state)).catch(() => {})
+      await alicizationDb.setMetaValue(perceptionMetaKey, JSON.stringify(state), persistOptions).catch((error) => {
+        if (persistOptions.signal?.aborted || isAbortError(error))
+          throw persistOptions.signal?.reason ?? error
+      })
+      assertVisualPresencePersistenceNotAborted(persistOptions.signal)
+      perceptionStateByCard.set(cardId, state)
       return
     }
     await withCardScope(cardId, async () => {
-      await alicizationDb.setMetaValue(perceptionMetaKey, JSON.stringify(state)).catch(() => {})
+      assertVisualPresencePersistenceNotAborted(persistOptions.signal)
+      await alicizationDb.setMetaValue(perceptionMetaKey, JSON.stringify(state), persistOptions).catch((error) => {
+        if (persistOptions.signal?.aborted || isAbortError(error))
+          throw persistOptions.signal?.reason ?? error
+      })
+      assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     }, {
       label: `perception.persist:${cardId}`,
+      signal: persistOptions.signal,
     })
+    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
+    perceptionStateByCard.set(cardId, state)
   }
 
   async function queuePerceptionStateMutation(
     cardIdRaw: unknown,
     mutate: (current: AlicizationPerceptionState) => AlicizationPerceptionState | Promise<AlicizationPerceptionState>,
+    persistOptions: { signal?: AbortSignal } = {},
   ) {
+    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     const cardId = normalizeCardId(cardIdRaw)
     const previous = perceptionMutationQueueByCard.get(cardId) ?? Promise.resolve(
       perceptionStateByCard.get(cardId) ?? createDefaultPerceptionState(now()),
@@ -122,9 +141,9 @@ export function createAlicizationRuntimeVisualPresenceState(
     const run = previous
       .catch(() => perceptionStateByCard.get(cardId) ?? createDefaultPerceptionState(now()))
       .then(async () => {
-        const current = await ensurePerceptionState(cardId)
+        const current = await ensurePerceptionState(cardId, persistOptions)
         const next = await mutate(current)
-        await persistPerceptionState(cardId, next)
+        await persistPerceptionState(cardId, next, persistOptions)
         return next
       })
     perceptionMutationQueueByCard.set(cardId, run)
@@ -137,7 +156,8 @@ export function createAlicizationRuntimeVisualPresenceState(
     }
   }
 
-  async function restorePerceptionState(cardIdRaw: unknown) {
+  async function restorePerceptionState(cardIdRaw: unknown, persistOptions: { signal?: AbortSignal } = {}) {
+    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     const cardId = normalizeCardId(cardIdRaw)
     const currentTs = now()
     const setState = (state: AlicizationPerceptionState) => {
@@ -147,7 +167,8 @@ export function createAlicizationRuntimeVisualPresenceState(
 
     if (cardId !== getActiveCardId()) {
       await withCardScope(cardId, async () => {
-        const raw = await alicizationDb.getMetaValue(perceptionMetaKey).catch(() => undefined)
+        const raw = await alicizationDb.getMetaValue(perceptionMetaKey, persistOptions).catch(() => undefined)
+        assertVisualPresencePersistenceNotAborted(persistOptions.signal)
         if (!raw) {
           setState(createDefaultPerceptionState(currentTs))
           return
@@ -160,11 +181,14 @@ export function createAlicizationRuntimeVisualPresenceState(
         }
       }, {
         label: `perception.restore:${cardId}`,
+        signal: persistOptions.signal,
       })
+      assertVisualPresencePersistenceNotAborted(persistOptions.signal)
       return perceptionStateByCard.get(cardId) ?? createDefaultPerceptionState(currentTs)
     }
 
-    const raw = await alicizationDb.getMetaValue(perceptionMetaKey).catch(() => undefined)
+    const raw = await alicizationDb.getMetaValue(perceptionMetaKey, persistOptions).catch(() => undefined)
+    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     if (!raw)
       return setState(createDefaultPerceptionState(currentTs))
     try {
@@ -175,12 +199,13 @@ export function createAlicizationRuntimeVisualPresenceState(
     }
   }
 
-  async function ensurePerceptionState(cardIdRaw: unknown) {
+  async function ensurePerceptionState(cardIdRaw: unknown, persistOptions: { signal?: AbortSignal } = {}) {
     const cardId = normalizeCardId(cardIdRaw)
-    const current = perceptionStateByCard.get(cardId) ?? await restorePerceptionState(cardId)
+    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
+    const current = perceptionStateByCard.get(cardId) ?? await restorePerceptionState(cardId, persistOptions)
     const normalized = normalizePerceptionState(current, now())
     if (JSON.stringify(normalized) !== JSON.stringify(current)) {
-      await persistPerceptionState(cardId, normalized)
+      await persistPerceptionState(cardId, normalized, persistOptions)
       return normalized
     }
     return current

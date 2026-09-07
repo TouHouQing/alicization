@@ -5,7 +5,10 @@ import type {
   LongTermMemoryEvidenceScope,
 } from './long-term-memory-recall'
 
-import { sanitizeAlicizationMemoryEvidenceText } from '@proj-alicization/stage-shared'
+import {
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationMemoryEvidenceText,
+} from '@proj-alicization/stage-shared'
 
 import { longTermMemoryEvidenceVersion } from './long-term-memory-recall'
 
@@ -182,9 +185,9 @@ function projectProviderWorkingMemory(
     owner: context.owner,
     scope: context.scope,
     current: {
-      threadTitle: sanitizeProviderMemoryFactText(context.current.threadTitle, 220) || null,
+      threadTitle: sanitizeProviderCurrentWorkingMemoryText(context.current.threadTitle, 220) || null,
       currentUserMove: normalizeProviderCurrentUserMove(context.current.currentUserMove),
-      activeTask: sanitizeProviderMemoryFactText(context.current.activeTask, 220) || null,
+      activeTask: sanitizeProviderCurrentWorkingMemoryText(context.current.activeTask, 220) || null,
       taskStatus: context.current.taskStatus,
     },
     recentDialogue: projectProviderRecentDialogue(snapshot),
@@ -236,7 +239,14 @@ function projectProviderCompressedTimeline(context: WorkingMemoryOwnerContext): 
 function normalizeProviderCurrentUserMove(raw: unknown) {
   if (typeof raw !== 'string')
     return null
-  return raw.trim().replace(/\s+/gu, ' ').slice(0, 360).trim() || null
+  return sanitizeProviderCurrentWorkingMemoryText(raw, 360) || null
+}
+
+function sanitizeProviderCurrentWorkingMemoryText(raw: unknown, maxChars: number) {
+  return sanitizeAlicizationMemoryEvidenceText(raw, maxChars, {
+    provenance: 'internal-structured-fact',
+    fragmentPolicy: 'drop-only',
+  })
 }
 
 function normalizeProviderWorkingMemoryLine(raw: string) {
@@ -260,7 +270,70 @@ function isProviderEligibleReviewStatus(reviewStatus: unknown) {
 function sanitizeProviderMemoryFactText(raw: unknown, maxChars: number) {
   return sanitizeAlicizationMemoryEvidenceText(raw, maxChars, {
     provenance: 'internal-structured-fact',
+    fragmentPolicy: 'drop-only',
   })
+}
+
+const providerInternalCuePatterns = [
+  /共同经历/gu,
+  /\bautobiographical\s+phase\b/giu,
+  /\bemotion:[^\s;；|,，。.!！?？(){}]+/giu,
+  /\bcleaned:working-memory-long-term(?::[^\s;；|,，。.!！?？(){}]*)?/giu,
+  /\brecollection:[^\s;；|,，。.!！?？(){}]*/giu,
+  /\bstructured-state\b/giu,
+  /\b(?:opening_policy|relationship_cadence)\s*(?:[:=]\s*[^\s;；|,，。.!！?？(){}]+)?/giu,
+  /\bvisibility\s*=\s*redacted_internal\b/giu,
+  /\bproject-state-brief\b/giu,
+  /\bruntime-mind-state\b/giu,
+  /\bpre_turn_context_digest\b/giu,
+]
+
+function stripProviderInternalCueResidue(raw: string) {
+  let cleaned = raw
+  for (const pattern of providerInternalCuePatterns)
+    cleaned = cleaned.replace(pattern, ' ')
+
+  return cleaned
+    .replace(/\s+/gu, ' ')
+    .replace(/([。.!！?？])\s*[;；|,，、:：]\s*/gu, '$1')
+    .replace(/[;；|]\s*(?:[;；|]\s*)+/gu, '；')
+    .replace(/^[\s;；|,，、:：]+|[\s;；|,，、:：]+$/gu, '')
+    .trim()
+}
+
+function sanitizeProviderDerivedMemoryText(raw: unknown, maxChars: number) {
+  const normalized = sanitizeAlicizationMemoryEvidenceText(raw, 2400, {
+    provenance: 'internal-structured-fact',
+  })
+  if (!normalized)
+    return ''
+
+  const cleaned = stripProviderInternalCueResidue(normalized)
+  if (!cleaned)
+    return ''
+
+  if (containsAlicizationFixedTemplateResidue(cleaned, {
+    provenance: 'internal-structured-fact',
+  })) {
+    return ''
+  }
+
+  return cleaned.slice(0, Math.max(0, maxChars)).trim()
+}
+
+function containsProviderInternalCue(raw: unknown) {
+  if (typeof raw !== 'string')
+    return false
+  const normalized = raw.trim().replace(/\s+/gu, ' ')
+  if (!normalized)
+    return false
+
+  const sanitized = sanitizeAlicizationMemoryEvidenceText(
+    normalized,
+    2400,
+    { provenance: 'internal-structured-fact' },
+  )
+  return !sanitized || stripProviderInternalCueResidue(normalized) !== normalized
 }
 
 function finiteNumberOrNull(raw: unknown) {
@@ -324,17 +397,17 @@ function sanitizeLongTermRecallEvidence(
     : {
         provenance: 'internal-structured-fact',
       }
-  const summary = sanitizeAlicizationMemoryEvidenceText(
-    item.candidate.summary,
-    360,
-    sanitizerContext,
-  )
+  const sanitizeEvidenceText = (raw: unknown, maxChars: number) =>
+    userAuthoredEvidence
+      ? sanitizeAlicizationMemoryEvidenceText(raw, maxChars, sanitizerContext)
+      : sanitizeProviderDerivedMemoryText(raw, maxChars)
+  const summary = sanitizeEvidenceText(item.candidate.summary, 360)
   if (!summary)
     return null
 
   const sanitizeList = (values: string[] | null | undefined, maxItems: number, maxChars: number) =>
     (values ?? [])
-      .map(value => sanitizeAlicizationMemoryEvidenceText(value, maxChars, sanitizerContext))
+      .map(value => sanitizeEvidenceText(value, maxChars))
       .filter(Boolean)
       .slice(0, maxItems)
 
@@ -342,15 +415,15 @@ function sanitizeLongTermRecallEvidence(
     id: normalizeAvailableLongTermEvidenceId(item.candidate.id),
     kind: item.candidate.kind,
     summary,
-    source: sanitizeAlicizationMemoryEvidenceText(item.candidate.source, 120, sanitizerContext) || 'memory',
+    source: sanitizeEvidenceText(item.candidate.source, 120) || 'memory',
     scope: normalizeEvidenceScope(item.scope ?? item.candidate.scope),
     provenance: normalizeEvidenceProvenance(item.provenance, item.candidate),
     confidence: clamp01(item.candidate.confidence),
     salience: finiteNumberOrNull(item.candidate.salience),
     updatedAt: finiteNumberOrNull(item.candidate.updatedAt),
     occurredAt: finiteNumberOrNull(item.candidate.occurredAt),
-    threadId: sanitizeAlicizationMemoryEvidenceText(item.candidate.threadId, 160, sanitizerContext) || null,
-    threadAnchor: sanitizeAlicizationMemoryEvidenceText(item.candidate.threadAnchor, 180, sanitizerContext) || null,
+    threadId: sanitizeEvidenceText(item.candidate.threadId, 160) || null,
+    threadAnchor: sanitizeEvidenceText(item.candidate.threadAnchor, 180) || null,
     cues: sanitizeList(item.candidate.cues, 12, 120),
     entities: sanitizeList(item.candidate.entities, 12, 120),
     sensitivity: item.candidate.sensitivity ?? null,
@@ -384,7 +457,7 @@ function normalizeLongTermRecallProviderContext(
       continue
 
     const id = normalizeAvailableLongTermEvidenceId(item.candidate.id)
-    if (!id || seen.has(id))
+    if (!id || seen.has(id) || containsProviderInternalCue(id))
       continue
     const normalizedItem = sanitizeLongTermRecallEvidence(item)
     if (!normalizedItem)

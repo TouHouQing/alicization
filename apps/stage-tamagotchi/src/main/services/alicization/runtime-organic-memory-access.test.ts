@@ -6,6 +6,67 @@ import { replayBenchmarkTuningAdviceMetaKey } from './memory-tuning-advice'
 import { createAlicizationOrganicMemoryAccessRuntime } from './runtime-organic-memory-access'
 
 describe('runtime-organic-memory-access', () => {
+  it('builds the realtime prompt snapshot without reading full long-lived memory state', async () => {
+    const listActiveThoughts = vi.fn(async () => [{
+      id: 'thought-1',
+      text: '继续当前任务',
+      createdAt: 1,
+      updatedAt: 1,
+    }])
+    const countSubconsciousFragments = vi.fn(async () => 7)
+    const listRecentSubconsciousFragments = vi.fn(async () => [])
+    const listRecentEpisodicEvents = vi.fn(async () => [])
+    const listMemoryConsolidations = vi.fn(async () => [])
+    const getLatestRelationshipDynamics = vi.fn(async () => null)
+    const listRelationshipOutcomes = vi.fn(async () => [])
+    const listMemoryReflections = vi.fn(async () => [])
+    const summarizePersonStateEvolution = vi.fn(async () => {
+      throw new Error('full person-state evolution must stay off the prompt snapshot path')
+    })
+    const runtime = createAlicizationOrganicMemoryAccessRuntime({
+      getActiveCardId: () => 'default',
+      getSoulSnapshot: () => null,
+      bootstrap: async () => ({
+        soulPath: 'SOUL.md',
+        content: '',
+        frontmatter: {
+          host_attitude: 'focused',
+          core_incarnation: 'local digital life',
+        },
+      } as any),
+      listActiveThoughts,
+      countSubconsciousFragments,
+      listRecentSubconsciousFragments,
+      listRecentEpisodicEvents,
+      listMemoryConsolidations,
+      getLatestRelationshipDynamics,
+      listRelationshipOutcomes,
+      listMemoryReflections,
+      summarizePersonStateEvolution,
+      getLatestLearningExecutionState: async () => null,
+      replaceActiveThoughts: async () => {},
+    } as any)
+
+    const snapshot = await runtime.getOrganicMemoryPromptSnapshot()
+
+    expect(snapshot).toEqual({
+      hostAttitude: 'focused',
+      coreIncarnation: 'local digital life',
+      activeThoughts: [expect.objectContaining({
+        text: '继续当前任务',
+      })],
+      learningExecutionState: null,
+    })
+    expect(countSubconsciousFragments).not.toHaveBeenCalled()
+    expect(listRecentSubconsciousFragments).not.toHaveBeenCalled()
+    expect(listRecentEpisodicEvents).not.toHaveBeenCalled()
+    expect(listMemoryConsolidations).not.toHaveBeenCalled()
+    expect(getLatestRelationshipDynamics).not.toHaveBeenCalled()
+    expect(listRelationshipOutcomes).not.toHaveBeenCalled()
+    expect(listMemoryReflections).not.toHaveBeenCalled()
+    expect(summarizePersonStateEvolution).not.toHaveBeenCalled()
+  })
+
   it('keeps persisted failure artifacts out of recent contextual turns', async () => {
     const failureText = 'FAILED_TURN_MUST_NOT_ENTER_ORGANIC_CONTEXT'
     const runtime = createAlicizationOrganicMemoryAccessRuntime({
@@ -683,6 +744,96 @@ describe('runtime-organic-memory-access', () => {
     resolveEpisodicSearch?.()
     resolveConsolidationSearch?.()
     await Promise.all([episodicRecallPromise, consolidationRecallPromise])
+  })
+
+  it('passes the turn signal into retrieval policy owner reads', async () => {
+    const controller = new AbortController()
+    const getMetaValue = vi.fn(async () => undefined)
+    const getMemoryRetrievalTelemetry = vi.fn(async () => null)
+    const getActiveSelfRevisionStatePatch = vi.fn(async () => null)
+    const getActiveSelfEvolutionCandidateId = vi.fn(async () => null)
+    const runtime = createAlicizationOrganicMemoryAccessRuntime({
+      getMetaValue,
+      getMemoryRetrievalTelemetry,
+      getActiveSelfRevisionStatePatch,
+      getActiveSelfEvolutionCandidateId,
+    } as any)
+
+    await runtime.resolveTurnRetrievalPolicySnapshot({
+      recallSeed: '记得我们刚才的决定',
+      signal: controller.signal,
+    })
+
+    expect(getMetaValue).toHaveBeenCalledWith(
+      replayBenchmarkTuningAdviceMetaKey,
+      { signal: controller.signal },
+    )
+    expect(getMemoryRetrievalTelemetry).toHaveBeenCalledWith({
+      signal: controller.signal,
+    })
+    expect(getActiveSelfRevisionStatePatch).toHaveBeenCalledWith({
+      signal: controller.signal,
+    })
+    expect(getActiveSelfEvolutionCandidateId).toHaveBeenCalledWith({
+      signal: controller.signal,
+    })
+  })
+
+  it('passes the turn signal into both prewarm retrieval owners', async () => {
+    const controller = new AbortController()
+    const searchEpisodicEvents = vi.fn(async () => [])
+    const searchMemoryConsolidations = vi.fn(async () => [])
+    const runtime = createAlicizationOrganicMemoryAccessRuntime({
+      getMetaValue: async () => undefined,
+      searchEpisodicEvents,
+      searchMemoryConsolidations,
+      listConversationTurnsBySession: async () => [],
+    } as any)
+
+    await runtime.prewarmAccessibilityLine({
+      recallSeed: '继续昨天的数据库迁移',
+      recallGovernor: {
+        recollectionIntent: {
+          mode: 'experience-pattern',
+          temporalFocus: 'recent',
+          searchEpisodes: true,
+          searchProceduralExperience: true,
+          queryHints: ['数据库迁移'],
+          rationale: '继续已存在的任务经验。',
+          confidence: 0.8,
+        },
+        threadAnchors: ['数据库迁移'],
+      } as any,
+      signal: controller.signal,
+    })
+    await vi.waitFor(() => {
+      expect(searchEpisodicEvents).toHaveBeenCalledOnce()
+      expect(searchMemoryConsolidations).toHaveBeenCalledOnce()
+    })
+
+    expect(searchEpisodicEvents).toHaveBeenCalledWith(expect.objectContaining({
+      signal: controller.signal,
+    }))
+    expect(searchMemoryConsolidations).toHaveBeenCalledWith(expect.objectContaining({
+      signal: controller.signal,
+    }))
+  })
+
+  it('does not convert an aborted episodic owner read into an empty recall', async () => {
+    const abortError = new DOMException('episodic recall cancelled', 'AbortError')
+    const runtime = createAlicizationOrganicMemoryAccessRuntime({
+      getMetaValue: async () => undefined,
+      searchEpisodicEvents: vi.fn(async () => {
+        throw abortError
+      }),
+      searchMemoryConsolidations: async () => [],
+      listConversationTurnsBySession: async () => [],
+    } as any)
+
+    await expect(runtime.recallEpisodicEventsWithGovernor({
+      recallSeed: '继续昨天的数据库迁移',
+      signal: new AbortController().signal,
+    })).rejects.toBe(abortError)
   })
 
   it('keeps scene episodic recall active without a structured governor intent', async () => {

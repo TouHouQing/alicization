@@ -267,23 +267,29 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
   randomUUID: () => string
   run: (database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<unknown>
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
-  enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
+  enqueueWrite: <T>(task: () => Promise<T>, writeOptions?: { signal?: AbortSignal }) => Promise<T>
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
   policyStore: MemoryWorkbenchPolicyStoreRuntime
-  listMemoryReflectionsPage: (payload: {
-    cardId: string
-    limit?: number
-    status?: AlicizationMemoryReflectionRecord['status']
-    cursor?: string | null
-  }) => Promise<{
+  listMemoryReflectionsPage: (
+    payload: {
+      cardId: string
+      limit?: number
+      status?: AlicizationMemoryReflectionRecord['status']
+      cursor?: string | null
+    },
+    readOptions?: { signal?: AbortSignal },
+  ) => Promise<{
     items: AlicizationMemoryReflectionRecord[]
     nextCursor: string | null
   }>
-  listPersonaReinforcementEventsPage: (payload: {
-    cardId: string
-    limit?: number
-    cursor?: string | null
-  }) => Promise<{
+  listPersonaReinforcementEventsPage: (
+    payload: {
+      cardId: string
+      limit?: number
+      cursor?: string | null
+    },
+    readOptions?: { signal?: AbortSignal },
+  ) => Promise<{
     items: AlicizationPersonaReinforcementEventRecord[]
     nextCursor: string | null
   }>
@@ -291,12 +297,22 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     sourceIds: string[],
     cardId?: string,
     source?: string,
+    readOptions?: { signal?: AbortSignal },
   ) => Promise<Set<string>>
-  listPersonaTrainingSourceProvenance: (payload: {
-    cardId: string
-    sourceRefs: AlicizationPersonaTrainingSourceRef[]
-  }) => Promise<PersonaTrainingSourceProvenance[]>
+  listPersonaTrainingSourceProvenance: (
+    payload: {
+      cardId: string
+      sourceRefs: AlicizationPersonaTrainingSourceRef[]
+    },
+    readOptions?: { signal?: AbortSignal },
+  ) => Promise<PersonaTrainingSourceProvenance[]>
 }) {
+  function assertProjectionWriteNotAborted(signal?: AbortSignal) {
+    if (!signal?.aborted)
+      return
+    throw signal.reason ?? new DOMException('Persona candidate projection write aborted', 'AbortError')
+  }
+
   interface CandidateSourceItem {
     candidate: PersonaTrainingCandidate
     updatedAt: number
@@ -306,7 +322,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
 
   const maxReinforcementSourcesPerCandidate = 7
 
-  async function listLatestReinforcements(cardId: string) {
+  async function listLatestReinforcements(cardId: string, signal?: AbortSignal) {
     const reinforcements: AlicizationPersonaReinforcementEventRecord[] = []
     const tombstonedSourceIds = new Set<string>()
     const seenCursors = new Set<string>()
@@ -320,11 +336,12 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
         cardId,
         limit: maxReinforcementSourcesPerCandidate + 1,
         cursor,
-      })
+      }, { signal })
       const pageTombstonedSourceIds = await input.listTombstonedLongTermMemorySourceIds(
         page.items.map(reinforcement => reinforcement.id),
         cardId,
         'persona_reinforcement_events',
+        { signal },
       )
       const pageProvenanceKeys = await listProvenanceKeys(
         cardId,
@@ -332,6 +349,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
           sourceId: reinforcement.id,
           sourceKind: 'persona-reinforcement',
         })),
+        signal,
       )
       for (const sourceId of pageTombstonedSourceIds)
         tombstonedSourceIds.add(sourceId)
@@ -382,7 +400,9 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
   async function listProvenanceKeys(
     cardId: string,
     sourceRefs: AlicizationPersonaTrainingSourceRef[],
+    signal?: AbortSignal,
   ) {
+    assertProjectionWriteNotAborted(signal)
     const normalizedRefs = sourceRefs.filter(sourceRef =>
       normalizeText(sourceRef.sourceId, 240)
       && (
@@ -395,14 +415,16 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     const rows = await input.listPersonaTrainingSourceProvenance({
       cardId,
       sourceRefs: normalizedRefs,
-    })
+    }, { signal })
+    assertProjectionWriteNotAborted(signal)
     return new Set(rows.map(row => personaTrainingSourceRefKey({
       sourceId: normalizeText(row.sourceId, 240),
       sourceKind: row.sourceKind,
     })))
   }
 
-  async function listConfirmedReflectionIds(cardId: string, sourceIds: string[]) {
+  async function listConfirmedReflectionIds(cardId: string, sourceIds: string[], signal?: AbortSignal) {
+    assertProjectionWriteNotAborted(signal)
     const normalizedSourceIds = [...new Set(sourceIds.map(sourceId => normalizeText(sourceId, 240)).filter(Boolean))]
     if (normalizedSourceIds.length === 0)
       return new Set<string>()
@@ -417,6 +439,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       `,
       [cardId, ...normalizedSourceIds],
     )
+    assertProjectionWriteNotAborted(signal)
     return new Set(rows.map(row => normalizeText(row.id, 240)).filter(Boolean))
   }
 
@@ -428,23 +451,27 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       sourceCreatedAt: number
       sourceUpdatedAt: number
     }>,
+    signal?: AbortSignal,
   ) {
+    assertProjectionWriteNotAborted(signal)
     if (candidates.length === 0)
       return candidates
     const reflectionTombstoneIds = await input.listTombstonedLongTermMemorySourceIds(
       candidates.map(item => item.sourceId),
       cardId,
       'memory_reflections',
+      { signal },
     )
     const confirmedReflectionIds = await listConfirmedReflectionIds(
       cardId,
       candidates.map(item => item.sourceId),
+      signal,
     )
     const candidateReinforcementIds = new Set(
       candidates.flatMap(item => item.candidate.sourceMemoryIds.slice(1)),
     )
     const validReinforcementIds = candidateReinforcementIds.size > 0
-      ? new Set((await listLatestReinforcements(cardId)).reinforcements.map(reinforcement => reinforcement.id))
+      ? new Set((await listLatestReinforcements(cardId, signal)).reinforcements.map(reinforcement => reinforcement.id))
       : new Set<string>()
     const sanitizedCandidates = candidates
       .filter(item =>
@@ -472,7 +499,8 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       }),
     }))
     const sourceRefs = candidatesWithSourceRefs.flatMap(item => item.sourceRefs)
-    const provenanceKeys = await listProvenanceKeys(cardId, sourceRefs)
+    const provenanceKeys = await listProvenanceKeys(cardId, sourceRefs, signal)
+    assertProjectionWriteNotAborted(signal)
     return candidatesWithSourceRefs
       .filter(item => item.sourceRefs.every(sourceRef => provenanceKeys.has(personaTrainingSourceRefKey(sourceRef))))
       .map(({ sourceRefs: _sourceRefs, ...item }) => item)
@@ -538,15 +566,20 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     cardId: string
     cursor: string | null
     sourcePageLimit: number
+    signal?: AbortSignal
     onPage: (candidates: CandidateSourceItem[]) => Promise<boolean> | boolean
   }) {
-    const { reinforcements, tombstonedSourceIds: reinforcementTombstones } = await listLatestReinforcements(inputData.cardId)
+    const { reinforcements, tombstonedSourceIds: reinforcementTombstones } = await listLatestReinforcements(
+      inputData.cardId,
+      inputData.signal,
+    )
     const reinforcementProvenanceKeys = await listProvenanceKeys(
       inputData.cardId,
       reinforcements.map(reinforcement => ({
         sourceId: reinforcement.id,
         sourceKind: 'persona-reinforcement',
       })),
+      inputData.signal,
     )
     const provenancedReinforcements = reinforcements.filter(reinforcement =>
       reinforcementProvenanceKeys.has(personaTrainingSourceRefKey({
@@ -566,12 +599,13 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
         limit: inputData.sourcePageLimit,
         status: 'confirmed',
         cursor,
-      })
+      }, { signal: inputData.signal })
       const tombstonedSourceIds = new Set(reinforcementTombstones)
       const reflectionTombstones = await input.listTombstonedLongTermMemorySourceIds(
         page.items.map(reflection => reflection.id),
         inputData.cardId,
         'memory_reflections',
+        { signal: inputData.signal },
       )
       for (const sourceId of reflectionTombstones)
         tombstonedSourceIds.add(sourceId)
@@ -582,6 +616,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
           sourceId: reflection.id,
           sourceKind: 'cleaned-long-term-reflection',
         })),
+        inputData.signal,
       )
       for (const key of reinforcementProvenanceKeys)
         provenanceKeys.add(key)
@@ -602,13 +637,18 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     }
   }
 
-  async function persistCandidateProjectionPage(cardId: string, candidates: CandidateSourceItem[]) {
+  async function persistCandidateProjectionPage(
+    cardId: string,
+    candidates: CandidateSourceItem[],
+    writeOptions: { signal?: AbortSignal } = {},
+  ) {
     if (candidates.length === 0)
       return
     const projectedAt = input.now()
     await input.enqueueWrite(async () => {
       await input.runInTransaction(input.database, async () => {
         for (const candidate of candidates) {
+          assertProjectionWriteNotAborted(writeOptions.signal)
           await input.run(
             input.database,
             `
@@ -654,10 +694,13 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
           )
         }
       })
-    })
+    }, writeOptions)
   }
 
-  async function refreshProjectionForReflections(reflections: AlicizationMemoryReflectionRecord[]) {
+  async function refreshProjectionForReflections(
+    reflections: AlicizationMemoryReflectionRecord[],
+    writeOptions: { signal?: AbortSignal } = {},
+  ) {
     const reflectionsByCard = new Map<string, AlicizationMemoryReflectionRecord[]>()
     for (const reflection of reflections) {
       const cardId = normalizeText(reflection.cardId, 120)
@@ -669,12 +712,17 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     }
 
     for (const [cardId, cardReflections] of reflectionsByCard) {
+      assertProjectionWriteNotAborted(writeOptions.signal)
       const rootSourceIds = cardReflections.map(reflection => reflection.id)
-      const { reinforcements, tombstonedSourceIds: reinforcementTombstones } = await listLatestReinforcements(cardId)
+      const { reinforcements, tombstonedSourceIds: reinforcementTombstones } = await listLatestReinforcements(
+        cardId,
+        writeOptions.signal,
+      )
       const reflectionTombstones = await input.listTombstonedLongTermMemorySourceIds(
         rootSourceIds,
         cardId,
         'memory_reflections',
+        writeOptions,
       )
       const tombstonedSourceIds = new Set([
         ...reinforcementTombstones,
@@ -693,11 +741,12 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
             sourceId: reinforcement.id,
             sourceKind: 'persona-reinforcement' as const,
           })),
-        ]),
+        ], writeOptions.signal),
       })
       await input.enqueueWrite(async () => {
         await input.runInTransaction(input.database, async () => {
           for (const rootSourceId of rootSourceIds) {
+            assertProjectionWriteNotAborted(writeOptions.signal)
             await input.run(
               input.database,
               `
@@ -708,15 +757,19 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
             )
           }
         })
-      })
-      await persistCandidateProjectionPage(cardId, candidates)
+      }, writeOptions)
+      await persistCandidateProjectionPage(cardId, candidates, writeOptions)
     }
   }
 
-  async function removeProjectionSources(payload: {
-    cardId: string
-    sourceIds: string[]
-  }) {
+  async function removeProjectionSources(
+    payload: {
+      cardId: string
+      sourceIds: string[]
+    },
+    writeOptions: { signal?: AbortSignal } = {},
+  ) {
+    assertProjectionWriteNotAborted(writeOptions.signal)
     const cardId = normalizeText(payload.cardId, 120)
     const sourceIds = payload.sourceIds
       .map(sourceId => normalizeText(sourceId, 240))
@@ -726,6 +779,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     await input.enqueueWrite(async () => {
       await input.runInTransaction(input.database, async () => {
         for (const sourceId of sourceIds) {
+          assertProjectionWriteNotAborted(writeOptions.signal)
           await input.run(
             input.database,
             `
@@ -736,14 +790,19 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
           )
         }
       })
-    })
+    }, writeOptions)
   }
 
-  async function refreshProjectionReinforcementSources(cardIdRaw: string) {
+  async function refreshProjectionReinforcementSources(
+    cardIdRaw: string,
+    writeOptions: { signal?: AbortSignal } = {},
+  ) {
+    assertProjectionWriteNotAborted(writeOptions.signal)
     const cardId = normalizeText(cardIdRaw, 120)
     if (!cardId)
       return
-    const { reinforcements } = await listLatestReinforcements(cardId)
+    const { reinforcements } = await listLatestReinforcements(cardId, writeOptions.signal)
+    assertProjectionWriteNotAborted(writeOptions.signal)
     const reinforcementIds = reinforcements.map(reinforcement => reinforcement.id)
     const rows = await input.all<Pick<PersonaCandidateProjectionRow, 'candidate_id' | 'root_source_id'>>(
       input.database,
@@ -754,12 +813,14 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       `,
       [cardId],
     )
+    assertProjectionWriteNotAborted(writeOptions.signal)
     if (rows.length === 0)
       return
     const projectedAt = input.now()
     await input.enqueueWrite(async () => {
       await input.runInTransaction(input.database, async () => {
         for (const row of rows) {
+          assertProjectionWriteNotAborted(writeOptions.signal)
           await input.run(
             input.database,
             `
@@ -776,14 +837,16 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
           )
         }
       })
-    })
+    }, writeOptions)
   }
 
   async function listProjectionPage(inputData: {
     cardId: string
     cursor: ReturnType<typeof decodeCursor>
     limit: number
+    signal?: AbortSignal
   }) {
+    assertProjectionWriteNotAborted(inputData.signal)
     const params: unknown[] = [inputData.cardId]
     const where = ['card_id = ?']
     if (inputData.cursor) {
@@ -817,10 +880,12 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       `,
       params,
     )
+    assertProjectionWriteNotAborted(inputData.signal)
     return rows.map(mapProjectionRow)
   }
 
-  async function getProjectionCandidate(cardId: string, candidateId: string) {
+  async function getProjectionCandidate(cardId: string, candidateId: string, signal?: AbortSignal) {
+    assertProjectionWriteNotAborted(signal)
     const rows = await input.all<PersonaCandidateProjectionRow>(
       input.database,
       `
@@ -841,10 +906,16 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       `,
       [cardId, candidateId],
     )
+    assertProjectionWriteNotAborted(signal)
     return rows[0] ? mapProjectionRow(rows[0]) : null
   }
 
-  async function refreshProjectionForCandidateId(cardId: string, candidateId: string) {
+  async function refreshProjectionForCandidateId(
+    cardId: string,
+    candidateId: string,
+    writeOptions: { signal?: AbortSignal } = {},
+  ) {
+    assertProjectionWriteNotAborted(writeOptions.signal)
     const sourceId = candidateId.startsWith('persona-candidate:')
       ? candidateId.slice('persona-candidate:'.length)
       : ''
@@ -870,6 +941,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       `,
       [cardId, sourceId],
     )
+    assertProjectionWriteNotAborted(writeOptions.signal)
     const row = rows[0]
     if (!row)
       return null
@@ -891,15 +963,19 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       updatedAt: row.updated_at,
       confirmedAt: row.status === 'confirmed' ? row.updated_at : null,
       deniedAt: row.status === 'denied' ? row.updated_at : null,
-    }])
-    return await getProjectionCandidate(cardId, candidateId)
+    }], writeOptions)
+    return await getProjectionCandidate(cardId, candidateId, writeOptions.signal)
   }
 
   function projectionMarkerKey(cardId: string) {
     return `persona_candidate_projection_v1:${cardId}`
   }
 
-  async function setProjectionState(cardIds: string[], state: 'complete' | 'dirty') {
+  async function setProjectionState(
+    cardIds: string[],
+    state: 'complete' | 'dirty',
+    writeOptions: { signal?: AbortSignal } = {},
+  ) {
     const normalizedCardIds = [...new Set(
       cardIds
         .map(cardId => normalizeText(cardId, 120))
@@ -911,6 +987,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     await input.enqueueWrite(async () => {
       await input.runInTransaction(input.database, async () => {
         for (const cardId of normalizedCardIds) {
+          assertProjectionWriteNotAborted(writeOptions.signal)
           await input.run(
             input.database,
             `
@@ -924,15 +1001,15 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
           )
         }
       })
-    })
+    }, writeOptions)
   }
 
-  async function markProjectionDirty(cardIds: string[]) {
-    await setProjectionState(cardIds, 'dirty')
+  async function markProjectionDirty(cardIds: string[], writeOptions?: { signal?: AbortSignal }) {
+    await setProjectionState(cardIds, 'dirty', writeOptions)
   }
 
-  async function markProjectionComplete(cardIds: string[]) {
-    await setProjectionState(cardIds, 'complete')
+  async function markProjectionComplete(cardIds: string[], writeOptions?: { signal?: AbortSignal }) {
+    await setProjectionState(cardIds, 'complete', writeOptions)
   }
 
   async function backfillCard(cardIdRaw: string) {
@@ -991,7 +1068,9 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     status?: AlicizationPersonaCandidateWorkbenchStatus | 'all'
     limit?: number
     cursor?: string | null
+    signal?: AbortSignal
   }): Promise<AlicizationPersonaCandidateListResult> {
+    assertProjectionWriteNotAborted(payload.signal)
     const cardId = normalizeText(payload.cardId, 120)
     if (!cardId)
       return { items: [], nextCursor: null }
@@ -1015,8 +1094,9 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
         cardId,
         cursor: pageCursor,
         limit: sourcePageLimit,
+        signal: payload.signal,
       })
-      const eligiblePageCandidates = await filterPersistedCandidatesWithProvenance(cardId, pageCandidates)
+      const eligiblePageCandidates = await filterPersistedCandidatesWithProvenance(cardId, pageCandidates, payload.signal)
       const sourceRefs = eligiblePageCandidates.flatMap(item => candidateSourceRefs({
         sourceId: item.sourceId,
         sourceMemoryIds: item.candidate.sourceMemoryIds,
@@ -1026,6 +1106,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
         input.policyStore.listPolicyOverrides({ cardId, sourceRefs }),
         input.policyStore.listPolicyOverrides({ cardId, sourceIds }),
       ])
+      assertProjectionWriteNotAborted(payload.signal)
       const policiesBySourceRef = new Map(policies.map(policy => [
         `${policy.sourceKind}\0${policy.sourceId}`,
         policy,
@@ -1111,14 +1192,16 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
     candidateId: string
     decision: AlicizationPersonaCandidateWorkbenchDecision
     reason?: string | null
+    signal?: AbortSignal
   }) {
+    assertProjectionWriteNotAborted(payload.signal)
     const cardId = normalizeText(payload.cardId, 120)
     const candidateId = normalizeText(payload.candidateId, 240)
     if (!cardId || !candidateId)
       return null
 
-    const projectedCandidate = await getProjectionCandidate(cardId, candidateId)
-      ?? await refreshProjectionForCandidateId(cardId, candidateId)
+    const projectedCandidate = await getProjectionCandidate(cardId, candidateId, payload.signal)
+      ?? await refreshProjectionForCandidateId(cardId, candidateId, payload)
     if (!projectedCandidate)
       return null
     const eligible = await filterPersistedCandidatesWithProvenance(cardId, [{
@@ -1126,7 +1209,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       sourceId: projectedCandidate.sourceId,
       sourceCreatedAt: projectedCandidate.sourceCreatedAt,
       sourceUpdatedAt: projectedCandidate.sourceUpdatedAt,
-    }])
+    }], payload.signal)
     if (eligible.length === 0)
       return null
     const candidate = eligible[0]!
@@ -1143,6 +1226,7 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
       reviewState: status,
       reason,
     })
+    assertProjectionWriteNotAborted(payload.signal)
     return mergePersonaCandidateReviewState({
       candidate: candidate.candidate,
       review: {

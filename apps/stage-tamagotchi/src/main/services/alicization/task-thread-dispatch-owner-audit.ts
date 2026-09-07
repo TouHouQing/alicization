@@ -27,9 +27,11 @@ const gatewayDispatchCallNeedle = 'options.dispatchTaskThread(dispatchInvocation
 const gatewayAuditNeedle = 'appendAuditLog: options.appendAuditLog,'
 const runtimeExecutionBridgeNeedle = 'dispatchTaskThread: invocation => dispatchTaskThreadWithExecutionDelivery(invocation)'
 const runtimeAutonomyBridgeNeedle = 'dispatchAutonomyTaskThread: async (payload: any) => await dispatchTaskThreadWithExecutionDelivery({'
-const autonomyDispatchNeedle = 'await input.dispatchTaskThread(buildAutonomousTaskDispatchInput({'
+const autonomyDispatchInputNeedle = 'buildAutonomousTaskDispatchInput({'
+const autonomyDispatchCallNeedle = 'input.dispatchTaskThread(dispatchInput'
 const autonomyEligibilityNeedle = 'actuationPlan.task.autoDispatchEligible'
-const subconsciousDispatchBridgeNeedle = 'dispatchTaskThread: async (payload: any) => await dispatchAutonomyTaskThread(payload)'
+const subconsciousDispatchBridgeNeedle = 'dispatchTaskThread: async (payload: any) =>'
+const subconsciousDispatchCallNeedle = 'dispatchAutonomyTaskThread(payload'
 
 export function collectAlicizationExecutionDispatchOwnerFiles(rootDir: string) {
   const queued = [rootDir]
@@ -64,9 +66,12 @@ export function collectAlicizationExecutionDispatchOwnerFiles(rootDir: string) {
         = source.includes(runtimeExecutionBridgeNeedle)
           && source.includes(runtimeAutonomyBridgeNeedle)
       const ownsAutonomyAutoDispatchEntry
-        = source.includes(autonomyDispatchNeedle)
+        = source.includes(autonomyDispatchInputNeedle)
+          && source.includes(autonomyDispatchCallNeedle)
           && source.includes(autonomyEligibilityNeedle)
-      const ownsSubconsciousDispatchBridge = source.includes(subconsciousDispatchBridgeNeedle)
+      const ownsSubconsciousDispatchBridge
+        = source.includes(subconsciousDispatchBridgeNeedle)
+          && source.includes(subconsciousDispatchCallNeedle)
 
       if (
         relativePath !== 'task-thread-dispatcher.ts'

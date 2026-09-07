@@ -7,12 +7,20 @@ type ExecutionCallbackRuntimeOptions = Parameters<typeof createAlicizationExecut
 
 export function createAlicizationRuntimeExecutionComposition(input: {
   alicizationDb: {
-    getMetaValue: (key: string) => Promise<string | undefined>
-    setMetaValue: (key: string, value: string) => Promise<void>
+    getMetaValue: (
+      key: string,
+      options?: { signal?: AbortSignal },
+    ) => Promise<string | undefined>
+    setMetaValue: (
+      key: string,
+      value: string,
+      options?: { signal?: AbortSignal },
+    ) => Promise<void>
     compareAndSetMetaValue?: (
       key: string,
       expectedValue: string | undefined,
       nextValue: string,
+      options?: { signal?: AbortSignal },
     ) => Promise<boolean>
     listExecutionEvents: ExecutionCallbackRuntimeOptions['listExecutionEvents']
     listTaskThreads: ExecutionCallbackRuntimeOptions['listTaskThreads']
@@ -51,12 +59,18 @@ export function createAlicizationRuntimeExecutionComposition(input: {
     listExecutionEvents: input.alicizationDb.listExecutionEvents,
     listTaskThreads: input.alicizationDb.listTaskThreads,
     cursorStore: {
-      get: async (sessionId) => {
-        const sessionRaw = await input.alicizationDb.getMetaValue(callbackCursorMetaKeyForSession(sessionId))
+      get: async (sessionId, ownerOptions) => {
+        const sessionRaw = await input.alicizationDb.getMetaValue(
+          callbackCursorMetaKeyForSession(sessionId),
+          ownerOptions,
+        )
         if (sessionRaw)
           return readCursor(sessionRaw)
 
-        const legacyRaw = await input.alicizationDb.getMetaValue(callbackCursorMetaKey)
+        const legacyRaw = await input.alicizationDb.getMetaValue(
+          callbackCursorMetaKey,
+          ownerOptions,
+        )
         if (!legacyRaw)
           return 0
         try {
@@ -72,19 +86,20 @@ export function createAlicizationRuntimeExecutionComposition(input: {
           return 0
         }
       },
-      set: async (sessionId, cursor) => {
+      set: async (sessionId, cursor, ownerOptions) => {
         await input.alicizationDb.setMetaValue(
           callbackCursorMetaKeyForSession(sessionId),
           JSON.stringify(cursor),
+          ownerOptions,
         )
       },
       compareAndSet: input.alicizationDb.compareAndSetMetaValue
-        ? async (sessionId, expected, next) => {
+        ? async (sessionId, expected, next, ownerOptions) => {
           const compareAndSetMetaValue = input.alicizationDb.compareAndSetMetaValue
           if (!compareAndSetMetaValue)
             return false
           const key = callbackCursorMetaKeyForSession(sessionId)
-          const expectedRaw = await input.alicizationDb.getMetaValue(key)
+          const expectedRaw = await input.alicizationDb.getMetaValue(key, ownerOptions)
           let expectedCursor: AlicizationExecutionCallbackCursor = {
             activityAt: 0,
             threadId: null,
@@ -99,7 +114,10 @@ export function createAlicizationRuntimeExecutionComposition(input: {
               : parsed
           }
           else {
-            const legacyRaw = await input.alicizationDb.getMetaValue(callbackCursorMetaKey)
+            const legacyRaw = await input.alicizationDb.getMetaValue(
+              callbackCursorMetaKey,
+              ownerOptions,
+            )
             if (legacyRaw) {
               try {
                 const parsed = JSON.parse(legacyRaw) as { cursors?: Record<string, unknown> }
@@ -117,6 +135,7 @@ export function createAlicizationRuntimeExecutionComposition(input: {
                     key,
                     undefined,
                     JSON.stringify(next),
+                    ownerOptions,
                   )
                 }
                 if (legacyCursor && typeof legacyCursor === 'object') {
@@ -132,6 +151,7 @@ export function createAlicizationRuntimeExecutionComposition(input: {
                     key,
                     undefined,
                     JSON.stringify(next),
+                    ownerOptions,
                   )
                 }
               }
@@ -150,6 +170,7 @@ export function createAlicizationRuntimeExecutionComposition(input: {
             key,
             expectedRaw,
             JSON.stringify(next),
+            ownerOptions,
           )
         }
         : undefined,

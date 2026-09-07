@@ -629,18 +629,18 @@ export async function runAutonomyActuation(input: {
   runtimeDigest?: AlicizationRuntimeSnapshot | null
   capabilities?: AlicizationChannelCapability[] | null
   workspaceRoot?: string
-  listPendingReminders: (limit?: number) => Promise<AlicizationPendingReminderLike[]>
+  listPendingReminders: (limit?: number, options?: { signal?: AbortSignal }) => Promise<AlicizationPendingReminderLike[]>
   scheduleReminder: (payload: {
     minutes: number
     message: string
     sourceTurnId?: string
-  }) => Promise<unknown>
+  }, options?: { signal?: AbortSignal }) => Promise<unknown>
   buildExecutionRuntimeContext?: (input: {
     cardId: string
     decisionTraceId?: string | null
     sessionId?: string | null
     turnId: string
-  }) => Promise<AlicizationExecutionRuntimeContext | null>
+  }, options?: { signal?: AbortSignal }) => Promise<AlicizationExecutionRuntimeContext | null>
   planTaskThread: (payload: {
     threadId?: string | null
     trace?: {
@@ -651,9 +651,12 @@ export async function runAutonomyActuation(input: {
     } | null
     task: AlicizationClawTaskIntent
     capabilities?: AlicizationChannelCapability[]
-  }) => Promise<AlicizationGovernedTaskThreadPlanningResult>
-  dispatchTaskThread: (payload: AlicizationDispatchTaskThreadRuntimeInput) => Promise<unknown>
+  }, options?: { signal?: AbortSignal }) => Promise<AlicizationGovernedTaskThreadPlanningResult>
+  dispatchTaskThread: (payload: AlicizationDispatchTaskThreadRuntimeInput, options?: { signal?: AbortSignal }) => Promise<unknown>
+  signal?: AbortSignal
 }): Promise<AlicizationAutonomyActuationResult> {
+  if (input.signal?.aborted)
+    throw input.signal.reason ?? new DOMException('Autonomy actuation aborted', 'AbortError')
   const actuationPlan = deriveAutonomyActuationPlan({
     cardId: input.cardId,
     digitalLifeSpine: input.digitalLifeSpine ?? null,
@@ -679,7 +682,7 @@ export async function runAutonomyActuation(input: {
 
   if (actuationPlan.task) {
     const turnId = `autonomy-task:${input.cardId}:${input.now}:${normalizeSignatureText(actuationPlan.task.signature, 32) || 'act'}`
-    const planning = await input.planTaskThread({
+    const planningInput: Parameters<typeof input.planTaskThread>[0] = {
       threadId: `thread:autonomy:${normalizeSignatureText(actuationPlan.task.signature, 48) || 'act'}:${input.now}`,
       trace: {
         decisionTraceId: sanitizeText(input.decisionTraceId, 120) || null,
@@ -689,7 +692,12 @@ export async function runAutonomyActuation(input: {
       },
       task: actuationPlan.task.task,
       capabilities: input.capabilities ?? undefined,
-    })
+    }
+    const planning = input.signal
+      ? await input.planTaskThread(planningInput, { signal: input.signal })
+      : await input.planTaskThread(planningInput)
+    if (input.signal?.aborted)
+      throw input.signal.reason ?? new DOMException('Autonomy actuation aborted', 'AbortError')
 
     result.taskPlanned = true
     result.taskKind = actuationPlan.task.task.kind
@@ -709,26 +717,33 @@ export async function runAutonomyActuation(input: {
       && (planning.thread.selectedChannel === 'codex' || planning.thread.selectedChannel === 'claude-code')
       && actuationPlan.task.autoDispatchEligible
     ) {
+      const runtimeContextInput = {
+        cardId: input.cardId,
+        decisionTraceId: sanitizeText(input.decisionTraceId, 120) || null,
+        sessionId: sanitizeText(input.sessionId, 120) || null,
+        turnId,
+      }
       const runtimeContext = input.buildExecutionRuntimeContext
-        ? await input.buildExecutionRuntimeContext({
-            cardId: input.cardId,
-            decisionTraceId: sanitizeText(input.decisionTraceId, 120) || null,
-            sessionId: sanitizeText(input.sessionId, 120) || null,
-            turnId,
-          })
+        ? input.signal
+          ? await input.buildExecutionRuntimeContext(runtimeContextInput, { signal: input.signal })
+          : await input.buildExecutionRuntimeContext(runtimeContextInput)
         : null
       if (!runtimeContext) {
         result.reasonTags.push('dispatch:missing-runtime-context')
         return result
       }
-      await input.dispatchTaskThread(buildAutonomousTaskDispatchInput({
+      const dispatchInput = buildAutonomousTaskDispatchInput({
         threadId: planning.thread.id,
         requestedDispatchChannel: planning.thread.selectedChannel,
         task: actuationPlan.task.task,
         summary: actuationPlan.task.summary,
         workspaceRoot: input.workspaceRoot,
         runtimeContext,
-      }))
+      })
+      if (input.signal)
+        await input.dispatchTaskThread(dispatchInput, { signal: input.signal })
+      else
+        await input.dispatchTaskThread(dispatchInput)
       result.taskDispatched = true
       result.taskDispatchChannel = planning.thread.selectedChannel
       return result
@@ -736,16 +751,22 @@ export async function runAutonomyActuation(input: {
   }
 
   if (actuationPlan.reminder) {
-    const pending = await input.listPendingReminders(128)
+    const pending = input.signal
+      ? await input.listPendingReminders(128, { signal: input.signal })
+      : await input.listPendingReminders(128)
     const alreadyPending = pending.some(task =>
       sanitizeText(task.sourceTurnId, 220) === actuationPlan.reminder?.sourceTurnId,
     )
     if (!alreadyPending) {
-      await input.scheduleReminder({
+      const reminderInput = {
         minutes: actuationPlan.reminder.minutes,
         message: actuationPlan.reminder.message,
         sourceTurnId: actuationPlan.reminder.sourceTurnId,
-      })
+      }
+      if (input.signal)
+        await input.scheduleReminder(reminderInput, { signal: input.signal })
+      else
+        await input.scheduleReminder(reminderInput)
       result.reminderScheduled = true
       result.reminderSourceTurnId = actuationPlan.reminder.sourceTurnId
     }

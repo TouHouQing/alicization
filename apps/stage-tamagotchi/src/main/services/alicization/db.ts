@@ -199,6 +199,7 @@ import {
 import sqlite3 from './sqlite3-runtime'
 
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
+import { createAlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
 import { normalizeWorkingMemoryLongTermEvidence } from './life-core/working-memory'
 import {
   parseWorkingMemoryCheckpoint,
@@ -709,9 +710,11 @@ interface AlicizationMemoryRecollectionIntentLike {
 }
 
 interface AlicizationMemoryConsolidationSearchInput {
+  cardId?: string
   query: string
   limit?: number
   recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
+  signal?: AbortSignal
 }
 
 type AlicizationScheduledTaskStatus = 'pending' | 'running' | 'completed' | 'failed'
@@ -1597,6 +1600,55 @@ function assertWriteNotAborted(options?: DbWriteOptions) {
   throw createAbortError(options.signal.reason)
 }
 
+function assertReadNotAborted(signal?: AbortSignal) {
+  if (!signal?.aborted)
+    return
+  throw createAbortError(signal.reason)
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
+function raceSqliteWriteWithAbort<T>(
+  writePromise: Promise<T>,
+  signal?: AbortSignal,
+) {
+  if (!signal)
+    return writePromise
+  if (signal.aborted)
+    return Promise.reject(createAbortError(signal.reason))
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const cleanup = () => {
+      signal.removeEventListener('abort', abort)
+    }
+    const resolveOnce = (value: T) => {
+      if (settled)
+        return
+      settled = true
+      cleanup()
+      resolve(value)
+    }
+    const rejectOnce = (error: unknown) => {
+      if (settled)
+        return
+      settled = true
+      cleanup()
+      reject(error)
+    }
+    const abort = () => rejectOnce(createAbortError(signal.reason))
+
+    signal.addEventListener('abort', abort, { once: true })
+    if (signal.aborted) {
+      abort()
+      return
+    }
+    void writePromise.then(resolveOnce, rejectOnce)
+  })
+}
+
 interface SqliteDriver {
   Database: typeof sqlite3Types.Database
   OPEN_READONLY?: number
@@ -1879,7 +1931,7 @@ export interface AlicizationDbService {
   loadRuntimeCheckpoint: (
     scope: AlicizationRuntimeCheckpointScope,
   ) => Promise<AlicizationRuntimeCheckpoint | null>
-  getMetaValue: (key: string) => Promise<string | undefined>
+  getMetaValue: (key: string, options?: DbWriteOptions) => Promise<string | undefined>
   setMetaValue: (key: string, value: string, options?: DbWriteOptions) => Promise<void>
   compareAndSetMetaValue: (
     key: string,
@@ -1887,12 +1939,16 @@ export interface AlicizationDbService {
     nextValue: string,
     options?: DbWriteOptions,
   ) => Promise<boolean>
-  getLatestConversationSessionId: (cardId?: string) => Promise<string | undefined>
+  getLatestConversationSessionId: (cardId?: string, options?: { signal?: AbortSignal }) => Promise<string | undefined>
   migrateLegacyConversationSessionsToPrimary: (input: {
     cardId: string
     dryRun?: boolean
   }) => Promise<AlicizationConversationSessionMigrationResult>
-  getWorkingMemoryCheckpoint: (cardId: string, sessionId: string) => Promise<WorkingMemorySnapshot | null>
+  getWorkingMemoryCheckpoint: (
+    cardId: string,
+    sessionId: string,
+    options?: DbWriteOptions,
+  ) => Promise<WorkingMemorySnapshot | null>
   listWorkingMemoryCheckpoints: (cardId: string, options?: { limit?: number }) => Promise<WorkingMemorySnapshot[]>
   listMemoryWorkbenchReplaySessions: (input: {
     cardId: string
@@ -1909,7 +1965,7 @@ export interface AlicizationDbService {
     structuredJson: string | null
     createdAt: number
   }>>
-  listConversationTurnsBySession: (sessionId: string, options?: { cardId?: string, sinceCreatedAt?: number, limit?: number }) => Promise<Array<{
+  listConversationTurnsBySession: (sessionId: string, options?: { cardId?: string, sinceCreatedAt?: number, limit?: number, signal?: AbortSignal }) => Promise<Array<{
     turnId: string | null
     sessionId: string
     userText: string | null
@@ -1917,8 +1973,12 @@ export interface AlicizationDbService {
     structuredJson: string | null
     createdAt: number
   }>>
-  listMemoryConsolidations: (limit?: number) => Promise<AlicizationMemoryConsolidationRecord[]>
-  upsertMemoryConsolidations: (records: AlicizationMemoryConsolidationRecord[]) => Promise<AlicizationMemoryConsolidationRecord[]>
+  listMemoryConsolidations: (limit?: number, cardId?: string) => Promise<AlicizationMemoryConsolidationRecord[]>
+  upsertMemoryConsolidations: (
+    records: AlicizationMemoryConsolidationRecord[],
+    cardId?: string,
+    options?: DbWriteOptions,
+  ) => Promise<AlicizationMemoryConsolidationRecord[]>
   searchMemoryConsolidations: (input: AlicizationMemoryConsolidationSearchInput) => Promise<AlicizationMemoryConsolidationRecord[]>
   appendMindTurnEvents: (events: AlicizationMindTurnEventInput[], options?: DbWriteOptions) => Promise<void>
   listMindTurnEvents: (input: {
@@ -1931,21 +1991,37 @@ export interface AlicizationDbService {
   getTaskThread: (id: string) => Promise<AlicizationTaskThreadRecord | undefined>
   upsertTaskThread: (input: AlicizationTaskThreadUpsertInput, options?: DbWriteOptions) => Promise<AlicizationTaskThreadRecord>
   resumeTaskThread: (input: AlicizationTaskThreadResumeInput, options?: DbWriteOptions) => Promise<AlicizationTaskThreadRecord>
-  listTaskThreads: (input?: AlicizationListTaskThreadsInput) => Promise<AlicizationTaskThreadRecord[]>
+  listTaskThreads: (
+    input?: AlicizationListTaskThreadsInput,
+    options?: DbWriteOptions,
+  ) => Promise<AlicizationTaskThreadRecord[]>
   upsertChannelCapabilityManifest: (input: AlicizationChannelCapabilityManifestUpsertInput, options?: DbWriteOptions) => Promise<AlicizationChannelCapabilityManifestRecord>
-  listChannelCapabilityManifests: (input?: AlicizationListChannelCapabilityManifestsInput) => Promise<AlicizationChannelCapabilityManifestRecord[]>
+  listChannelCapabilityManifests: (
+    input?: AlicizationListChannelCapabilityManifestsInput,
+    options?: DbWriteOptions,
+  ) => Promise<AlicizationChannelCapabilityManifestRecord[]>
   upsertExecutorSession: (input: AlicizationExecutorSessionUpsertInput, options?: DbWriteOptions) => Promise<AlicizationExecutorSessionRecord>
   listExecutorSessions: (input?: AlicizationListExecutorSessionsInput) => Promise<AlicizationExecutorSessionRecord[]>
   appendExecutionEvents: (events: AlicizationExecutionEventInput[], options?: DbWriteOptions) => Promise<void>
-  listExecutionEvents: (input?: AlicizationListExecutionEventsInput) => Promise<AlicizationExecutionEventRecord[]>
+  listExecutionEvents: (
+    input?: AlicizationListExecutionEventsInput,
+    options?: DbWriteOptions,
+  ) => Promise<AlicizationExecutionEventRecord[]>
   clearConversationData: () => Promise<void>
   listActivePersonaTrainingArtifacts: (input: { cardId: string }) => Promise<AlicizationPersonaTrainingArtifact[]>
   stopPersonaTraining: (reason: string) => Promise<void>
-  appendAuditLog: (input: AlicizationAuditLogInput) => Promise<void>
+  appendAuditLog: (input: AlicizationAuditLogInput, options?: DbWriteOptions) => Promise<void>
   appendConversationTurn: (input: AlicizationDbConversationTurnInput, options?: DbWriteOptions) => Promise<void>
   getMemoryStats: () => Promise<AlicizationMemoryStats>
-  upsertMemoryFacts: (facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource) => Promise<void>
-  applyMemoryFactCorrections: (corrections: AlicizationKnowledgeAssimilationCorrection[]) => Promise<void>
+  upsertMemoryFacts: (
+    facts: AlicizationMemoryFactInput[],
+    source: AlicizationMemorySource,
+    options?: DbWriteOptions,
+  ) => Promise<void>
+  applyMemoryFactCorrections: (
+    corrections: AlicizationKnowledgeAssimilationCorrection[],
+    options?: DbWriteOptions,
+  ) => Promise<void>
   listMemoryFacts: () => Promise<AlicizationMemoryFact[]>
   retrieveMemoryFacts: (query: string, limit?: number) => Promise<AlicizationMemoryFact[]>
   retrieveLongTermMemoryEvidence: (input: {
@@ -1956,6 +2032,7 @@ export interface AlicizationDbService {
     currentThreadTitle?: string | null
     activeTask?: string | null
     limit?: number
+    signal?: AbortSignal
   }) => Promise<LongTermMemoryEvidenceBundle>
   retrieveLongTermMemoryEvidenceReadOnly: (input: {
     cardId: string
@@ -1965,6 +2042,7 @@ export interface AlicizationDbService {
     currentThreadTitle?: string | null
     activeTask?: string | null
     limit?: number
+    signal?: AbortSignal
   }) => Promise<LongTermMemoryEvidenceBundle>
   listMemoryWorkbenchLongTermItems: (input: {
     cardId: string
@@ -2138,7 +2216,7 @@ export interface AlicizationDbService {
     cleaningTransactionId: string
     cleanedAt: number
     sources: AlicizationPersonaTrainingSourceRef[]
-  }) => Promise<void>
+  }, options?: DbWriteOptions) => Promise<void>
   runPersonaTraining: (input: { cardId: string, datasetId?: string | null }) => Promise<PersonaTrainingPipelineResult>
   startPersonaTraining: (input: { cardId: string, datasetId?: string | null }) => Promise<{ run: PersonaTrainingPipelineRunRecord }>
   getPersonaTrainingRun: (input: { cardId: string, runId: string }) => Promise<PersonaTrainingPipelineRunRecord | null>
@@ -2151,7 +2229,7 @@ export interface AlicizationDbService {
     sessionId: string
     items: WorkingMemoryLongTermQueueItem[]
   }) => Promise<void>
-  drainWorkingMemoryLongTermQueue: (limit?: number) => Promise<{
+  drainWorkingMemoryLongTermQueue: (limit?: number, options?: { signal?: AbortSignal }) => Promise<{
     cleaned: number
     admitted: number
     applied: number
@@ -2164,6 +2242,7 @@ export interface AlicizationDbService {
     cardId: string
     sessionId: string
     queueItemIds: string[]
+    signal?: AbortSignal
   }) => Promise<{
     cleaned: number
     admitted: number
@@ -2189,23 +2268,28 @@ export interface AlicizationDbService {
     decision: LongTermMemoryReviewDecision
   }) => Promise<LongTermMemoryReviewItem | null>
   tombstoneLongTermMemorySources: (input: {
+    cardId?: string
     sourceIds: string[]
     source?: string
     reason?: string | null
+    signal?: AbortSignal
   }) => Promise<void>
-  upsertMemoryReflections: (entries: AlicizationMemoryReflectionInput[]) => Promise<AlicizationMemoryReflectionRecord[]>
+  upsertMemoryReflections: (
+    entries: AlicizationMemoryReflectionInput[],
+    options?: DbWriteOptions,
+  ) => Promise<AlicizationMemoryReflectionRecord[]>
   listMemoryReflections: (input: {
     cardId: string
     limit?: number
     turnId?: string
     status?: AlicizationMemoryReflectionStatus
-  }) => Promise<AlicizationMemoryReflectionRecord[]>
+  }, options?: DbWriteOptions) => Promise<AlicizationMemoryReflectionRecord[]>
   appendRelationshipOutcomes: (entries: AlicizationRelationshipOutcomeInput[]) => Promise<AlicizationRelationshipOutcomeRecord[]>
   listRelationshipOutcomes: (input: {
     cardId: string
     limit?: number
     turnId?: string
-  }) => Promise<AlicizationRelationshipOutcomeRecord[]>
+  }, options?: DbWriteOptions) => Promise<AlicizationRelationshipOutcomeRecord[]>
   appendPersonStateEvolutionEntries: (entries: AlicizationPersonStateEvolutionEntryInput[]) => Promise<AlicizationPersonStateEvolutionEntryRecord[]>
   listPersonStateEvolutionEntries: (input?: {
     cardId?: string
@@ -2217,9 +2301,12 @@ export interface AlicizationDbService {
     cardId?: string
     limit?: number
   }) => Promise<AlicizationPersonStateEvolutionSummary>
-  appendEpisodicEvents: (events: AlicizationEpisodicEventInput[]) => Promise<AlicizationEpisodicEventRecord[]>
+  appendEpisodicEvents: (
+    events: AlicizationEpisodicEventInput[],
+    options?: DbWriteOptions,
+  ) => Promise<AlicizationEpisodicEventRecord[]>
   persistEpisodicReconsolidations: (events: AlicizationEpisodicEventRecord[]) => Promise<void>
-  listRecentEpisodicEvents: (limit?: number) => Promise<AlicizationEpisodicEventRecord[]>
+  listRecentEpisodicEvents: (limit?: number, options?: { signal?: AbortSignal }) => Promise<AlicizationEpisodicEventRecord[]>
   listEventGraphNeighborhood: (input: {
     eventIds?: string[]
     nodeIds?: string[]
@@ -2240,8 +2327,12 @@ export interface AlicizationDbService {
     recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
     reconsolidationDecisionTraceId?: string | null
     readOnly?: boolean
+    signal?: AbortSignal
   }) => Promise<AlicizationEpisodicEventRecord[]>
-  appendPersonaReinforcementEvents: (events: AlicizationPersonaReinforcementEventInput[]) => Promise<AlicizationPersonaReinforcementEventRecord[]>
+  appendPersonaReinforcementEvents: (
+    events: AlicizationPersonaReinforcementEventInput[],
+    options?: DbWriteOptions,
+  ) => Promise<AlicizationPersonaReinforcementEventRecord[]>
   listPersonaReinforcementEvents: (input: {
     cardId: string
     limit?: number
@@ -2254,7 +2345,7 @@ export interface AlicizationDbService {
   overrideMemoryStats: (next: AlicizationMemoryStats) => Promise<AlicizationMemoryStats>
   listActiveThoughts: () => Promise<AlicizationActiveThought[]>
   replaceActiveThoughts: (thoughts: Array<{ text: string }>) => Promise<AlicizationActiveThought[]>
-  appendSubconsciousFragments: (fragments: Array<{ text: string, sourceKind: AlicizationSubconsciousFragmentSourceKind }>) => Promise<AlicizationSubconsciousFragment[]>
+  appendSubconsciousFragments: (fragments: Array<{ text: string, sourceKind: AlicizationSubconsciousFragmentSourceKind }>, options?: DbWriteOptions) => Promise<AlicizationSubconsciousFragment[]>
   searchSubconsciousFragments: (query: string, limit?: number) => Promise<AlicizationSubconsciousFragment[]>
   listRecentSubconsciousFragments: (limit?: number) => Promise<AlicizationSubconsciousFragment[]>
   countSubconsciousFragments: () => Promise<number>
@@ -2273,12 +2364,12 @@ export interface AlicizationDbService {
     triggerAt: number
     message: string
     sourceTurnId?: string
-  }) => Promise<AlicizationScheduledTaskRecord>
-  claimDueScheduledTasks: (nowMs: number, limit: number) => Promise<AlicizationScheduledTaskRecord[]>
-  requeueScheduledTask: (taskId: string, reason?: string, nextTriggerAt?: number) => Promise<void>
-  completeScheduledTask: (taskId: string, firedTurnId: string, completedAt?: number) => Promise<void>
-  failScheduledTask: (taskId: string, error: string, completedAt?: number) => Promise<void>
-  listPendingScheduledTasks: (limit?: number) => Promise<AlicizationScheduledTaskRecord[]>
+  }, options?: DbWriteOptions) => Promise<AlicizationScheduledTaskRecord>
+  claimDueScheduledTasks: (nowMs: number, limit: number, options?: DbWriteOptions) => Promise<AlicizationScheduledTaskRecord[]>
+  requeueScheduledTask: (taskId: string, reason?: string, nextTriggerAt?: number, options?: DbWriteOptions) => Promise<void>
+  completeScheduledTask: (taskId: string, firedTurnId: string, completedAt?: number, options?: DbWriteOptions) => Promise<void>
+  failScheduledTask: (taskId: string, error: string, completedAt?: number, options?: DbWriteOptions) => Promise<void>
+  listPendingScheduledTasks: (limit?: number, options?: DbWriteOptions) => Promise<AlicizationScheduledTaskRecord[]>
   insertLearningTask: (input: {
     cardId: string
     taskId: string
@@ -2288,38 +2379,38 @@ export interface AlicizationDbService {
     payload: AlicizationLearningTaskPayload
     maxAttempts?: number
   }, options?: DbWriteOptions) => Promise<AlicizationLearningTaskRecord>
-  claimDueLearningTasks: (cardId: string, nowMs: number, limit: number) => Promise<AlicizationLearningTaskRecord[]>
-  startLearningTask: (taskId: string, startedAt?: number) => Promise<void>
+  claimDueLearningTasks: (cardId: string, nowMs: number, limit: number, options?: DbWriteOptions) => Promise<AlicizationLearningTaskRecord[]>
+  startLearningTask: (taskId: string, startedAt?: number, options?: DbWriteOptions) => Promise<void>
   blockLearningTask: (taskId: string, input: {
     reason: string
     resultSummary?: string | null
     failureKind?: AlicizationLearningTaskFailureKind | null
     nextRetryAt?: number | null
-  }, updatedAt?: number) => Promise<void>
+  }, updatedAt?: number, options?: DbWriteOptions) => Promise<void>
   completeLearningTask: (taskId: string, input: {
     firedTurnId?: string | null
     resultSummary?: string | null
-  }, completedAt?: number) => Promise<void>
+  }, completedAt?: number, options?: DbWriteOptions) => Promise<void>
   failLearningTask: (taskId: string, input: {
     error: string
     failureKind: AlicizationLearningTaskFailureKind
     nextRetryAt?: number | null
-  }, updatedAt?: number) => Promise<void>
+  }, updatedAt?: number, options?: DbWriteOptions) => Promise<void>
   reopenLearningTask: (taskId: string, input?: {
     reason?: string | null
     triggerAt?: number | null
-  }, updatedAt?: number) => Promise<void>
+  }, updatedAt?: number, options?: DbWriteOptions) => Promise<void>
   downgradeLearningTask: (taskId: string, input?: {
     reason?: string | null
-  }, updatedAt?: number) => Promise<void>
+  }, updatedAt?: number, options?: DbWriteOptions) => Promise<void>
   cancelLearningTask: (taskId: string, input?: {
     reason?: string | null
-  }, updatedAt?: number) => Promise<void>
+  }, updatedAt?: number, options?: DbWriteOptions) => Promise<void>
   listLearningTasks: (input: {
     cardId: string
     limit?: number
     statuses?: AlicizationLearningTaskStatus[]
-  }) => Promise<AlicizationLearningTaskRecord[]>
+  }, options?: DbWriteOptions) => Promise<AlicizationLearningTaskRecord[]>
   getLatestLearningExecutionState: (cardId: string) => Promise<AlicizationLearningExecutionStateSnapshot | null>
   getJournalMode: () => Promise<string>
 }
@@ -2382,6 +2473,9 @@ export async function setupAlicizationDb(
   const database = await openDatabase(dbPath, options?.sqliteDriver, { readOnly })
 
   const sqliteWriteQueue = acquireSqliteWriteQueue(dbPath)
+  let databaseClosing = false
+  let databaseClosed = false
+  let databaseClosePromise: Promise<void> | null = null
 
   const resolveMemoryCardId = (cardIdRaw: unknown, operation: string) => {
     const cardId = normalizeOrganicMemoryText(cardIdRaw, 120)
@@ -2395,25 +2489,33 @@ export async function setupAlicizationDb(
   const enqueueWrite = async <T>(task: () => Promise<T>, options?: DbWriteOptions) => {
     if (readOnly)
       throw new Error('Alicization database is read-only')
+    if (databaseClosing || databaseClosed)
+      throw new Error('Alicization database is closing')
     assertWriteNotAborted(options)
     const guardedTask = async () => {
       assertWriteNotAborted(options)
       return await task()
     }
-    return await sqliteWriteQueue.enqueue(guardedTask)
+    return await raceSqliteWriteWithAbort(
+      sqliteWriteQueue.enqueue(guardedTask),
+      options?.signal,
+    )
   }
 
-  async function applyMemoryIngestPayload(payload: AlicizationMemoryIngestPayload) {
+  async function applyMemoryIngestPayload(
+    payload: AlicizationMemoryIngestPayload,
+    writeOptions: DbWriteOptions = {},
+  ) {
     if (payload.kind === 'upsert-memory-facts') {
-      await applyPreparedMemoryFacts(payload.facts)
+      await applyPreparedMemoryFacts(payload.facts, writeOptions)
       return
     }
     if (payload.kind === 'append-episodic-events') {
-      await applyPreparedEpisodicEvents(payload.events)
+      await applyPreparedEpisodicEvents(payload.events, writeOptions)
       return
     }
     if (payload.kind === 'upsert-memory-consolidations') {
-      await applyPreparedMemoryConsolidations(payload.records)
+      await applyPreparedMemoryConsolidations(payload.records, writeOptions)
     }
   }
 
@@ -2422,6 +2524,7 @@ export async function setupAlicizationDb(
     AlicizationMemoryIngestPayload
   >({
     database,
+    scopeCardId: hasBoundCardScope ? boundCardId : undefined,
     now,
     randomUUID,
     run,
@@ -2444,6 +2547,7 @@ export async function setupAlicizationDb(
     all,
     runInTransaction,
   })
+  const knowledgeAssimilationRuntime = createAlicizationKnowledgeAssimilationRuntime()
   const workingMemoryLongTermDrainMutex = createWorkingMemoryLongTermDrainMutex()
   const runtimeEventStore = createAlicizationRuntimeEventStore({
     database,
@@ -2730,6 +2834,7 @@ export async function setupAlicizationDb(
       CREATE TABLE IF NOT EXISTS memory_ingest_journal (
         id TEXT PRIMARY KEY,
         operation_kind TEXT NOT NULL,
+        card_id TEXT,
         payload_json TEXT NOT NULL,
         status TEXT NOT NULL,
         attempt_count INTEGER NOT NULL DEFAULT 0,
@@ -2741,7 +2846,21 @@ export async function setupAlicizationDb(
         next_attempt_at INTEGER
       )
     `)
-    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_ingest_journal_status_created_at ON memory_ingest_journal(status, created_at ASC)')
+    await run(database, 'ALTER TABLE memory_ingest_journal ADD COLUMN card_id TEXT').catch(() => {})
+    await run(database, `
+      UPDATE memory_ingest_journal
+      SET card_id = COALESCE(
+        card_id,
+        CASE operation_kind
+          WHEN 'upsert-memory-facts' THEN json_extract(json_extract(payload_json, '$.facts[0]'), '$.cardId')
+          WHEN 'append-episodic-events' THEN json_extract(json_extract(payload_json, '$.events[0]'), '$.cardId')
+          WHEN 'upsert-memory-consolidations' THEN json_extract(json_extract(payload_json, '$.records[0]'), '$.cardId')
+          ELSE NULL
+        END
+      )
+      WHERE card_id IS NULL
+    `).catch(() => {})
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_ingest_journal_card_status_created_at ON memory_ingest_journal(card_id, status, created_at ASC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS working_memory_long_term_transactions (
@@ -3612,6 +3731,17 @@ export async function setupAlicizationDb(
       CREATE INDEX IF NOT EXISTS idx_runtime_events_scope
       ON alicization_runtime_events(user_id, card_id, conversation_id, occurred_at)
     `)
+    await run(database, `
+      CREATE INDEX IF NOT EXISTS idx_runtime_events_scope_turn_type_occurred
+      ON alicization_runtime_events(
+        user_id,
+        card_id,
+        conversation_id,
+        turn_id,
+        event_type,
+        occurred_at
+      )
+    `)
 
     const runtimeCheckpointTable = await get<{ name: string }>(
       database,
@@ -3910,8 +4040,10 @@ export async function setupAlicizationDb(
     )
   }
 
-  async function getMetaValue(key: string) {
+  async function getMetaValue(key: string, options?: DbWriteOptions) {
+    assertWriteNotAborted(options)
     const row = await get<MetaRow>(database, 'SELECT value FROM alicization_meta WHERE key = ? LIMIT 1', [key])
+    assertWriteNotAborted(options)
     return row?.value
   }
 
@@ -4106,7 +4238,11 @@ export async function setupAlicizationDb(
         `SELECT * FROM memory_facts ${hasBoundCardScope ? 'WHERE card_id = ?' : ''}`,
         hasBoundCardScope ? [boundCardId] : [],
       ),
-      all<DbEpisodicEventRow>(database, 'SELECT * FROM episodic_events'),
+      all<DbEpisodicEventRow>(
+        database,
+        `SELECT * FROM episodic_events ${hasBoundCardScope ? 'WHERE card_id = ?' : ''}`,
+        hasBoundCardScope ? [boundCardId] : [],
+      ),
       all<DbMemoryConsolidationRow>(
         database,
         `SELECT * FROM memory_consolidations ${hasBoundCardScope ? 'WHERE card_id = ?' : ''}`,
@@ -4176,10 +4312,10 @@ export async function setupAlicizationDb(
     )
   }
 
-  async function appendAuditLog(input: AlicizationAuditLogInput) {
+  async function appendAuditLog(input: AlicizationAuditLogInput, options?: DbWriteOptions) {
     await enqueueWrite(async () => {
       await insertAuditLog(input)
-    })
+    }, options)
   }
 
   function resolveConversationTurnCardId(cardIdRaw: unknown, operation: string) {
@@ -4246,7 +4382,8 @@ export async function setupAlicizationDb(
     }, options)
   }
 
-  async function getLatestConversationSessionId(cardIdRaw?: string) {
+  async function getLatestConversationSessionId(cardIdRaw?: string, options?: { signal?: AbortSignal }) {
+    assertReadNotAborted(options?.signal)
     const cardId = resolveConversationTurnCardId(cardIdRaw, 'latest conversation session')
     const row = await get<{ session_id?: string | null }>(
       database,
@@ -4261,6 +4398,7 @@ export async function setupAlicizationDb(
       `,
       [cardId],
     )
+    assertReadNotAborted(options?.signal)
     if (typeof row?.session_id !== 'string')
       return undefined
     const normalized = row.session_id.trim()
@@ -4906,7 +5044,12 @@ export async function setupAlicizationDb(
       : ''
   }
 
-  async function getWorkingMemoryCheckpoint(cardIdRaw: string, sessionIdRaw: string) {
+  async function getWorkingMemoryCheckpoint(
+    cardIdRaw: string,
+    sessionIdRaw: string,
+    options?: DbWriteOptions,
+  ) {
+    assertWriteNotAborted(options)
     const cardId = normalizeWorkingMemoryCheckpointKey(cardIdRaw, 120)
     const sessionId = normalizeWorkingMemoryCheckpointKey(sessionIdRaw, 160)
     if (!cardId || !sessionId)
@@ -4923,6 +5066,7 @@ export async function setupAlicizationDb(
       [cardId, sessionId],
     )
 
+    assertWriteNotAborted(options)
     return parseWorkingMemoryCheckpoint(row?.snapshot_json, {
       cardId,
       sessionId,
@@ -5207,7 +5351,11 @@ export async function setupAlicizationDb(
     }))
   }
 
-  async function listConversationTurnsBySession(sessionIdRaw: string, options?: { cardId?: string, sinceCreatedAt?: number, limit?: number }) {
+  async function listConversationTurnsBySession(
+    sessionIdRaw: string,
+    options?: { cardId?: string, sinceCreatedAt?: number, limit?: number, signal?: AbortSignal },
+  ) {
+    assertWriteNotAborted(options)
     const cardId = resolveConversationTurnCardId(options?.cardId, 'conversation turn list by session')
     const sessionId = sessionIdRaw.trim()
     if (!sessionId)
@@ -5250,6 +5398,7 @@ export async function setupAlicizationDb(
       [cardId, sessionId, sinceCreatedAt, limit],
     )
 
+    assertWriteNotAborted(options)
     return rows.map(row => ({
       turnId: row.turn_id,
       sessionId: row.session_id,
@@ -5309,8 +5458,12 @@ export async function setupAlicizationDb(
     )
   }
 
-  async function applyPreparedMemoryFacts(prepared: PreparedMemoryFactWrite[]) {
+  async function applyPreparedMemoryFacts(
+    prepared: PreparedMemoryFactWrite[],
+    writeOptions: DbWriteOptions = {},
+  ) {
     for (const fact of prepared) {
+      assertWriteNotAborted(writeOptions)
       const cardId = hasBoundCardScope
         ? resolveMemoryCardId(fact.cardId, 'memory fact write')
         : normalizeOrganicMemoryText(fact.cardId, 120) || boundCardId
@@ -5377,10 +5530,15 @@ export async function setupAlicizationDb(
         ],
       )
     }
+    assertWriteNotAborted(writeOptions)
   }
 
-  async function applyPreparedMemoryConsolidations(prepared: PreparedMemoryConsolidationWrite[]) {
+  async function applyPreparedMemoryConsolidations(
+    prepared: PreparedMemoryConsolidationWrite[],
+    writeOptions: DbWriteOptions = {},
+  ) {
     for (const record of prepared) {
+      assertWriteNotAborted(writeOptions)
       const cardId = hasBoundCardScope
         ? resolveMemoryCardId(record.cardId, 'memory consolidation write')
         : normalizeOrganicMemoryText(record.cardId, 120)
@@ -5441,10 +5599,15 @@ export async function setupAlicizationDb(
         ],
       )
     }
+    assertWriteNotAborted(writeOptions)
   }
 
-  async function applyPreparedEpisodicEvents(prepared: PreparedEpisodicEventWrite[]) {
+  async function applyPreparedEpisodicEvents(
+    prepared: PreparedEpisodicEventWrite[],
+    writeOptions: DbWriteOptions = {},
+  ) {
     for (const event of prepared) {
+      assertWriteNotAborted(writeOptions)
       await run(
         database,
         `
@@ -5548,10 +5711,16 @@ export async function setupAlicizationDb(
 
   async function upsertMemoryConsolidations(
     records: AlicizationMemoryConsolidationRecord[],
+    requestedCardId?: string,
+    writeOptions: DbWriteOptions = {},
   ) {
     if (records.length === 0)
       return []
-    const cardId = boundCardId
+    assertWriteNotAborted(writeOptions)
+    const cardId = resolveMemoryCardId(
+      requestedCardId ?? (hasBoundCardScope ? boundCardId : ''),
+      'memory consolidation write',
+    )
 
     const prepared = records.map(record => ({
       cardId,
@@ -5581,19 +5750,22 @@ export async function setupAlicizationDb(
     await enqueueWrite(async () => {
       await appendMemoryIngestEntries([{
         operationKind: 'upsert-memory-consolidations',
+        cardId,
         payload: {
           kind: 'upsert-memory-consolidations',
           records: prepared,
         },
-      }])
-      await drainMemoryIngestJournal()
-    })
+      }], writeOptions)
+      await drainMemoryIngestJournal(64, now(), writeOptions)
+    }, writeOptions)
     await refreshLongTermMemorySearchIndexForCard({
       cardId,
       source: 'memory_consolidations',
       sourceIds: prepared.map(record => record.id),
       operation: 'memory consolidation search index refresh',
+      signal: writeOptions.signal,
     })
+    assertWriteNotAborted(writeOptions)
 
     return prepared.map(record => mapMemoryConsolidationRow({
       card_id: cardId,
@@ -5614,20 +5786,29 @@ export async function setupAlicizationDb(
     }))
   }
 
-  async function listMemoryConsolidations(limit = 16) {
+  async function listMemoryConsolidations(limit = 16, requestedCardId?: string) {
+    const cardId = resolveMemoryCardId(
+      requestedCardId ?? (hasBoundCardScope ? boundCardId : ''),
+      'memory consolidation list',
+    )
     return await memoryConsolidationRuntime.listMemoryConsolidations({
-      cardId: hasBoundCardScope ? boundCardId : undefined,
-      allowUnboundScope,
+      cardId,
       limit,
     })
   }
 
   async function searchMemoryConsolidations(input: AlicizationMemoryConsolidationSearchInput) {
-    return await memoryConsolidationRuntime.searchMemoryConsolidations({
+    assertReadNotAborted(input.signal)
+    const cardId = resolveMemoryCardId(
+      input.cardId ?? (hasBoundCardScope ? boundCardId : ''),
+      'memory consolidation search',
+    )
+    const records = await memoryConsolidationRuntime.searchMemoryConsolidations({
       ...input,
-      cardId: hasBoundCardScope ? boundCardId : undefined,
-      allowUnboundScope,
+      cardId,
     })
+    assertReadNotAborted(input.signal)
+    return records
   }
 
   const appendMindTurnEvents = memoryMindStateRuntime.appendMindTurnEvents
@@ -6091,7 +6272,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     return row ? mapTaskThreadRow(row) : undefined
   }
 
-  async function listTaskThreads(input?: AlicizationListTaskThreadsInput) {
+  async function listTaskThreads(
+    input?: AlicizationListTaskThreadsInput,
+    options?: DbWriteOptions,
+  ) {
+    assertReadNotAborted(options?.signal)
     const decisionTraceId = typeof input?.decisionTraceId === 'string'
       ? input.decisionTraceId.trim()
       : ''
@@ -6195,6 +6380,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       `,
       [...params, limit],
     )
+    assertReadNotAborted(options?.signal)
 
     return rows.map(mapTaskThreadRow)
   }
@@ -6310,7 +6496,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     } satisfies AlicizationChannelCapabilityManifestRecord
   }
 
-  async function listChannelCapabilityManifests(input?: AlicizationListChannelCapabilityManifestsInput) {
+  async function listChannelCapabilityManifests(
+    input?: AlicizationListChannelCapabilityManifestsInput,
+    options?: DbWriteOptions,
+  ) {
+    assertReadNotAborted(options?.signal)
     const channels = Array.isArray(input?.channel)
       ? input.channel
           .map(value => normalizeExecutionChannel(value))
@@ -6373,6 +6563,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       `,
       [...params, limit],
     )
+    assertReadNotAborted(options?.signal)
 
     return rows.map(mapChannelCapabilityManifestRow)
   }
@@ -6740,7 +6931,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     }, options)
   }
 
-  async function listExecutionEvents(input?: AlicizationListExecutionEventsInput) {
+  async function listExecutionEvents(
+    input?: AlicizationListExecutionEventsInput,
+    options?: DbWriteOptions,
+  ) {
+    assertReadNotAborted(options?.signal)
     const threadId = typeof input?.threadId === 'string'
       ? input.threadId.trim()
       : ''
@@ -6797,6 +6992,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       `,
       [...params, limit],
     )
+    assertReadNotAborted(options?.signal)
 
     return [...rows].reverse().map(mapExecutionEventRow)
   }
@@ -6876,7 +7072,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       await run(database, 'DELETE FROM executor_sessions')
       await run(database, 'DELETE FROM executor_events')
       await run(database, 'DELETE FROM scheduled_tasks')
-      await run(database, 'DELETE FROM memory_ingest_journal')
+      await deleteCardScoped('memory_ingest_journal')
       await run(database, 'DELETE FROM alicization_meta WHERE key LIKE ?', ['mind-head:%'])
       await run(
         database,
@@ -6898,7 +7094,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     triggerAt: number
     message: string
     sourceTurnId?: string
-  }) {
+  }, options?: DbWriteOptions) {
     const taskId = input.taskId.trim()
     const message = input.message.trim()
     if (!taskId)
@@ -6911,6 +7107,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     const id = randomUUID()
     const sourceTurnId = input.sourceTurnId?.trim() || null
     await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
       await run(
         database,
         `
@@ -6926,7 +7123,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         `,
         [id, taskId, triggerAt, message, createdAt, sourceTurnId],
       )
-    })
+    }, options)
 
     return {
       id,
@@ -6943,10 +7140,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     } satisfies AlicizationScheduledTaskRecord
   }
 
-  async function claimDueScheduledTasks(nowMs: number, limit: number) {
+  async function claimDueScheduledTasks(nowMs: number, limit: number, options?: DbWriteOptions) {
     const safeNow = Number.isFinite(nowMs) ? Math.floor(nowMs) : now()
     const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)))
     return await enqueueWrite(async () => await runInTransaction(database, async () => {
+      assertWriteNotAborted(options)
       const dueRows = await all<DbScheduledTaskRow>(
         database,
         `
@@ -6984,11 +7182,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           lastError: null,
         })
       }
+      assertWriteNotAborted(options)
       return claimed
-    }))
+    }), options)
   }
 
-  async function completeScheduledTask(taskIdRaw: string, firedTurnIdRaw: string, completedAtRaw?: number) {
+  async function completeScheduledTask(taskIdRaw: string, firedTurnIdRaw: string, completedAtRaw?: number, options?: DbWriteOptions) {
     const taskId = taskIdRaw.trim()
     const firedTurnId = firedTurnIdRaw.trim()
     if (!taskId)
@@ -7000,6 +7199,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       : now()
 
     await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
       await run(
         database,
         `
@@ -7012,10 +7212,10 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         `,
         [firedTurnId, completedAt, taskId],
       )
-    })
+    }, options)
   }
 
-  async function requeueScheduledTask(taskIdRaw: string, reasonRaw?: string, nextTriggerAtRaw?: number) {
+  async function requeueScheduledTask(taskIdRaw: string, reasonRaw?: string, nextTriggerAtRaw?: number, options?: DbWriteOptions) {
     const taskId = taskIdRaw.trim()
     if (!taskId)
       throw new Error('taskId is required')
@@ -7025,6 +7225,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       : null
 
     await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
       await run(
         database,
         `
@@ -7039,10 +7240,10 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         `,
         [nextTriggerAt, reason, taskId],
       )
-    })
+    }, options)
   }
 
-  async function failScheduledTask(taskIdRaw: string, errorRaw: string, completedAtRaw?: number) {
+  async function failScheduledTask(taskIdRaw: string, errorRaw: string, completedAtRaw?: number, options?: DbWriteOptions) {
     const taskId = taskIdRaw.trim()
     if (!taskId)
       throw new Error('taskId is required')
@@ -7052,6 +7253,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       : now()
 
     await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
       await run(
         database,
         `
@@ -7063,10 +7265,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         `,
         [completedAt, message, taskId],
       )
-    })
+    }, options)
   }
 
-  async function listPendingScheduledTasks(limit = 200) {
+  async function listPendingScheduledTasks(limit = 200, options?: DbWriteOptions) {
+    assertWriteNotAborted(options)
     const safeLimit = Math.max(1, Math.min(2000, Math.floor(limit)))
     const rows = await all<DbScheduledTaskRow>(
       database,
@@ -7079,6 +7282,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       `,
       [safeLimit],
     )
+    assertWriteNotAborted(options)
     return rows.map(mapScheduledTaskRow)
   }
 
@@ -7186,13 +7390,14 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     }, options)
   }
 
-  async function claimDueLearningTasks(cardIdRaw: string, nowMs: number, limit: number) {
+  async function claimDueLearningTasks(cardIdRaw: string, nowMs: number, limit: number, options?: DbWriteOptions) {
     const cardId = cardIdRaw.trim()
     if (!cardId)
       throw new Error('cardId is required')
     const safeNow = Number.isFinite(nowMs) ? Math.floor(nowMs) : now()
     const safeLimit = Math.max(1, Math.min(64, Math.floor(limit)))
     return await enqueueWrite(async () => await runInTransaction(database, async () => {
+      assertWriteNotAborted(options)
       const dueRows = await all<DbLearningTaskRow>(
         database,
         `
@@ -7234,16 +7439,18 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           failure_kind: null,
         }))
       }
+      assertWriteNotAborted(options)
       return claimed
-    }))
+    }), options)
   }
 
-  async function startLearningTask(taskIdRaw: string, startedAtRaw?: number) {
+  async function startLearningTask(taskIdRaw: string, startedAtRaw?: number, options?: DbWriteOptions) {
     const taskId = taskIdRaw.trim()
     if (!taskId)
       throw new Error('taskId is required')
     const startedAt = Number.isFinite(startedAtRaw) ? Math.max(0, Math.floor(Number(startedAtRaw))) : now()
     await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
       await run(
         database,
         `
@@ -7257,7 +7464,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         `,
         [startedAt, startedAt, taskId],
       )
-    })
+    }, options)
   }
 
   async function blockLearningTask(taskIdRaw: string, input: {
@@ -7265,7 +7472,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     resultSummary?: string | null
     failureKind?: AlicizationLearningTaskFailureKind | null
     nextRetryAt?: number | null
-  }, updatedAtRaw?: number) {
+  }, updatedAtRaw?: number, options?: DbWriteOptions) {
     const taskId = taskIdRaw.trim()
     if (!taskId)
       throw new Error('taskId is required')
@@ -7274,6 +7481,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     const resultSummary = input.resultSummary?.trim() || null
     const nextRetryAt = Number.isFinite(input.nextRetryAt) ? Math.max(0, Math.floor(Number(input.nextRetryAt))) : null
     await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
       await run(
         database,
         `
@@ -7289,18 +7497,19 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         `,
         [updatedAt, updatedAt, nextRetryAt, input.failureKind ?? null, reason, resultSummary, taskId],
       )
-    })
+    }, options)
   }
 
   async function completeLearningTask(taskIdRaw: string, input: {
     firedTurnId?: string | null
     resultSummary?: string | null
-  }, completedAtRaw?: number) {
+  }, completedAtRaw?: number, options?: DbWriteOptions) {
     const taskId = taskIdRaw.trim()
     if (!taskId)
       throw new Error('taskId is required')
     const completedAt = Number.isFinite(completedAtRaw) ? Math.max(0, Math.floor(Number(completedAtRaw))) : now()
     await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
       await run(
         database,
         `
@@ -7317,14 +7526,14 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         `,
         [completedAt, completedAt, input.firedTurnId?.trim() || null, input.resultSummary?.trim() || null, taskId],
       )
-    })
+    }, options)
   }
 
   async function failLearningTask(taskIdRaw: string, input: {
     error: string
     failureKind: AlicizationLearningTaskFailureKind
     nextRetryAt?: number | null
-  }, updatedAtRaw?: number) {
+  }, updatedAtRaw?: number, options?: DbWriteOptions) {
     const taskId = taskIdRaw.trim()
     if (!taskId)
       throw new Error('taskId is required')
@@ -7332,6 +7541,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     const error = input.error.trim() || 'unknown learning execution failure'
     const nextRetryAt = Number.isFinite(input.nextRetryAt) ? Math.max(0, Math.floor(Number(input.nextRetryAt))) : null
     await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
       await run(
         database,
         `
@@ -7346,19 +7556,20 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         `,
         [updatedAt, updatedAt, nextRetryAt, input.failureKind, error, taskId],
       )
-    })
+    }, options)
   }
 
   async function reopenLearningTask(taskIdRaw: string, input?: {
     reason?: string | null
     triggerAt?: number | null
-  }, updatedAtRaw?: number) {
+  }, updatedAtRaw?: number, options?: DbWriteOptions) {
     const taskId = taskIdRaw.trim()
     if (!taskId)
       throw new Error('taskId is required')
     const updatedAt = Number.isFinite(updatedAtRaw) ? Math.max(0, Math.floor(Number(updatedAtRaw))) : now()
     const triggerAt = Number.isFinite(input?.triggerAt) ? Math.max(0, Math.floor(Number(input?.triggerAt))) : updatedAt
     await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
       await run(
         database,
         `
@@ -7377,17 +7588,18 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         `,
         [updatedAt, updatedAt, triggerAt, input?.reason?.trim() || null, taskId],
       )
-    })
+    }, options)
   }
 
   async function downgradeLearningTask(taskIdRaw: string, input?: {
     reason?: string | null
-  }, updatedAtRaw?: number) {
+  }, updatedAtRaw?: number, options?: DbWriteOptions) {
     const taskId = taskIdRaw.trim()
     if (!taskId)
       throw new Error('taskId is required')
     const updatedAt = Number.isFinite(updatedAtRaw) ? Math.max(0, Math.floor(Number(updatedAtRaw))) : now()
     await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
       await run(
         database,
         `
@@ -7400,17 +7612,18 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         `,
         [updatedAt, updatedAt, input?.reason?.trim() || null, taskId],
       )
-    })
+    }, options)
   }
 
   async function cancelLearningTask(taskIdRaw: string, input?: {
     reason?: string | null
-  }, updatedAtRaw?: number) {
+  }, updatedAtRaw?: number, options?: DbWriteOptions) {
     const taskId = taskIdRaw.trim()
     if (!taskId)
       throw new Error('taskId is required')
     const updatedAt = Number.isFinite(updatedAtRaw) ? Math.max(0, Math.floor(Number(updatedAtRaw))) : now()
     await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
       await run(
         database,
         `
@@ -7423,14 +7636,14 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         `,
         [updatedAt, updatedAt, input?.reason?.trim() || null, taskId],
       )
-    })
+    }, options)
   }
 
   async function listLearningTasks(input: {
     cardId: string
     limit?: number
     statuses?: AlicizationLearningTaskStatus[]
-  }) {
+  }, options?: DbWriteOptions) {
     const cardId = input.cardId.trim()
     if (!cardId)
       throw new Error('cardId is required')
@@ -7443,6 +7656,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       params.push(...statuses)
     }
     params.push(safeLimit)
+    assertWriteNotAborted(options)
     const rows = await all<DbLearningTaskRow>(
       database,
       `
@@ -7454,6 +7668,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       `,
       params,
     )
+    assertWriteNotAborted(options)
     return rows.map(mapLearningTaskRow)
   }
 
@@ -7502,8 +7717,13 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     } satisfies AlicizationLearningExecutionStateSnapshot
   }
 
-  async function upsertMemoryFacts(facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource) {
-    const cardId = boundCardId
+  async function upsertMemoryFactsForCard(
+    requestedCardId: string,
+    facts: AlicizationMemoryFactInput[],
+    source: AlicizationMemorySource,
+    writeOptions: DbWriteOptions = {},
+  ) {
+    const cardId = resolveMemoryCardId(requestedCardId, 'memory facts upsert')
     if (facts.length === 0)
       return
 
@@ -7562,13 +7782,15 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     await enqueueWrite(async () => {
       await appendMemoryIngestEntries([{
         operationKind: 'upsert-memory-facts',
+        cardId,
         payload: {
           kind: 'upsert-memory-facts',
           facts: normalizedFacts,
         },
-      }])
-      await drainMemoryIngestJournal()
-    })
+      }], writeOptions)
+      await drainMemoryIngestJournal(64, now(), writeOptions)
+    }, writeOptions)
+    assertWriteNotAborted(writeOptions)
     const dedupeKeys = [...new Set(normalizedFacts.map(fact => fact.dedupeKey))]
     const persistedRows = dedupeKeys.length > 0
       ? await all<{ id: string }>(
@@ -7587,7 +7809,16 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       source: 'memory_facts',
       sourceIds: persistedRows.map(row => row.id),
       operation: 'memory fact search index refresh',
+      signal: writeOptions.signal,
     })
+  }
+
+  async function upsertMemoryFacts(
+    facts: AlicizationMemoryFactInput[],
+    source: AlicizationMemorySource,
+    writeOptions: DbWriteOptions = {},
+  ) {
+    await upsertMemoryFactsForCard(boundCardId, facts, source, writeOptions)
   }
 
   async function retrieveMemoryFacts(query: string, limit = 6) {
@@ -7642,7 +7873,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     return ranked.map(item => item.fact)
   }
 
-  async function applyMemoryFactCorrections(corrections: AlicizationKnowledgeAssimilationCorrection[]) {
+  async function applyMemoryFactCorrectionsForCard(
+    requestedCardId: string,
+    corrections: AlicizationKnowledgeAssimilationCorrection[],
+    writeOptions: DbWriteOptions = {},
+  ) {
+    const cardId = resolveMemoryCardId(requestedCardId, 'memory fact correction')
     const normalizedCorrections = corrections
       .map((correction) => {
         const targetFactId = correction.targetFactId.trim()
@@ -7667,10 +7903,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     await enqueueWrite(async () => {
       await runInTransaction(database, async () => {
         for (const correction of normalizedCorrections) {
+          assertWriteNotAborted(writeOptions)
           const row = await get<DbMemoryFactRow>(
             database,
-            `SELECT * FROM memory_facts WHERE ${hasBoundCardScope ? 'card_id = ? AND ' : ''}id = ?`,
-            hasBoundCardScope ? [boundCardId, correction.targetFactId] : [correction.targetFactId],
+            'SELECT * FROM memory_facts WHERE card_id = ? AND id = ?',
+            [cardId, correction.targetFactId],
           )
           if (!row)
             continue
@@ -7706,7 +7943,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
                 conflicts_with_json = ?,
                 supersedes_json = ?,
                 updated_at = ?
-            WHERE ${hasBoundCardScope ? 'card_id = ? AND ' : ''}id = ?
+            WHERE card_id = ? AND id = ?
             `,
             [
               correction.nextValidationStatus,
@@ -7717,19 +7954,38 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
               mergedConflictsWith,
               mergedSupersedes,
               now(),
-              ...(hasBoundCardScope ? [boundCardId] : []),
+              cardId,
               correction.targetFactId,
             ],
           )
         }
       })
-    })
+    }, writeOptions)
+    assertWriteNotAborted(writeOptions)
     await refreshLongTermMemorySearchIndexForCard({
-      cardId: boundCardId,
+      cardId,
       source: 'memory_facts',
       sourceIds: corrections.map(correction => correction.targetFactId),
       operation: 'memory fact correction search index refresh',
+      signal: writeOptions.signal,
     })
+  }
+
+  async function applyMemoryFactCorrections(
+    corrections: AlicizationKnowledgeAssimilationCorrection[],
+    writeOptions: DbWriteOptions = {},
+  ) {
+    await applyMemoryFactCorrectionsForCard(boundCardId, corrections, writeOptions)
+  }
+
+  async function listMemoryFactsForCard(requestedCardId: string) {
+    const cardId = resolveMemoryCardId(requestedCardId, 'memory facts list')
+    const rows = await all<DbMemoryFactRow>(
+      database,
+      'SELECT * FROM memory_facts WHERE card_id = ? ORDER BY updated_at DESC, id ASC',
+      [cardId],
+    )
+    return rows.map(mapFactRow)
   }
 
   async function listMemoryFacts() {
@@ -7787,7 +8043,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     }
   }
 
-  async function appendEpisodicEvents(events: AlicizationEpisodicEventInput[]) {
+  async function appendEpisodicEvents(
+    events: AlicizationEpisodicEventInput[],
+    options: DbWriteOptions = {},
+  ) {
+    assertWriteNotAborted(options)
     if (events.length === 0)
       return []
 
@@ -7853,20 +8113,27 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     await enqueueWrite(async () => {
       await appendMemoryIngestEntries([{
         operationKind: 'append-episodic-events',
+        cardId: new Set(prepared.map(event => event.cardId)).size === 1
+          ? prepared[0]?.cardId ?? null
+          : null,
         payload: {
           kind: 'append-episodic-events',
           events: prepared,
         },
-      }])
-      await drainMemoryIngestJournal()
-    })
+      }], options)
+      await drainMemoryIngestJournal(64, now(), options)
+    }, options)
+    assertWriteNotAborted(options)
     for (const cardId of new Set(prepared.map(event => event.cardId))) {
+      assertWriteNotAborted(options)
       await refreshLongTermMemorySearchIndexForCard({
         cardId,
         source: 'memory_consolidations',
         operation: 'memory consolidation rebuild search index refresh',
+        signal: options.signal,
       })
     }
+    assertWriteNotAborted(options)
     await refreshLongTermMemorySearchIndexForRecords({
       source: 'episodic_events',
       records: prepared.map(event => ({
@@ -7874,7 +8141,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         id: event.id,
       })),
       operation: 'episodic event search index refresh',
+      signal: options.signal,
     })
+    assertWriteNotAborted(options)
 
     return prepared.map(event => mapEpisodicEventRow({
       id: event.id,
@@ -7911,7 +8180,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     }))
   }
 
-  async function listRecentEpisodicEvents(limit = 12) {
+  async function listRecentEpisodicEvents(limit = 12, options?: { signal?: AbortSignal }) {
+    assertReadNotAborted(options?.signal)
     const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)))
     const rows = await all<DbEpisodicEventRow>(
       database,
@@ -7924,11 +8194,13 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       `,
       hasBoundCardScope ? [boundCardId, safeLimit] : [safeLimit],
     )
+    assertReadNotAborted(options?.signal)
     const overlayByEventId = await loadLatestEpisodicReconsolidationOverlayByEventId(
       database,
       all,
       rows.map(row => row.id),
     )
+    assertReadNotAborted(options?.signal)
     return rows.map((row) => {
       const overlay = overlayByEventId.get(row.id)
       return mapEpisodicEventRow(row, overlay
@@ -8649,8 +8921,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       )
       return row ? mapPersonaTrainingDatasetVersionRow(row) : null
     },
-    revokeSource: async (cardId, sourceRef, at) => {
+    revokeSource: async (cardId, sourceRef, at, writeOptions) => {
       return await enqueueWrite(async () => await runInTransaction(database, async () => {
+        assertWriteNotAborted(writeOptions)
         const result = await run(
           database,
           `
@@ -8663,8 +8936,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           `,
           [at, cardId, sourceRef.sourceId, sourceRef.sourceKind],
         )
+        assertWriteNotAborted(writeOptions)
         return Number(result?.changes ?? 0)
-      }))
+      }), writeOptions)
     },
     updateExamplePolicy: async (policyInput) => {
       await enqueueWrite(async () => {
@@ -9446,8 +9720,10 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   const personaTrainingPipelinePersistence: PersonaTrainingPipelinePersistence = {
     commitDatasetGovernanceWithArtifactCleanup: async (
       governanceInput: PersonaTrainingDatasetGovernanceMutation,
+      writeOptions: DbWriteOptions = {},
     ): Promise<PersonaTrainingDatasetGovernanceMutationResult> => {
       return await enqueueWrite(async () => await runInTransaction(database, async () => {
+        assertWriteNotAborted(writeOptions)
         if (governanceInput.kind === 'activate-version') {
           if (governanceInput.dataset.cardId !== governanceInput.cardId)
             throw new Error('persona training governance dataset card scope does not match the mutation')
@@ -9479,10 +9755,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           if (Number(activated?.changes ?? 0) !== 1)
             throw new Error('persona training governance dataset activation lost its target')
           for (const intent of governanceInput.cleanupIntents) {
+            assertWriteNotAborted(writeOptions)
             if (intent.cardId !== governanceInput.cardId)
               throw new Error('persona training governance cleanup intent card scope does not match the mutation')
             await persistPersonaTrainingArtifactCleanupIntentInTransaction(intent)
           }
+          assertWriteNotAborted(writeOptions)
           return {
             kind: 'activate-version',
             dataset: mapPersonaTrainingDatasetVersionRow({
@@ -9549,10 +9827,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           if (Number(activated?.changes ?? 0) !== 1)
             throw new Error('persona training governance dataset rollback lost its target')
           for (const intent of governanceInput.cleanupIntents) {
+            assertWriteNotAborted(writeOptions)
             if (intent.cardId !== governanceInput.cardId)
               throw new Error('persona training governance cleanup intent card scope does not match the mutation')
             await persistPersonaTrainingArtifactCleanupIntentInTransaction(intent)
           }
+          assertWriteNotAborted(writeOptions)
           return {
             kind: 'rollback-version',
             dataset: mapPersonaTrainingDatasetVersionRow({
@@ -9584,15 +9864,17 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           ],
         )
         for (const intent of governanceInput.cleanupIntents) {
+          assertWriteNotAborted(writeOptions)
           if (intent.cardId !== governanceInput.cardId)
             throw new Error('persona training governance cleanup intent card scope does not match the mutation')
           await persistPersonaTrainingArtifactCleanupIntentInTransaction(intent)
         }
+        assertWriteNotAborted(writeOptions)
         return {
           kind: 'revoke-source',
           affected: Number(revoked?.changes ?? 0),
         }
-      }))
+      }), writeOptions)
     },
     createRun: async (runRecord) => {
       await enqueueWrite(async () => {
@@ -10685,13 +10967,14 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       sourceId: string
       sourceKind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
     }>
-  }) {
+  }, writeOptions: DbWriteOptions = {}) {
     if (input.sources.length === 0)
       return
 
     await enqueueWrite(async () => {
       await runInTransaction(database, async () => {
         for (const source of input.sources) {
+          assertWriteNotAborted(writeOptions)
           await run(
             database,
             `
@@ -10714,7 +10997,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           )
         }
       })
-    })
+    }, writeOptions)
+    assertWriteNotAborted(writeOptions)
   }
   const personaTrainingDatasetRuntime = createPersonaTrainingDatasetRuntime({
     repository: personaTrainingDatasetRepository,
@@ -10892,6 +11176,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       get,
       all,
       enqueueWrite,
+      runInTransaction,
     }),
   })
   function resolveLongTermMemoryEmbeddingProvider() {
@@ -10936,7 +11221,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         textHash: entry.textHash,
       }))
     },
-    upsertVector: async (record) => {
+    upsertVector: async (record, options) => {
       await longTermMemoryVectorIndexAdapter.upsert([{
         id: `ltm-vector:${record.cardId}:${record.vectorSpaceId}:${record.source}:${record.sourceId}`,
         cardId: record.cardId,
@@ -10953,9 +11238,10 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         metadata: {
           reindexJob: true,
         },
-      }])
+      }], options)
     },
-    commitVectorAndItem: async ({ item, vector, now: committedAt }) => {
+    commitVectorAndItem: async ({ item, vector, now: committedAt, signal }) => {
+      assertWriteNotAborted({ signal })
       const vectorRecord = {
         id: `ltm-vector:${vector.cardId}:${vector.vectorSpaceId}:${vector.source}:${vector.sourceId}`,
         cardId: vector.cardId,
@@ -10974,7 +11260,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         },
       } as const
       const committed = await enqueueWrite(async () => {
+        assertWriteNotAborted({ signal })
         return await runInTransaction(database, async () => {
+          assertWriteNotAborted({ signal })
           const owner = await get<{
             job_status: string
             item_status: string
@@ -11006,7 +11294,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             return false
           }
 
-          await longTermMemoryVectorStore.upsertVectorsInTransaction([vectorRecord])
+          await longTermMemoryVectorStore.upsertVectorsInTransaction([vectorRecord], { signal })
+          assertWriteNotAborted({ signal })
           await run(database, `
             UPDATE memory_embedding_reindex_items
             SET status = 'indexed',
@@ -11023,9 +11312,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           `, [committedAt, committedAt, item.id, item.jobId, item.leaseToken])
           return true
         })
-      })
+      }, { signal })
       if (committed)
-        await longTermMemoryVectorIndexAdapter.upsertNative([vectorRecord])
+        await longTermMemoryVectorIndexAdapter.upsertNative([vectorRecord], { signal })
       return committed
     },
   })
@@ -11062,7 +11351,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     listMemoryReflectionsPage: memoryRelationshipRuntime.listMemoryReflectionsPage,
     listPersonaReinforcementEventsPage: memoryRelationshipRuntime.listPersonaReinforcementEventsPage,
     listTombstonedLongTermMemorySourceIds,
-    listPersonaTrainingSourceProvenance: async ({ cardId, sourceRefs }) => {
+    listPersonaTrainingSourceProvenance: async ({ cardId, sourceRefs }, readOptions = {}) => {
+      assertReadNotAborted(readOptions.signal)
       const normalizedSourceRefs = sourceRefs.filter(sourceRef =>
         sourceRef.sourceId.trim()
         && (
@@ -11077,6 +11367,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         cleaned_at: number
       }> = []
       for (let index = 0; index < normalizedSourceRefs.length; index += 200) {
+        assertReadNotAborted(readOptions.signal)
         const chunk = normalizedSourceRefs.slice(index, index + 200)
         rows.push(...await all<{
           source_id: string
@@ -11093,6 +11384,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           ...chunk.flatMap(sourceRef => [sourceRef.sourceId, sourceRef.sourceKind]),
         ]))
       }
+      assertReadNotAborted(readOptions.signal)
       return rows.map(row => ({
         sourceId: row.source_id,
         sourceKind: row.source_kind,
@@ -11102,10 +11394,23 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     },
   })
 
-  async function rebuildLongTermMemorySearchIndexForCard(cardIdRaw: string, operation: string) {
+  async function rebuildLongTermMemorySearchIndexForCard(
+    cardIdRaw: string,
+    operation: string,
+    signal?: AbortSignal,
+  ) {
     const cardId = resolveMemoryCardId(cardIdRaw, operation)
-    const result = await longTermMemorySearchIndexRuntime.rebuildLongTermMemorySearchIndex({ cardId })
-    await longTermMemoryVectorIndexAdapter.pruneOrphaned({ cardId })
+    assertReadNotAborted(signal)
+    const result = await longTermMemorySearchIndexRuntime.rebuildLongTermMemorySearchIndex({
+      cardId,
+      signal,
+    })
+    assertReadNotAborted(signal)
+    await longTermMemoryVectorIndexAdapter.pruneOrphaned({
+      cardId,
+      signal,
+    })
+    assertReadNotAborted(signal)
     return result
   }
 
@@ -11115,8 +11420,10 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     sourceIds?: string[]
     operation: string
     scheduleEmbedding?: boolean
+    signal?: AbortSignal
   }) {
     const cardId = resolveMemoryCardId(input.cardId, input.operation)
+    assertReadNotAborted(input.signal)
     const source = normalizeOrganicMemoryText(input.source, 120)
     const sourceIds = [...new Set(
       (input.sourceIds ?? [])
@@ -11127,8 +11434,14 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       cardId,
       source,
       sourceIds,
+      signal: input.signal,
     })
-    await longTermMemoryVectorIndexAdapter.pruneOrphaned({ cardId })
+    assertReadNotAborted(input.signal)
+    await longTermMemoryVectorIndexAdapter.pruneOrphaned({
+      cardId,
+      signal: input.signal,
+    })
+    assertReadNotAborted(input.signal)
     const provider = resolveLongTermMemoryEmbeddingProvider()
     if (input.scheduleEmbedding !== false && provider && sourceIds.length > 0) {
       try {
@@ -11166,6 +11479,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     source: string
     records: Array<{ cardId: string, id: string }>
     operation: string
+    signal?: AbortSignal
   }) {
     const recordsByCard = new Map<string, string[]>()
     for (const record of input.records) {
@@ -11179,45 +11493,57 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         source: input.source,
         sourceIds,
         operation: input.operation,
+        signal: input.signal,
       })
     }
   }
 
-  async function upsertMemoryReflections(entries: AlicizationMemoryReflectionInput[]) {
+  async function upsertMemoryReflections(
+    entries: AlicizationMemoryReflectionInput[],
+    writeOptions: DbWriteOptions = {},
+  ) {
+    assertWriteNotAborted(writeOptions)
     const cardIds = [...new Set(entries.map(entry =>
       resolveMemoryCardId(entry.cardId, 'memory reflection write'),
     ))]
-    await memoryWorkbenchPersonaCandidateRuntime.markProjectionDirty(cardIds)
-    const records = await memoryRelationshipRuntime.upsertMemoryReflections(entries)
+    await memoryWorkbenchPersonaCandidateRuntime.markProjectionDirty(cardIds, writeOptions)
+    const records = await memoryRelationshipRuntime.upsertMemoryReflections(entries, writeOptions)
     await refreshLongTermMemorySearchIndexForRecords({
       source: 'memory_reflections',
       records,
       operation: 'memory reflection search index refresh',
+      signal: writeOptions.signal,
     })
-    await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionForReflections(records)
-    await memoryWorkbenchPersonaCandidateRuntime.markProjectionComplete(cardIds)
+    await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionForReflections(records, writeOptions)
+    await memoryWorkbenchPersonaCandidateRuntime.markProjectionComplete(cardIds, writeOptions)
     return records
   }
 
-  async function appendPersonaReinforcementEvents(events: AlicizationPersonaReinforcementEventInput[]) {
+  async function appendPersonaReinforcementEvents(
+    events: AlicizationPersonaReinforcementEventInput[],
+    writeOptions: DbWriteOptions = {},
+  ) {
+    assertWriteNotAborted(writeOptions)
     const cardIds = [...new Set(events.map(event =>
       resolveMemoryCardId(event.cardId, 'persona reinforcement write'),
     ))]
-    await memoryWorkbenchPersonaCandidateRuntime.markProjectionDirty(cardIds)
-    const records = await memoryRelationshipRuntime.appendPersonaReinforcementEvents(events)
+    await memoryWorkbenchPersonaCandidateRuntime.markProjectionDirty(cardIds, writeOptions)
+    const records = await memoryRelationshipRuntime.appendPersonaReinforcementEvents(events, writeOptions)
     for (const cardId of cardIds)
-      await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionReinforcementSources(cardId)
-    await memoryWorkbenchPersonaCandidateRuntime.markProjectionComplete(cardIds)
+      await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionReinforcementSources(cardId, writeOptions)
+    await memoryWorkbenchPersonaCandidateRuntime.markProjectionComplete(cardIds, writeOptions)
     return records
   }
 
   async function persistWorkingMemoryLongTermTransaction(
     transaction: Parameters<typeof workingMemoryLongTermCleaningStore.updateTransaction>[0],
     status: Parameters<typeof workingMemoryLongTermCleaningStore.updateTransaction>[1],
+    writeOptions: DbWriteOptions = {},
   ) {
+    assertWriteNotAborted(writeOptions)
     await enqueueWrite(async () => {
       await workingMemoryLongTermCleaningStore.updateTransaction(transaction, status)
-    })
+    }, writeOptions)
   }
 
   async function enqueueWorkingMemoryLongTermQueueItems(input: {
@@ -11246,6 +11572,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
   async function drainWorkingMemoryLongTermTransactions(
     rows: WorkingMemoryLongTermCleaningTransaction[],
+    options: {
+      signal?: AbortSignal
+    } = {},
   ) {
     let cleaned = 0
     let admitted = 0
@@ -11271,10 +11600,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         nextAttemptAt: deadLettered
           ? null
           : updatedAt + workingMemoryLongTermCleaningRetryDelayMs(attemptCount),
-      }, deadLettered ? 'dead-lettered' : 'failed')
+      }, deadLettered ? 'dead-lettered' : 'failed', options)
     }
 
     for (const row of rows) {
+      assertReadNotAborted(options.signal)
       try {
         const existingMemoryEvidence = normalizeWorkingMemoryLongTermEvidence(row.item.memoryEvidence)
         const cleanedTransaction = row.status === 'admitted'
@@ -11298,18 +11628,21 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         cleaned += 1
 
         if (cleanedTransaction.status === 'rejected') {
+          assertReadNotAborted(options.signal)
           rejected += 1
-          await persistWorkingMemoryLongTermTransaction(cleanedTransaction, 'rejected')
+          await persistWorkingMemoryLongTermTransaction(cleanedTransaction, 'rejected', options)
           continue
         }
 
         if (cleanedTransaction.status === 'needs-user-review') {
+          assertReadNotAborted(options.signal)
           review += 1
-          await persistWorkingMemoryLongTermTransaction(cleanedTransaction, 'needs-user-review')
+          await persistWorkingMemoryLongTermTransaction(cleanedTransaction, 'needs-user-review', options)
           continue
         }
 
         if (!cleanedTransaction.cleanedCandidate) {
+          assertReadNotAborted(options.signal)
           failed += 1
           await persistCleaningFailure(row, new Error('admitted transaction missing cleaned candidate'))
           continue
@@ -11320,6 +11653,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           cleanedTransaction.queueItemId,
         ]
         const tombstonedCandidateSourceIds = await listTombstonedLongTermMemorySourceIds(candidateSourceIds, cleanedTransaction.cardId)
+        assertReadNotAborted(options.signal)
         if (tombstonedCandidateSourceIds.size > 0) {
           rejected += 1
           await persistWorkingMemoryLongTermTransaction({
@@ -11334,7 +11668,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             reviewReasons: [],
             updatedAt: now(),
             nextAttemptAt: null,
-          }, 'rejected')
+          }, 'rejected', options)
           continue
         }
 
@@ -11345,29 +11679,88 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           now: projectionTs,
         })
 
+        if (
+          cleanedTransaction.cleanedCandidate.kind === 'correction'
+          && (
+            cleanedTransaction.cleanedCandidate.supersedesText?.length
+            || cleanedTransaction.cleanedCandidate.claim
+          )
+        ) {
+          const correctionSources = await findLongTermMemorySourcesForCorrection({
+            cardId: cleanedTransaction.cardId,
+            supersedesText: cleanedTransaction.cleanedCandidate.supersedesText,
+            claim: cleanedTransaction.cleanedCandidate.claim,
+          })
+          assertReadNotAborted(options.signal)
+          for (const source of new Set(correctionSources.map(item => item.source))) {
+            assertReadNotAborted(options.signal)
+            await tombstoneLongTermMemorySources({
+              cardId: cleanedTransaction.cardId,
+              source,
+              sourceIds: correctionSources
+                .filter(item => item.source === source)
+                .map(item => item.sourceId),
+              reason: 'superseded-by-user-correction',
+              signal: options.signal,
+            })
+          }
+        }
+
+        assertReadNotAborted(options.signal)
         await persistWorkingMemoryLongTermTransaction({
           ...cleanedTransaction,
           projections,
           status: 'admitted',
           updatedAt: projectionTs,
           nextAttemptAt: projectionTs,
-        }, 'admitted')
+        }, 'admitted', options)
+        assertReadNotAborted(options.signal)
 
         let persistedReflections: AlicizationMemoryReflectionRecord[] = []
         let persistedEpisodes: AlicizationEpisodicEventRecord[] = []
         let persistedPersonaReinforcements: AlicizationPersonaReinforcementEventRecord[] = []
         if (projections.memoryFacts.length > 0) {
+          assertReadNotAborted(options.signal)
           if (hasBoundCardScope)
             resolveMemoryCardId(cleanedTransaction.cardId, 'working memory projection')
-          await upsertMemoryFacts(projections.memoryFacts, 'rule')
+          const existingFacts = await listMemoryFactsForCard(cleanedTransaction.cardId)
+          assertReadNotAborted(options.signal)
+          const assimilation = knowledgeAssimilationRuntime.assimilateMemoryFactsDetailed({
+            facts: projections.memoryFacts,
+            source: 'rule',
+            existingFacts,
+          })
+          if (assimilation.corrections.length > 0) {
+            await applyMemoryFactCorrectionsForCard(
+              cleanedTransaction.cardId,
+              assimilation.corrections,
+              options,
+            )
+          }
+          assertReadNotAborted(options.signal)
+          await upsertMemoryFactsForCard(cleanedTransaction.cardId, assimilation.facts, 'rule', options)
+          assertReadNotAborted(options.signal)
         }
-        if (projections.memoryReflections.length > 0)
-          persistedReflections = await upsertMemoryReflections(projections.memoryReflections)
-        if (projections.episodicEvents.length > 0)
-          persistedEpisodes = await appendEpisodicEvents(projections.episodicEvents)
-        if (projections.personaReinforcements.length > 0)
-          persistedPersonaReinforcements = await appendPersonaReinforcementEvents(projections.personaReinforcements)
+        if (projections.memoryReflections.length > 0) {
+          assertReadNotAborted(options.signal)
+          persistedReflections = await upsertMemoryReflections(projections.memoryReflections, options)
+          assertReadNotAborted(options.signal)
+        }
+        if (projections.episodicEvents.length > 0) {
+          assertReadNotAborted(options.signal)
+          persistedEpisodes = await appendEpisodicEvents(
+            projections.episodicEvents,
+            { signal: options.signal },
+          )
+          assertReadNotAborted(options.signal)
+        }
+        if (projections.personaReinforcements.length > 0) {
+          assertReadNotAborted(options.signal)
+          persistedPersonaReinforcements = await appendPersonaReinforcementEvents(projections.personaReinforcements, options)
+          assertReadNotAborted(options.signal)
+        }
 
+        assertReadNotAborted(options.signal)
         await recordPersonaTrainingSourceProvenance({
           cardId: cleanedTransaction.cardId,
           cleaningTransactionId: cleanedTransaction.id,
@@ -11382,16 +11775,28 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
               sourceKind: 'persona-reinforcement' as const,
             })),
           ],
-        })
-        if (persistedReflections.length > 0)
-          await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionForReflections(persistedReflections)
-        if (persistedPersonaReinforcements.length > 0)
-          await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionReinforcementSources(cleanedTransaction.cardId)
+        }, options)
+        assertReadNotAborted(options.signal)
+        if (persistedReflections.length > 0) {
+          await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionForReflections(
+            persistedReflections,
+            options,
+          )
+          assertReadNotAborted(options.signal)
+        }
+        if (persistedPersonaReinforcements.length > 0) {
+          await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionReinforcementSources(
+            cleanedTransaction.cardId,
+            options,
+          )
+          assertReadNotAborted(options.signal)
+        }
 
         const projectedFactSources = await findProjectedMemoryFactSourcesByCandidateId(
           cleanedTransaction.cardId,
           cleanedTransaction.cleanedCandidate.id,
         )
+        assertReadNotAborted(options.signal)
         const projectedSources = [
           ...projectedFactSources,
           ...persistedReflections.map(item => ({
@@ -11406,9 +11811,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             cardId: cleanedTransaction.cardId,
             candidateSourceIds,
             projectedSources,
-          })
+          }, options)
+          assertReadNotAborted(options.signal)
         }
 
+        assertReadNotAborted(options.signal)
         await persistWorkingMemoryLongTermTransaction({
           ...cleanedTransaction,
           projections,
@@ -11416,15 +11823,18 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           updatedAt: now(),
           appliedAt: now(),
           nextAttemptAt: null,
-        }, 'applied')
+        }, 'applied', options)
         applied += 1
       }
       catch (error) {
+        if (options.signal?.aborted || isAbortError(error))
+          throw createAbortError(options.signal?.reason ?? error)
         failed += 1
         await persistCleaningFailure(row, error)
       }
     }
 
+    assertReadNotAborted(options.signal)
     return {
       cleaned,
       admitted,
@@ -11435,26 +11845,39 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     }
   }
 
-  async function drainWorkingMemoryLongTermQueue(limit = 4) {
+  async function drainWorkingMemoryLongTermQueue(
+    limit = 4,
+    options: {
+      signal?: AbortSignal
+    } = {},
+  ) {
+    assertReadNotAborted(options.signal)
     return await workingMemoryLongTermDrainMutex.run(async () => {
+      assertReadNotAborted(options.signal)
       const cardId = hasBoundCardScope ? boundCardId : null
       const result = await drainWorkingMemoryLongTermTransactions(
         await workingMemoryLongTermCleaningStore.listDueTransactions(limit, now(), cardId),
+        options,
       )
+      assertReadNotAborted(options.signal)
       const pending = (await workingMemoryLongTermCleaningStore.listDueTransactions(32, now(), cardId)).length
+      assertReadNotAborted(options.signal)
       return {
         ...result,
         pending,
       }
-    })
+    }, options)
   }
 
   async function drainWorkingMemoryLongTermQueueScoped(input: {
     cardId: string
     sessionId: string
     queueItemIds: string[]
+    signal?: AbortSignal
   }) {
+    assertReadNotAborted(input.signal)
     return await workingMemoryLongTermDrainMutex.run(async () => {
+      assertReadNotAborted(input.signal)
       const cardId = resolveMemoryCardId(input.cardId, 'working memory long-term scoped drain')
       const queueItemIds = [...new Set(
         input.queueItemIds
@@ -11468,8 +11891,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       }
       const result = await drainWorkingMemoryLongTermTransactions(
         await workingMemoryLongTermCleaningStore.listDueTransactionsByScope(scope),
+        { signal: input.signal },
       )
+      assertReadNotAborted(input.signal)
       const transactions = await workingMemoryLongTermCleaningStore.listTransactionsByScope(scope)
+      assertReadNotAborted(input.signal)
       const transactionByQueueItemId = new Map(
         transactions.map(transaction => [transaction.queueItemId, transaction]),
       )
@@ -11507,7 +11933,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         ).length,
         settlements,
       }
-    })
+    }, { signal: input.signal })
   }
 
   async function listLongTermMemoryReviewPage(input: {
@@ -11591,11 +12017,17 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   }
 
   async function tombstoneLongTermMemorySources(input: {
+    cardId?: string
     sourceIds: string[]
     source?: string
     reason?: string | null
+    signal?: AbortSignal
   }) {
-    const cardId = boundCardId
+    assertReadNotAborted(input.signal)
+    const cardId = resolveMemoryCardId(
+      input.cardId ?? boundCardId,
+      'long-term memory tombstone',
+    )
     const source = normalizeOrganicMemoryText(input.source, 120) || 'long_term_memory'
     const sourceIds = normalizeLongTermMemorySourceIds(input.sourceIds)
     if (sourceIds.length === 0)
@@ -11607,10 +12039,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       || source === 'persona_reinforcement_events'
       || source === 'long_term_memory'
     if (affectsPersonaProjection)
-      await memoryWorkbenchPersonaCandidateRuntime.markProjectionDirty([cardId])
+      await memoryWorkbenchPersonaCandidateRuntime.markProjectionDirty([cardId], input)
     await enqueueWrite(async () => {
       await runInTransaction(database, async () => {
         for (const sourceId of sourceIds) {
+          assertReadNotAborted(input.signal)
           await run(
             database,
             `
@@ -11634,24 +12067,29 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           )
         }
       })
-    })
+    }, { signal: input.signal })
+    assertReadNotAborted(input.signal)
     await longTermMemoryVectorIndexAdapter.delete({
       cardId,
       sourceIds,
       source,
-    }).catch(() => {
+      signal: input.signal,
+    }).catch((error) => {
+      if (input.signal?.aborted || isAbortError(error))
+        throw error
       // Tombstones remain authoritative if native vector cleanup is unavailable.
     })
+    assertReadNotAborted(input.signal)
     if (source === 'memory_reflections' || source === 'long_term_memory') {
       await memoryWorkbenchPersonaCandidateRuntime.removeProjectionSources({
         cardId,
         sourceIds,
-      })
+      }, input)
     }
     if (source === 'persona_reinforcement_events' || source === 'long_term_memory')
-      await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionReinforcementSources(cardId)
+      await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionReinforcementSources(cardId, input)
     if (affectsPersonaProjection)
-      await memoryWorkbenchPersonaCandidateRuntime.markProjectionComplete([cardId])
+      await memoryWorkbenchPersonaCandidateRuntime.markProjectionComplete([cardId], input)
     const personaSourceKind = source === 'memory_reflections'
       ? 'cleaned-long-term-reflection' as const
       : source === 'persona_reinforcement_events'
@@ -11659,6 +12097,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         : null
     if (personaSourceKind) {
       for (const sourceId of sourceIds) {
+        assertReadNotAborted(input.signal)
         const intentId = `persona-training-source-revoke:${cardId}:${personaSourceKind}:${sourceId}`
         await enqueueWrite(async () => {
           await run(
@@ -11707,20 +12146,92 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
               createdAt,
             ],
           )
-        })
+        }, { signal: input.signal })
+        assertReadNotAborted(input.signal)
         await executePersonaTrainingSourceRevokeIntent({
           cardId,
           intentId,
+          signal: input.signal,
         })
       }
     }
+  }
+
+  async function findLongTermMemorySourcesForCorrection(input: {
+    cardId: string
+    supersedesText?: string[]
+    claim?: {
+      subject: string
+      predicate: string
+      object: string
+    }
+  }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'long-term memory correction lookup')
+    const replacedTexts = normalizeStringArray(input.supersedesText, 8)
+    const subject = normalizeOrganicMemoryText(input.claim?.subject, 160)
+    if (replacedTexts.length === 0 || !subject)
+      return []
+
+    const likePattern = (value: string) => `%${value.replace(/[\\%_]/gu, character => `\\${character}`)}%`
+    const searches = [
+      {
+        source: 'memory_facts',
+        table: 'memory_facts',
+        textExpression: `COALESCE(subject, '') || ' ' || COALESCE(predicate, '') || ' ' || COALESCE(object, '')`,
+      },
+      {
+        source: 'memory_reflections',
+        table: 'memory_reflections',
+        textExpression: `COALESCE(summary, '') || ' ' || COALESCE(lesson, '')`,
+      },
+      {
+        source: 'episodic_events',
+        table: 'episodic_events',
+        textExpression: `COALESCE(thread_anchor, '') || ' ' || COALESCE(what_happened, '') || ' ' || COALESCE(source_summary, '')`,
+      },
+      {
+        source: 'memory_consolidations',
+        table: 'memory_consolidations',
+        textExpression: `COALESCE(summary, '') || ' ' || COALESCE(lesson, '') || ' ' || COALESCE(metadata_json, '')`,
+      },
+    ] as const
+
+    const matches: Array<{ source: string, sourceId: string }> = []
+    for (const search of searches) {
+      const rows = await all<{ id: string }>(
+        database,
+        `
+        SELECT id
+        FROM ${search.table}
+        WHERE card_id = ?
+          AND ${search.textExpression} LIKE ? ESCAPE '\\'
+          AND (${replacedTexts.map(() => `${search.textExpression} LIKE ? ESCAPE '\\'`).join(' OR ')})
+        `,
+        [
+          cardId,
+          likePattern(subject),
+          ...replacedTexts.map(likePattern),
+        ],
+      )
+      matches.push(...rows.map(row => ({
+        source: search.source,
+        sourceId: row.id,
+      })))
+    }
+
+    const uniqueMatches = new Map<string, { source: string, sourceId: string }>()
+    for (const match of matches)
+      uniqueMatches.set(`${match.source}\0${match.sourceId}`, match)
+    return [...uniqueMatches.values()]
   }
 
   async function listTombstonedLongTermMemorySourceIds(
     sourceIds: string[],
     cardIdRaw = boundCardId,
     sourceRaw = 'long_term_memory',
+    options?: DbWriteOptions,
   ) {
+    assertReadNotAborted(options?.signal)
     const sourceSet = new Set(normalizeLongTermMemorySourceIds(sourceIds))
     if (sourceSet.size === 0)
       return new Set<string>()
@@ -11735,6 +12246,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
          AND (source = ? OR source = 'long_term_memory')`,
       [cardId, source],
     )
+    assertReadNotAborted(options?.signal)
     return new Set(rows.map(row => row.source_id).filter(sourceId => sourceSet.has(sourceId)))
   }
 
@@ -11766,7 +12278,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
     reconsolidationDecisionTraceId?: string | null
     readOnly?: boolean
+    signal?: AbortSignal
   }) {
+    assertReadNotAborted(input.signal)
     const recallSeed = input.recallSeed.trim()
     if (!recallSeed)
       return []
@@ -11784,6 +12298,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       `,
       hasBoundCardScope ? [boundCardId] : [],
     )
+    assertReadNotAborted(input.signal)
     const nowTs = now()
     const recollectionIntent = input.recollectionIntent ?? null
     const correctionShapingRationale = (
@@ -11801,11 +12316,13 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         correctionShapingRationale,
       ],
     })
+    assertReadNotAborted(input.signal)
     const overlayByEventId = await loadLatestEpisodicReconsolidationOverlayByEventId(
       database,
       all,
       rows.map(row => row.id),
     )
+    assertReadNotAborted(input.signal)
     const selected = rankAlicizationEpisodicEvents({
       events: rows.map((row) => {
         const overlay = overlayByEventId.get(row.id)
@@ -11834,6 +12351,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     })
 
     if (selected.length === 0) {
+      assertReadNotAborted(input.signal)
       if (!input.readOnly)
         await recordMemoryGraphRetrievalLatency(now() - retrievalStartedAt)
       return []
@@ -11842,6 +12360,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     if (input.readOnly)
       return selected.map(item => item.event)
 
+    assertReadNotAborted(input.signal)
     const returned = await memoryEpisodicReconsolidationRuntime.reconcileSelectedEvents({
       selected,
       recalledAt: nowTs,
@@ -11868,6 +12387,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         })
       }
     }
+    assertReadNotAborted(input.signal)
     await recordMemoryGraphRetrievalLatency(now() - retrievalStartedAt)
 
     return returned
@@ -11881,13 +12401,16 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     currentThreadTitle?: string | null
     activeTask?: string | null
     limit?: number
+    signal?: AbortSignal
   }): Promise<LongTermMemoryEvidenceBundle> {
+    assertReadNotAborted(input.signal)
     const startedAt = now()
     const semantic = await getMemoryWorkbenchRecallProbeSemantic({ cardId: input.cardId }).catch(() => ({
       available: false,
     }))
     try {
       const result = await retrieveLongTermMemoryEvidenceInternal(input)
+      assertReadNotAborted(input.signal)
       const { bundle } = result
       await appendMemoryWorkbenchRecallMetricSafely({
         cardId: input.cardId,
@@ -11901,6 +12424,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       return bundle
     }
     catch (error) {
+      if (input.signal?.aborted || isAbortError(error))
+        throw input.signal?.reason ?? error
       await appendMemoryWorkbenchRecallMetricSafely({
         cardId: input.cardId,
         query: input.currentUserText,
@@ -11922,7 +12447,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     currentThreadTitle?: string | null
     activeTask?: string | null
     limit?: number
+    signal?: AbortSignal
   }): Promise<LongTermMemoryEvidenceBundle> {
+    assertReadNotAborted(input.signal)
     resolveMemoryCardId(input.cardId, 'read-only long-term memory recall')
     return (await retrieveLongTermMemoryEvidenceInternal({
       ...input,
@@ -11939,7 +12466,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     activeTask?: string | null
     limit?: number
     readOnly?: boolean
+    signal?: AbortSignal
   }): Promise<LongTermMemoryEvidenceRetrievalDiagnostics> {
+    assertReadNotAborted(input.signal)
     const intent = deriveLongTermMemoryRecallIntent({
       currentUserText: input.currentUserText,
       workingMemoryQueryHints: input.workingMemoryQueryHints,
@@ -11971,6 +12500,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       }
     }
 
+    assertReadNotAborted(input.signal)
     const recallSeed = [...new Set([
       plan.normalizedQuery,
       ...plan.keywordQueries,
@@ -11998,8 +12528,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         query: recallSeed,
         limit: Math.max(32, safeLimit * 8),
       })
+      assertReadNotAborted(input.signal)
     }
     catch (error) {
+      if (input.signal?.aborted || isAbortError(error))
+        throw input.signal?.reason ?? error
       degradedChannels.push({
         channel: 'index',
         error: errorMessageFrom(error) ?? String(error),
@@ -12011,9 +12544,13 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         recallSeed,
         limit: sourceLimit,
         readOnly: input.readOnly,
+        signal: input.signal,
       })
+      assertReadNotAborted(input.signal)
     }
     catch (error) {
+      if (input.signal?.aborted || isAbortError(error))
+        throw input.signal?.reason ?? error
       degradedChannels.push({
         channel: 'episodic',
         error: errorMessageFrom(error) ?? String(error),
@@ -12029,26 +12566,35 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       )
     const tombstonedSourceIdsBySource = new Map<string, Set<string>>()
     for (const source of new Set(candidates.map(candidate => candidate.source))) {
+      assertReadNotAborted(input.signal)
       tombstonedSourceIdsBySource.set(
         source,
         await listTombstonedLongTermMemorySourceIds(
           candidates.filter(candidate => candidate.source === source).map(candidate => candidate.id),
           input.cardId,
           source,
+          { signal: input.signal },
         ),
       )
     }
+    assertReadNotAborted(input.signal)
     const visibleCandidates = candidates.filter(candidate => !tombstonedSourceIdsBySource.get(candidate.source)?.has(candidate.id))
     const semantic = await retrieveLongTermMemorySemanticScores({
       cardId: input.cardId,
       plan,
       candidates: visibleCandidates,
       limit: safeLimit,
-    }).catch(error => ({
-      scores: {},
-      candidates: [],
-      error: errorMessageFrom(error) ?? String(error),
-    }))
+      signal: input.signal,
+    }).catch((error) => {
+      if (input.signal?.aborted || isAbortError(error))
+        throw input.signal?.reason ?? error
+      return {
+        scores: {},
+        candidates: [],
+        error: errorMessageFrom(error) ?? String(error),
+      }
+    })
+    assertReadNotAborted(input.signal)
     if (semantic.error) {
       degradedChannels.push({
         channel: 'semantic',
@@ -12061,7 +12607,10 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     const semanticTombstoned = await listTombstonedLongTermMemorySourceIds(
       semanticCandidates.map(candidate => candidate.id),
       input.cardId,
+      'long_term_memory',
+      { signal: input.signal },
     )
+    assertReadNotAborted(input.signal)
     const mergedCandidates = [
       ...visibleCandidates,
       ...semanticCandidates.filter(candidate => !semanticTombstoned.has(candidate.id)),
@@ -12089,7 +12638,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     plan: LongTermMemoryQueryPlan
     candidates: LongTermMemoryEvidenceCandidate[]
     limit: number
+    signal?: AbortSignal
   }) {
+    assertReadNotAborted(input.signal)
     const provider = resolveLongTermMemoryEmbeddingProvider()
     if (!provider)
       return { scores: {}, candidates: [], error: null }
@@ -12110,7 +12661,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     const embedded = await safeEmbedLongTermMemoryTexts({
       provider,
       texts: [queryText],
+      signal: input.signal,
     })
+    assertReadNotAborted(input.signal)
     if (embedded.status === 'failed' || embedded.error) {
       return {
         scores: {},
@@ -12134,10 +12687,13 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       dimensions: queryEmbedding.dimensions,
       vectorSpaceId: queryEmbedding.vectorSpaceId,
       limit: Math.max(8, input.limit * 4),
+      signal: input.signal,
     })
+    assertReadNotAborted(input.signal)
     const semanticScores: Record<string, number> = {}
     const semanticCandidates: LongTermMemoryEvidenceCandidate[] = []
     for (const result of results) {
+      assertReadNotAborted(input.signal)
       const metadataWorkbenchItemId = typeof result.record.metadata?.workbenchItemId === 'string'
         ? normalizeOrganicMemoryText(result.record.metadata.workbenchItemId, 240)
         : ''
@@ -12439,6 +12995,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     })
     if (result && input.decision === 'tombstone') {
       await tombstoneLongTermMemorySources({
+        cardId,
         sourceIds: result.sourceMemoryIds.length > 0 ? result.sourceMemoryIds : [result.transactionId],
         reason: input.reason ?? 'user-tombstoned-review-item',
       })
@@ -12465,6 +13022,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     const sourceIds = item.sourceIds.length > 0 ? item.sourceIds : [item.id]
     if (input.decision === 'tombstone') {
       await tombstoneLongTermMemorySources({
+        cardId,
         sourceIds,
         source: item.source,
         reason: input.reason ?? 'user-tombstoned-long-term-memory',
@@ -12650,7 +13208,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       const available = embedding.providerConfigured === true
         && Boolean(embedding.modelId)
         && Number.isFinite(embedding.dimensions)
-        && embedding.reindexRequired !== true
+        && embedding.searchReady === true
       return {
         available,
         modelId: embedding.modelId,
@@ -12725,14 +13283,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       modelId: indexHealth.modelId,
       dimensions: indexHealth.dimensions,
       vectorSpaceId: indexHealth.vectorSpaceId,
-      reindexRequired: indexHealth.reindexRequired
-        || !!(reindexJob && ['queued', 'running', 'paused', 'cancel_requested', 'failed'].includes(reindexJob.status)),
+      reindexRequired: indexHealth.reindexRequired,
       indexMode: indexHealth.indexMode,
       approximate: indexHealth.approximate,
       degraded: indexHealth.degraded,
       nativeIndexReady: indexHealth.nativeIndexReady,
-      searchReady: indexHealth.searchReady
-        && (!reindexJob || !['queued', 'running', 'paused', 'cancel_requested', 'failed'].includes(reindexJob.status)),
+      searchReady: indexHealth.searchReady,
       lastError: indexHealth.lastError,
       canonicalCount: indexHealth.canonicalCount,
       indexedCount: indexHealth.indexedCount,
@@ -14630,6 +15186,39 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     return await memoryEmbeddingReindexRuntime.resumePendingJobs(8, boundCardId)
   }
 
+  async function scheduleRequiredMemoryEmbeddingReindex(cardIdRaw: string) {
+    const cardId = resolveMemoryCardId(cardIdRaw, 'startup memory embedding reindex')
+    const provider = resolveLongTermMemoryEmbeddingProvider()
+    if (!provider)
+      return null
+    const vectorSpaceId = resolveLongTermMemoryVectorSpaceId(provider)
+    const health = await longTermMemoryVectorIndexAdapter.getHealth({
+      cardId,
+      modelId: provider.modelId,
+      dimensions: provider.dimensions,
+      vectorSpaceId,
+    })
+    if (!health.reindexRequired || health.canonicalCount === 0)
+      return null
+
+    const latest = await memoryEmbeddingReindexRuntime.getLatestReindexJob(cardId, vectorSpaceId)
+    // A failed automatic repair is terminal until the user explicitly retries
+    // it. Reusing that record prevents every app restart from spawning the same
+    // permanently failing projection job again.
+    if (latest && ['queued', 'running', 'paused', 'cancel_requested', 'failed'].includes(latest.status))
+      return latest
+
+    const progress = await memoryEmbeddingReindexRuntime.scheduleReindexJob({
+      cardId,
+      modelId: provider.modelId,
+      dimensions: provider.dimensions,
+      vectorSpaceId,
+      projection: {},
+    })
+    void memoryEmbeddingReindexRuntime.runJob(progress.jobId).catch(() => {})
+    return progress
+  }
+
   async function listMemoryWorkbenchPersonaCandidates(input: {
     cardId: string
     status?: AlicizationPersonaCandidateWorkbenchStatus | 'all'
@@ -14804,7 +15393,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   async function executePersonaTrainingSourceRevokeIntent(input: {
     cardId: string
     intentId: string
+    signal?: AbortSignal
   }) {
+    assertReadNotAborted(input.signal)
     const cardId = resolveMemoryCardId(input.cardId, 'persona training source revoke intent execution')
     const intentId = input.intentId.trim()
     if (!intentId)
@@ -14825,7 +15416,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         AND status IN ('pending', 'failed')
       `,
       [now(), intentId, cardId],
-    ))
+    ), { signal: input.signal })
+    assertReadNotAborted(input.signal)
     if (Number(claimed?.changes ?? 0) !== 1) {
       const current = await get<PersonaTrainingSourceRevokeIntentRow>(
         database,
@@ -14848,10 +15440,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       `,
       [intentId, cardId],
     )
+    assertReadNotAborted(input.signal)
     if (!intent)
       return null
 
     try {
+      assertReadNotAborted(input.signal)
       await personaTrainingPipelineGate.revokeSource({
         cardId,
         sourceId: intent.source_id,
@@ -14869,9 +15463,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         WHERE id = ? AND card_id = ? AND status = 'pending'
         `,
         [now(), now(), intentId, cardId],
-      ))
+      ), { signal: input.signal })
     }
     catch (error) {
+      if (input.signal?.aborted || isAbortError(error))
+        throw createAbortError(input.signal?.reason ?? error)
       const lastError = errorMessageFrom(error) ?? String(error)
       try {
         await enqueueWrite(async () => await run(
@@ -14886,7 +15482,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           WHERE id = ? AND card_id = ? AND status = 'pending'
           `,
           [lastError, now(), intentId, cardId],
-        ))
+        ), { signal: input.signal })
       }
       catch (persistError) {
         throw new AggregateError(
@@ -14919,6 +15515,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       `,
       [intentId, cardId],
     )
+    assertReadNotAborted(input.signal)
     return completed ? mapPersonaTrainingSourceRevokeIntentRow(completed) : null
   }
 
@@ -15348,6 +15945,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         await drainMemoryIngestJournal()
       })
       await rebuildLongTermMemorySearchIndexForCard(boundCardId, 'initial long-term memory search index rebuild')
+      await scheduleRequiredMemoryEmbeddingReindex(boundCardId)
       await memoryEmbeddingReindexRuntime.resumePendingJobs(8, boundCardId)
       await memorySemanticScaleJobRuntime.resumePendingJobs(boundCardId)
       await personaTrainingPipelineGate.reconcileAfterRestart({
@@ -15368,16 +15966,28 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   return {
     dbPath,
     close: async () => {
-      await personaTrainingPipelineGate.stop('database-close')
-      await memoryEmbeddingReindexRuntime.stop()
-      await memorySemanticScaleJobRuntime.stop()
-      await sqliteWriteQueue.waitForIdle()
-      try {
-        await close(database)
-      }
-      finally {
-        sqliteWriteQueue.release()
-      }
+      if (databaseClosePromise)
+        return await databaseClosePromise
+      databaseClosePromise = (async () => {
+        try {
+          await personaTrainingPipelineGate.stop('database-close')
+          await memoryEmbeddingReindexRuntime.stop()
+          await memorySemanticScaleJobRuntime.stop()
+          databaseClosing = true
+          await sqliteWriteQueue.waitForIdle()
+        }
+        finally {
+          databaseClosing = true
+          try {
+            await close(database)
+          }
+          finally {
+            databaseClosed = true
+            sqliteWriteQueue.release()
+          }
+        }
+      })()
+      return await databaseClosePromise
     },
     appendRuntimeEvent,
     listRuntimeEvents,
@@ -15387,6 +15997,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     getMetaValue,
     setMetaValue: async (key: string, value: string, options?: DbWriteOptions) => {
       await enqueueWrite(async () => {
+        assertWriteNotAborted(options)
         await upsertMeta(key, value)
       }, options)
     },
@@ -15473,9 +16084,17 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     applyLongTermMemoryReviewDecision,
     tombstoneLongTermMemorySources,
     upsertMemoryReflections,
-    listMemoryReflections: memoryRelationshipRuntime.listMemoryReflections,
+    listMemoryReflections: (input, readOptions) =>
+      raceSqliteWriteWithAbort(
+        memoryRelationshipRuntime.listMemoryReflections(input, readOptions),
+        readOptions?.signal,
+      ),
     appendRelationshipOutcomes: memoryRelationshipRuntime.appendRelationshipOutcomes,
-    listRelationshipOutcomes: memoryRelationshipRuntime.listRelationshipOutcomes,
+    listRelationshipOutcomes: (input, readOptions) =>
+      raceSqliteWriteWithAbort(
+        memoryRelationshipRuntime.listRelationshipOutcomes(input, readOptions),
+        readOptions?.signal,
+      ),
     appendPersonStateEvolutionEntries: personStateEvolutionRuntime.appendEvolutionEntries,
     listPersonStateEvolutionEntries: personStateEvolutionRuntime.listEvolutionEntries,
     summarizePersonStateEvolution: personStateEvolutionRuntime.summarizeEvolution,

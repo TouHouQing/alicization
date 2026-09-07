@@ -1,5 +1,7 @@
 import type { Message } from '@xsai/shared-chat'
 
+import type { ProviderHttpFaultResponse } from './provider-http-fault-server.test-support'
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -7,6 +9,7 @@ import {
   runAlicizationMainChatStream,
 } from './main-chat-stream-runner'
 import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
+import { encodeOpenAICompatibleSse, startProviderHttpFaultServer } from './provider-http-fault-server.test-support'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
@@ -218,6 +221,375 @@ afterEach(() => {
 })
 
 describe('main chat stream runner', () => {
+  it('retries five real HTTP 503 responses and records attempts 1 through 6 before accepting SSE success', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: '第六次真实 Provider 请求恢复成功。',
+    })
+    const server = await startProviderHttpFaultServer({
+      respond: ({ attempt }): ProviderHttpFaultResponse => {
+        if (attempt <= 5) {
+          return {
+            status: 503,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              error: {
+                code: 'provider_temporarily_unavailable',
+                message: `temporary failure ${attempt}`,
+                type: 'server_error',
+              },
+            }),
+          }
+        }
+        return {
+          status: 200,
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Content-Type': 'text/event-stream',
+          },
+          body: encodeOpenAICompatibleSse([
+            {
+              choices: [{
+                index: 0,
+                delta: {
+                  content: providerText,
+                },
+                finish_reason: null,
+              }],
+            },
+            {
+              choices: [{
+                index: 0,
+                delta: {},
+                finish_reason: 'stop',
+              }],
+            },
+          ]),
+        }
+      },
+    })
+    const appendRuntimeDebugLine = vi.fn<
+      (event: string, payload: Record<string, unknown>) => Promise<void>
+    >(async () => {})
+    const emitToolCall = vi.fn()
+
+    try {
+      const result = await runAlicizationMainChatProviderStep({
+        payload: {
+          cardId: 'card-1',
+          turnId: 'turn-real-http-provider-retry-success',
+          providerId: 'openai-compatible',
+          model: 'model-test',
+        } as any,
+        prepared: createPrepared({
+          chatConfig: {
+            apiKey: 'test-key',
+            baseURL: server.baseUrl,
+            model: 'model-test',
+          },
+        }),
+        messages: [{ role: 'user', content: '你好' }],
+        controller: new AbortController(),
+        firstEventTimeoutMs: 1_000,
+        providerContinuationTimeoutMs: 1_000,
+        isRunActive: () => true,
+        nonProgressEventTypes: new Set<string>(),
+        emitToolCall,
+        appendRuntimeDebugLine,
+        providerRetryPolicy: {
+          baseDelayMs: 10,
+          maxDelayMs: 40,
+          maxRetries: 5,
+          maxTotalRetryWindowMs: 5_000,
+          random: () => 1,
+        },
+      })
+
+      expect(result).toMatchObject({
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: providerText,
+        text: providerText,
+      })
+      expect(server.requests).toHaveLength(6)
+      expect(server.requests.map(request => request.attempt)).toEqual([1, 2, 3, 4, 5, 6])
+      expect(server.requests.map(request => request.url)).toEqual(
+        Array.from({ length: 6 }, () => '/v1/chat/completions'),
+      )
+      expect(server.requests.map(request => JSON.parse(request.body))).toEqual(
+        Array.from({ length: 6 }, () => expect.objectContaining({
+          model: 'model-test',
+          stream: true,
+        })),
+      )
+
+      const expectedDelayMs = [10, 20, 40, 40, 40]
+      const observedDelayMs = server.requests.slice(1).map((request, index) =>
+        request.receivedAt - server.requests[index]!.receivedAt,
+      )
+      expectedDelayMs.forEach((delayMs, index) => {
+        expect(observedDelayMs[index]).toBeGreaterThanOrEqual(delayMs - 2)
+      })
+
+      const requestAttempts = appendRuntimeDebugLine.mock.calls
+        .filter(([event]) => event === 'chat-provider-request.started')
+        .map(([, payload]) => payload.providerAttempt)
+      const retryStartedAttempts = appendRuntimeDebugLine.mock.calls
+        .filter(([event]) => event === 'chat-provider-step.retry-started')
+        .map(([, payload]) => payload.providerAttempt)
+      expect(requestAttempts).toEqual([1, 2, 3, 4, 5, 6])
+      expect(retryStartedAttempts).toEqual([2, 3, 4, 5, 6])
+      expect(emitToolCall).not.toHaveBeenCalled()
+    }
+    finally {
+      await server.close()
+    }
+  })
+
+  it('cancels a real Provider retry while waiting in backoff without starting another HTTP attempt', async () => {
+    const server = await startProviderHttpFaultServer({
+      respond: () => ({
+        status: 503,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          error: {
+            message: 'temporary provider failure',
+            type: 'server_error',
+          },
+        }),
+      }),
+    })
+    const controller = new AbortController()
+    const appendRuntimeDebugLine = vi.fn<
+      (event: string, payload: Record<string, unknown>) => Promise<void>
+    >(async () => {})
+
+    try {
+      const pending = runAlicizationMainChatProviderStep({
+        payload: {
+          cardId: 'card-1',
+          turnId: 'turn-real-http-provider-retry-cancel',
+          providerId: 'openai-compatible',
+          model: 'model-test',
+        } as any,
+        prepared: createPrepared({
+          chatConfig: {
+            apiKey: 'test-key',
+            baseURL: server.baseUrl,
+            model: 'model-test',
+          },
+        }),
+        messages: [{ role: 'user', content: '你好' }],
+        controller,
+        firstEventTimeoutMs: 1_000,
+        isRunActive: () => true,
+        nonProgressEventTypes: new Set<string>(),
+        emitToolCall: vi.fn(),
+        appendRuntimeDebugLine,
+        providerRetryPolicy: {
+          baseDelayMs: 1_000,
+          maxDelayMs: 1_000,
+          maxRetries: 5,
+          maxTotalRetryWindowMs: 10_000,
+          random: () => 1,
+        },
+      })
+
+      await vi.waitFor(() => {
+        expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+          'chat-provider-step.retry-scheduled',
+          expect.objectContaining({
+            delayMs: 1_000,
+            nextAttempt: 1,
+          }),
+        )
+      })
+      controller.abort(new DOMException('user cancelled', 'AbortError'))
+
+      await expect(pending).rejects.toMatchObject({
+        name: 'AbortError',
+        message: 'user cancelled',
+      })
+      expect(server.requests).toHaveLength(1)
+      expect(appendRuntimeDebugLine).not.toHaveBeenCalledWith(
+        'chat-provider-step.retry-started',
+        expect.anything(),
+      )
+    }
+    finally {
+      await server.close()
+    }
+  })
+
+  it('keeps an exhausted real HTTP Provider turn in the failure path without a reply eligible for memory or persona', async () => {
+    const server = await startProviderHttpFaultServer({
+      respond: ({ attempt }) => ({
+        status: 503,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          error: {
+            message: `provider remains unavailable on attempt ${attempt}`,
+            type: 'server_error',
+          },
+        }),
+      }),
+    })
+    const appendRuntimeDebugLine = vi.fn<
+      (event: string, payload: Record<string, unknown>) => Promise<void>
+    >(async () => {})
+    const emitToolCall = vi.fn()
+
+    try {
+      await expect(runAlicizationMainChatProviderStep({
+        payload: {
+          cardId: 'card-1',
+          turnId: 'turn-real-http-provider-retry-exhausted',
+          providerId: 'openai-compatible',
+          model: 'model-test',
+        } as any,
+        prepared: createPrepared({
+          chatConfig: {
+            apiKey: 'test-key',
+            baseURL: server.baseUrl,
+            model: 'model-test',
+          },
+        }),
+        messages: [{ role: 'user', content: '请记住这轮' }],
+        controller: new AbortController(),
+        firstEventTimeoutMs: 1_000,
+        isRunActive: () => true,
+        nonProgressEventTypes: new Set<string>(),
+        emitToolCall,
+        appendRuntimeDebugLine,
+        providerRetryPolicy: {
+          baseDelayMs: 0,
+          maxDelayMs: 0,
+          maxRetries: 5,
+          maxTotalRetryWindowMs: 5_000,
+          random: () => 0,
+        },
+      })).rejects.toThrow('provider remains unavailable on attempt 6')
+
+      expect(server.requests).toHaveLength(6)
+      expect(emitToolCall).not.toHaveBeenCalled()
+      expect(appendRuntimeDebugLine.mock.calls
+        .filter(([event]) => event === 'chat-provider-request.settled')
+        .map(([, payload]) => payload.settlement))
+        .toEqual(['retrying', 'retrying', 'retrying', 'retrying', 'retrying', 'failed'])
+      expect(appendRuntimeDebugLine).not.toHaveBeenCalledWith(
+        'chat-provider-request.settled',
+        expect.objectContaining({
+          settlement: 'completed',
+        }),
+      )
+    }
+    finally {
+      await server.close()
+    }
+  })
+
+  it('records a redacted snapshot of the request actually sent to the Provider', async () => {
+    const appendRuntimeDebugLine = vi.fn<
+      (event: string, payload: Record<string, unknown>) => Promise<void>
+    >(async () => {})
+    const privateMemory = 'PRIVATE_MEMORY_SHOULD_NOT_BE_WRITTEN_TO_TRACE'
+    let readCount = 0
+    const prepared = createPrepared({
+      messages: [{
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-turn-memory-context',
+          data: {
+            version: 'alicization-main-chat-memory-context-v1',
+            workingMemory: {
+              version: 'working-memory-owner-context-v1',
+              compressedTimeline: [{
+                summary: privateMemory,
+                sourceTurnIds: ['turn-compressed:user'],
+              }],
+              recentDialogue: [],
+              corrections: ['不要把失败回复写入记忆'],
+            },
+            longTermRecall: {
+              owner: 'long-term-memory-recall',
+              status: 'recalled',
+              confidence: 0.91,
+              evidence: [{
+                id: 'memory-long-term-1',
+                summary: '长期记忆摘要',
+              }],
+            },
+          },
+        }),
+      }, { role: 'user', content: '继续刚才的话题。' }],
+    })
+
+    await runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        providerId: 'openai-compatible',
+        turnId: 'turn-provider-request-snapshot',
+      } as any,
+      prepared,
+      messages: prepared.messages,
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      appendRuntimeDebugLine,
+      streamTextImpl: () => ({
+        fullStream: {
+          getReader: () => ({
+            read: vi.fn(async () => {
+              readCount += 1
+              if (readCount === 1)
+                return { done: false, value: { type: 'text-delta', text: '收到。' } }
+              return { done: false, value: { type: 'finish', finishReason: 'stop' } }
+            }),
+            cancel: vi.fn(async () => {}),
+            releaseLock: vi.fn(),
+          }),
+        },
+      }),
+    })
+
+    const started = appendRuntimeDebugLine.mock.calls.find(
+      call => call[0] === 'chat-provider-request.started',
+    )
+    expect(started?.[1]).toEqual(expect.objectContaining({
+      providerAttempt: 1,
+      request: expect.objectContaining({
+        messageCount: 2,
+        workingMemory: expect.objectContaining({
+          present: true,
+          compressedTimelineCount: 1,
+          compressionObserved: true,
+        }),
+        longTermRecall: expect.objectContaining({
+          present: true,
+          status: 'recalled',
+          evidenceIds: ['memory-long-term-1'],
+        }),
+      }),
+    }))
+    expect(JSON.stringify(started?.[1])).not.toContain(privateMemory)
+
+    const settled = appendRuntimeDebugLine.mock.calls.find(
+      call => call[0] === 'chat-provider-request.settled',
+    )
+    expect(settled?.[1]).toEqual(expect.objectContaining({
+      providerAttempt: 1,
+      settlement: 'completed',
+      outputObserved: true,
+    }))
+  })
+
   it('passes the compressed WorkingMemory context into the actual Provider stream request', async () => {
     const compressedSummary = '用户正在继续验证压缩后的记忆闭环。'
     const providerText = createProviderResponsePayload({
@@ -606,6 +978,122 @@ describe('main chat stream runner', () => {
       'release-attempt-1',
       'start-attempt-2',
     ])
+  })
+
+  it('settles a failed Provider attempt before starting the next attempt', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: '第二个 attempt 在第一个 attempt 结算后启动。',
+    })
+    const debugEvents: string[] = []
+    const appendRuntimeDebugLine = vi.fn(async (event: string) => {
+      debugEvents.push(event)
+    })
+    const streamTextImpl = vi.fn()
+      .mockImplementationOnce(() => ({
+        fullStream: {
+          getReader: () => ({
+            read: vi.fn(async () => {
+              throw Object.assign(new Error('temporary provider failure'), {
+                status: 503,
+              })
+            }),
+            cancel: vi.fn(async () => {}),
+            releaseLock: vi.fn(),
+          }),
+        },
+      }))
+      .mockImplementationOnce(() => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text-delta', text: providerText })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+            controller.close()
+          },
+        }),
+      }))
+
+    await expect(runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-attempt-settlement-order',
+      } as any,
+      prepared: createPrepared(),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      appendRuntimeDebugLine,
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        sleep: vi.fn(async () => {}),
+      },
+      streamTextImpl,
+    })).resolves.toMatchObject({
+      kind: 'reply',
+      fullText: providerText,
+    })
+
+    expect(streamTextImpl).toHaveBeenCalledTimes(2)
+    expect(debugEvents.indexOf('chat-provider-request.settled')).toBeGreaterThanOrEqual(0)
+    expect(debugEvents.indexOf('chat-provider-request.started')).toBeGreaterThanOrEqual(0)
+    expect(debugEvents.indexOf('chat-provider-request.settled'))
+      .toBeLessThan(debugEvents.lastIndexOf('chat-provider-request.started'))
+  })
+
+  it('does not create a new Provider attempt when the outer turn is aborted during retry backoff', async () => {
+    vi.useFakeTimers()
+    const controller = new AbortController()
+    let releaseRetrySleep: (() => void) | undefined
+    const sleep = vi.fn(() => new Promise<void>((resolve) => {
+      releaseRetrySleep = resolve
+    }))
+    const streamTextImpl = vi.fn(() => ({
+      fullStream: {
+        getReader: () => ({
+          read: vi.fn(async () => {
+            throw Object.assign(new Error('temporary provider failure'), {
+              status: 503,
+            })
+          }),
+          cancel: vi.fn(async () => {}),
+          releaseLock: vi.fn(),
+        }),
+      },
+    }))
+    const pending = runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-abort-during-retry-backoff',
+      } as any,
+      prepared: createPrepared(),
+      messages: [],
+      controller,
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      providerRetryPolicy: {
+        baseDelayMs: 10,
+        maxDelayMs: 10,
+        sleep,
+      },
+      streamTextImpl,
+    })
+    await vi.waitFor(() => {
+      expect(sleep).toHaveBeenCalledOnce()
+    })
+
+    controller.abort(new DOMException('user cancelled', 'AbortError'))
+    releaseRetrySleep?.()
+
+    await expect(pending).rejects.toMatchObject({
+      name: 'AbortError',
+      message: 'user cancelled',
+    })
+    expect(streamTextImpl).toHaveBeenCalledOnce()
   })
 
   it('retries after uncommitted text progress because the partial draft was never visible', async () => {
@@ -1169,6 +1657,83 @@ describe('main chat stream runner', () => {
     expect(emitToolCall).not.toHaveBeenCalled()
   })
 
+  it('returns a tool action when the Provider closes after a tool result without a finish event', async () => {
+    const toolCallId = 'tool-action-without-finish'
+    const emitToolCall = vi.fn()
+
+    const result = await runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-tool-action-without-finish',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'codex',
+            parameters: {
+              type: 'object',
+              properties: {
+                prompt: { type: 'string' },
+              },
+              required: ['prompt'],
+              additionalProperties: false,
+            },
+          },
+        }],
+      }),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall,
+      streamTextImpl: () => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({
+              type: 'tool-call',
+              toolCallId,
+              toolName: 'codex',
+              arguments: {
+                prompt: '检查当前仓库',
+              },
+            })
+            controller.enqueue({
+              type: 'tool-result',
+              toolCallId,
+              toolName: 'codex',
+              result: {
+                status: 'proposed',
+              },
+            })
+            controller.close()
+          },
+        }),
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: 'action',
+      action: {
+        toolCallId,
+        providerToolName: 'codex',
+        input: {
+          prompt: '检查当前仓库',
+        },
+      },
+    })
+    expect(emitToolCall).toHaveBeenCalledWith({
+      cardId: 'card-1',
+      turnId: 'turn-tool-action-without-finish',
+      toolCallId,
+      toolName: 'codex',
+      arguments: {
+        prompt: '检查当前仓库',
+      },
+    })
+  })
+
   it('consumes the xsAI fullStream in order when the provider does not use onEvent', async () => {
     const providerText = createProviderResponsePayload({
       reply: '来自 fullStream 的回复。',
@@ -1205,6 +1770,49 @@ describe('main chat stream runner', () => {
     expect(result.finishReason).toBe('stop')
     expect(result.fullText).toBe(providerText)
     expect(streamTextImpl).toHaveBeenCalledOnce()
+  })
+
+  it('omits the tools field when the current turn has no offered capabilities', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: '普通对话不需要工具。',
+    })
+    const streamTextImpl = vi.fn((input: Record<string, unknown>) => {
+      expect(input.tools).toBeUndefined()
+      return {
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text-delta', text: providerText })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+            controller.close()
+          },
+        }),
+      }
+    })
+
+    const result = await runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-no-provider-tools',
+        providerId: 'openai-compatible',
+      } as any,
+      prepared: createPrepared({
+        tools: [],
+      }),
+      messages: createPrepared({
+        tools: [],
+      }).messages,
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      streamTextImpl,
+    })
+
+    expect(result.kind).toBe('reply')
+    if (result.kind !== 'reply')
+      throw new Error('expected a Provider reply')
+    expect(result.fullText).toBe(providerText)
   })
 
   it('keeps canonical Provider tools when the prepared surface already uses Provider names', async () => {
@@ -1612,6 +2220,189 @@ describe('main chat stream runner', () => {
     expect(emitChunk).toHaveBeenCalledWith(expect.objectContaining({
       text: '只应消费一次。',
     }))
+  })
+
+  it('falls back to queued legacy text and finish when fullStream has no protocol events', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: '兼容事件源的完整回复。',
+    })
+    const streamTextImpl = vi.fn(({ onEvent }) => {
+      void (onEvent as (event: unknown) => void)({
+        type: 'text-delta',
+        text: providerText,
+      })
+      void (onEvent as (event: unknown) => void)({
+        type: 'finish',
+        finishReason: 'stop',
+      })
+      return {
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.close()
+          },
+        }),
+      }
+    })
+
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-legacy-fallback',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
+      streamTextImpl,
+    })
+
+    expect(result.fullText).toBe(providerText)
+    expect(streamTextImpl).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a fullStream that ends after text without a finish event', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: '没有 finish 的文本不应被提交。',
+    })
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-main-stream-finish-missing',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
+      streamTextImpl: () => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({
+              type: 'text-delta',
+              text: providerText,
+            })
+            controller.close()
+          },
+        }),
+      }),
+    })).rejects.toMatchObject({
+      code: 'chat-provider-finish-missing',
+      message: expect.stringContaining('chat-provider-finish-missing'),
+    })
+  })
+
+  it('preserves consecutive identical fullStream text deltas', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: '相同片段相同片段',
+    })
+    const repeatedText = '相同片段'
+    const repeatedTextStart = providerText.indexOf(repeatedText)
+    const prefix = providerText.slice(0, repeatedTextStart)
+    const suffix = providerText.slice(repeatedTextStart + repeatedText.length * 2)
+
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-identical-text-deltas',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
+      streamTextImpl: () => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text-delta', text: prefix })
+            controller.enqueue({ type: 'text-delta', text: repeatedText })
+            controller.enqueue({ type: 'text-delta', text: repeatedText })
+            controller.enqueue({ type: 'text-delta', text: suffix })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+            controller.close()
+          },
+        }),
+      }),
+    })
+
+    expect(result.fullText).toBe(providerText)
+  })
+
+  it('uses a legacy finish without duplicating text already received from fullStream', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: 'fullStream 文本与 legacy 文本相同。',
+    })
+    const streamTextImpl = vi.fn(({ onEvent }) => {
+      void (onEvent as (event: unknown) => void)({
+        type: 'text-delta',
+        text: providerText,
+      })
+      void (onEvent as (event: unknown) => void)({
+        type: 'finish',
+        finishReason: 'stop',
+      })
+      return {
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text-delta', text: providerText })
+            controller.close()
+          },
+        }),
+      }
+    })
+
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-legacy-finish-with-full-text',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
+      streamTextImpl,
+    })
+
+    expect(result.fullText).toBe(providerText)
+    expect(result.finishReason).toBe('stop')
   })
 
   it('preserves an early compatibility tool-start event while waiting for fullStream', async () => {

@@ -227,23 +227,34 @@ export function buildAlicizationSelfEvolutionVersionRuntimeSnapshot(input: {
 
 export function createAlicizationSelfEvolutionVersionRuntime(options: {
   now: () => number
-  readSnapshot: () => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot | null>
+  readSnapshot: (
+    options?: { signal?: AbortSignal },
+  ) => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot | null>
   writeSnapshot: (snapshot: AlicizationSelfEvolutionVersionRuntimeSnapshot) => Promise<void>
 }) {
-  async function getSnapshot() {
-    return await options.readSnapshot().catch(() => null)
-      ?? buildAlicizationSelfEvolutionVersionRuntimeSnapshot({ candidates: [] })
+  async function getSnapshot(ownerOptions?: { signal?: AbortSignal }) {
+    if (ownerOptions?.signal?.aborted)
+      throw ownerOptions.signal.reason ?? new DOMException('Self-evolution read aborted', 'AbortError')
+    try {
+      return await options.readSnapshot(ownerOptions)
+        ?? buildAlicizationSelfEvolutionVersionRuntimeSnapshot({ candidates: [] })
+    }
+    catch (error) {
+      if (ownerOptions?.signal?.aborted || error instanceof Error && error.name === 'AbortError')
+        throw error
+      return buildAlicizationSelfEvolutionVersionRuntimeSnapshot({ candidates: [] })
+    }
   }
 
-  async function getActiveCandidate() {
-    const snapshot = await getSnapshot()
+  async function getActiveCandidate(ownerOptions?: { signal?: AbortSignal }) {
+    const snapshot = await getSnapshot(ownerOptions)
     return snapshot.candidates.find(candidate => candidate.id === snapshot.activeCandidateId)
       ?? [...snapshot.candidates].reverse().find(candidate => candidate.status === 'active')
       ?? null
   }
 
-  async function getActivePatch() {
-    return (await getActiveCandidate())?.patch ?? null
+  async function getActivePatch(ownerOptions?: { signal?: AbortSignal }) {
+    return (await getActiveCandidate(ownerOptions))?.patch ?? null
   }
 
   async function propose(input: {

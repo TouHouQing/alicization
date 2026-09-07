@@ -28,6 +28,7 @@ export interface PersistentLongTermMemoryVectorSearchFilters {
   vectorSpaceId?: string
   source?: string
   limit?: number
+  signal?: AbortSignal
 }
 
 export interface PersistentLongTermMemoryVectorDeleteInput {
@@ -37,6 +38,7 @@ export interface PersistentLongTermMemoryVectorDeleteInput {
   modelId?: string | null
   dimensions?: number | null
   vectorSpaceId?: string | null
+  signal?: AbortSignal
 }
 
 export interface PersistentLongTermMemoryVectorCoverage {
@@ -170,8 +172,14 @@ export function createPersistentLongTermMemoryVectorStore(input: {
   now: () => number
   run: (database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<unknown>
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
-  enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
+  enqueueWrite: <T>(task: () => Promise<T>, writeOptions?: { signal?: AbortSignal }) => Promise<T>
 }) {
+  function assertNotAborted(signal?: AbortSignal) {
+    if (!signal?.aborted)
+      return
+    throw signal.reason ?? new DOMException('Persistent vector operation aborted', 'AbortError')
+  }
+
   async function initialize() {
     await input.run(input.database, `
       CREATE TABLE IF NOT EXISTS long_term_memory_vectors (
@@ -296,11 +304,13 @@ export function createPersistentLongTermMemoryVectorStore(input: {
 
   async function upsertPreparedVectors(
     prepared: PreparedPersistentLongTermMemoryVectorRecord[],
+    signal?: AbortSignal,
   ) {
     if (prepared.length === 0)
       return
 
     for (let offset = 0; offset < prepared.length; offset += vectorUpsertBatchSize) {
+      assertNotAborted(signal)
       const batch = prepared.slice(offset, offset + vectorUpsertBatchSize)
       await input.run(input.database, `
         INSERT INTO long_term_memory_vectors (
@@ -349,27 +359,37 @@ export function createPersistentLongTermMemoryVectorStore(input: {
         record.updatedAt,
         record.updatedAt,
       ]))
+      assertNotAborted(signal)
     }
   }
 
-  async function upsertVectors(records: PersistentLongTermMemoryVectorRecord[]) {
+  async function upsertVectors(
+    records: PersistentLongTermMemoryVectorRecord[],
+    options: { signal?: AbortSignal } = {},
+  ) {
+    assertNotAborted(options.signal)
     const prepared = prepareVectorRecords(records)
     if (prepared.length === 0)
       return
 
     await input.enqueueWrite(async () => {
-      await upsertPreparedVectors(prepared)
-    })
+      await upsertPreparedVectors(prepared, options.signal)
+    }, options)
   }
 
-  async function upsertVectorsInTransaction(records: PersistentLongTermMemoryVectorRecord[]) {
-    await upsertPreparedVectors(prepareVectorRecords(records))
+  async function upsertVectorsInTransaction(
+    records: PersistentLongTermMemoryVectorRecord[],
+    options: { signal?: AbortSignal } = {},
+  ) {
+    assertNotAborted(options.signal)
+    await upsertPreparedVectors(prepareVectorRecords(records), options.signal)
   }
 
   async function searchVectors(
     queryVector: number[],
     filters: PersistentLongTermMemoryVectorSearchFilters,
   ): Promise<LongTermMemoryVectorSearchResult[]> {
+    assertNotAborted(filters.signal)
     const cardId = normalizeText(filters.cardId, 120)
     const modelId = normalizeText(filters.modelId, 160)
     const dimensions = Math.max(1, Math.floor(Number(filters.dimensions)))
@@ -418,6 +438,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
         filters.source ? normalizeText(filters.source, 120) : null,
       ],
     )
+    assertNotAborted(filters.signal)
     const limit = Math.max(1, Math.min(32, Math.floor(Number(filters.limit ?? 8))))
     return rows
       .map(row => mapRow(row))
@@ -431,6 +452,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
   }
 
   async function deleteVectorsBySource(inputDelete: PersistentLongTermMemoryVectorDeleteInput) {
+    assertNotAborted(inputDelete.signal)
     const cardId = normalizeText(inputDelete.cardId, 120)
     const sourceIds = inputDelete.sourceIds.map(id => normalizeText(id, 240)).filter(Boolean)
     const source = normalizeText(inputDelete.source, 120)
@@ -447,6 +469,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
       return 0
     let deleted = 0
     await input.enqueueWrite(async () => {
+      assertNotAborted(inputDelete.signal)
       const sourceClause = source && source !== 'long_term_memory' ? ' AND source = ?' : ''
       const vectorSpaceClause = hasCompleteVectorSpaceFilter
         ? ' AND model_id = ? AND dimensions = ? AND vector_space_id = ?'
@@ -468,6 +491,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
       )
       if (rows.length === 0)
         return
+      assertNotAborted(inputDelete.signal)
       await input.run(
         input.database,
         `DELETE FROM long_term_memory_vectors
@@ -476,11 +500,12 @@ export function createPersistentLongTermMemoryVectorStore(input: {
         [cardId, ...rows.map(row => row.id)],
       )
       deleted = rows.length
-    })
+    }, { signal: inputDelete.signal })
     return deleted
   }
 
-  async function pruneOrphanedVectors(inputPrune: { cardId: string }) {
+  async function pruneOrphanedVectors(inputPrune: { cardId: string, signal?: AbortSignal }) {
+    assertNotAborted(inputPrune.signal)
     const cardId = normalizeText(inputPrune.cardId, 120)
     if (!cardId) {
       return {
@@ -490,6 +515,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
     }
 
     return await input.enqueueWrite(async () => {
+      assertNotAborted(inputPrune.signal)
       const rows = await input.all<{
         id: string
         model_id: string
@@ -527,6 +553,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
         }
       }
 
+      assertNotAborted(inputPrune.signal)
       await input.run(
         input.database,
         `DELETE FROM long_term_memory_vectors
@@ -549,7 +576,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
         deleted: rows.length,
         spaces,
       }
-    })
+    }, { signal: inputPrune.signal })
   }
 
   async function reindexByModel(reindexInput: {
@@ -557,7 +584,9 @@ export function createPersistentLongTermMemoryVectorStore(input: {
     modelId: string
     dimensions?: number
     vectorSpaceId?: string
+    signal?: AbortSignal
   }): Promise<LongTermMemoryVectorReindexPlan> {
+    assertNotAborted(reindexInput.signal)
     const cardId = normalizeText(reindexInput.cardId, 120)
     const modelId = normalizeText(reindexInput.modelId, 160)
     const dimensions = Number.isFinite(reindexInput.dimensions)
@@ -589,7 +618,9 @@ export function createPersistentLongTermMemoryVectorStore(input: {
        ORDER BY source_id ASC`,
       [cardId, modelId, ...scopeParams],
     )
+    assertNotAborted(reindexInput.signal)
     await input.enqueueWrite(async () => {
+      assertNotAborted(reindexInput.signal)
       await input.run(input.database, `UPDATE long_term_memory_vectors
         SET status = ?, updated_at = ?
         WHERE card_id = ? AND model_id = ?${scopeClause}`, [
@@ -599,7 +630,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
         modelId,
         ...scopeParams,
       ])
-    })
+    }, { signal: reindexInput.signal })
     const sourceIds = rows.map(row => row.source_id)
     return {
       modelId,

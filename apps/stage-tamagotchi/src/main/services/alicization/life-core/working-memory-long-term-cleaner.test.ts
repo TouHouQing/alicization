@@ -84,6 +84,40 @@ describe('working memory long-term cleaner', () => {
     expect(result.allowTraining).toBe(false)
   })
 
+  it('carries correction replacement metadata into the cleaned candidate', () => {
+    const result = clean({
+      summary: '项目界面强调色现在是绿色。',
+      reason: '用户明确纠正了之前的长期记忆事实。',
+      evidenceSnippets: ['更正一下：项目界面强调色已经从蓝色改成绿色，蓝色是旧信息。'],
+      memoryEvidence: {
+        version: 'working-memory-long-term-evidence-v1',
+        source: 'explicit-structured-memory-evidence',
+        kind: 'correction',
+        summary: '项目界面强调色现在是绿色。',
+        reason: '用户明确纠正了之前的长期记忆事实。',
+        evidenceSnippets: ['更正一下：项目界面强调色已经从蓝色改成绿色，蓝色是旧信息。'],
+        salience: 0.94,
+        sensitivity: 'personal',
+        confidence: 0.98,
+        supersedesText: ['蓝色'],
+        claim: {
+          subject: '项目界面强调色',
+          predicate: 'is',
+          object: '绿色',
+        },
+      },
+    })
+
+    expect(result.cleanedCandidate).toEqual(expect.objectContaining({
+      supersedesText: ['蓝色'],
+      claim: {
+        subject: '项目界面强调色',
+        predicate: 'is',
+        object: '绿色',
+      },
+    }))
+  })
+
   it('normalizes non-finite cleaner time before admission', () => {
     const result = cleanWorkingMemoryLongTermQueueItem({
       cardId: 'default',

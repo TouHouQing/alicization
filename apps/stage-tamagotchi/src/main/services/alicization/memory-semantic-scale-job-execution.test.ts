@@ -36,7 +36,7 @@ function createTestEmbeddingProvider(): LongTermMemoryEmbeddingProvider {
       const index = match ? Number(match[1]) : 0
       return {
         text,
-        vector: vectorFor(index, 12, text.includes(' query about ')),
+        vector: vectorFor(index, 12, text.startsWith('Recall ')),
       }
     }),
   }

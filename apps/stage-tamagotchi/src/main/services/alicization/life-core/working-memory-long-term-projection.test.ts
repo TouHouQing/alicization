@@ -60,6 +60,38 @@ describe('working memory long-term projection', () => {
     expect(projection.trainingArtifacts).toEqual([])
   })
 
+  it('projects a fact correction into a searchable current claim and a replacement episode', () => {
+    const projection = projectWorkingMemoryLongTermCandidate({
+      candidate: cleaned({
+        summary: '项目界面强调色现在是绿色。',
+        reason: '用户明确纠正了之前的长期记忆事实。',
+        evidenceSnippets: ['更正一下：项目界面强调色已经从蓝色改成绿色，蓝色是旧信息。'],
+        claim: {
+          subject: '项目界面强调色',
+          predicate: 'is',
+          object: '绿色',
+        },
+        supersedesText: ['蓝色'],
+      }),
+      now: 3_000,
+    })
+
+    expect(projection.memoryFacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        subject: '项目界面强调色',
+        predicate: 'is',
+        object: '绿色',
+        memoryDomain: 'world-model',
+      }),
+    ]))
+    expect(projection.episodicEvents).toEqual([
+      expect.objectContaining({
+        whatHappened: '项目界面强调色现在是绿色。',
+        sourceSummary: expect.stringContaining('蓝色'),
+      }),
+    ])
+  })
+
   it('projects preference procedure episode and relationship candidates into their owned stores', () => {
     const preference = projectWorkingMemoryLongTermCandidate({
       candidate: cleaned({

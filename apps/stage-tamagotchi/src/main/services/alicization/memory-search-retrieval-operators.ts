@@ -71,6 +71,76 @@ function uniqueRecallSeedBlocks(values: Array<string | null | undefined>, maxIte
   return result
 }
 
+function memorySearchAbortError(signal?: AbortSignal) {
+  return signal?.reason ?? new DOMException('Memory search aborted', 'AbortError')
+}
+
+function throwIfMemorySearchAborted(signal?: AbortSignal) {
+  if (signal?.aborted)
+    throw memorySearchAbortError(signal)
+}
+
+function isMemorySearchAbort(error: unknown, signal?: AbortSignal) {
+  return signal?.aborted || (error instanceof Error && error.name === 'AbortError')
+}
+
+function awaitMemorySearchOwner<T>(
+  promise: Promise<T>,
+  signal?: AbortSignal,
+) {
+  if (!signal)
+    return promise
+  if (signal.aborted)
+    return Promise.reject(memorySearchAbortError(signal))
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const onAbort = () => {
+      if (settled)
+        return
+      settled = true
+      signal.removeEventListener('abort', onAbort)
+      reject(memorySearchAbortError(signal))
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    void promise.then(
+      (value) => {
+        if (settled)
+          return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error) => {
+        if (settled)
+          return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
+}
+
+async function readOptionalMemorySearchOwner<T>(
+  read: () => Promise<T>,
+  fallback: T,
+  signal?: AbortSignal,
+) {
+  throwIfMemorySearchAborted(signal)
+  try {
+    const value = await awaitMemorySearchOwner(read(), signal)
+    throwIfMemorySearchAborted(signal)
+    return value
+  }
+  catch (error) {
+    if (isMemorySearchAbort(error, signal))
+      throw error
+    return fallback
+  }
+}
+
 const legacyStructuredRecallSeedLinePattern = /^(?:mirror_runtime_continuity|continuity_[a-z_]+|humanlike_memory_recall):/iu
 
 function sanitizeRecallSeedBlockForMemoryPrompt(raw: unknown) {
@@ -154,6 +224,7 @@ export interface AlicizationMemorySearchPreludeAccess {
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
+    signal?: AbortSignal
   }) => Promise<AlicizationEpisodicEventRecord[]>
   buildHostPersonModel: (input?: {
     now?: number
@@ -190,6 +261,7 @@ export interface AlicizationMemorySearchPreludeInput {
   retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   sessionMirrorRecollection?: OrganicMemoryRecollectionCarry | null
+  signal?: AbortSignal
 }
 
 export interface AlicizationMemorySearchPreludeResult {
@@ -209,12 +281,28 @@ export interface AlicizationMemorySearchPreludeResult {
 export async function resolveMemorySearchPrelude(
   input: AlicizationMemorySearchPreludeInput,
 ): Promise<AlicizationMemorySearchPreludeResult> {
-  const snapshot = await input.access.getOrganicMemorySnapshot()
-  const [relationshipDynamics, hostPersonModel] = await Promise.all([
+  throwIfMemorySearchAborted(input.signal)
+  const snapshot = await awaitMemorySearchOwner(
+    input.access.getOrganicMemorySnapshot(),
+    input.signal,
+  )
+  throwIfMemorySearchAborted(input.signal)
+  const [relationshipDynamics, hostPersonModel] = await awaitMemorySearchOwner(Promise.all([
     input.access.getLatestRelationshipDynamics(),
-    input.access.buildHostPersonModel().catch(() => null),
-  ])
-  const memoryTuningAdvice = await input.access.getMemoryTuningAdvice?.().catch(() => null) ?? null
+    readOptionalMemorySearchOwner(
+      () => input.access.buildHostPersonModel(),
+      null,
+      input.signal,
+    ),
+  ]), input.signal)
+  const memoryTuningAdvice = input.access.getMemoryTuningAdvice
+    ? await readOptionalMemorySearchOwner(
+        () => input.access.getMemoryTuningAdvice!(),
+        null,
+        input.signal,
+      )
+    : null
+  throwIfMemorySearchAborted(input.signal)
   const sessionMirrorRecollectionIntent = deriveSessionMirrorRecollectionIntent(
     input.sessionMirrorRecollection,
   )
@@ -236,10 +324,14 @@ export async function resolveMemorySearchPrelude(
       ?? null
   const retrievedFacts = recallSeed
     ? rankFactsByLearningTuning({
-        facts: await input.access.retrieveMemoryFacts(recallSeed, 4),
+        facts: await awaitMemorySearchOwner(
+          input.access.retrieveMemoryFacts(recallSeed, 4),
+          input.signal,
+        ),
         tuningAdvice: memoryTuningAdvice,
       })
     : []
+  throwIfMemorySearchAborted(input.signal)
   const normalizedRecalledFragmentCap = Number.isFinite(input.recallGovernor?.recalledFragmentCap)
     ? Math.floor(Number(input.recallGovernor?.recalledFragmentCap))
     : 0
@@ -250,25 +342,33 @@ export async function resolveMemorySearchPrelude(
     .filter(item => Number.isFinite(item.maxItems) && item.maxItems > 0)
   const recalledFragments = recallSeed
     ? (
-        await input.access.recallSubconsciousFragmentsWithGovernor({
-          text: recallSeed,
-          recalledFragmentCap,
-          recalledFragmentSourceBudget,
-        })
+        await awaitMemorySearchOwner(
+          input.access.recallSubconsciousFragmentsWithGovernor({
+            text: recallSeed,
+            recalledFragmentCap,
+            recalledFragmentSourceBudget,
+          }),
+          input.signal,
+        )
       ).filter(fragment => !input.policy.isPersonaResidueMemoryText(fragment.text))
     : []
   const plannedRecollectionIntent = recallSeed && input.policy.planRecollectionIntent
-    ? await input.policy.planRecollectionIntent({
-        recallSeed,
-        heuristicIntent: heuristicRecollectionIntent,
-        recallGovernor: input.recallGovernor ?? null,
-        hostAttitude: relationshipDynamics?.hostAttitude || snapshot.hostAttitude,
-        activeThoughts: snapshot.activeThoughts,
-        hostPersonModel,
-        relationshipDynamics,
-        digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
-      }).catch(() => null)
+    ? await readOptionalMemorySearchOwner(
+        () => input.policy.planRecollectionIntent!({
+          recallSeed,
+          heuristicIntent: heuristicRecollectionIntent,
+          recallGovernor: input.recallGovernor ?? null,
+          hostAttitude: relationshipDynamics?.hostAttitude || snapshot.hostAttitude,
+          activeThoughts: snapshot.activeThoughts,
+          hostPersonModel,
+          relationshipDynamics,
+          digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
+        }),
+        null,
+        input.signal,
+      )
     : null
+  throwIfMemorySearchAborted(input.signal)
   const preliminaryRecollectionIntent = plannedRecollectionIntent ?? heuristicRecollectionIntent ?? null
   const preliminaryActiveRecollectionIntent = preliminaryRecollectionIntent?.mode && preliminaryRecollectionIntent.mode !== 'none'
     ? preliminaryRecollectionIntent
@@ -280,15 +380,20 @@ export async function resolveMemorySearchPrelude(
       } as AlicizationRecallGovernorSnapshot
     : input.recallGovernor ?? null
   const recalledEpisodes = recallSeed
-    ? await input.access.recallEpisodicEventsWithGovernor({
-        recallSeed,
-        sessionId: input.sessionId ?? null,
-        turnId: input.turnId ?? null,
-        recallGovernor: episodicRecallGovernor,
-        budgetClass: input.budgetClass,
-        retrievalPolicySnapshot: input.retrievalPolicySnapshot ?? null,
-      })
+    ? await awaitMemorySearchOwner(
+        input.access.recallEpisodicEventsWithGovernor({
+          recallSeed,
+          sessionId: input.sessionId ?? null,
+          turnId: input.turnId ?? null,
+          recallGovernor: episodicRecallGovernor,
+          budgetClass: input.budgetClass,
+          retrievalPolicySnapshot: input.retrievalPolicySnapshot ?? null,
+          signal: input.signal,
+        }),
+        input.signal,
+      )
     : []
+  throwIfMemorySearchAborted(input.signal)
   const sceneTriggeredRecollectionIntent = !preliminaryActiveRecollectionIntent && recallSeed
     ? input.policy.deriveSceneTriggeredRecollectionIntent({
         recallSeed,
@@ -335,6 +440,7 @@ export interface AlicizationMemorySearchCandidateAccess {
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
+    signal?: AbortSignal
   }) => Promise<NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>>
 }
 
@@ -345,6 +451,7 @@ export interface AlicizationMemorySearchCandidateInput {
   recalledEpisodes: AlicizationEpisodicEventRecord[]
   budgetClass?: AlicizationMemoryRetrievalBudgetClass
   retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
+  signal?: AbortSignal
 }
 
 export interface AlicizationMemorySearchCandidateResult {
@@ -358,17 +465,23 @@ export interface AlicizationMemorySearchCandidateResult {
 export async function retrieveMemorySearchCandidates(
   input: AlicizationMemorySearchCandidateInput,
 ): Promise<AlicizationMemorySearchCandidateResult> {
+  throwIfMemorySearchAborted(input.signal)
   const retrospectiveRecall = input.recollectionIntent?.temporalFocus === 'cross-session'
     || input.recollectionIntent?.temporalFocus === 'distant'
   const consolidatedMemories = input.recollectionIntent
-    ? await input.access.recallMemoryConsolidations({
-        query: input.recallSeed,
-        limit: input.recollectionIntent.temporalFocus === 'cross-session' ? 6 : 4,
-        recollectionIntent: input.recollectionIntent,
-        budgetClass: input.budgetClass,
-        retrievalPolicySnapshot: input.retrievalPolicySnapshot ?? null,
-      })
+    ? await awaitMemorySearchOwner(
+        input.access.recallMemoryConsolidations({
+          query: input.recallSeed,
+          limit: input.recollectionIntent.temporalFocus === 'cross-session' ? 6 : 4,
+          recollectionIntent: input.recollectionIntent,
+          budgetClass: input.budgetClass,
+          retrievalPolicySnapshot: input.retrievalPolicySnapshot ?? null,
+          signal: input.signal,
+        }),
+        input.signal,
+      )
     : []
+  throwIfMemorySearchAborted(input.signal)
   const recollectedWindows = buildMemoryRecollectionWindows({
     intent: input.recollectionIntent,
     episodes: input.recalledEpisodes,

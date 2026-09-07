@@ -46,6 +46,12 @@ export interface WorkingMemoryLongTermCleanedCandidate {
   confidence: number
   sensitivity: WorkingMemoryLongTermCandidate['sensitivity']
   trainingEligibility: WorkingMemoryLongTermTrainingEligibility
+  supersedesText?: string[]
+  claim?: {
+    subject: string
+    predicate: string
+    object: string
+  }
   createdAt: number
 }
 
@@ -100,20 +106,61 @@ export function normalizeWorkingMemoryLongTermCleaningStatus(raw: unknown): Work
 export const WORKING_MEMORY_LONG_TERM_CLEANING_MAX_ATTEMPTS = 3
 
 export interface WorkingMemoryLongTermDrainMutex {
-  run: <T>(task: () => Promise<T>) => Promise<T>
+  run: <T>(task: () => Promise<T>, options?: { signal?: AbortSignal }) => Promise<T>
+}
+
+function createWorkingMemoryLongTermDrainAbortError(reason?: unknown) {
+  if (reason instanceof Error && reason.name === 'AbortError')
+    return reason
+  return new DOMException('WorkingMemory long-term drain cancelled', 'AbortError')
 }
 
 export function createWorkingMemoryLongTermDrainMutex(): WorkingMemoryLongTermDrainMutex {
   let tail = Promise.resolve()
 
   return {
-    run: async <T>(task: () => Promise<T>) => {
+    run: async <T>(task: () => Promise<T>, options: { signal?: AbortSignal } = {}) => {
       const previous = tail
       let release!: () => void
       tail = new Promise<void>((resolve) => {
         release = resolve
       })
-      await previous
+      const signal = options.signal
+      if (signal?.aborted) {
+        void previous.then(release, release)
+        throw createWorkingMemoryLongTermDrainAbortError(signal.reason)
+      }
+
+      let abortPreviousWait: (() => void) | undefined
+      try {
+        if (signal) {
+          await Promise.race([
+            previous,
+            new Promise<void>((_resolve, reject) => {
+              abortPreviousWait = () => reject(
+                createWorkingMemoryLongTermDrainAbortError(signal.reason),
+              )
+              signal.addEventListener('abort', abortPreviousWait, { once: true })
+            }),
+          ])
+        }
+        else {
+          await previous
+        }
+      }
+      catch (error) {
+        void previous.then(release, release)
+        throw error
+      }
+      finally {
+        if (abortPreviousWait)
+          signal?.removeEventListener('abort', abortPreviousWait)
+      }
+
+      if (signal?.aborted) {
+        release()
+        throw createWorkingMemoryLongTermDrainAbortError(signal.reason)
+      }
       try {
         return await task()
       }

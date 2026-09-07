@@ -203,6 +203,67 @@ describe('long-term memory search index', () => {
     }
   })
 
+  it('does not return a stale fact search document after the canonical fact is superseded', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: sqlite3,
+    })
+    let rawDatabase: sqlite3.Database | null = null
+
+    try {
+      await db.upsertMemoryFacts([{
+        subject: '用户',
+        predicate: '偏好',
+        object: '旧的晚间工作偏好',
+        confidence: 0.94,
+        validationStatus: 'provisional',
+      }], 'rule')
+      const [fact] = await db.listMemoryFacts()
+      expect(fact).toBeTruthy()
+      const before = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query: '旧的晚间工作偏好',
+        limit: 8,
+      })
+      expect(before.items).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          source: 'memory_facts',
+          id: fact!.id,
+        }),
+      ]))
+
+      rawDatabase = await openRawDatabase(db.dbPath)
+      await executeRawSql(
+        rawDatabase,
+        `
+        UPDATE memory_facts
+        SET validation_status = 'superseded'
+        WHERE card_id = ? AND id = ?
+        `,
+        ['default', fact!.id],
+      )
+      await closeRawDatabase(rawDatabase)
+      rawDatabase = null
+
+      const page = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query: '旧的晚间工作偏好',
+        limit: 8,
+      })
+
+      expect(page.items).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          source: 'memory_facts',
+          id: fact!.id,
+        }),
+      ]))
+    }
+    finally {
+      if (rawDatabase)
+        await closeRawDatabase(rawDatabase)
+      await db.close()
+    }
+  })
+
   it('applies direct governance to the selected source when source ids overlap', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
@@ -661,12 +722,14 @@ describe('long-term memory search index', () => {
       ])
 
       await db.tombstoneLongTermMemorySources({
+        cardId: 'default',
         sourceIds: ['tombstone-snapshot-1'],
         source: 'memory_reflections',
         reason: '较早删除',
       })
       await new Promise(resolve => setTimeout(resolve, 2))
       await db.tombstoneLongTermMemorySources({
+        cardId: 'default',
         sourceIds: ['tombstone-snapshot-2'],
         source: 'memory_reflections',
         reason: '较晚删除',
@@ -861,12 +924,14 @@ describe('long-term memory search index', () => {
         },
       ])
       await db.tombstoneLongTermMemorySources({
+        cardId: 'default',
         sourceIds: ['tombstone-strict-1'],
         source: 'memory_reflections',
         reason: '第一条删除',
       })
       await new Promise(resolve => setTimeout(resolve, 2))
       await db.tombstoneLongTermMemorySources({
+        cardId: 'default',
         sourceIds: ['tombstone-strict-2'],
         source: 'memory_reflections',
         reason: '第二条删除',
@@ -1195,8 +1260,14 @@ describe('long-term memory search index', () => {
       let health = await db.getMemoryWorkbenchEmbeddingHealth({
         cardId: 'card-canonical-embedding',
       })
-      for (let attempt = 0; attempt < 40 && health.reindexRequired; attempt += 1) {
-        await new Promise(resolve => setTimeout(resolve, 5))
+      const deadline = Date.now() + 5_000
+      while (
+        (!embeddedTexts.includes('用户现在更喜欢在周末游泳。 游泳会让用户放松。')
+          || health.reindexRequired
+          || !health.searchReady)
+        && Date.now() < deadline
+      ) {
+        await new Promise(resolve => setTimeout(resolve, 25))
         health = await db.getMemoryWorkbenchEmbeddingHealth({
           cardId: 'card-canonical-embedding',
         })

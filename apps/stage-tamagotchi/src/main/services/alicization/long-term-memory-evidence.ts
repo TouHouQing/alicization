@@ -1,4 +1,5 @@
 import type {
+  AlicizationDerivedMemoryReference,
   AlicizationEpisodicEventRecord,
   AlicizationMemoryFact,
   AlicizationMemoryReflectionRecord,
@@ -25,6 +26,14 @@ function uniqueTexts(values: Array<string | null | undefined>, maxItems = 10, ma
       break
   }
   return result
+}
+
+function normalizeSourceIds(values: Array<string | AlicizationDerivedMemoryReference | null | undefined>) {
+  return uniqueTexts(values.map(value =>
+    typeof value === 'string'
+      ? value
+      : value?.id ?? null,
+  ), 24, 240)
 }
 
 export function memoryFactToLongTermEvidenceCandidate(fact: AlicizationMemoryFact): LongTermMemoryEvidenceCandidate {
@@ -72,6 +81,7 @@ export function episodicEventToLongTermEvidenceCandidate(event: AlicizationEpiso
   return {
     id: event.id,
     kind: 'episode',
+    sourceIds: normalizeSourceIds(event.derivedFrom),
     summary: normalizeText([
       event.threadAnchor,
       event.whatHappened,
@@ -105,6 +115,7 @@ export function memoryConsolidationToLongTermEvidenceCandidate(
   return {
     id: record.id,
     kind: 'consolidation',
+    sourceIds: normalizeSourceIds(record.derivedEventIds),
     summary: normalizeText([record.summary, record.lesson].filter(Boolean).join(' '), 420),
     source: 'memory_consolidations',
     confidence: record.confidence,

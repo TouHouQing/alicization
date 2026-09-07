@@ -85,6 +85,58 @@ describe('alicization agent runtime', () => {
     })).rejects.toThrow('canonical conversation session')
   })
 
+  it('preserves canonical session resolver failures instead of relabeling them as missing sessions', async () => {
+    const resolutionFailure = new Error('sqlite session lookup failed')
+    const runtime = createAlicizationAgentRuntime({
+      getSensorySnapshot: async () => createSensorySnapshot(),
+      enforceCanonicalConversationSessionId: true,
+      resolveConversationSessionId: async () => {
+        throw resolutionFailure
+      },
+    })
+
+    await expect(runtime.openTurn({
+      cardId: 'default',
+      turnId: 'turn-session-resolution-failure',
+    })).rejects.toBe(resolutionFailure)
+  })
+
+  it('passes the opening abort signal into canonical session resolution', async () => {
+    const controller = new AbortController()
+    const timeoutReason = new DOMException('chat-preparation-timeout', 'AbortError')
+    let resolveSession!: (value: string) => void
+    let observedSignal: AbortSignal | undefined
+    const runtime = createAlicizationAgentRuntime({
+      getSensorySnapshot: async () => createSensorySnapshot(),
+      enforceCanonicalConversationSessionId: true,
+      resolveConversationSessionId: async (_cardId, options) => {
+        observedSignal = options?.signal
+        return await new Promise<string>((resolve, reject) => {
+          resolveSession = resolve
+          options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), { once: true })
+        })
+      },
+    })
+    const opening = runtime.openTurn({
+      cardId: 'default',
+      turnId: 'turn-session-signal',
+      signal: controller.signal,
+    }).then(
+      () => 'resolved',
+      error => error,
+    )
+
+    controller.abort(timeoutReason)
+
+    const outcome = await Promise.race([
+      opening,
+      new Promise<'not-settled'>(resolve => setTimeout(() => resolve('not-settled'), 25)),
+    ])
+    expect(outcome).toBe(timeoutReason)
+    expect(observedSignal).toBe(controller.signal)
+    resolveSession?.('session:primary:default')
+  })
+
   it('ignores a stale external session when production canonical session is resolved', async () => {
     const runtime = createAlicizationAgentRuntime({
       getSensorySnapshot: async () => createSensorySnapshot(),

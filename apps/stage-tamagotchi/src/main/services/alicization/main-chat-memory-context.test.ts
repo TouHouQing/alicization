@@ -370,6 +370,124 @@ describe('main chat memory context', () => {
     ])
   })
 
+  it('strips mixed internal cue fragments from derived evidence while preserving natural content', () => {
+    const contaminatedEvidence = createEvidence('memory-mixed-cues')
+    contaminatedEvidence.candidate.origin = 'internal-structured-fact'
+    contaminatedEvidence.candidate.summary = [
+      '用户喜欢在周末散步。',
+      '共同经历',
+      'autobiographical phase',
+      'emotion:hesitant-curiosity',
+      'cleaned:working-memory-long-term:turn-42',
+      'recollection:session-1',
+      'structured-state',
+      'opening_policy=measured',
+      'relationship_cadence:steady',
+      'visibility=redacted_internal',
+      'project-state-brief',
+      'runtime-mind-state',
+      'pre_turn_context_digest',
+    ].join('；')
+    contaminatedEvidence.candidate.cues = [
+      '自然记忆线索',
+      '共同经历',
+      'emotion:hesitant-curiosity',
+    ]
+    contaminatedEvidence.candidate.threadAnchor = '用户喜欢在周末散步；runtime-mind-state'
+
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: workingMemoryFixture,
+      longTermRecall: {
+        ...longTermRecallFixture,
+        evidence: [contaminatedEvidence],
+      },
+    })
+
+    expect(context.longTermRecall?.evidence[0]).toMatchObject({
+      id: 'memory-mixed-cues',
+      summary: '用户喜欢在周末散步。',
+      cues: ['自然记忆线索'],
+      threadAnchor: '用户喜欢在周末散步',
+    })
+    expect(context.providerSystemBlock).not.toContain('共同经历')
+    expect(context.providerSystemBlock).not.toContain('autobiographical phase')
+    expect(context.providerSystemBlock).not.toContain('emotion:')
+    expect(context.providerSystemBlock).not.toContain('cleaned:working-memory-long-term')
+    expect(context.providerSystemBlock).not.toContain('recollection:')
+    expect(context.providerSystemBlock).not.toContain('structured-state')
+    expect(context.providerSystemBlock).not.toContain('opening_policy')
+    expect(context.providerSystemBlock).not.toContain('relationship_cadence')
+    expect(context.providerSystemBlock).not.toContain('visibility=redacted_internal')
+    expect(context.providerSystemBlock).not.toContain('project-state-brief')
+    expect(context.providerSystemBlock).not.toContain('runtime-mind-state')
+    expect(context.providerSystemBlock).not.toContain('pre_turn_context_digest')
+  })
+
+  it('drops derived evidence when mixed cue removal leaves no trustworthy natural content', () => {
+    const contaminatedEvidence = createEvidence('memory-only-mixed-cues')
+    contaminatedEvidence.candidate.origin = 'internal-structured-fact'
+    contaminatedEvidence.candidate.summary = [
+      '共同经历',
+      'emotion:hesitant-curiosity',
+      'recollection:session-1',
+      'visibility=redacted_internal',
+    ].join(' ')
+
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: workingMemoryFixture,
+      longTermRecall: {
+        ...longTermRecallFixture,
+        evidence: [contaminatedEvidence, createEvidence('memory-confirmed')],
+      },
+    })
+
+    expect(context.longTermRecall?.evidence.map(item => item.id)).toEqual([
+      'memory-confirmed',
+    ])
+    expect(context.providerSystemBlock).not.toContain('memory-only-mixed-cues')
+  })
+
+  it('drops evidence whose stable id contains an internal cleanup cue', () => {
+    const contaminatedEvidence = createEvidence('cleaned:working-memory-long-term:turn-42')
+
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: workingMemoryFixture,
+      longTermRecall: {
+        ...longTermRecallFixture,
+        evidence: [contaminatedEvidence, createEvidence('memory-confirmed')],
+      },
+    })
+
+    expect(context.longTermRecall?.evidence.map(item => item.id)).toEqual([
+      'memory-confirmed',
+    ])
+    expect(context.availableLongTermEvidenceIds).toEqual(['memory-confirmed'])
+    expect(context.providerSystemBlock).not.toContain('cleaned:working-memory-long-term')
+  })
+
+  it('preserves user-authored facts that naturally discuss internal cue terminology', () => {
+    const userEvidence = createEvidence('memory-user-cue-discussion')
+    userEvidence.candidate.origin = 'user-turn'
+    userEvidence.candidate.source = 'user-turn'
+    userEvidence.candidate.summary = '用户说 opening_policy 是待删除的字段，我们也有共同经历。'
+    userEvidence.candidate.cues = ['用户明确提到 emotion:hesitant-curiosity 只是字段名。']
+
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: workingMemoryFixture,
+      longTermRecall: {
+        ...longTermRecallFixture,
+        evidence: [userEvidence],
+      },
+    })
+
+    expect(context.longTermRecall?.evidence[0]).toMatchObject({
+      summary: userEvidence.candidate.summary,
+      cues: userEvidence.candidate.cues,
+    })
+    expect(context.providerSystemBlock).toContain(userEvidence.candidate.summary)
+    expect(context.providerSystemBlock).toContain(userEvidence.candidate.cues[0])
+  })
+
   it('drops structured source residue from internal evidence before Provider projection', () => {
     const structuredResidue = 'source_kind=internal; visibility=hidden'
     const contaminatedEvidence = createEvidence('memory-source-contaminated')

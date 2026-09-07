@@ -43,6 +43,16 @@ function compactExecutionRuntimeList(
   return items
 }
 
+function compactOptionalRecord<T extends object>(
+  value: T | null | undefined,
+): T | null {
+  if (!value)
+    return null
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => item !== undefined),
+  ) as T
+}
+
 function buildMemoryClosureExecutionFromTrace(
   trace: AlicizationDigitalLifeSpineMemoryClosureTrace | null | undefined,
 ): AlicizationExecutionRuntimeMemoryClosureExecution | null {
@@ -129,13 +139,11 @@ export function buildAlicizationExecutionRuntimeContext(input: {
       ageMs: Number.isFinite(input.sensorySnapshot.ageMs)
         ? Math.max(0, Math.floor(input.sensorySnapshot.ageMs))
         : 0,
-      foregroundWindow: foregroundWindow
-        ? {
-            appName: sanitizeBoundedText(foregroundWindow.appName, 120) || undefined,
-            processName: sanitizeBoundedText(foregroundWindow.processName, 120) || undefined,
-            title: sanitizeBoundedText(foregroundWindow.title, 200) || undefined,
-          }
-        : null,
+      foregroundWindow: compactOptionalRecord({
+        appName: sanitizeBoundedText(foregroundWindow?.appName, 120) || undefined,
+        processName: sanitizeBoundedText(foregroundWindow?.processName, 120) || undefined,
+        title: sanitizeBoundedText(foregroundWindow?.title, 200) || undefined,
+      }),
       capture: capture
         ? {
             health: capture.health ?? null,

@@ -27,7 +27,7 @@ const inspectionDescribeCues = ['描述', '说说', '讲讲', '告诉我', '跟�
 const inspectionVisualPlaneCues = ['屏幕', '桌面', '工作区', '窗口', '界面', '页面', '网页', '画面', 'screen', 'display', 'desktop', 'workspace', 'window', 'page', 'view', 'scene', 'スクリーン', 'デスクトップ', 'ウィンドウ']
 const inspectionRecheckCues = ['重新', '再看', '重看', '看清', '看准', '自己看', '别猜', '不要猜', '认真看', 'again', 'recheck', 'look again', 'check again', 'inspect again', 'もう一度', '見直して', 'ちゃんと見て']
 const inspectionSceneShiftCues = ['我又换', '换了', '切到', '切回', '回到', '打开', '切换', 'switched', 'switch to', 'change to', 'changed', 'back to', 'returned', 'opened', '切り替え', '戻っ', '開い', '変え']
-const inspectionDeicticCues = ['这个', '这首', '这页', '这段', '这张', '这题', '这里', '现在', '当前', 'this', 'that', 'it', 'current', 'now', 'here', 'これ', 'それ', 'この', 'その', '今', 'いま', 'ここ']
+const inspectionDeicticCues = ['这个', '这首', '这页', '这段', '这张', '这题', '这里', 'this', 'that', 'it', 'here', 'これ', 'それ', 'この', 'その', 'ここ']
 const inspectionQuestionCues = ['?', '？', '什么', '怎么', '哪里', '哪个', '哪首', '为什么', '怎么样', '叫什么', 'what', 'which', 'where', 'how', 'why', 'name', '何', 'なに', 'どこ', 'どう', 'どうして', 'なんで']
 const inspectionContinuationCues = ['呢', '怎么样', '喜欢吗', '能看出来', '看出来了吗', '是什么', '有问题吗', 'what about', 'how about', 'かな', 'どうかな']
 const inspectionAssistantPresenceCues = ['我在看', '我看着', '我在盯着', '一起看', '共视', '屏幕上', '窗口里', '当前画面', 'i can see', 'i\'m looking', 'still looking', 'on your screen', '見えてる', '見てる', 'まだ見てる']
@@ -117,6 +117,7 @@ export function deriveAlicizationInspectionSignalProfile(input: {
   const deicticCue = hasInspectionReason(reasonCodes, 'deictic-cue')
   const questionCue = hasInspectionReason(reasonCodes, 'question-cue')
   const continuationCue = hasInspectionReason(reasonCodes, 'continuation-cue')
+  const anchoredContinuationCue = hasInspectionReason(reasonCodes, 'anchored-continuation-cue')
   const entityDense = hasInspectionReason(reasonCodes, 'entity-dense')
   const referentiallyRich = hasInspectionReason(reasonCodes, 'referentially-rich')
   const sharedAttentionContinuation = hasInspectionReason(
@@ -138,11 +139,16 @@ export function deriveAlicizationInspectionSignalProfile(input: {
   const focusAnchored = explicitSceneDirective
     || sharedAttentionContinuation
     || visualPlaneCue
-    || entityDense
-    || referentiallyRich
-    || contextOverlap >= 0.24
     || (
-      (recheckCue || sceneShiftCue)
+      (entityDense || referentiallyRich)
+      && (deicticCue || observeCue || describeCue)
+    )
+    || (
+      contextOverlap >= 0.24
+      && (visualPlaneCue || deicticCue || observeCue || describeCue)
+    )
+    || (
+      anchoredContinuationCue
       && (deicticCue || questionCue || continuationCue)
     )
   const lexicalOnlyCue = (observeCue || describeCue)
@@ -203,6 +209,14 @@ function normalizeInspectionIntentText(value: string) {
 
 function containsInspectionCue(text: string, cues: string[]) {
   return cues.some(cue => text.includes(cue))
+}
+
+function isDialogueFirstUncertaintyInstruction(text: string) {
+  const asksForUncertainty = /不确定|不清楚|不知道|没把握|uncertain|not sure|don't know|unsure/i.test(text)
+  const rejectsGuessing = /不要猜|别猜|不许猜|直接说不确定|don't guess|do not guess|say you(?:'re| are) not sure|admit uncertainty/i.test(text)
+  const excludesTools = /不调用工具|不用工具|不要调用工具|不执行(?:任何)?工具|不要执行(?:任何)?工具|只用对话|只回答|直接回答|without tools|no tools|answer directly/i.test(text)
+
+  return (asksForUncertainty && rejectsGuessing) || excludesTools
 }
 
 function pushInspectionToken(target: Set<string>, rawToken: string) {
@@ -299,7 +313,9 @@ export function inferAlicizationInspectionIntent(input: {
   const observeCue = containsInspectionCue(normalizedMessage, inspectionObserveCues)
   const describeCue = containsInspectionCue(normalizedMessage, inspectionDescribeCues)
   const visualPlaneCue = containsInspectionCue(normalizedMessage, inspectionVisualPlaneCues)
-  const recheckCue = containsInspectionCue(normalizedMessage, inspectionRecheckCues)
+  const dialogueFirstUncertaintyInstruction = isDialogueFirstUncertaintyInstruction(normalizedMessage)
+  const recheckCue = !dialogueFirstUncertaintyInstruction
+    && containsInspectionCue(normalizedMessage, inspectionRecheckCues)
   const sceneShiftCue = containsInspectionCue(normalizedMessage, inspectionSceneShiftCues)
   const deicticCue = containsInspectionCue(normalizedMessage, inspectionDeicticCues)
   const questionCue = containsInspectionCue(normalizedMessage, inspectionQuestionCues)
@@ -332,16 +348,14 @@ export function inferAlicizationInspectionIntent(input: {
     observeCue
     || describeCue
     || visualPlaneCue
-    || recheckCue
-    || sceneShiftCue
     || deicticCue
     || continuationCue,
   )
   const contextOverlapEligible = semanticAnchorCue || explicitVisualAsk
   const effectiveContextOverlap = contextOverlapEligible ? contextOverlap : 0
   const anchoredContinuationCue = Boolean(
-    recheckCue
-    || sceneShiftCue
+    (recheckCue && (visualPlaneCue || deicticCue || observeCue || describeCue))
+    || (sceneShiftCue && (visualPlaneCue || deicticCue || observeCue || describeCue))
     || (deicticCue && (visualPlaneCue || questionCue || effectiveContextOverlap >= 0.34))
     || (continuationCue && (visualPlaneCue || effectiveContextOverlap >= 0.42)),
   )
@@ -370,8 +384,8 @@ export function inferAlicizationInspectionIntent(input: {
   score += observeCue ? 0.22 : 0
   score += describeCue ? 0.18 : 0
   score += visualPlaneCue ? 0.22 : 0
-  score += recheckCue ? 0.18 : 0
-  score += sceneShiftCue ? 0.16 : 0
+  score += anchoredContinuationCue && recheckCue ? 0.18 : 0
+  score += anchoredContinuationCue && sceneShiftCue ? 0.16 : 0
   score += deicticCue ? 0.1 : 0
   score += questionCue ? 0.1 : 0
   score += continuationCue ? 0.08 : 0
@@ -393,8 +407,8 @@ export function inferAlicizationInspectionIntent(input: {
       observeCue ? 'observe-cue' : '',
       describeCue ? 'describe-cue' : '',
       visualPlaneCue ? 'visual-plane-cue' : '',
-      recheckCue ? 'recheck-cue' : '',
-      sceneShiftCue ? 'scene-shift-cue' : '',
+      anchoredContinuationCue && recheckCue ? 'recheck-cue' : '',
+      anchoredContinuationCue && sceneShiftCue ? 'scene-shift-cue' : '',
       deicticCue ? 'deictic-cue' : '',
       questionCue ? 'question-cue' : '',
       continuationCue ? 'continuation-cue' : '',
@@ -421,8 +435,8 @@ export function inferAlicizationInspectionIntent(input: {
       observeCue ? 'observe-cue' : '',
       describeCue ? 'describe-cue' : '',
       visualPlaneCue ? 'visual-plane-cue' : '',
-      recheckCue ? 'recheck-cue' : '',
-      sceneShiftCue ? 'scene-shift-cue' : '',
+      anchoredContinuationCue && recheckCue ? 'recheck-cue' : '',
+      anchoredContinuationCue && sceneShiftCue ? 'scene-shift-cue' : '',
       deicticCue ? 'deictic-cue' : '',
       questionCue ? 'question-cue' : '',
       continuationCue ? 'continuation-cue' : '',

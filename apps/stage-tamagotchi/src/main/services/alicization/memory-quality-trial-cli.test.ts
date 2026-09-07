@@ -156,6 +156,22 @@ describe('memory quality trial CLI', () => {
     })).toBe('/Users/alice/Library/Application Support/com.tohoqing.alicization')
   })
 
+  it('prefers the current named macOS data directory when a legacy directory is also present', () => {
+    const existing = new Set([
+      '/Users/alice/Library/Application Support/com.tohoqing.alicization/alicizations/alicization.db',
+      '/Users/alice/Library/Application Support/com.tohoqing.alicization/alicizations/llm-config.json',
+      '/Users/alice/Library/Application Support/Alicization/alicizations/cards/default/alicization.db',
+      '/Users/alice/Library/Application Support/Alicization/alicizations/llm-config.json',
+    ])
+
+    expect(resolveDefaultMemoryQualityTrialUserDataPath({
+      platform: 'darwin',
+      homeDir: '/Users/alice',
+      env: {},
+      pathExists: path => existing.has(path),
+    })).toBe('/Users/alice/Library/Application Support/Alicization')
+  })
+
   it('allows the package command to run without path arguments on an installed macOS app', () => {
     expect(parseMemoryQualityTrialCliArgs([], {
       defaultUserDataPath: '/Users/alice/Library/Application Support/com.tohoqing.alicization',

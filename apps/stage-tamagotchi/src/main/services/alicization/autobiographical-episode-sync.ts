@@ -35,21 +35,6 @@ function stableEpisodeId(namespace: string, values: Array<string | number | null
   return `${namespace}:${hash}`
 }
 
-function taskThreadToEpisodeSourceKind(thread: AlicizationTaskThreadRecord) {
-  return thread.status === 'completed' || thread.status === 'failed' || thread.status === 'cancelled'
-    ? 'execution-result'
-    : 'execution-proposal'
-}
-
-function isNonMemoryExecutionStatus(
-  status: AlicizationTaskThreadRecord['status'],
-): status is Extract<AlicizationTaskThreadRecord['status'], 'blocked' | 'failed' | 'cancelled' | 'dead-lettered'> {
-  return status === 'blocked'
-    || status === 'failed'
-    || status === 'cancelled'
-    || status === 'dead-lettered'
-}
-
 export function buildAutobiographicalEpisodesFromTaskThreadUpdate(input: {
   cardId: string
   source: string
@@ -59,14 +44,14 @@ export function buildAutobiographicalEpisodesFromTaskThreadUpdate(input: {
   taskThread: AlicizationTaskThreadRecord
 }): AlicizationEpisodicEventInput[] {
   const thread = input.taskThread
-  if (isNonMemoryExecutionStatus(thread.status))
+  if (thread.status !== 'completed')
     return []
 
   const goal = sanitizeText(thread.goal, 180)
   if (!goal)
     return []
 
-  const sourceKind = taskThreadToEpisodeSourceKind(thread)
+  const sourceKind = 'execution-result'
   const channel = sanitizeText(thread.selectedChannel ?? thread.proposedChannel, 48)
   const occurredAt = Number.isFinite(thread.completedAt)
     ? Math.max(0, Number(thread.completedAt))
@@ -109,9 +94,9 @@ export function buildAutobiographicalEpisodesFromTaskThreadUpdate(input: {
       `status=${thread.status}`,
       channel ? `channel=${channel}` : '',
     ].filter(Boolean).join(' | '),
-    confidence: thread.status === 'completed' ? 0.86 : thread.status === 'needs-affirmation' ? 0.8 : 0.82,
-    sceneAttachment: thread.status === 'running' || thread.status === 'completed' ? 0.4 : 0.28,
-    consolidationPriority: thread.status === 'completed' ? 0.72 : 0.62,
+    confidence: 0.86,
+    sceneAttachment: 0.4,
+    consolidationPriority: 0.72,
     derivedFrom: [
       input.turnId || thread.turnId ? { kind: 'turn', id: input.turnId ?? thread.turnId, label: 'session mirror task-thread turn' } : null,
       { kind: 'task-thread', id: thread.id, label: goal },

@@ -429,6 +429,7 @@ export interface PersonaTrainingPipelinePersistence {
   }) => Promise<PersonaTrainingPipelineIncrement[]>
   commitDatasetGovernanceWithArtifactCleanup?: (
     input: PersonaTrainingDatasetGovernanceMutation,
+    options?: { signal?: AbortSignal },
   ) => Promise<PersonaTrainingDatasetGovernanceMutationResult>
   compareAndSetRestartArtifact?: (input: {
     cardId: string
@@ -494,7 +495,9 @@ export interface PersonaTrainingPipelineGate {
   stop: (reason: string) => Promise<void>
   activateVersion: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
   rollbackVersion: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
-  revokeSource: (input: { cardId: string } & AlicizationPersonaTrainingSourceRef) => Promise<{ affected: number }>
+  revokeSource: (
+    input: { cardId: string } & AlicizationPersonaTrainingSourceRef & { signal?: AbortSignal },
+  ) => Promise<{ affected: number }>
   rollbackIncrement: (input: { incrementId: string, cardId?: string }) => Promise<PersonaTrainingPipelineIncrement | null>
   listIncrements: () => PersonaTrainingPipelineIncrement[]
   listPersistedIncrements: () => Promise<PersonaTrainingPipelineIncrement[]>
@@ -728,6 +731,10 @@ function isNonTerminalRunStatus(status: PersonaTrainingPipelineRunStatus) {
   return status === 'queued'
     || status === 'running'
     || status === 'cancel_requested'
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === 'AbortError'
 }
 
 export function createPersonaTrainingPipelineGate(input: {
@@ -1650,7 +1657,14 @@ export function createPersonaTrainingPipelineGate(input: {
       state: Extract<PersonaTrainingPipelineIncrementState, 'rolled-back' | 'revoked'>
       event: PersonaTrainingPipelineAuditEvent
     } | null
+    signal?: AbortSignal
   }) {
+    const assertNotAborted = () => {
+      if (!inputData.signal?.aborted)
+        return
+      throw inputData.signal.reason ?? new DOMException('Persona training artifact cleanup aborted', 'AbortError')
+    }
+    assertNotAborted()
     const artifactLifecycle = input.artifactLifecycle
     if (!artifactLifecycle) {
       const intent = await beginArtifactCleanup({
@@ -1658,6 +1672,7 @@ export function createPersonaTrainingPipelineGate(input: {
         initialStage: inputData.artifact.activation.status === 'active' ? 'unload' : 'discard',
         finalizeIncrementState: inputData.transition?.state ?? null,
       })
+      assertNotAborted()
       return await failArtifactCleanup(
         intent,
         new Error('persona training artifact lifecycle is unavailable for discard'),
@@ -1668,6 +1683,7 @@ export function createPersonaTrainingPipelineGate(input: {
       ...inputData,
       finalizeIncrementState: inputData.transition?.state ?? null,
     })
+    assertNotAborted()
     let transition: {
       increment: PersonaTrainingPipelineIncrement
       state: Extract<PersonaTrainingPipelineIncrementState, 'rolled-back' | 'revoked'>
@@ -1706,14 +1722,19 @@ export function createPersonaTrainingPipelineGate(input: {
           operationId: intent.unloadOperationId,
           receipt: intent.loaderReceipt,
         })
+        assertNotAborted()
         const inactiveArtifact = inactiveArtifactAfterUnload(intent.artifact, intent.reason)
         intent = await advanceArtifactCleanup(intent, 'discard', inactiveArtifact, input.now())
+        assertNotAborted()
       }
       if (intent.stage === 'discard') {
         await artifactLifecycle.discardArtifact(intent.artifact)
+        assertNotAborted()
         intent = await advanceArtifactCleanup(intent, 'finalize', intent.artifact, input.now())
+        assertNotAborted()
       }
       if (intent.stage === 'finalize') {
+        assertNotAborted()
         await completeArtifactCleanup({
           intent,
           transition,
@@ -1722,6 +1743,8 @@ export function createPersonaTrainingPipelineGate(input: {
       }
     }
     catch (cleanupError) {
+      if (inputData.signal?.aborted || isAbortError(cleanupError))
+        throw cleanupError
       await failArtifactCleanup(intent, cleanupError, input.now())
     }
   }
@@ -1746,9 +1769,6 @@ export function createPersonaTrainingPipelineGate(input: {
     }
 
     const currentExamples = snapshot.examples.filter(example => example.datasetId === scope.dataset.id)
-    if (currentExamples.length === 0)
-      return
-
     const currentManifest = buildPersonaTrainingDatasetManifest({
       dataset: scope.dataset,
       examples: currentExamples,
@@ -2880,6 +2900,7 @@ export function createPersonaTrainingPipelineGate(input: {
   async function resumePendingArtifactCleanups(inputData: {
     cardId: string
     reason: 'source-revoked' | 'dataset-rolled-back'
+    signal?: AbortSignal
   }) {
     const errors: unknown[] = []
     const pending = [...cleanupIntents.values()]
@@ -2889,6 +2910,8 @@ export function createPersonaTrainingPipelineGate(input: {
         && intent.reason === inputData.reason,
       )
     for (const intent of pending) {
+      if (inputData.signal?.aborted)
+        throw inputData.signal.reason ?? new DOMException('Persona training artifact cleanup aborted', 'AbortError')
       try {
         await discardArtifactWithRecovery({
           artifact: intent.artifact,
@@ -2898,9 +2921,12 @@ export function createPersonaTrainingPipelineGate(input: {
           reason: intent.reason,
           now: input.now(),
           loaderReceipt: intent.loaderReceipt,
+          signal: inputData.signal,
         })
       }
       catch (error) {
+        if (inputData.signal?.aborted || isAbortError(error))
+          throw error
         errors.push(error)
       }
     }
@@ -3100,23 +3126,32 @@ export function createPersonaTrainingPipelineGate(input: {
   }
 
   async function revokeSource(
-    revokeInput: { cardId: string } & AlicizationPersonaTrainingSourceRef,
+    revokeInput: { cardId: string } & AlicizationPersonaTrainingSourceRef & { signal?: AbortSignal },
   ) {
+    const assertNotAborted = () => {
+      if (!revokeInput.signal?.aborted)
+        return
+      throw revokeInput.signal.reason ?? new DOMException('Persona training source revoke aborted', 'AbortError')
+    }
     const cardId = normalizeCardId(revokeInput.cardId)
     const sourceId = revokeInput.sourceId.trim()
     if (!sourceId)
       throw new Error('persona training pipeline source revoke requires sourceId')
     if (!isAllowedTrainingSourceKind(revokeInput.sourceKind))
       throw new Error('persona training pipeline source revoke requires a supported sourceKind')
+    assertNotAborted()
     const sourceRef = {
       sourceId,
       sourceKind: revokeInput.sourceKind,
     } satisfies AlicizationPersonaTrainingSourceRef
+    assertNotAborted()
     await resumePendingArtifactCleanups({
       cardId,
       reason: 'source-revoked',
+      signal: revokeInput.signal,
     })
     await hydratePersistedIncrements()
+    assertNotAborted()
     const previousAvailable = [...increments.values()]
       .filter(increment => increment.cardId === cardId
         && increment.state === 'available'
@@ -3135,7 +3170,10 @@ export function createPersonaTrainingPipelineGate(input: {
         sourceRef: { ...sourceRef },
         at,
         cleanupIntents: cleanupIntentsToPersist,
+      }, {
+        signal: revokeInput.signal,
       })
+      assertNotAborted()
       if (committed.kind !== 'revoke-source')
         throw new Error('persona training source revoke persistence returned the wrong governance result')
       registerPersistedGovernanceCleanupIntents(cleanupIntentsToPersist)
@@ -3156,7 +3194,9 @@ export function createPersonaTrainingPipelineGate(input: {
     const result = await input.datasetRuntime.revokeSource({
       cardId,
       ...sourceRef,
+      signal: revokeInput.signal,
     })
+    assertNotAborted()
     await invalidateRuns({
       cardId,
       sourceRef,

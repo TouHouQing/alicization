@@ -22,6 +22,7 @@ function createInMemoryJournalHarness() {
   let currentNow = 1_000
   let idCounter = 0
   let failRetryPayload = true
+  let applyPayloadHook: ((options?: { signal?: AbortSignal }) => void) | null = null
   const appliedPayloads: TestJournalPayload[] = []
   const rows: Array<AlicizationMemoryIngestJournalRow<'fact-upsert'>> = []
 
@@ -32,10 +33,11 @@ function createInMemoryJournalHarness() {
     run: async (_database, sql, params = []) => {
       const normalizedSql = normalizeSql(sql)
       if (normalizedSql.includes('INSERT INTO memory_ingest_journal')) {
-        const [id, operationKind, payloadJson, createdAt, updatedAt, nextAttemptAt] = params as [string, 'fact-upsert', string, number, number, number]
+        const [id, operationKind, payloadJson, createdAt, updatedAt, nextAttemptAt, cardId] = params as [string, 'fact-upsert', string, number, number, number, string | null]
         rows.push({
           id,
           operation_kind: operationKind,
+          card_id: cardId ?? null,
           payload_json: payloadJson,
           status: 'pending',
           attempt_count: 0,
@@ -118,7 +120,10 @@ function createInMemoryJournalHarness() {
         return null
       }
     },
-    applyPayload: async (payload) => {
+    applyPayload: async (payload, options) => {
+      applyPayloadHook?.(options)
+      if (options?.signal?.aborted)
+        throw options.signal.reason ?? new DOMException('memory ingest cancelled', 'AbortError')
       if (payload.id === 'retry-me' && failRetryPayload) {
         failRetryPayload = false
         throw new Error('temporary fail')
@@ -134,6 +139,9 @@ function createInMemoryJournalHarness() {
     appliedPayloads,
     setNow(value: number) {
       currentNow = value
+    },
+    setApplyPayloadHook(hook: ((options?: { signal?: AbortSignal }) => void) | null) {
+      applyPayloadHook = hook
     },
   }
 }
@@ -195,6 +203,37 @@ describe('memory domain decoupling regression', () => {
       nextRetryAt: null,
       lastError: null,
     })
+  })
+
+  it('does not turn cancellation during payload application into a failed journal entry', async () => {
+    const harness = createInMemoryJournalHarness()
+    const controller = new AbortController()
+
+    await harness.runtime.appendEntries([
+      {
+        operationKind: 'fact-upsert',
+        payload: { id: 'cancel-me' },
+        createdAt: 1_000,
+      },
+    ])
+    harness.setApplyPayloadHook(() => {
+      controller.abort(new DOMException('runtime shutdown', 'AbortError'))
+    })
+
+    await expect(harness.runtime.drainJournal(16, 1_000, {
+      signal: controller.signal,
+    })).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(harness.rows).toEqual([
+      expect.objectContaining({
+        id: 'journal-1',
+        status: 'pending',
+        attempt_count: 0,
+        last_error: null,
+      }),
+    ])
+    expect(harness.appliedPayloads).toEqual([])
   })
 
   it('keeps telemetry projection aligned with decoupled ingest and retrieval runtimes', async () => {

@@ -17,6 +17,7 @@ const hookCapture = vi.hoisted(() => ({
   embodimentMetas: [] as any[],
   contextsSnapshot: {} as Record<string, unknown>,
   toolCallError: null as Error | null,
+  chatTurnCompleteGate: null as Promise<void> | null,
 }))
 
 const streamMock = vi.fn()
@@ -270,7 +271,10 @@ vi.mock('./chat/hooks', () => ({
           throw hookCapture.toolCallError
       },
       emitAssistantMessageHooks: noopAsync,
-      emitChatTurnCompleteHooks: noopAsync,
+      emitChatTurnCompleteHooks: async () => {
+        if (hookCapture.chatTurnCompleteGate)
+          await hookCapture.chatTurnCompleteGate
+      },
       onBeforeMessageComposed: () => () => {},
       onAfterMessageComposed: () => () => {},
       onBeforeSend: () => () => {},
@@ -412,6 +416,8 @@ function createMainProjectedStreamEventEmitter(
 function installAlicizationBridge(options?: {
   streamChat?: (payload: any, options: any) => Promise<void>
   streamLifecycleOwner?: 'main' | 'renderer'
+  sensorySnapshot?: any
+  getSensorySnapshot?: () => Promise<any> | any
 }) {
   const streamChat = options?.streamChat
   setAlicizationBridge({
@@ -442,13 +448,15 @@ function installAlicizationBridge(options?: {
     chatAbort: chatAbortMock,
     appendConversationTurn: appendConversationTurnMock,
     appendAuditLog: appendAuditLogMock,
-    getSensorySnapshot: vi.fn().mockResolvedValue({
-      sample: null,
-      stale: false,
-      ageMs: 0,
-      nextTickAt: Date.now() + 60_000,
-      running: true,
-    }),
+    getSensorySnapshot: options?.getSensorySnapshot
+      ? vi.fn(options.getSensorySnapshot)
+      : vi.fn().mockResolvedValue(options?.sensorySnapshot ?? {
+          sample: null,
+          stale: false,
+          ageMs: 0,
+          nextTickAt: Date.now() + 60_000,
+          running: true,
+        }),
     streamChat: streamChat
       ? async (payload: any, streamOptions: any) => {
         await streamChat(payload, {
@@ -502,6 +510,7 @@ describe('chat orchestrator reply authority', () => {
     hookCapture.embodimentMetas.length = 0
     hookCapture.contextsSnapshot = {}
     hookCapture.toolCallError = null
+    hookCapture.chatTurnCompleteGate = null
     executeRealtimeQueryTurnMock.mockResolvedValue({ handled: false })
     appendConversationTurnMock.mockResolvedValue(undefined)
     appendAuditLogMock.mockResolvedValue(undefined)
@@ -4603,6 +4612,214 @@ describe('chat orchestrator reply authority', () => {
         }),
       }),
     }))
+  })
+
+  it('does not block the next foreground send on deferred turn-complete hooks', async () => {
+    let releaseTurnComplete!: () => void
+    hookCapture.chatTurnCompleteGate = new Promise<void>((resolve) => {
+      releaseTurnComplete = resolve
+    })
+
+    let secondTurnStarted = false
+    const streamChat = vi.fn(async (payload: any, options: any) => {
+      const userMessage = payload.messages.findLast((message: any) => message.role === 'user')
+      if (userMessage?.content === '第二轮')
+        secondTurnStarted = true
+      const reply = userMessage?.content === '第一轮'
+        ? '第一轮已完成。'
+        : '第二轮已完成。'
+      const fullText = createProviderFullText(reply)
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    const firstTurn = store.ingest('第一轮', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    await vi.waitFor(() => {
+      expect(streamChat).toHaveBeenCalledTimes(1)
+    })
+    await vi.waitFor(() => {
+      expect(appendConversationTurnMock).toHaveBeenCalledTimes(1)
+    })
+
+    const secondTurn = store.ingest('第二轮', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(secondTurnStarted).toBe(true)
+    }
+    finally {
+      releaseTurnComplete()
+    }
+
+    await expect(firstTurn).resolves.toBeUndefined()
+    await expect(secondTurn).resolves.toBeUndefined()
+    expect(streamChat).toHaveBeenCalledTimes(2)
+  })
+
+  it('starts the Provider stream without waiting for a non-critical sensory audit write', async () => {
+    let releaseAudit!: () => void
+    const auditGate = new Promise<void>((resolve) => {
+      releaseAudit = resolve
+    })
+    appendAuditLogMock.mockImplementation(() => auditGate)
+
+    let streamStarted = false
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      streamStarted = true
+      const fullText = createProviderFullText('即使感知审计暂时不可用，对话也应先进入 Provider。')
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '即使感知审计暂时不可用，对话也应先进入 Provider。',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({
+      streamChat,
+      sensorySnapshot: {
+        sample: {
+          collectedAt: Date.now(),
+          degraded: ['capture-unavailable'],
+        },
+        stale: true,
+        ageMs: 5_000,
+        nextTickAt: Date.now() + 60_000,
+        running: true,
+        capture: {
+          health: 'degraded',
+          permission: 'denied',
+          degradedReasons: ['capture-unavailable'],
+        },
+      },
+    })
+
+    const store = useChatOrchestratorStore()
+    const turn = store.ingest('你好，先进入对话', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    await vi.waitFor(() => {
+      expect(streamStarted).toBe(true)
+    })
+    releaseAudit()
+    await expect(turn).resolves.toBeUndefined()
+  })
+
+  it('does not request a renderer sensory snapshot before ordinary chat', async () => {
+    let streamStarted = false
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      streamStarted = true
+      const fullText = createProviderFullText('感知快照暂时不可用，但对话主链路仍应继续。')
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '感知快照暂时不可用，但对话主链路仍应继续。',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    const getSensorySnapshot = vi.fn(() => new Promise(() => {}))
+    installAlicizationBridge({
+      streamChat,
+      getSensorySnapshot,
+    })
+
+    const store = useChatOrchestratorStore()
+    const turn = store.ingest('你好，感知不可用时也要先对话', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    await vi.waitFor(() => {
+      expect(streamStarted).toBe(true)
+    }, {
+      timeout: 1_000,
+    })
+    await expect(turn).resolves.toBeUndefined()
+    expect(getSensorySnapshot).not.toHaveBeenCalled()
+  })
+
+  it('hands an explicit screen request to the main runtime without renderer-side capture', async () => {
+    const getSensorySnapshot = vi.fn(() => new Promise(() => {}))
+    let receivedUserText = ''
+    const streamChat = vi.fn(async (payload: any, options: any) => {
+      receivedUserText = payload.messages.findLast((message: any) => message.role === 'user')?.content ?? ''
+      const reply = '我会根据主运行时取得的视觉证据回答。'
+      const fullText = createProviderFullText(reply)
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({
+      streamChat,
+      getSensorySnapshot,
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请看一下我当前屏幕上打开的页面', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(receivedUserText).toBe('请看一下我当前屏幕上打开的页面')
+    expect(getSensorySnapshot).not.toHaveBeenCalled()
   })
 
   it('applies kill-switch commands without writing a fixed assistant reply', async () => {

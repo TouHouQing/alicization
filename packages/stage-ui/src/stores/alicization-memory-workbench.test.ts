@@ -2324,7 +2324,7 @@ describe('alicization memory workbench store', () => {
       sourceId: 'reflection-1',
       sourceKind: 'cleaned-long-term-reflection',
     })
-    expect(store.personaTrainingDatasetExport?.manifest.manifestHash).toBe('hash')
+    expect(store.personaTrainingDatasetExport).toBeNull()
   })
 
   it.each([
@@ -2443,6 +2443,60 @@ describe('alicization memory workbench store', () => {
     expect(memoryWorkbenchListPersonaTrainingRuns).toHaveBeenCalledOnce()
     expect(memoryWorkbenchListPersonaTrainingIncrements).toHaveBeenCalledOnce()
     expect(store.lastError).toBe(mutationError)
+  })
+
+  it.each([
+    {
+      action: 'activatePersonaTrainingDataset' as const,
+      bridgeAction: 'memoryWorkbenchActivatePersonaTrainingDataset' as const,
+      id: 'dataset-activate',
+    },
+    {
+      action: 'rollbackPersonaTrainingDataset' as const,
+      bridgeAction: 'memoryWorkbenchRollbackPersonaTrainingDataset' as const,
+      id: 'dataset-rollback',
+    },
+    {
+      action: 'revokePersonaTrainingDatasetSource' as const,
+      bridgeAction: 'memoryWorkbenchRevokePersonaTrainingDatasetSource' as const,
+      id: 'source-revoke',
+    },
+  ])('invalidates the cached persona manifest after $action changes training eligibility', async ({
+    action,
+    bridgeAction,
+    id,
+  }) => {
+    setAlicizationBridge({
+      memoryWorkbenchExportPersonaTrainingDataset: vi.fn(async () => ({
+        dataset: { id: 'dataset-export' },
+        manifest: { manifestHash: 'stale-manifest' },
+      })),
+      [bridgeAction]: vi.fn(async () => ({ affected: 1 })),
+      memoryWorkbenchGetPersonaTrainingDataset: vi.fn(async () => ({
+        cardId: 'default',
+        activeVersionId: null,
+        versions: [],
+        examples: [],
+      })),
+      memoryWorkbenchListPersonaTrainingRuns: vi.fn(async () => ({ items: [] })),
+      memoryWorkbenchListPersonaTrainingIncrements: vi.fn(async () => ({ items: [] })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.exportPersonaTrainingDataset('dataset-export')
+    expect(store.personaTrainingDatasetExport?.manifest.manifestHash).toBe('stale-manifest')
+
+    if (action === 'revokePersonaTrainingDatasetSource') {
+      await store.revokePersonaTrainingDatasetSource({
+        sourceId: id,
+        sourceKind: 'cleaned-long-term-reflection',
+      })
+    }
+    else {
+      await store[action](id)
+    }
+
+    expect(store.personaTrainingDatasetExport).toBeNull()
   })
 
   it('keeps persona training loading active until concurrent run and increment refreshes settle', async () => {

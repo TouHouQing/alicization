@@ -35,6 +35,11 @@ interface CreateAlicizationCardPromptRuntimeOptions {
   appendRuntimeDebugLine: (event: string, payload?: Record<string, unknown>) => Promise<void>
 }
 
+function throwIfCardPromptAborted(signal?: AbortSignal) {
+  if (signal?.aborted)
+    throw signal.reason ?? new DOMException('Card prompt resolution aborted', 'AbortError')
+}
+
 export function createAlicizationCardPromptRuntime(options: CreateAlicizationCardPromptRuntimeOptions) {
   const {
     getActiveCardId,
@@ -45,12 +50,13 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
     appendRuntimeDebugLine,
   } = options
 
-  async function resolveCardHostName(cardId: string, options?: { messages?: Message[] }) {
+  async function resolveCardHostName(cardId: string, options?: { messages?: Message[], signal?: AbortSignal }) {
     const activeCardId = getActiveCardId()
     const soulSnapshot = getSoulSnapshot()
     const normalizedCardId = normalizeCardId(cardId)
     let readFailed = false
     try {
+      throwIfCardPromptAborted(options?.signal)
       if (normalizedCardId === activeCardId && soulSnapshot) {
         const hostName = sanitizeText(soulSnapshot.frontmatter.profile.hostName, '')
         if (hostName)
@@ -59,13 +65,19 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
 
       const targetSoulPath = resolveCardPaths(normalizedCardId).soulPath
       if (existsSync(targetSoulPath)) {
-        const content = await readFile(targetSoulPath, 'utf-8')
+        const content = await readFile(targetSoulPath, {
+          encoding: 'utf-8',
+          signal: options?.signal,
+        })
+        throwIfCardPromptAborted(options?.signal)
         const hostName = sanitizeText(parseSoul(content).frontmatter.profile.hostName, '')
         if (hostName)
           return hostName
       }
     }
     catch (error) {
+      if (options?.signal?.aborted)
+        throw options.signal.reason ?? error
       readFailed = true
       await appendRuntimeDebugLine('host-name.resolve-error', {
         cardId: normalizedCardId,
@@ -98,12 +110,13 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
     })
   }
 
-  async function resolveCardPersonaKernel(cardId: string, options?: { messages?: Message[] }): Promise<AlicizationPersonaKernelSnapshot | null> {
+  async function resolveCardPersonaKernel(cardId: string, options?: { messages?: Message[], signal?: AbortSignal }): Promise<AlicizationPersonaKernelSnapshot | null> {
     const activeCardId = getActiveCardId()
     const soulSnapshot = getSoulSnapshot()
     const normalizedCardId = normalizeCardId(cardId)
     let readFailed = false
     try {
+      throwIfCardPromptAborted(options?.signal)
       if (normalizedCardId === activeCardId && soulSnapshot) {
         const kernel = resolvePersonaKernelFromSoulContent(soulSnapshot.content)
         if (kernel)
@@ -112,13 +125,19 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
 
       const targetSoulPath = resolveCardPaths(normalizedCardId).soulPath
       if (existsSync(targetSoulPath)) {
-        const content = await readFile(targetSoulPath, 'utf-8')
+        const content = await readFile(targetSoulPath, {
+          encoding: 'utf-8',
+          signal: options?.signal,
+        })
+        throwIfCardPromptAborted(options?.signal)
         const kernel = resolvePersonaKernelFromSoulContent(content)
         if (kernel)
           return kernel
       }
     }
     catch (error) {
+      if (options?.signal?.aborted)
+        throw options.signal.reason ?? error
       readFailed = true
       await appendRuntimeDebugLine('persona-kernel.resolve-error', {
         cardId: normalizedCardId,
@@ -184,12 +203,13 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
     return blocks.filter(Boolean)
   }
 
-  async function resolveCardCustomDirectives(cardId: string, options?: { messages?: Message[] }): Promise<ResolvedCardCustomDirectives> {
+  async function resolveCardCustomDirectives(cardId: string, options?: { messages?: Message[], signal?: AbortSignal }): Promise<ResolvedCardCustomDirectives> {
     const activeCardId = getActiveCardId()
     const soulSnapshot = getSoulSnapshot()
     const normalizedCardId = normalizeCardId(cardId)
     let readFailed = false
     try {
+      throwIfCardPromptAborted(options?.signal)
       if (normalizedCardId === activeCardId && soulSnapshot) {
         const directives = normalizeCustomDirectives(soulSnapshot.frontmatter.custom_directives)
         if (directives) {
@@ -202,7 +222,11 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
 
       const targetSoulPath = resolveCardPaths(normalizedCardId).soulPath
       if (existsSync(targetSoulPath)) {
-        const content = await readFile(targetSoulPath, 'utf-8')
+        const content = await readFile(targetSoulPath, {
+          encoding: 'utf-8',
+          signal: options?.signal,
+        })
+        throwIfCardPromptAborted(options?.signal)
         const directives = normalizeCustomDirectives(parseSoul(content).frontmatter.custom_directives)
         if (directives) {
           return {
@@ -213,6 +237,8 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
       }
     }
     catch (error) {
+      if (options?.signal?.aborted)
+        throw options.signal.reason ?? error
       readFailed = true
       await appendRuntimeDebugLine('custom-directives.resolve-error', {
         cardId: normalizedCardId,

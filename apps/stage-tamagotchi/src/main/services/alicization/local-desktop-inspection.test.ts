@@ -7,6 +7,41 @@ import {
 } from './local-desktop-inspection'
 
 describe('local desktop inspection', () => {
+  it('omits unavailable optional target fields from the scene snapshot', () => {
+    const snapshot = buildAlicizationDesktopInspectionSceneSnapshot({
+      question: '检查当前代码',
+      foregroundWindow: {
+        appName: 'Visual Studio Code',
+        processName: 'Code',
+        title: undefined,
+      },
+      focusTarget: {
+        appName: 'Visual Studio Code',
+        processName: 'Code',
+        title: undefined,
+        source: 'foreground-window',
+        confidence: 0.8,
+      },
+      capture: null,
+      summary: null,
+      unavailableReason: null,
+      interactables: [],
+    })
+
+    expect(snapshot.foregroundWindow).toEqual({
+      appName: 'Visual Studio Code',
+      processName: 'Code',
+    })
+    expect(snapshot.focusTarget).toEqual({
+      appName: 'Visual Studio Code',
+      processName: 'Code',
+      source: 'foreground-window',
+      confidence: 0.8,
+    })
+    expect(Object.prototype.hasOwnProperty.call(snapshot.foregroundWindow ?? {}, 'title')).toBe(false)
+    expect(Object.prototype.hasOwnProperty.call(snapshot.focusTarget ?? {}, 'title')).toBe(false)
+  })
+
   it('derives gui structure and next-step actions from desktop interactables even without semantic summary', () => {
     const snapshot = buildAlicizationDesktopInspectionSceneSnapshot({
       question: '帮我判断下一步该点什么',

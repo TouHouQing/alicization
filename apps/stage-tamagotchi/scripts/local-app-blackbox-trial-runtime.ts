@@ -2,6 +2,7 @@ import type { Browser, Locator, Page } from 'playwright'
 import type sqlite3 from 'sqlite3'
 
 import type { MemoryProductionTrialReport } from '../src/main/services/alicization/memory-production-trial-runner'
+import type { AlicizationChatAbortResult } from '../src/shared/eventa'
 
 import process from 'node:process'
 
@@ -12,6 +13,8 @@ import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { URL } from 'node:url'
+
+import { alicizationChatAbortInvokeChannel } from '../src/shared/eventa'
 
 export interface LocalAppBlackboxTrialArgs {
   appPath: string
@@ -53,8 +56,12 @@ export interface LocalAppBlackboxChatTurnEvidence {
   acceptedAtMs?: number | null
   streamFinished?: boolean
   streamFinishedAtMs?: number | null
+  abortAttempted?: boolean
+  abortAccepted?: boolean | null
+  abortState?: AlicizationChatAbortResult['state'] | null
   firstUiChangeMs: number | null
   settledMs: number
+  assistantText?: string
   visibleText: string
   error: string | null
 }
@@ -91,6 +98,7 @@ export interface LocalAppBlackboxDiagnostics {
 
 export interface LocalAppBlackboxMemoryAssertions {
   cardId: string
+  closureWait?: LocalAppMemoryClosureWaitResult
   checkpointCount: number
   queue: {
     pending: number
@@ -108,8 +116,23 @@ export interface LocalAppBlackboxMemoryAssertions {
   recall: LocalAppBlackboxMemoryRecall
   failedTurnCount: number
   failedTurnMemoryLeakCount: number
-  failureIsolationPassed: boolean
+  failureIsolationStatus: LocalAppBlackboxFailureIsolationStatus
+  failureIsolationIndeterminateTurnCount: number
+  failureIsolationPassed: boolean | null
+  singleSession?: LocalAppSingleSessionAssessment
+  providerRequests?: LocalAppProviderRequestEvidence[]
+  providerRequestAssessment?: LocalAppProviderRequestAssessment
+  compression?: LocalAppCompressionAssessment
+  expectationAssessment?: LocalAppMemoryExpectationAssessment
   errors: string[]
+}
+
+export type LocalAppBlackboxFailureIsolationStatus = 'passed' | 'failed' | 'unknown'
+
+export interface LocalAppBlackboxMemoryLeakAssessment {
+  status: LocalAppBlackboxFailureIsolationStatus
+  leakedCount: number
+  indeterminateTurnCount: number
 }
 
 export type LocalAppBlackboxRecallEventStatus = 'evidence' | 'abstained' | 'completed'
@@ -117,8 +140,21 @@ export type LocalAppBlackboxRecallEventStatus = 'evidence' | 'abstained' | 'comp
 export interface LocalAppBlackboxRecallEvidence {
   id: string | null
   summary: string | null
+  source?: string | null
   status: 'evidence'
   turnId: string
+  provenance?: LocalAppBlackboxRecallProvenance
+}
+
+export interface LocalAppBlackboxRecallProvenance {
+  evidenceId: string
+  persisted: boolean
+  matches: Array<{
+    table: string
+    source: string
+    sourceId: string
+  }>
+  error: string | null
 }
 
 export interface LocalAppBlackboxRecallEvent {
@@ -131,6 +167,7 @@ export interface LocalAppBlackboxRecallEvent {
   turnId: string
   evidenceId: string | null
   summary: string | null
+  source: string | null
 }
 
 export interface LocalAppBlackboxMemoryRecall {
@@ -154,6 +191,18 @@ export interface LocalAppRuntimeRecallEventRow {
   payload_json: string
 }
 
+interface LocalAppPersistedRecallRow {
+  table_name: string
+  source: string
+  source_id: string
+  evidence_id: string
+}
+
+interface LocalAppPersistedRecallTableState {
+  exists: boolean
+  columns: Set<string>
+}
+
 function allDatabaseRows<T>(
   database: sqlite3.Database,
   sql: string,
@@ -175,7 +224,7 @@ function emptyLocalAppMemoryRecall(
 ) {
   return {
     query,
-    matched: status === 'not-requested',
+    matched: false,
     status,
     turnId: null,
     matchedIds: [],
@@ -213,6 +262,834 @@ function recallProviderStatus(value: unknown): Exclude<
   return value === 'recalled' || value === 'empty' || value === 'failed'
     ? value
     : null
+}
+
+export interface LocalAppProviderRequestEvidence {
+  event: Record<string, unknown>
+  cardId: string | null
+  turnId: string | null
+  providerAttempt: number | null
+  requestHash: string | null
+  workingMemory: {
+    present: boolean
+    version: string | null
+    compressionObserved: boolean
+    compressedTimelineCount: number
+    compressedSourceTurnCount: number
+    recentDialogueCount: number
+    correctionCount: number
+    commitmentCount: number
+    contentHash: string | null
+  }
+  longTermRecall: {
+    present: boolean
+    status: string | null
+    confidence: number | null
+    evidenceIds: string[]
+    evidenceCount: number
+    contentHash: string | null
+  }
+}
+
+export interface LocalAppProviderRequestAssessment {
+  passed: boolean
+  requestCount: number
+  recalledRequestCount: number
+  errors: string[]
+}
+
+export interface LocalAppProviderRecallExpectation {
+  turnId: string
+  status: 'recalled' | 'empty' | 'failed' | 'unknown'
+  matchedIds: string[]
+}
+
+export interface LocalAppSingleSessionAssessment {
+  status: 'passed' | 'failed' | 'unknown'
+  conversationId: string | null
+  conversationIds: string[]
+  expectedTurnCount: number
+  matchedTurnCount: number
+  missingTurnIds: string[]
+  errors: string[]
+}
+
+export interface LocalAppCompressionEventEvidence {
+  turnId: string | null
+  conversationId: string | null
+  version: string | null
+  sessionId: string | null
+  sourceTurnIds: string[]
+}
+
+export interface LocalAppCompressionAssessment {
+  passed: boolean
+  compressionObserved: boolean
+  compressedTurnId: string | null
+  firstProviderTurnAfterCompression: string | null
+  completedEvents: LocalAppCompressionEventEvidence[]
+  snapshots: LocalAppCompressionEventEvidence[]
+  errors: string[]
+}
+
+export type LocalAppMemoryExpectationKind
+  = | 'recall'
+    | 'abstain'
+    | 'correction'
+    | 'conflict'
+    | 'expired'
+    | 'tombstone'
+
+export interface LocalAppMemoryExpectation {
+  turnIndex: number
+  kind: LocalAppMemoryExpectationKind
+  expectedIds?: string[]
+  forbiddenIds?: string[]
+  expectedAnswerIncludes?: string[]
+}
+
+export interface LocalAppMemoryExpectationRecall {
+  turnIndex: number
+  recall: LocalAppBlackboxMemoryRecall
+}
+
+export interface LocalAppMemoryExpectationAssessment {
+  passed: boolean
+  expectationCount: number
+  evaluatedCount: number
+  errors: string[]
+}
+
+function readNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Number(value)
+    : null
+}
+
+function readStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value
+        .map(item => nonEmptyString(item))
+        .filter((item): item is string => item !== null)
+    : []
+}
+
+function readRecordArray(value: unknown) {
+  return Array.isArray(value)
+    ? value
+        .map(item => jsonRecord(item))
+        .filter((item): item is Record<string, unknown> => item !== null)
+    : []
+}
+
+function readProviderRequestSnapshot(value: unknown) {
+  const request = jsonRecord(value)
+  const workingMemoryRecord = jsonRecord(request?.workingMemory)
+  const longTermRecallRecord = jsonRecord(request?.longTermRecall)
+  const compressedTimeline = readRecordArray(workingMemoryRecord?.compressedTimeline)
+  const compressedTimelineCount = readNumber(workingMemoryRecord?.compressedTimelineCount)
+    ?? compressedTimeline.length
+  const compressedSourceTurnCount = readNumber(workingMemoryRecord?.compressedSourceTurnCount)
+    ?? compressedTimeline.reduce(
+      (count, entry) => count + readStringArray(entry.sourceTurnIds).length,
+      0,
+    )
+  const evidenceRecords = readRecordArray(longTermRecallRecord?.evidence)
+  const evidenceIds = readStringArray(longTermRecallRecord?.evidenceIds)
+  const normalizedEvidenceIds = evidenceIds.length > 0
+    ? evidenceIds
+    : evidenceRecords
+        .map(entry => nonEmptyString(entry.id))
+        .filter((item): item is string => item !== null)
+  const evidenceCount = readNumber(longTermRecallRecord?.evidenceCount)
+    ?? (evidenceRecords.length || normalizedEvidenceIds.length)
+
+  return {
+    requestHash: nonEmptyString(request?.requestHash),
+    workingMemory: {
+      present: workingMemoryRecord !== null,
+      version: nonEmptyString(workingMemoryRecord?.version),
+      compressionObserved: workingMemoryRecord?.compressionObserved === true
+        || compressedTimelineCount > 0
+        || compressedSourceTurnCount > 0,
+      compressedTimelineCount,
+      compressedSourceTurnCount,
+      recentDialogueCount: readNumber(workingMemoryRecord?.recentDialogueCount) ?? 0,
+      correctionCount: readNumber(workingMemoryRecord?.correctionCount) ?? 0,
+      commitmentCount: readNumber(workingMemoryRecord?.commitmentCount) ?? 0,
+      contentHash: nonEmptyString(workingMemoryRecord?.contentHash),
+    },
+    longTermRecall: {
+      present: longTermRecallRecord !== null,
+      status: nonEmptyString(longTermRecallRecord?.status),
+      confidence: readNumber(longTermRecallRecord?.confidence),
+      evidenceIds: normalizedEvidenceIds,
+      evidenceCount,
+      contentHash: nonEmptyString(longTermRecallRecord?.contentHash),
+    },
+  }
+}
+
+export function readLocalAppProviderRequestEvidence(input: {
+  events: Array<Record<string, unknown>>
+  cardId?: string
+}): LocalAppProviderRequestEvidence[] {
+  const cardId = input.cardId?.trim() || null
+  return input.events
+    .filter(event => event.event === 'chat-provider-request.started')
+    .filter((event) => {
+      if (!cardId)
+        return true
+      const eventCardId = nonEmptyString(event.cardId)
+      return eventCardId === null || eventCardId === cardId
+    })
+    .map((event) => {
+      const request = readProviderRequestSnapshot(event.request)
+      return {
+        event,
+        cardId: nonEmptyString(event.cardId),
+        turnId: nonEmptyString(event.turnId),
+        providerAttempt: readNumber(event.providerAttempt),
+        requestHash: request.requestHash,
+        workingMemory: request.workingMemory,
+        longTermRecall: request.longTermRecall,
+      }
+    })
+}
+
+export function assessLocalAppProviderRequestEvidence(
+  requests: LocalAppProviderRequestEvidence[],
+  options: {
+    requiredRecall?: LocalAppProviderRecallExpectation
+  } = {},
+): LocalAppProviderRequestAssessment {
+  const errors: string[] = []
+  let recalledRequestCount = 0
+
+  if (requests.length === 0)
+    errors.push('没有找到 chat-provider-request.started 证据。')
+
+  for (const request of requests) {
+    const requestLabel = request.turnId
+      ? `turn ${request.turnId}`
+      : `Provider request #${requests.indexOf(request) + 1}`
+    if (!request.workingMemory.present)
+      errors.push(`${requestLabel} 缺少 WorkingMemory owner 请求快照。`)
+    if (!request.longTermRecall.present)
+      errors.push(`${requestLabel} 缺少 LongTermMemoryRecall 请求快照。`)
+
+    const status = request.longTermRecall.status
+    const evidenceIds = request.longTermRecall.evidenceIds
+    const evidenceCount = request.longTermRecall.evidenceCount
+    if (status === 'recalled') {
+      recalledRequestCount += 1
+      if (evidenceIds.length === 0 || evidenceCount === 0) {
+        errors.push(
+          `${requestLabel} 的 longTermRecall.status=recalled，但 evidenceIds/evidenceCount 为空；这是召回假阳性。`,
+        )
+      }
+      if (evidenceCount !== evidenceIds.length) {
+        errors.push(
+          `${requestLabel} 的长期记忆 evidenceCount=${evidenceCount} 与 evidenceIds=${evidenceIds.length} 不一致。`,
+        )
+      }
+    }
+    else if (
+      (status === 'empty' || status === 'failed')
+      && (evidenceIds.length > 0 || evidenceCount > 0)
+    ) {
+      errors.push(
+        `${requestLabel} 的 longTermRecall.status=${status}，却携带可用 evidence。`,
+      )
+    }
+  }
+
+  const requiredRecall = options.requiredRecall
+  if (requiredRecall && requiredRecall.status !== 'unknown') {
+    const requiredTurnId = requiredRecall.turnId.trim()
+    const matchingRequests = requests.filter(request =>
+      request.turnId === requiredTurnId,
+    )
+    const finalMatchingRequest = matchingRequests.at(-1)
+    if (!finalMatchingRequest) {
+      errors.push(
+        `长期记忆召回 turn ${requiredTurnId} 没有在同一轮 Provider 请求中留下证据。`,
+      )
+    }
+    else if (requiredRecall.status === 'recalled') {
+      const expectedIds = new Set(requiredRecall.matchedIds)
+      const providerIds = new Set(finalMatchingRequest.longTermRecall.evidenceIds)
+      const matchedEvidenceId = [...expectedIds].find(id => providerIds.has(id))
+      if (
+        finalMatchingRequest.longTermRecall.status !== 'recalled'
+        || finalMatchingRequest.longTermRecall.evidenceCount === 0
+        || !matchedEvidenceId
+      ) {
+        errors.push(
+          `长期记忆召回 turn ${requiredTurnId} 没有在同一轮 Provider 请求中携带匹配 evidence。`,
+        )
+      }
+    }
+    else if (
+      finalMatchingRequest.longTermRecall.status !== requiredRecall.status
+      || finalMatchingRequest.longTermRecall.evidenceIds.length > 0
+      || finalMatchingRequest.longTermRecall.evidenceCount > 0
+    ) {
+      errors.push(
+        `长期记忆召回 turn ${requiredTurnId} 的 Provider 状态与最终召回状态不一致。`,
+      )
+    }
+  }
+
+  return {
+    passed: errors.length === 0,
+    requestCount: requests.length,
+    recalledRequestCount,
+    errors,
+  }
+}
+
+function readConversationId(value: unknown) {
+  const record = jsonRecord(value)
+  return nonEmptyString(record?.conversationId)
+    ?? nonEmptyString(record?.conversation_id)
+    ?? nonEmptyString(jsonRecord(record?.scope)?.conversationId)
+    ?? nonEmptyString(jsonRecord(record?.scope)?.conversation_id)
+}
+
+export function assessLocalAppSingleSession(input: {
+  expectedTurnIds: string[]
+  events: Array<Record<string, unknown> & {
+    turnId?: unknown
+    conversationId?: unknown
+  }>
+}): LocalAppSingleSessionAssessment {
+  const expectedTurnIds = [...new Set(input.expectedTurnIds.map(id => id.trim()).filter(Boolean))]
+  const matchedTurnIds = new Set<string>()
+  const conversationIds = new Set<string>()
+  let missingConversationIdCount = 0
+
+  for (const event of input.events) {
+    const turnId = nonEmptyString(event.turnId)
+    if (turnId && expectedTurnIds.includes(turnId))
+      matchedTurnIds.add(turnId)
+    const conversationId = readConversationId(event)
+    if (conversationId)
+      conversationIds.add(conversationId)
+    else if (turnId && expectedTurnIds.includes(turnId))
+      missingConversationIdCount += 1
+  }
+
+  const missingTurnIds = expectedTurnIds.filter(id => !matchedTurnIds.has(id))
+  const normalizedConversationIds = [...conversationIds]
+  const errors: string[] = []
+  if (missingTurnIds.length > 0)
+    errors.push(`缺少回放 turn 证据：${missingTurnIds.join(', ')}`)
+  if (normalizedConversationIds.length > 1) {
+    errors.push(`回放跨越多个 conversation：${normalizedConversationIds.join(', ')}`)
+  }
+  if (missingConversationIdCount > 0)
+    errors.push(`有 ${missingConversationIdCount} 个回放 turn 缺少 conversationId。`)
+
+  const status = missingTurnIds.length > 0 || normalizedConversationIds.length > 1
+    ? 'failed'
+    : expectedTurnIds.length === 0
+      || normalizedConversationIds.length === 0
+      || missingConversationIdCount > 0
+      ? 'unknown'
+      : 'passed'
+
+  return {
+    status,
+    conversationId: normalizedConversationIds.length === 1
+      ? normalizedConversationIds[0]!
+      : null,
+    conversationIds: normalizedConversationIds,
+    expectedTurnCount: expectedTurnIds.length,
+    matchedTurnCount: matchedTurnIds.size,
+    missingTurnIds,
+    errors,
+  }
+}
+
+function eventName(event: Record<string, unknown>) {
+  return nonEmptyString(event.eventType) ?? nonEmptyString(event.event) ?? ''
+}
+
+function eventPayload(event: Record<string, unknown>) {
+  return jsonRecord(event.payload) ?? event
+}
+
+function readCompressionEvidence(event: Record<string, unknown>): LocalAppCompressionEventEvidence {
+  const payload = eventPayload(event)
+  const compression = jsonRecord(payload.compression)
+  const timeline = readRecordArray(payload.compressedTimeline)
+  const sourceTurnIds = [
+    ...readStringArray(compression?.sourceTurnIds),
+    ...timeline.flatMap(entry => readStringArray(entry.sourceTurnIds)),
+  ]
+  return {
+    turnId: nonEmptyString(event.turnId) ?? nonEmptyString(payload.turnId),
+    conversationId: readConversationId(event) ?? readConversationId(payload),
+    version: nonEmptyString(payload.version),
+    sessionId: nonEmptyString(payload.sessionId),
+    sourceTurnIds: [...new Set(sourceTurnIds)],
+  }
+}
+
+function providerRequestTurnNumber(turnId: string | null) {
+  if (!turnId)
+    return null
+  const match = /(?:^|[-_:])(\d+)$/u.exec(turnId)
+  return match ? Number.parseInt(match[1]!, 10) : null
+}
+
+export function assessLocalAppCompressionEvidence(input: {
+  runtimeEvents: Array<Record<string, unknown>>
+  providerRequests: LocalAppProviderRequestEvidence[]
+  expectedTurnCount: number
+}): LocalAppCompressionAssessment {
+  const completedEvents = input.runtimeEvents
+    .filter(event => eventName(event) === 'working_memory.compression.completed')
+    .map(readCompressionEvidence)
+    .filter(event => event.sourceTurnIds.length > 0)
+  const snapshots = input.runtimeEvents
+    .filter(event => eventName(event) === 'working_memory.snapshot.created')
+    .map(readCompressionEvidence)
+    .filter(event => event.sourceTurnIds.length > 0)
+  const errors: string[] = []
+
+  if (input.providerRequests.length < input.expectedTurnCount) {
+    errors.push(
+      `Provider request 仅有 ${input.providerRequests.length} 轮，少于期望的 ${input.expectedTurnCount} 轮。`,
+    )
+  }
+  if (completedEvents.length === 0)
+    errors.push('没有找到包含 sourceTurnIds 的 WorkingMemory compression.completed 事件。')
+  if (snapshots.length === 0)
+    errors.push('没有找到包含 sourceTurnIds 的 WorkingMemory snapshot.created 事件。')
+
+  const compressedEvent = completedEvents[0] ?? snapshots[0] ?? null
+  const compressedTurnNumber = providerRequestTurnNumber(compressedEvent?.turnId ?? null)
+  const compressedTurnIndex = compressedEvent?.turnId
+    ? input.providerRequests.findIndex(request => request.turnId === compressedEvent.turnId)
+    : -1
+  const laterRequests = input.providerRequests.filter((request, index) => {
+    if (compressedTurnNumber !== null) {
+      const requestTurnNumber = providerRequestTurnNumber(request.turnId)
+      return requestTurnNumber !== null && requestTurnNumber > compressedTurnNumber
+    }
+    return compressedTurnIndex >= 0 && index > compressedTurnIndex
+  })
+  const providerAfterCompression = laterRequests.find(request =>
+    request.workingMemory.compressionObserved
+    && request.workingMemory.compressedTimelineCount > 0
+    && request.workingMemory.compressedSourceTurnCount > 0,
+  ) ?? null
+  if (!providerAfterCompression) {
+    errors.push('压缩事件之后没有找到真正携带压缩 WorkingMemory 的 Provider request。')
+  }
+
+  return {
+    passed: errors.length === 0,
+    compressionObserved: providerAfterCompression !== null,
+    compressedTurnId: compressedEvent?.turnId ?? null,
+    firstProviderTurnAfterCompression: providerAfterCompression?.turnId ?? null,
+    completedEvents,
+    snapshots,
+    errors,
+  }
+}
+
+function normalizeExpectationIds(ids: string[] | undefined) {
+  return [...new Set((ids ?? []).map(id => id.trim()).filter(Boolean))]
+}
+
+function expectationReplyText(turn: LocalAppBlackboxChatTurnEvidence | undefined) {
+  return turn?.assistantText?.trim() || turn?.visibleText?.trim() || ''
+}
+
+export function assessLocalAppMemoryExpectations(input: {
+  expectations: LocalAppMemoryExpectation[]
+  chatTurns: LocalAppBlackboxChatTurnEvidence[]
+  recalls: LocalAppMemoryExpectationRecall[]
+}): LocalAppMemoryExpectationAssessment {
+  const errors: string[] = []
+  let evaluatedCount = 0
+  for (const expectation of input.expectations) {
+    const label = `第 ${expectation.turnIndex} 轮 ${expectation.kind}`
+    const recallEntry = input.recalls.find(entry => entry.turnIndex === expectation.turnIndex)
+    const chatTurn = input.chatTurns[expectation.turnIndex - 1]
+    if (!recallEntry) {
+      errors.push(`${label} 缺少长期记忆召回结果。`)
+      continue
+    }
+    evaluatedCount += 1
+    const recall = recallEntry.recall
+    const expectedIds = normalizeExpectationIds(expectation.expectedIds)
+    const forbiddenIds = normalizeExpectationIds(expectation.forbiddenIds)
+    const matchedIds = [...new Set([
+      ...recall.matchedIds,
+      ...(recall.evidence ?? [])
+        .map(item => item.id)
+        .filter((id): id is string => id !== null),
+    ])]
+    const replyText = expectationReplyText(chatTurn)
+    const usableEvidence = (recall.evidence ?? []).filter(item =>
+      item.id !== null
+      && item.provenance?.persisted !== false,
+    )
+    if (expectation.kind === 'abstain') {
+      const hasAbstainedEvent = (recall.events ?? []).some(event =>
+        event.status === 'abstained'
+        && event.turnId === (recall.turnId ?? event.turnId),
+      )
+      if (
+        recall.status !== 'empty'
+        || recall.matched
+        || matchedIds.length > 0
+        || usableEvidence.length > 0
+        || !hasAbstainedEvent
+      ) {
+        errors.push(`${label} 没有形成空召回且无证据的 abstention。`)
+      }
+      continue
+    }
+
+    for (const expectedId of expectedIds) {
+      if (!matchedIds.includes(expectedId))
+        errors.push(`${label} 缺少期望的 memory ID：${expectedId}`)
+    }
+    for (const forbiddenId of forbiddenIds) {
+      if (
+        matchedIds.includes(forbiddenId)
+        || (recall.summaries ?? []).some(summary => summary.includes(forbiddenId))
+        || replyText.includes(forbiddenId)
+      ) {
+        errors.push(`${label} 暴露了禁止出现的 memory ID：${forbiddenId}`)
+      }
+    }
+    for (const expectedText of expectation.expectedAnswerIncludes ?? []) {
+      if (!replyText.includes(expectedText))
+        errors.push(`${label} 回复缺少期望内容：${expectedText}`)
+    }
+    if (
+      (expectation.kind === 'recall'
+        || expectation.kind === 'correction'
+        || expectation.kind === 'conflict')
+      && (recall.status !== 'recalled' || !recall.matched || expectedIds.length === 0)
+    ) {
+      errors.push(`${label} 没有以可验证的 recalled 状态返回期望记忆。`)
+    }
+    if (
+      (expectation.kind === 'expired' || expectation.kind === 'tombstone')
+      && forbiddenIds.length > 0
+      && matchedIds.some(id => forbiddenIds.includes(id))
+    ) {
+      errors.push(`${label} 仍然召回了已过期或已 tombstone 的记忆。`)
+    }
+  }
+
+  return {
+    passed: errors.length === 0,
+    expectationCount: input.expectations.length,
+    evaluatedCount,
+    errors,
+  }
+}
+
+export function validateLocalAppProductionMessageCount(count: number) {
+  if (!Number.isInteger(count) || count < 20 || count > 50) {
+    throw new Error(`生产黑盒回放必须包含 20 至 50 轮消息，当前为 ${count} 轮。`)
+  }
+}
+
+const persistedRecallTables = [
+  'memory_facts',
+  'memory_reflections',
+  'episodic_events',
+  'memory_consolidations',
+  'long_term_memory_search_documents',
+  'long_term_memory_vectors',
+  'long_term_memory_tombstones',
+] as const
+
+const persistedRecallRequiredColumns: Record<
+  typeof persistedRecallTables[number],
+  string[]
+> = {
+  memory_facts: ['id', 'card_id'],
+  memory_reflections: ['id', 'card_id'],
+  episodic_events: ['id', 'card_id'],
+  memory_consolidations: ['id', 'card_id'],
+  long_term_memory_search_documents: [
+    'id',
+    'card_id',
+    'source',
+    'source_id',
+    'tombstoned',
+  ],
+  long_term_memory_vectors: [
+    'id',
+    'card_id',
+    'source',
+    'source_id',
+    'status',
+  ],
+  long_term_memory_tombstones: ['card_id', 'source_id', 'source'],
+}
+
+const persistedRecallSourceTables = {
+  memory_facts: 'memory_facts',
+  memory_reflections: 'memory_reflections',
+  episodic_events: 'episodic_events',
+  memory_consolidations: 'memory_consolidations',
+} as const
+
+function recallProvenanceKey(source: string | null, sourceId: string) {
+  return JSON.stringify([source ?? '', sourceId])
+}
+
+async function readPersistedRecallProvenance(input: {
+  database: sqlite3.Database
+  cardId: string
+  evidence: Array<{
+    id: string | null
+    source: string | null
+  }>
+}) {
+  const evidenceRecords = input.evidence
+    .map(item => ({
+      id: nonEmptyString(item.id),
+      source: nonEmptyString(item.source),
+    }))
+    .filter((item): item is { id: string, source: string | null } => Boolean(item.id))
+  const evidenceIds = [...new Set(evidenceRecords.map(item => item.id))]
+  if (evidenceIds.length === 0)
+    return new Map<string, LocalAppBlackboxRecallProvenance>()
+
+  const tableStates = new Map<string, LocalAppPersistedRecallTableState>()
+  const schemaErrors: string[] = []
+  for (const table of persistedRecallTables) {
+    const tableRows = await allDatabaseRows<{ name: string }>(
+      input.database,
+      `PRAGMA table_info(${table})`,
+    )
+    if (tableRows.length === 0) {
+      schemaErrors.push(`缺少长期记忆表 ${table}`)
+      tableStates.set(table, {
+        exists: false,
+        columns: new Set(),
+      })
+      continue
+    }
+    const columns = new Set(tableRows.map(row => row.name))
+    const missingColumns = persistedRecallRequiredColumns[table]
+      .filter(column => !columns.has(column))
+    if (missingColumns.length > 0) {
+      schemaErrors.push(
+        `长期记忆表 ${table} 缺少 provenance 列：${missingColumns.join(', ')}`,
+      )
+    }
+    tableStates.set(table, {
+      exists: true,
+      columns,
+    })
+  }
+  const placeholders = evidenceIds.map(() => '?').join(', ')
+  const rows: LocalAppPersistedRecallRow[] = []
+  const canonicalMatches = new Set<string>()
+  const tombstonedKeys = new Set<string>()
+
+  const queries: Array<{
+    table: typeof persistedRecallTables[number]
+    sql: string
+    params: unknown[]
+    canonical: boolean
+  }> = [
+    {
+      table: 'memory_facts',
+      sql: `
+        SELECT id AS source_id, 'memory_facts' AS source, id AS matched_id
+        FROM memory_facts
+        WHERE card_id = ?
+          AND id IN (${placeholders})
+          ${tableStates.get('memory_facts')?.columns.has('validation_status')
+            ? `AND COALESCE(validation_status, '') != 'superseded'`
+            : ''}
+      `,
+      params: [input.cardId, ...evidenceIds],
+      canonical: true,
+    },
+    {
+      table: 'memory_reflections',
+      sql: `
+        SELECT id AS source_id, 'memory_reflections' AS source, id AS matched_id
+        FROM memory_reflections
+        WHERE card_id = ?
+          AND id IN (${placeholders})
+          ${tableStates.get('memory_reflections')?.columns.has('status')
+            ? `AND status = 'confirmed'`
+            : ''}
+      `,
+      params: [input.cardId, ...evidenceIds],
+      canonical: true,
+    },
+    {
+      table: 'episodic_events',
+      sql: `
+        SELECT id AS source_id, 'episodic_events' AS source, id AS matched_id
+        FROM episodic_events
+        WHERE card_id = ? AND id IN (${placeholders})
+      `,
+      params: [input.cardId, ...evidenceIds],
+      canonical: true,
+    },
+    {
+      table: 'memory_consolidations',
+      sql: `
+        SELECT id AS source_id, 'memory_consolidations' AS source, id AS matched_id
+        FROM memory_consolidations
+        WHERE card_id = ? AND id IN (${placeholders})
+      `,
+      params: [input.cardId, ...evidenceIds],
+      canonical: true,
+    },
+    {
+      table: 'long_term_memory_search_documents',
+      sql: `
+        SELECT source_id, source, id AS matched_id
+        FROM long_term_memory_search_documents
+        WHERE card_id = ?
+          AND tombstoned = 0
+          AND (source_id IN (${placeholders}) OR id IN (${placeholders}))
+      `,
+      params: [input.cardId, ...evidenceIds, ...evidenceIds],
+      canonical: false,
+    },
+    {
+      table: 'long_term_memory_vectors',
+      sql: `
+        SELECT source_id, source, id AS matched_id
+        FROM long_term_memory_vectors
+        WHERE card_id = ?
+          AND status = 'indexed'
+          AND (source_id IN (${placeholders}) OR id IN (${placeholders}))
+      `,
+      params: [input.cardId, ...evidenceIds, ...evidenceIds],
+      canonical: false,
+    },
+  ]
+
+  for (const query of queries) {
+    const state = tableStates.get(query.table)
+    if (!state?.exists)
+      continue
+    const missingColumns = persistedRecallRequiredColumns[query.table]
+      .filter(column => !state.columns.has(column))
+    if (missingColumns.length > 0)
+      continue
+    const tableRows = await allDatabaseRows<{
+      source_id: string
+      source: string
+      matched_id: string
+    }>(input.database, query.sql, query.params)
+    for (const row of tableRows) {
+      const matchingEvidence = evidenceRecords.find(evidence =>
+        evidence.source === row.source
+        && (evidence.id === row.source_id || evidence.id === row.matched_id))
+      if (!matchingEvidence?.source)
+        continue
+      const evidenceId = matchingEvidence.id
+      rows.push({
+        table_name: query.table,
+        source: row.source,
+        source_id: row.source_id,
+        evidence_id: evidenceId,
+      })
+      if (query.canonical && evidenceId === row.source_id) {
+        canonicalMatches.add(recallProvenanceKey(row.source, row.source_id))
+      }
+    }
+  }
+
+  const tombstoneState = tableStates.get('long_term_memory_tombstones')
+  if (
+    tombstoneState?.exists
+    && persistedRecallRequiredColumns.long_term_memory_tombstones
+      .every(column => tombstoneState.columns.has(column))
+  ) {
+    const tombstoneRows = await allDatabaseRows<{
+      source_id: string
+      source: string
+    }>(
+      input.database,
+      `
+      SELECT source_id, source
+      FROM long_term_memory_tombstones
+      WHERE card_id = ?
+        AND source_id IN (${placeholders})
+      `,
+      [input.cardId, ...evidenceIds],
+    )
+    for (const row of tombstoneRows) {
+      for (const evidence of evidenceRecords) {
+        if (
+          evidence.source
+          && evidence.id === row.source_id
+          && (row.source === evidence.source || row.source === 'long_term_memory')
+        ) {
+          tombstonedKeys.add(recallProvenanceKey(evidence.source, evidence.id))
+        }
+      }
+    }
+  }
+
+  const provenance = new Map<string, LocalAppBlackboxRecallProvenance>()
+  for (const evidence of evidenceRecords) {
+    const evidenceId = evidence.id
+    const key = recallProvenanceKey(evidence.source, evidenceId)
+    const source = evidence.source
+    const matchingSourceTable = source
+      ? persistedRecallSourceTables[source as keyof typeof persistedRecallSourceTables]
+      : undefined
+    const isTombstoned = tombstonedKeys.has(key)
+    const activeRows = isTombstoned
+      ? []
+      : rows.filter(row => row.evidence_id === evidenceId)
+          .filter(row => row.source === evidence.source)
+    const isCanonical = canonicalMatches.has(key) && !isTombstoned
+    const errorParts: string[] = []
+    if (!evidence.source) {
+      errorParts.push(`长期记忆 evidence ${evidenceId} 缺少 source`)
+    }
+    else if (!matchingSourceTable) {
+      errorParts.push(`长期记忆 evidence ${evidenceId} 使用了不支持的 source：${evidence.source}`)
+    }
+    if (isTombstoned) {
+      errorParts.push(`长期记忆 evidence ${evidenceId} 已被 tombstone（${evidence.source}）`)
+    }
+    if (schemaErrors.length > 0)
+      errorParts.push(...schemaErrors)
+    if (!isCanonical && errorParts.length === 0) {
+      errorParts.push(
+        `长期记忆 evidence ${evidenceId} 未在当前 card 的持久化表中找到匹配 source/source_id`,
+      )
+    }
+    const matches = activeRows
+      .map(row => ({
+        table: row.table_name,
+        source: row.source,
+        sourceId: row.source_id,
+      }))
+    provenance.set(key, {
+      evidenceId,
+      persisted: schemaErrors.length === 0 && isCanonical,
+      matches,
+      error: errorParts.length > 0 ? errorParts.join('；') : null,
+    })
+  }
+  return provenance
 }
 
 export async function readLocalAppRuntimeRecall(input: {
@@ -302,13 +1179,17 @@ export async function readLocalAppRuntimeRecall(input: {
       summary: status === 'evidence'
         ? nonEmptyString(payload.summary)
         : null,
+      source: status === 'evidence'
+        ? nonEmptyString(payload.source)
+        : null,
     }
   })
-  const evidence = events
+  const runtimeEvidence = events
     .filter(event => event.status === 'evidence')
     .map(event => ({
       id: event.evidenceId,
       summary: event.summary,
+      source: event.source,
       status: 'evidence' as const,
       turnId: event.turnId,
     }))
@@ -319,8 +1200,40 @@ export async function readLocalAppRuntimeRecall(input: {
       || row.event_type === 'long_term_memory.recall.abstained'
     ))
   const status = recallProviderStatus(terminalStatus?.payload.status)
-    ?? (evidence.length > 0 ? 'recalled' : 'unknown')
-  const usableEvidence = status === 'recalled' ? evidence : []
+    ?? (runtimeEvidence.length > 0 ? 'recalled' : 'unknown')
+  const persistedProvenance = await readPersistedRecallProvenance({
+    database: input.database,
+    cardId: input.cardId,
+    evidence: runtimeEvidence,
+  })
+  const evidence = runtimeEvidence.map(item => ({
+    ...item,
+    provenance: item.id
+      ? persistedProvenance.get(recallProvenanceKey(item.source, item.id)) ?? {
+        evidenceId: item.id,
+        persisted: false,
+        matches: [],
+        error: `长期记忆 evidence ${item.id} 未找到 provenance`,
+      }
+      : {
+          evidenceId: '',
+          persisted: false,
+          matches: [],
+          error: '长期记忆 evidence 缺少 evidence ID',
+        },
+  }))
+  const unresolvedEvidence = evidence.filter(item => !item.provenance.persisted)
+  if (status === 'recalled' && unresolvedEvidence.length > 0) {
+    errors.push(...unresolvedEvidence
+      .map(item => item.provenance.error)
+      .filter((error): error is string => Boolean(error)))
+  }
+  const usableEvidence = status === 'recalled'
+    ? evidence.filter(item => item.provenance.persisted)
+    : []
+  const effectiveStatus = status === 'recalled' && usableEvidence.length === 0
+    ? 'unknown'
+    : status
   const matchedIds = usableEvidence
     .map(item => item.id)
     .filter((id): id is string => id !== null)
@@ -331,7 +1244,7 @@ export async function readLocalAppRuntimeRecall(input: {
   return {
     query,
     matched: usableEvidence.length > 0,
-    status,
+    status: effectiveStatus,
     turnId: rows[0]?.turn_id ?? null,
     matchedIds,
     summaries,
@@ -341,58 +1254,75 @@ export async function readLocalAppRuntimeRecall(input: {
   }
 }
 
-export async function countFailedTurnMemoryLeaks(input: {
+export async function assessFailedTurnMemoryLeaks(input: {
   database: sqlite3.Database
   cardId: string
   failedTurns: LocalAppBlackboxChatTurnEvidence[]
-}) {
+}): Promise<LocalAppBlackboxMemoryLeakAssessment> {
   const failedTurns = input.failedTurns.filter(turn => turn.status !== 'completed')
-  if (failedTurns.length === 0)
-    return 0
+  if (failedTurns.length === 0) {
+    return {
+      status: 'passed',
+      leakedCount: 0,
+      indeterminateTurnCount: 0,
+    }
+  }
 
   const turnIds = [...new Set(failedTurns
     .map(turn => turn.turnId?.trim() ?? '')
     .filter(Boolean))]
-  const timestamps = failedTurns
-    .flatMap(turn => [turn.startedAt, turn.finishedAt])
-    .filter((value): value is number => Number.isFinite(value))
-  const timeWindow = timestamps.length > 0
-    ? {
-        start: Math.max(0, Math.min(...timestamps) - 1_000),
-        end: Math.max(...timestamps) + 1_000,
-      }
-    : null
+  const indeterminateTurnCount = failedTurns
+    .filter(turn => !(turn.turnId?.trim() ?? ''))
+    .length
+  if (turnIds.length === 0) {
+    return {
+      status: 'unknown',
+      leakedCount: 0,
+      indeterminateTurnCount,
+    }
+  }
+
   const leakedRows = new Set<string>()
   const sourceIds = new Set<string>()
+  const turnIdPlaceholders = turnIds.map(() => '?').join(', ')
+  const tableExists = async (table: string) => {
+    const rows = await allDatabaseRows<{ name: string }>(
+      input.database,
+      `PRAGMA table_info(${table})`,
+    )
+    return rows.length > 0
+  }
+  const jsonContainsTurnId = (raw: string | null | undefined) => {
+    if (!raw)
+      return false
+    try {
+      const value = JSON.parse(raw) as unknown
+      const visit = (current: unknown): boolean => {
+        if (typeof current === 'string')
+          return turnIds.includes(current)
+        if (Array.isArray(current))
+          return current.some(visit)
+        if (current && typeof current === 'object')
+          return Object.values(current).some(visit)
+        return false
+      }
+      return visit(value)
+    }
+    catch {
+      return false
+    }
+  }
 
   async function readTurnScopedRows(table: 'memory_reflections' | 'episodic_events' | 'persona_reinforcement_events' | 'person_state_evolution_log') {
-    const conditions = ['card_id = ?']
-    const params: unknown[] = [input.cardId]
-    if (turnIds.length > 0) {
-      if (timeWindow) {
-        conditions.push(`(
-          turn_id IN (${turnIds.map(() => '?').join(', ')})
-          OR (turn_id IS NULL AND created_at >= ? AND created_at <= ?)
-        )`)
-        params.push(...turnIds, timeWindow.start, timeWindow.end)
-      }
-      else {
-        conditions.push(`turn_id IN (${turnIds.map(() => '?').join(', ')})`)
-        params.push(...turnIds)
-      }
-    }
-    else if (timeWindow) {
-      conditions.push('created_at >= ?', 'created_at <= ?')
-      params.push(timeWindow.start, timeWindow.end)
-    }
-    else {
-      return []
-    }
-
     return await allDatabaseRows<{ id: string }>(
       input.database,
-      `SELECT id FROM ${table} WHERE ${conditions.join(' AND ')}`,
-      params,
+      `
+      SELECT id
+      FROM ${table}
+      WHERE card_id = ?
+        AND turn_id IN (${turnIdPlaceholders})
+      `,
+      [input.cardId, ...turnIds],
     )
   }
 
@@ -416,6 +1346,99 @@ export async function countFailedTurnMemoryLeaks(input: {
     }
   }
 
+  if (await tableExists('relationship_outcomes')) {
+    const rows = await allDatabaseRows<{ id: string }>(
+      input.database,
+      `
+      SELECT id
+      FROM relationship_outcomes
+      WHERE card_id = ?
+        AND turn_id IN (${turnIdPlaceholders})
+      `,
+      [input.cardId, ...turnIds],
+    )
+    for (const row of rows)
+      leakedRows.add(`relationship_outcomes:${row.id}`)
+  }
+
+  if (await tableExists('working_memory_long_term_transactions')) {
+    const rows = await allDatabaseRows<{
+      id: string
+      queue_item_id: string
+      queue_item_json: string | null
+      cleaned_candidate_json: string | null
+      projections_json: string | null
+    }>(
+      input.database,
+      `
+      SELECT id, queue_item_id, queue_item_json, cleaned_candidate_json, projections_json
+      FROM working_memory_long_term_transactions
+      WHERE card_id = ?
+      `,
+      [input.cardId],
+    )
+    for (const row of rows) {
+      if (![
+        row.queue_item_json,
+        row.cleaned_candidate_json,
+        row.projections_json,
+      ].some(jsonContainsTurnId)) {
+        continue
+      }
+      leakedRows.add(`working_memory_long_term_transactions:${row.id}`)
+      sourceIds.add(row.id)
+      sourceIds.add(row.queue_item_id)
+      for (const raw of [row.cleaned_candidate_json, row.projections_json]) {
+        if (!raw)
+          continue
+        try {
+          const value = JSON.parse(raw) as {
+            id?: unknown
+            memoryFacts?: Array<{ sourceLabel?: unknown }>
+          }
+          if (typeof value.id === 'string')
+            sourceIds.add(value.id)
+          for (const fact of value.memoryFacts ?? []) {
+            if (typeof fact.sourceLabel === 'string')
+              sourceIds.add(fact.sourceLabel)
+          }
+        }
+        catch {
+          // A malformed transaction is already a failed-turn leak candidate.
+        }
+      }
+    }
+  }
+
+  if (await tableExists('memory_facts')) {
+    const sourcePatterns = [...new Set([
+      ...sourceIds,
+      ...turnIds,
+    ])]
+    const sourcePatternClause = sourcePatterns.length > 0
+      ? sourcePatterns.map(() => 'source_label LIKE ? ESCAPE \'\\\'').join(' OR ')
+      : ''
+    if (sourcePatternClause) {
+      const rows = await allDatabaseRows<{ id: string }>(
+        input.database,
+        `
+        SELECT id
+        FROM memory_facts
+        WHERE card_id = ?
+          AND (${sourcePatternClause})
+        `,
+        [
+          input.cardId,
+          ...sourcePatterns.map(value => `%${value.replace(/[\\%_]/gu, character => `\\${character}`)}%`),
+        ],
+      )
+      for (const row of rows) {
+        leakedRows.add(`memory_facts:${row.id}`)
+        sourceIds.add(row.id)
+      }
+    }
+  }
+
   if (sourceIds.size > 0) {
     const sourceIdList = [...sourceIds]
     const conditions = [
@@ -423,10 +1446,6 @@ export async function countFailedTurnMemoryLeaks(input: {
       `source_id IN (${sourceIdList.map(() => '?').join(', ')})`,
     ]
     const params: unknown[] = [input.cardId, ...sourceIdList]
-    if (timeWindow) {
-      conditions.push('created_at >= ?', 'created_at <= ?')
-      params.push(timeWindow.start, timeWindow.end)
-    }
     const personaRows = await allDatabaseRows<{ id: string }>(
       input.database,
       `
@@ -438,6 +1457,45 @@ export async function countFailedTurnMemoryLeaks(input: {
     )
     for (const row of personaRows)
       leakedRows.add(`persona_training_dataset_examples:${row.id}`)
+  }
+
+  if (sourceIds.size > 0 && await tableExists('long_term_memory_search_documents')) {
+    const sourceIdList = [...sourceIds]
+    const rows = await allDatabaseRows<{ id: string, source_id: string }>(
+      input.database,
+      `
+      SELECT id, source_id
+      FROM long_term_memory_search_documents
+      WHERE card_id = ?
+        AND (
+          source_id IN (${sourceIdList.map(() => '?').join(', ')})
+          OR ${sourceIdList.map(() => 'source_ids_json LIKE ? ESCAPE \'\\\'').join(' OR ')}
+        )
+      `,
+      [
+        input.cardId,
+        ...sourceIdList,
+        ...sourceIdList.map(value => `%${value.replace(/[\\%_]/gu, character => `\\${character}`)}%`),
+      ],
+    )
+    for (const row of rows)
+      leakedRows.add(`long_term_memory_search_documents:${row.id}`)
+  }
+
+  if (sourceIds.size > 0 && await tableExists('long_term_memory_vectors')) {
+    const sourceIdList = [...sourceIds]
+    const rows = await allDatabaseRows<{ id: string }>(
+      input.database,
+      `
+      SELECT id
+      FROM long_term_memory_vectors
+      WHERE card_id = ?
+        AND source_id IN (${sourceIdList.map(() => '?').join(', ')})
+      `,
+      [input.cardId, ...sourceIdList],
+    )
+    for (const row of rows)
+      leakedRows.add(`long_term_memory_vectors:${row.id}`)
   }
 
   const consolidationRows = await allDatabaseRows<{
@@ -469,14 +1527,35 @@ export async function countFailedTurnMemoryLeaks(input: {
       leakedRows.add(`memory_consolidations:${row.id}`)
   }
   // Facts and relationship outcomes are deliberate failure audit records.
-  return leakedRows.size
+  return {
+    status: leakedRows.size > 0
+      ? 'failed'
+      : indeterminateTurnCount > 0
+        ? 'unknown'
+        : 'passed',
+    leakedCount: leakedRows.size,
+    indeterminateTurnCount,
+  }
+}
+
+export async function countFailedTurnMemoryLeaks(input: {
+  database: sqlite3.Database
+  cardId: string
+  failedTurns: LocalAppBlackboxChatTurnEvidence[]
+}) {
+  const assessment = await assessFailedTurnMemoryLeaks(input)
+  return assessment.status === 'unknown'
+    ? null
+    : assessment.leakedCount
 }
 
 export interface LocalAppChatDomSnapshot {
   assistantCount: number
   assistantText: string
+  assistantFingerprint?: string
   errorCount: number
   errorText: string
+  errorFingerprint?: string
 }
 
 export interface LocalAppBlackboxAutomation {
@@ -485,10 +1564,26 @@ export interface LocalAppBlackboxAutomation {
   waitForStartup: () => Promise<LocalAppBlackboxStartupEvidence>
   openChat: () => Promise<LocalAppBlackboxWindowEvidence>
   sendChatMessage: (message: string, timeoutMs: number) => Promise<LocalAppBlackboxChatTurnEvidence>
+  abortChat?: (turnId: string, reason: string) => Promise<AlicizationChatAbortResult>
   openMemoryWorkbench: () => Promise<LocalAppBlackboxWindowEvidence>
   captureScreenshots: (outputDir: string) => Promise<LocalAppBlackboxScreenshotEvidence[]>
   collectDiagnostics?: () => Promise<LocalAppBlackboxDiagnostics>
   close: () => Promise<void>
+}
+
+export function buildLocalAppChatAbortRequest(input: {
+  cardId: string
+  turnId: string
+  reason: string
+}) {
+  return {
+    channel: alicizationChatAbortInvokeChannel,
+    payload: {
+      cardId: input.cardId,
+      turnId: input.turnId,
+      reason: input.reason,
+    },
+  } as const
 }
 
 export interface LocalAppBlackboxStage {
@@ -567,8 +1662,348 @@ export interface LocalAppBlackboxTrialDependencies {
     cardId: string
     messages: string[]
     chatTurns: LocalAppBlackboxChatTurnEvidence[]
+    runtimeDebugTrace?: Array<Record<string, unknown>>
   }) => Promise<LocalAppBlackboxMemoryAssertions>
+  waitForMemoryClosure?: (input: {
+    userDataPath: string
+    cardId: string
+    chatTurns: LocalAppBlackboxChatTurnEvidence[]
+  }) => Promise<LocalAppMemoryClosureWaitResult>
   now?: () => number
+}
+
+export interface LocalAppMemoryClosureSnapshot {
+  activeQueueCount: number
+  activeIngestCount: number
+  activeReindexCount: number
+  projectionRevision: string
+}
+
+function countByStatus(rows: Array<{ status: string, count: number }>, ...statuses: string[]) {
+  const statusSet = new Set(statuses)
+  return rows
+    .filter(row => statusSet.has(row.status))
+    .reduce((total, row) => total + Number(row.count || 0), 0)
+}
+
+export async function readLocalAppMemoryClosureSnapshot(
+  database: sqlite3.Database,
+  cardId: string,
+): Promise<LocalAppMemoryClosureSnapshot> {
+  const [
+    queueRows,
+    ingestRows,
+    reindexJobRows,
+    factRows,
+    reflectionRows,
+    eventRows,
+    consolidationRows,
+    searchRows,
+    vectorRows,
+  ] = await Promise.all([
+    allDatabaseRows<{ status: string, count: number }>(
+      database,
+      `
+      SELECT status, COUNT(*) AS count
+      FROM working_memory_long_term_transactions
+      WHERE card_id = ?
+      GROUP BY status
+      `,
+      [cardId],
+    ),
+    allDatabaseRows<{ status: string, count: number }>(
+      database,
+      `
+      SELECT status, COUNT(*) AS count
+      FROM memory_ingest_journal
+      WHERE status IN ('pending', 'failed')
+        AND operation_kind IN ('upsert-memory-facts', 'append-episodic-events', 'upsert-memory-consolidations')
+        AND (
+          card_id = ?
+          OR (
+            json_valid(payload_json) = 1
+            AND (
+          (
+            operation_kind = 'upsert-memory-facts'
+            AND EXISTS (
+              SELECT 1
+              FROM json_each(json_extract(payload_json, '$.facts')) AS item
+              WHERE json_extract(item.value, '$.cardId') = ?
+            )
+          )
+          OR (
+            operation_kind = 'append-episodic-events'
+            AND EXISTS (
+              SELECT 1
+              FROM json_each(json_extract(payload_json, '$.events')) AS item
+              WHERE json_extract(item.value, '$.cardId') = ?
+            )
+          )
+          OR (
+            operation_kind = 'upsert-memory-consolidations'
+            AND EXISTS (
+              SELECT 1
+              FROM json_each(json_extract(payload_json, '$.records')) AS item
+              WHERE json_extract(item.value, '$.cardId') = ?
+            )
+          )
+            )
+          )
+        )
+      GROUP BY status
+      `,
+      [cardId, cardId, cardId, cardId],
+    ),
+    allDatabaseRows<{ status: string, count: number }>(
+      database,
+      `
+      SELECT status, COUNT(*) AS count
+      FROM memory_embedding_reindex_jobs
+      WHERE card_id = ?
+        AND status IN ('queued', 'running', 'cancel_requested')
+      GROUP BY status
+      `,
+      [cardId],
+    ),
+    allDatabaseRows<{ count: number, updated_at: number | null }>(
+      database,
+      'SELECT COUNT(*) AS count, MAX(updated_at) AS updated_at FROM memory_facts WHERE card_id = ?',
+      [cardId],
+    ),
+    allDatabaseRows<{ count: number, updated_at: number | null }>(
+      database,
+      'SELECT COUNT(*) AS count, MAX(updated_at) AS updated_at FROM memory_reflections WHERE card_id = ?',
+      [cardId],
+    ),
+    allDatabaseRows<{ count: number, created_at: number | null }>(
+      database,
+      'SELECT COUNT(*) AS count, MAX(created_at) AS created_at FROM episodic_events WHERE card_id = ?',
+      [cardId],
+    ),
+    allDatabaseRows<{ count: number, updated_at: number | null }>(
+      database,
+      'SELECT COUNT(*) AS count, MAX(updated_at) AS updated_at FROM memory_consolidations WHERE card_id = ?',
+      [cardId],
+    ),
+    allDatabaseRows<{ count: number, updated_at: number | null }>(
+      database,
+      'SELECT COUNT(*) AS count, MAX(updated_at) AS updated_at FROM long_term_memory_search_documents WHERE card_id = ?',
+      [cardId],
+    ),
+    allDatabaseRows<{ count: number, updated_at: number | null }>(
+      database,
+      'SELECT COUNT(*) AS count, MAX(updated_at) AS updated_at FROM long_term_memory_vectors WHERE card_id = ?',
+      [cardId],
+    ),
+  ])
+
+  const activeQueueCount = countByStatus(
+    queueRows,
+    'pending-cleaning',
+    'cleaning',
+    'admitted',
+  )
+  const activeIngestCount = countByStatus(ingestRows, 'pending', 'failed')
+  const activeReindexCount = countByStatus(
+    reindexJobRows,
+    'queued',
+    'running',
+    'cancel_requested',
+  )
+  const projectionRevision = JSON.stringify([
+    factRows[0]?.count ?? 0,
+    factRows[0]?.updated_at ?? null,
+    reflectionRows[0]?.count ?? 0,
+    reflectionRows[0]?.updated_at ?? null,
+    eventRows[0]?.count ?? 0,
+    eventRows[0]?.created_at ?? null,
+    consolidationRows[0]?.count ?? 0,
+    consolidationRows[0]?.updated_at ?? null,
+    searchRows[0]?.count ?? 0,
+    searchRows[0]?.updated_at ?? null,
+    vectorRows[0]?.count ?? 0,
+    vectorRows[0]?.updated_at ?? null,
+  ])
+
+  return {
+    activeQueueCount,
+    activeIngestCount,
+    activeReindexCount,
+    projectionRevision,
+  }
+}
+
+export function findMemoryRecallQuery(messages: string[]) {
+  return [...messages]
+    .reverse()
+    .find((message) => {
+      const normalized = message.trim()
+      if (!normalized)
+        return false
+
+      const isRecallBehaviorQuestion = (
+        normalized.includes('召回不到')
+        || normalized.includes('没有召回')
+        || normalized.includes('未命中')
+      ) && [
+        '应该怎样回答',
+        '应该怎么回答',
+        '应该如何回答',
+        '怎样回答',
+        '怎么回答',
+        '如何回答',
+      ].some(phrase => normalized.includes(phrase))
+      if (isRecallBehaviorQuestion)
+        return false
+
+      const hasQuestionSignal = normalized.includes('?')
+        || normalized.includes('？')
+        || ['吗', '么', '呢', '来着'].some(signal => normalized.endsWith(signal))
+        || ['有没有', '是否', '是不是', '记不记得', '什么', '哪个', '哪些', '哪里', '谁', '多少', '怎么', '怎样']
+          .some(signal => normalized.includes(signal))
+      const isMemoryWriteCommand = [
+        '请记住',
+        '请你记住',
+        '请帮我记住',
+        '请你帮我记住',
+        '帮我记住',
+        '麻烦你记住',
+        '记住',
+        '请记下',
+        '请你记下',
+        '帮我记下',
+        '记下',
+        '请保存',
+        '请你保存',
+        '帮我保存',
+        '保存',
+        '请记录',
+        '请你记录',
+        '帮我记录',
+        '记录',
+        '别忘了',
+        '不要忘记',
+      ].some(prefix => normalized.startsWith(prefix))
+      const memoryWriteVerbs = ['记住', '记下', '保存', '记录']
+      const memoryWriteActors = ['让你', '叫你', '请你']
+      const memoryWriteCompletions = [
+        '了',
+        '过',
+        '了这件事',
+        '过这件事',
+        '了这个',
+        '过这个',
+        '了它',
+        '过它',
+        '了内容',
+        '过内容',
+      ]
+      const withoutTerminalPunctuation = normalized.replace(/[。.!！]$/u, '')
+      const isCompletedMemoryWrite = memoryWriteActors.some(actor => normalized.includes(actor))
+        && memoryWriteVerbs.some(verb => normalized.includes(verb))
+        && memoryWriteCompletions.some(suffix => withoutTerminalPunctuation.endsWith(suffix))
+      const isMemoryStatement = ['告诉过', '说过', '提过'].some(phrase => normalized.includes(phrase))
+      if (!hasQuestionSignal && (isMemoryWriteCommand || isCompletedMemoryWrite || isMemoryStatement))
+        return false
+
+      const hasMemoryContext = [
+        '记住',
+        '记得',
+        '之前',
+        '上次',
+        '以前',
+        '曾经',
+        '刚才',
+        '刚刚',
+        '说过',
+        '提过',
+        '告诉过',
+        '那条记忆',
+        '这段记忆',
+        '长期记忆',
+        '偏好',
+        '回忆',
+        '找回',
+      ].some(term => normalized.includes(term))
+      || (normalized.includes('我') && normalized.includes('喜欢'))
+      || (normalized.includes('我') && normalized.includes('偏好'))
+      const isRetrievalCommand = ['回忆一下', '找回', '查一下', '翻一下', '复述一下', '检索', '搜索']
+        .some(command => normalized.includes(command))
+
+      return hasMemoryContext && (hasQuestionSignal || isRetrievalCommand)
+    })
+    ?? ''
+}
+
+export interface LocalAppMemoryClosureWaitResult {
+  settled: boolean
+  waitedMs: number
+  polls: number
+  stablePolls: number
+  snapshot: LocalAppMemoryClosureSnapshot | null
+}
+
+export async function waitForLocalAppMemoryClosure(input: {
+  readSnapshot: () => Promise<LocalAppMemoryClosureSnapshot>
+  timeoutMs?: number
+  pollMs?: number
+  minWaitMs?: number
+  stablePollsRequired?: number
+  sleep?: (ms: number) => Promise<unknown>
+  now?: () => number
+}): Promise<LocalAppMemoryClosureWaitResult> {
+  const now = input.now ?? (() => Date.now())
+  const sleep = input.sleep ?? (async (ms: number) => {
+    await new Promise<void>(resolve => setTimeout(resolve, ms))
+  })
+  const timeoutMs = Math.max(0, Math.floor(input.timeoutMs ?? 30_000))
+  const pollMs = Math.max(1, Math.floor(input.pollMs ?? 250))
+  const minWaitMs = Math.max(0, Math.floor(input.minWaitMs ?? 1_000))
+  const stablePollsRequired = Math.max(1, Math.floor(input.stablePollsRequired ?? 2))
+  const startedAt = now()
+  const deadline = startedAt + timeoutMs
+  let snapshot: LocalAppMemoryClosureSnapshot | null = null
+  let previousRevision: string | null = null
+  let stablePolls = 0
+  let polls = 0
+
+  while (true) {
+    snapshot = await input.readSnapshot()
+    polls += 1
+    const elapsedMs = Math.max(0, now() - startedAt)
+    const active = snapshot.activeQueueCount
+      + snapshot.activeIngestCount
+      + snapshot.activeReindexCount
+    const revisionStable = previousRevision === snapshot.projectionRevision
+    if (active === 0 && elapsedMs >= minWaitMs) {
+      stablePolls = revisionStable ? stablePolls + 1 : 1
+      if (stablePolls >= stablePollsRequired) {
+        return {
+          settled: true,
+          waitedMs: elapsedMs,
+          polls,
+          stablePolls,
+          snapshot,
+        }
+      }
+    }
+    else {
+      stablePolls = 0
+    }
+    previousRevision = snapshot.projectionRevision
+
+    const remainingMs = deadline - now()
+    if (remainingMs <= 0) {
+      return {
+        settled: false,
+        waitedMs: Math.max(0, now() - startedAt),
+        polls,
+        stablePolls,
+        snapshot,
+      }
+    }
+    await sleep(Math.min(pollMs, remainingMs))
+  }
 }
 
 function classifyQualityTrial(report: MemoryProductionTrialReport | null) {
@@ -608,7 +2043,7 @@ export function parseLocalAppBlackboxTrialArgs(
     .toISOString()
     .replace(/[.:]/g, '-')
   let appPath = join(home, 'Applications', 'Alicization Local.app')
-  let userDataPath = join(home, 'Library', 'Application Support', 'com.tohoqing.alicization')
+  let userDataPath = join(home, 'Library', 'Application Support', 'Alicization')
   let cardId = 'default'
   let outputDir = join(home, 'Desktop', 'Alicization-Blackbox-Traces', timestamp)
   let remoteDebugPort = 9222
@@ -837,6 +2272,17 @@ export async function runLocalAppProductionTrial(input: {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
+}
+
+function resolveMemoryAssertionPassed(input: {
+  memoryAssertions: LocalAppBlackboxMemoryAssertions | null
+  memoryClosureStage: LocalAppBlackboxStage | undefined
+}) {
+  if (input.memoryAssertions === null)
+    return null
+  if (input.memoryClosureStage?.status !== 'succeeded')
+    return false
+  return input.memoryAssertions.failureIsolationPassed
 }
 
 export async function readRuntimeDebugTraceSince(
@@ -1127,7 +2573,11 @@ export function resolveLocalAppChatTurnState(input: {
   stableForMs: number
   runtime?: LocalAppChatRuntimeEvidence
 }) {
-  const errorChanged = input.current.errorCount > input.before.errorCount
+  const beforeErrorFingerprint = input.before.errorFingerprint
+    ?? `${input.before.errorCount}\u001F${input.before.errorText}`
+  const currentErrorFingerprint = input.current.errorFingerprint
+    ?? `${input.current.errorCount}\u001F${input.current.errorText}`
+  const errorChanged = currentErrorFingerprint !== beforeErrorFingerprint
   const currentError = input.current.errorText.trim()
   if (errorChanged && currentError) {
     return {
@@ -1156,6 +2606,12 @@ export function resolveLocalAppChatTurnState(input: {
     }
   }
 
+  const runtimeCompleted = runtime === undefined
+    || (
+      runtime.accepted
+      && runtime.streamFinished
+      && runtime.status === 'completed'
+    )
   const runtimeFailed = runtime === undefined
     || (
       runtime.status !== null
@@ -1173,14 +2629,15 @@ export function resolveLocalAppChatTurnState(input: {
     }
   }
 
+  // The renderer may reconcile the final reply into the existing assistant bubble.
+  // Only a completed, turn-bound runtime can authorize treating that text update
+  // as this turn's reply instead of a previous-message refresh.
   const assistantChanged = input.current.assistantCount > input.before.assistantCount
-  const currentAssistant = input.current.assistantText.trim()
-  const runtimeCompleted = runtime === undefined
     || (
-      runtime.accepted
-      && runtime.streamFinished
-      && runtime.status === 'completed'
+      runtimeCompleted
+      && input.current.assistantText !== input.before.assistantText
     )
+  const currentAssistant = input.current.assistantText.trim()
   if (assistantChanged && currentAssistant && runtimeCompleted) {
     return {
       status: 'completed' as const,
@@ -1275,12 +2732,14 @@ export function createPlaywrightLocalAppBlackboxAutomation(input: {
     'runtime-debug.log',
   )
   const endpoint = `http://127.0.0.1:${input.args.remoteDebugPort}`
-  const executablePath = join(
-    input.args.appPath,
-    'Contents',
-    'MacOS',
-    'alicization',
-  )
+  const executablePath = input.args.appPath.endsWith('.app')
+    ? join(
+        input.args.appPath,
+        'Contents',
+        'MacOS',
+        'alicization',
+      )
+    : input.args.appPath
   const processOutput: string[] = []
   const rendererConsole: LocalAppBlackboxDiagnostics['rendererConsole'] = []
   const pageErrors: LocalAppBlackboxDiagnostics['pageErrors'] = []
@@ -1344,26 +2803,48 @@ export function createPlaywrightLocalAppBlackboxAutomation(input: {
       assistantMessages.count(),
       errorMessages.count(),
     ])
-    const readLastMessageText = async (
+    const readMessageTexts = async (
       locator: Locator,
       count: number,
     ) => {
       if (count === 0)
-        return ''
-      return await locator.last().textContent({
-        timeout: 1_000,
-      }).catch(() => '')
+        return []
+      return await locator.allTextContents().catch(() => [])
     }
-    const [assistantText, errorText] = await Promise.all([
-      readLastMessageText(assistantMessages, assistantCount),
-      readLastMessageText(errorMessages, errorCount),
+    const [assistantTexts, errorTexts] = await Promise.all([
+      readMessageTexts(assistantMessages, assistantCount),
+      readMessageTexts(errorMessages, errorCount),
     ])
     return {
       assistantCount,
-      assistantText: assistantText?.trim() ?? '',
+      assistantText: assistantTexts.at(-1)?.trim() ?? '',
+      assistantFingerprint: assistantTexts.map(text => text.trim()).join('\u001F'),
       errorCount,
-      errorText: errorText?.trim() ?? '',
+      errorText: errorTexts.at(-1)?.trim() ?? '',
+      errorFingerprint: errorTexts.map(text => text.trim()).join('\u001F'),
     }
+  }
+
+  const waitForChatDomStable = async (
+    page: Page,
+    stableForMs = 900,
+    timeoutMs = Math.min(input.args.launchTimeoutMs, 10_000),
+  ) => {
+    const startedAt = Date.now()
+    let stableSince = Date.now()
+    let previous: LocalAppChatDomSnapshot | null = null
+    while (Date.now() - startedAt < timeoutMs) {
+      const current = await readChatDomSnapshot(page)
+      const fingerprint = JSON.stringify(current)
+      const previousFingerprint = previous ? JSON.stringify(previous) : null
+      if (fingerprint !== previousFingerprint)
+        stableSince = Date.now()
+      if (Date.now() - stableSince >= stableForMs)
+        return current
+      previous = current
+      await wait(100)
+    }
+    return previous ?? await readChatDomSnapshot(page)
   }
 
   return {
@@ -1503,9 +2984,9 @@ export function createPlaywrightLocalAppBlackboxAutomation(input: {
         timeout: input.args.launchTimeoutMs,
       })
       // Visible evidence must exclude hidden boot fallbacks and inline scripts.
+      const beforeChat = await waitForChatDomStable(page)
       // eslint-disable-next-line unicorn/prefer-dom-node-text-content
       const beforeText = await page.locator('body').innerText()
-      const beforeChat = await readChatDomSnapshot(page)
       const startedAt = Date.now()
       let firstUiChangeMs: number | null = null
       let stableSince: number | null = null
@@ -1580,6 +3061,7 @@ export function createPlaywrightLocalAppBlackboxAutomation(input: {
             streamFinishedAtMs: runtimeEvidence.streamFinishedAtMs,
             firstUiChangeMs,
             settledMs: finishedAt - startedAt,
+            assistantText: currentChat.assistantText,
             visibleText: textTail(bodyText),
             error: turnState.error,
           }
@@ -1602,6 +3084,24 @@ export function createPlaywrightLocalAppBlackboxAutomation(input: {
         startedAt,
       })
       const finishedAt = Date.now()
+      let abortAttempted = false
+      let abortAccepted: boolean | null = null
+      let abortState: AlicizationChatAbortResult['state'] | null = null
+      let abortError: string | null = null
+      if (runtimeEvidence.turnId && this.abortChat) {
+        abortAttempted = true
+        try {
+          const abortResult = await this.abortChat(
+            runtimeEvidence.turnId,
+            'blackbox-turn-timeout',
+          )
+          abortAccepted = abortResult.accepted
+          abortState = abortResult.state
+        }
+        catch (error) {
+          abortError = errorMessage(error)
+        }
+      }
       return {
         message,
         status: 'timed-out',
@@ -1612,8 +3112,12 @@ export function createPlaywrightLocalAppBlackboxAutomation(input: {
         acceptedAtMs: runtimeEvidence.acceptedAtMs,
         streamFinished: runtimeEvidence.streamFinished,
         streamFinishedAtMs: runtimeEvidence.streamFinishedAtMs,
+        abortAttempted,
+        abortAccepted,
+        abortState,
         firstUiChangeMs,
         settledMs: finishedAt - startedAt,
+        assistantText: previousChat.assistantText,
         visibleText: textTail(visibleText),
         error: [
           `等待对话完成超时（${timeoutMs}ms）。`,
@@ -1621,8 +3125,35 @@ export function createPlaywrightLocalAppBlackboxAutomation(input: {
           `streamFinished=${runtimeEvidence.streamFinished}`,
           runtimeEvidence.turnId ? `turnId=${runtimeEvidence.turnId}` : 'turnId=unknown',
           runtimeEvidence.error ? `runtimeError=${runtimeEvidence.error}` : null,
+          abortAttempted ? `abort=${abortState ?? (abortError ? 'failed' : 'unknown')}` : 'abort=not-requested',
+          abortError ? `abortError=${abortError}` : null,
         ].filter(Boolean).join(' '),
       }
+    },
+
+    async abortChat(turnId, reason) {
+      const page = await waitForPage(
+        candidate => candidate.url().includes('#/chat'),
+        input.args.launchTimeoutMs,
+      )
+      const request = buildLocalAppChatAbortRequest({
+        cardId: input.args.cardId,
+        turnId,
+        reason,
+      })
+      return await page.evaluate(async ({ channel, payload }) => {
+        const scope = globalThis as unknown as {
+          electron?: {
+            ipcRenderer?: {
+              invoke?: (invokeChannel: string, invokePayload: unknown) => Promise<unknown>
+            }
+          }
+        }
+        const invoke = scope.electron?.ipcRenderer?.invoke
+        if (typeof invoke !== 'function')
+          throw new Error('App renderer 没有暴露 IPC invoke。')
+        return await invoke(channel, payload) as AlicizationChatAbortResult
+      }, request)
     },
 
     async openMemoryWorkbench() {
@@ -1821,8 +3352,12 @@ export async function runLocalAppBlackboxTrial(
                 turnId: evidence.turnId ?? null,
                 streamFinished: evidence.streamFinished ?? null,
                 streamFinishedAtMs: evidence.streamFinishedAtMs ?? null,
+                abortAttempted: evidence.abortAttempted ?? null,
+                abortAccepted: evidence.abortAccepted ?? null,
+                abortState: evidence.abortState ?? null,
                 firstUiChangeMs: evidence.firstUiChangeMs,
                 settledMs: evidence.settledMs,
+                assistantText: evidence.assistantText ?? null,
                 visibleText: evidence.visibleText,
               },
             })
@@ -1841,6 +3376,7 @@ export async function runLocalAppBlackboxTrial(
               streamFinishedAtMs: null,
               firstUiChangeMs: null,
               settledMs: Math.max(0, now() - stageStartedAt),
+              assistantText: '',
               visibleText: '',
               error: messageText,
             })
@@ -1866,21 +3402,38 @@ export async function runLocalAppBlackboxTrial(
 
       if (input.inspectMemory) {
         await recordStage('memory-closure', async () => {
+          const memoryTrace = await input.readRuntimeDebugTrace({
+            path: join(input.args.userDataPath, 'alicizations', 'runtime-debug.log'),
+            since: startedAt,
+          }).catch(() => [])
           const assertions = await input.inspectMemory!({
             userDataPath: input.args.userDataPath,
             cardId: input.args.cardId,
             messages: [...input.args.messages],
             chatTurns: [...chatTurns],
+            runtimeDebugTrace: memoryTrace,
           })
           memoryAssertions = assertions
           const assertionErrors = [
             ...assertions.errors,
-            ...(!assertions.recall.matched
+            ...(assertions.recall.query && !assertions.recall.matched
               ? [`长期记忆召回未命中：${assertions.recall.query}`]
               : []),
-            ...(assertions.failureIsolationPassed
-              ? []
-              : [`失败对话污染了记忆层：${assertions.failedTurnMemoryLeakCount} 条。`]),
+            ...(assertions.failureIsolationPassed === false
+              ? [`失败对话污染了记忆层：${assertions.failedTurnMemoryLeakCount} 条。`]
+              : []),
+            ...(assertions.singleSession?.status === 'failed'
+              ? assertions.singleSession.errors
+              : []),
+            ...(assertions.providerRequestAssessment?.passed === false
+              ? assertions.providerRequestAssessment.errors
+              : []),
+            ...(assertions.compression?.passed === false
+              ? assertions.compression.errors
+              : []),
+            ...(assertions.expectationAssessment?.passed === false
+              ? assertions.expectationAssessment.errors
+              : []),
           ]
           if (assertionErrors.length > 0)
             throw new Error(assertionErrors.join('\n'))
@@ -1890,6 +3443,13 @@ export async function runLocalAppBlackboxTrial(
             queue: assertions.queue,
             longTerm: assertions.longTerm,
             recallMatched: assertions.recall.matched,
+            failureIsolationStatus: assertions.failureIsolationStatus,
+            failureIsolationIndeterminateTurnCount: assertions.failureIsolationIndeterminateTurnCount,
+            failedTurnMemoryLeakCount: assertions.failedTurnMemoryLeakCount,
+            singleSession: assertions.singleSession ?? null,
+            providerRequestAssessment: assertions.providerRequestAssessment ?? null,
+            compression: assertions.compression ?? null,
+            expectationAssessment: assertions.expectationAssessment ?? null,
           }
         })
       }
@@ -1963,6 +3523,11 @@ export async function runLocalAppBlackboxTrial(
 
   const finishedAt = now()
   const failedStages = stages.filter(stage => stage.status === 'failed')
+  const memoryClosureStage = stages.find(stage => stage.id === 'memory-closure')
+  const memoryAssertionPassed = resolveMemoryAssertionPassed({
+    memoryAssertions,
+    memoryClosureStage,
+  })
   const report: LocalAppBlackboxTrialReport = {
     version: 'alicization-local-app-blackbox-trial-v1',
     passed: failedStages.length === 0,
@@ -1980,9 +3545,7 @@ export async function runLocalAppBlackboxTrial(
       screenshotCount: screenshots.length,
       rendererConsoleEventCount: diagnostics.rendererConsole.length,
       pageErrorCount: diagnostics.pageErrors.length,
-      memoryAssertionPassed: memoryAssertions
-        ? failedStages.every(stage => stage.id !== 'memory-closure')
-        : null,
+      memoryAssertionPassed,
       failedStageIds: failedStages.map(stage => stage.id),
       lastError: failedStages.at(-1)?.error ?? null,
     },

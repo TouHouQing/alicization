@@ -401,6 +401,48 @@ describe('memoryOS Turn participant', () => {
     expect(enqueue).not.toHaveBeenCalled()
   })
 
+  it('records deferred owner settlements after the accepted write event', async () => {
+    const events: Array<{ eventType: string, payload: any }> = []
+    const participant = createAlicizationMemoryParticipant({
+      scope: createScope(),
+      appendEvent: vi.fn(async (event) => {
+        events.push(event)
+      }),
+    }) as any
+    const proposal = participant.prepareWrite({
+      sessionId: 'session-1',
+      items: [],
+    })
+
+    await participant.recordOwnerSettlements({
+      proposal,
+      ownerSettlements: [{
+        owner: 'long-term-memory-drain',
+        status: 'succeeded',
+      }, {
+        owner: 'persona-learning',
+        status: 'failed',
+        errorSummary: 'learning scheduler offline',
+      }],
+    })
+
+    expect(events.map(event => event.eventType)).toEqual([
+      'memory.owner.settled',
+      'memory.owner.settled',
+    ])
+    expect(events.map(event => event.payload)).toEqual([
+      expect.objectContaining({
+        owner: 'long-term-memory-drain',
+        status: 'succeeded',
+      }),
+      expect.objectContaining({
+        owner: 'persona-learning',
+        status: 'failed',
+        errorSummary: 'learning scheduler offline',
+      }),
+    ])
+  })
+
   it.each([
     ['version', 'memory-write-proposal-v2'],
     ['status', 'accepted'],

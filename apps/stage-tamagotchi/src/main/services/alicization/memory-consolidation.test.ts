@@ -368,4 +368,105 @@ describe('memory consolidation', () => {
     expect(neutralFacets).toEqual(['phase', 'task-era'])
     expect(legacyCueFacets).toEqual(neutralFacets)
   })
+
+  it('removes internal governance cues from persisted text while preserving user content', () => {
+    const records = buildMemoryConsolidationRecords({
+      now: Date.UTC(2026, 6, 26, 12, 0, 0),
+      events: [{
+        id: 'event-consolidation-cue-residue',
+        cardId: 'default',
+        decisionTraceId: 'decision-consolidation-cue-residue',
+        turnId: 'turn-consolidation-cue-residue',
+        sessionId: 'session-consolidation-cue-residue',
+        sourceKind: 'dialogue-feedback',
+        provenance: 'remembered',
+        occurredAt: Date.UTC(2026, 6, 25, 8, 0, 0),
+        whereSummary: '用户在晚间复盘项目进展。 visibility=redacted_internal',
+        withWhom: ['host'],
+        threadAnchor: '项目复盘 structured-state',
+        whatHappened: '用户确认这次确实完成了部署。 recollection:relationship-history:structured-state',
+        felt: 'relieved',
+        emotionTags: ['repair'],
+        whatChanged: '真实进展已经被确认。 project-state-brief',
+        relationshipMeaning: '先把事实说清楚，再继续往前走。 relationship_cadence=measured',
+        lesson: '保留用户确认过的事实，避免重复猜测。 opening_policy=none',
+        sourceSummary: '真实的项目复盘',
+        confidence: 0.9,
+        salience: 0.88,
+        sceneAttachment: 0.4,
+        consolidationPriority: 0.84,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: ['project-review'],
+        createdAt: Date.UTC(2026, 6, 25, 8, 5, 0),
+        updatedAt: Date.UTC(2026, 6, 25, 8, 5, 0),
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+        latestReconsolidation: null,
+      }],
+    })
+
+    expect(records.length).toBeGreaterThan(0)
+    for (const record of records) {
+      expect(record.summary).not.toMatch(/recollection:|structured-state|opening_policy|relationship_cadence|visibility\s*=\s*redacted_internal|project-state-brief/iu)
+      expect(record.lesson ?? '').not.toMatch(/recollection:|structured-state|opening_policy|relationship_cadence|visibility\s*=\s*redacted_internal|project-state-brief/iu)
+      expect(record.cues.join(' ')).not.toMatch(/recollection:|structured-state|opening_policy|relationship_cadence|visibility\s*=\s*redacted_internal|project-state-brief/iu)
+    }
+
+    const daily = records.find(record => record.kind === 'daily')
+    expect(daily?.summary).toBe('先把事实说清楚，再继续往前走。')
+    expect(daily?.lesson).toBe('保留用户确认过的事实，避免重复猜测。')
+    expect(daily?.cues).toEqual(expect.arrayContaining([
+      '项目复盘',
+      '用户在晚间复盘项目进展。',
+    ]))
+  })
+
+  it('removes internal governance cues from procedural records without losing the procedure', () => {
+    const records = buildMemoryConsolidationRecords({
+      now: Date.UTC(2026, 6, 26, 12, 0, 0),
+      events: [{
+        id: 'event-procedural-cue-residue',
+        cardId: 'default',
+        decisionTraceId: 'decision-procedural-cue-residue',
+        turnId: 'turn-procedural-cue-residue',
+        sessionId: 'session-procedural-cue-residue',
+        sourceKind: 'execution-result',
+        provenance: 'observed',
+        occurredAt: Date.UTC(2026, 6, 25, 9, 0, 0),
+        whereSummary: '部署流程 visibility=redacted_internal',
+        withWhom: ['host'],
+        threadAnchor: '部署流程',
+        whatHappened: '先运行检查，再确认部署结果。 recollection:execution-procedure:structured-state',
+        felt: 'steady',
+        emotionTags: ['focused'],
+        whatChanged: '验证结果后再继续。 project-state-brief',
+        relationshipMeaning: '把每一步的结果留在事实里。 relationship_cadence=measured',
+        lesson: '先核实结果，再继续下一步。 opening_policy=none',
+        sourceSummary: '真实部署流程',
+        confidence: 0.9,
+        salience: 0.88,
+        sceneAttachment: 0.4,
+        consolidationPriority: 0.84,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: ['structured-state'],
+        createdAt: Date.UTC(2026, 6, 25, 9, 5, 0),
+        updatedAt: Date.UTC(2026, 6, 25, 9, 5, 0),
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+        latestReconsolidation: null,
+      }],
+    })
+
+    const procedural = records.find(record => record.kind === 'procedural')
+    expect(procedural).toEqual(expect.objectContaining({
+      summary: '先核实结果，再继续下一步。',
+      lesson: '先核实结果，再继续下一步。',
+    }))
+    expect(procedural?.cues).toEqual(['部署流程', 'focused'])
+    expect(JSON.stringify(procedural)).not.toMatch(/recollection:|structured-state|opening_policy|relationship_cadence|visibility\s*=\s*redacted_internal|project-state-brief/iu)
+  })
 })

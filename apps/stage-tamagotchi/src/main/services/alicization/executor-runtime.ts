@@ -70,11 +70,55 @@ interface AlicizationExecutorRuntimeOptions {
   getGlobalKillSwitchState: () => 'ACTIVE' | 'SUSPENDED'
   normalizeSessionId: (raw: unknown) => string
   now?: () => number
-  resolveLocalCapabilityChannels?: () => Promise<AlicizationChannelCapability[]>
+  resolveLocalCapabilityChannels?: (options?: { signal?: AbortSignal }) => Promise<AlicizationChannelCapability[]>
   sanitizeText: (raw: unknown, fallback?: string) => string
 }
 
 const executionCapabilityProbeTtlMs = 45_000
+
+function executorAbortError(signal?: AbortSignal) {
+  return signal?.reason ?? new DOMException('Executor capability resolution aborted', 'AbortError')
+}
+
+function throwIfExecutorAborted(signal?: AbortSignal) {
+  if (signal?.aborted)
+    throw executorAbortError(signal)
+}
+
+function awaitExecutorOwner<T>(promise: Promise<T>, signal?: AbortSignal) {
+  if (!signal)
+    return promise
+  throwIfExecutorAborted(signal)
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const onAbort = () => {
+      if (settled)
+        return
+      settled = true
+      signal.removeEventListener('abort', onAbort)
+      reject(executorAbortError(signal))
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    void promise.then(
+      (value) => {
+        if (settled)
+          return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error) => {
+        if (settled)
+          return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
+}
 
 function combineAbortSignals(signals: readonly (AbortSignal | undefined)[]) {
   const uniqueSignals = signals.filter((signal, index, all): signal is AbortSignal => (
@@ -965,14 +1009,18 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
   async function resolveBinaryCapabilityProbe(
     binary: 'codex' | 'claude',
     source: CapabilityManifestSnapshotSource,
+    signal?: AbortSignal,
   ) {
     try {
+      throwIfExecutorAborted(signal)
       return {
-        ready: await probeBinaryReady(binary),
+        ready: await awaitExecutorOwner(probeBinaryReady(binary), signal),
         reason: null,
       }
     }
     catch (error) {
+      if (signal?.aborted)
+        throw error
       const errorReason = await recordCapabilityProbeFailure({
         channel: binary === 'claude' ? 'claude-code' : 'codex',
         error,
@@ -985,13 +1033,15 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     }
   }
 
-  async function resolveLocalCapabilityProbe(source: CapabilityManifestSnapshotSource) {
+  async function resolveLocalCapabilityProbe(source: CapabilityManifestSnapshotSource, signal?: AbortSignal) {
     if (!options.resolveLocalCapabilityChannels)
       return []
     try {
-      return await options.resolveLocalCapabilityChannels()
+      return await awaitExecutorOwner(options.resolveLocalCapabilityChannels({ signal }), signal)
     }
     catch (error) {
+      if (signal?.aborted)
+        throw error
       await recordCapabilityProbeFailure({
         channel: 'local',
         error,
@@ -1001,11 +1051,13 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     }
   }
 
-  async function resolveOpenClawCapabilityProbe(source: CapabilityManifestSnapshotSource) {
+  async function resolveOpenClawCapabilityProbe(source: CapabilityManifestSnapshotSource, signal?: AbortSignal) {
     try {
-      return await probeOpenClawCapability()
+      return await awaitExecutorOwner(probeOpenClawCapability(), signal)
     }
     catch (error) {
+      if (signal?.aborted)
+        throw error
       const errorReason = await recordCapabilityProbeFailure({
         channel: 'openclaw',
         error,
@@ -1022,12 +1074,12 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     }
   }
 
-  async function resolveDefaultPlanningCapabilities() {
+  async function resolveDefaultPlanningCapabilities(signal?: AbortSignal) {
     const [codexReady, claudeReady, openClawCapability, localCapabilities] = await Promise.all([
-      resolveBinaryCapabilityProbe('codex', 'runtime-default-probe'),
-      resolveBinaryCapabilityProbe('claude', 'runtime-default-probe'),
-      resolveOpenClawCapabilityProbe('runtime-default-probe'),
-      resolveLocalCapabilityProbe('runtime-default-probe'),
+      resolveBinaryCapabilityProbe('codex', 'runtime-default-probe', signal),
+      resolveBinaryCapabilityProbe('claude', 'runtime-default-probe', signal),
+      resolveOpenClawCapabilityProbe('runtime-default-probe', signal),
+      resolveLocalCapabilityProbe('runtime-default-probe', signal),
     ])
 
     const defaults = [
@@ -1069,12 +1121,12 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     return mergeExecutionCapabilities(defaults, localCapabilities)
   }
 
-  async function resolveDefaultPromptCapabilities() {
+  async function resolveDefaultPromptCapabilities(signal?: AbortSignal) {
     const [codexReady, claudeReady, openClawCapability, localCapabilities] = await Promise.all([
-      resolveBinaryCapabilityProbe('codex', 'runtime-default-probe'),
-      resolveBinaryCapabilityProbe('claude', 'runtime-default-probe'),
-      resolveOpenClawCapabilityProbe('runtime-default-probe'),
-      resolveLocalCapabilityProbe('runtime-default-probe'),
+      resolveBinaryCapabilityProbe('codex', 'runtime-default-probe', signal),
+      resolveBinaryCapabilityProbe('claude', 'runtime-default-probe', signal),
+      resolveOpenClawCapabilityProbe('runtime-default-probe', signal),
+      resolveLocalCapabilityProbe('runtime-default-probe', signal),
     ])
 
     const defaults = [
@@ -1119,9 +1171,11 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
   async function persistCapabilityManifestSnapshot(
     capabilities: AlicizationChannelCapability[],
     source: CapabilityManifestSnapshotSource,
+    signal?: AbortSignal,
   ) {
     const checkedAt = Date.now()
     for (const capability of capabilities) {
+      throwIfExecutorAborted(signal)
       await options.getAlicizationDb().upsertChannelCapabilityManifest({
         ...capability,
         updatedAt: checkedAt,
@@ -1129,7 +1183,9 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         metadata: {
           source,
         },
-      }).catch(async (error) => {
+      }, { signal }).catch(async (error) => {
+        if (signal?.aborted)
+          throw error
         await options.appendAuditLog({
           level: 'warning',
           category: 'alicization.executor.capability-manifest',
@@ -1142,6 +1198,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
           },
         })
       })
+      throwIfExecutorAborted(signal)
     }
   }
 
@@ -1179,14 +1236,21 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     return defaults
   }
 
-  async function resolveExecutionCapabilitiesForPrompt() {
-    const persisted = await options.getAlicizationDb().listChannelCapabilityManifests({
+  async function resolveExecutionCapabilitiesForPrompt(input?: { signal?: AbortSignal }) {
+    const signal = input?.signal
+    const persisted = await awaitExecutorOwner(options.getAlicizationDb().listChannelCapabilityManifests({
       limit: 64,
-    }).catch(() => [] as AlicizationChannelCapabilityManifestRecord[])
+    }, { signal }), signal).catch((error) => {
+      if (signal?.aborted)
+        throw error
+      return [] as AlicizationChannelCapabilityManifestRecord[]
+    })
     if (areCapabilityManifestsFresh(persisted))
       return persisted.map(mapManifestToPlanningCapability)
-    const defaults = await resolveDefaultPromptCapabilities()
-    await persistCapabilityManifestSnapshot(defaults, 'runtime-default-probe')
+    throwIfExecutorAborted(signal)
+    const defaults = await resolveDefaultPromptCapabilities(signal)
+    throwIfExecutorAborted(signal)
+    await persistCapabilityManifestSnapshot(defaults, 'runtime-default-probe', signal)
     return defaults
   }
 

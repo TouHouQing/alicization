@@ -67,6 +67,7 @@ import type {
 } from './runtime-governance'
 import type { AlicizationMainGatewayTextProvider } from './runtime-main-gateway-one-shot'
 import type {
+  CardScopeOptions,
   ChatRunState,
   DesktopCaptureAccessResult,
   OrganicMemoryPromptContext,
@@ -203,7 +204,7 @@ import {
 import { acceptAlicizationMainChatStart } from './main-chat-start-acceptance'
 import { cleanupAlicizationAcceptedMainChatStartFailure } from './main-chat-start-cleanup'
 import { resolveAlicizationMainChatStartResult } from './main-chat-start-result'
-import { createAbortError } from './main-chat-stream-primitives'
+import { awaitAlicizationPromiseWithAbort, createAbortError } from './main-chat-stream-primitives'
 import { createAlicizationMainGatewayWorkCoordinator } from './main-gateway-work-coordinator'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
 import {
@@ -260,6 +261,7 @@ import { evaluateProactivePolicy } from './proactive-policy'
 import {
   rankScreenSemanticCaptureCandidates,
 } from './proactive-screen-semantic'
+import { alicizationProviderRetryDefaults } from './provider-retry-policy'
 import { buildReflectionLedgerFragment } from './reflection-memory'
 import { createAlicizationReplayBenchmarkRuntime } from './replay-benchmark-runtime'
 import { createAlicizationAgentSessionMirrorRuntime } from './runtime-agent-session-mirror'
@@ -619,6 +621,10 @@ export const runtimeTestInternals = {
     cardId: string,
     options?: { signal?: AbortSignal },
   ) => Promise<unknown>) | null,
+  currentActiveSessionIdByCard: null as Map<string, string> | null,
+  currentTrackDeferredMemoryPostCommitTask: null as ((
+    task: Promise<void>,
+  ) => boolean) | null,
 }
 
 function normalizePersistedConversationTurnStructure(input: {
@@ -910,8 +916,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }).catch(() => {})
   }
   const localRuntimeUserId = await resolveAlicizationLocalRuntimeUserId({
-    getMetaValue: key => alicizationDb.getMetaValue(key),
-    setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
+    getMetaValue: (key, readOptions) => readOptions
+      ? alicizationDb.getMetaValue(key, readOptions)
+      : alicizationDb.getMetaValue(key),
+    setMetaValue: (key, value, writeOptions) => writeOptions
+      ? alicizationDb.setMetaValue(key, value, writeOptions)
+      : alicizationDb.setMetaValue(key, value),
   })
   const taskThreadOrchestrator = createTaskThreadOrchestrator()
 
@@ -936,11 +946,84 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   let dreamTimer: ReturnType<typeof setInterval> | undefined
   let backgroundMaintenanceStartupTimer: ReturnType<typeof setTimeout> | undefined
   let backgroundMaintenanceStarted = false
+  let workingMemoryLongTermRecoveryTimer: ReturnType<typeof setTimeout> | undefined
+  let workingMemoryLongTermRecoveryInFlight: Promise<void> | null = null
+  let workingMemoryLongTermRecoveryAbortController: AbortController | null = null
+  let workingMemoryLongTermRecoveryStopped = false
+  const deferredMemoryPostCommitAbortController = new AbortController()
+  const deferredMemoryPostCommitTasks = new Set<Promise<void>>()
+  const mainChatBackgroundTasks = new Set<Promise<void>>()
+  const shutdownGraceMs = Math.max(
+    0,
+    Math.floor(options?.shutdownGraceMs ?? 5_000),
+  )
+  let runtimeShuttingDown = false
+  let runtimeShutdownAdmissionOpen = true
   const turnWriteAbortControllers = new Map<string, AbortController>()
   const activeSessionIdByCard = new Map<string, string>()
   const subconsciousStateByCard = new Map<string, SubconsciousCardState>()
   const proactiveLoopStateByCard = new Map<string, AlicizationProactiveLoopState>()
+  runtimeTestInternals.currentActiveSessionIdByCard = activeSessionIdByCard
   runtimeTestInternals.currentProactiveLoopStateByCard = proactiveLoopStateByCard
+
+  function trackRuntimeTask(
+    tasks: Set<Promise<void>>,
+    task: Promise<void>,
+    acceptDuringShutdown: boolean,
+  ) {
+    const observed = task.then(
+      () => undefined,
+      () => undefined,
+    )
+    if (
+      runtimeShuttingDown
+      && (!acceptDuringShutdown || !runtimeShutdownAdmissionOpen)
+    ) {
+      void observed
+      return false
+    }
+    tasks.add(observed)
+    void observed.then(() => {
+      tasks.delete(observed)
+    })
+    return true
+  }
+
+  function trackDeferredMemoryPostCommitTask(task: Promise<void>) {
+    return trackRuntimeTask(
+      deferredMemoryPostCommitTasks,
+      task,
+      true,
+    )
+  }
+
+  runtimeTestInternals.currentTrackDeferredMemoryPostCommitTask
+    = trackDeferredMemoryPostCommitTask
+
+  async function waitForRuntimeTasksWithinGrace(tasks: Set<Promise<void>>) {
+    while (tasks.size > 0) {
+      const pending = [...tasks]
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      const completed = await Promise.race([
+        Promise.all(pending).then(() => true),
+        new Promise<boolean>((resolve) => {
+          timeout = setTimeout(() => resolve(false), shutdownGraceMs)
+        }),
+      ])
+      if (timeout)
+        clearTimeout(timeout)
+      if (!completed) {
+        return {
+          pending: tasks.size,
+          timedOut: true,
+        }
+      }
+    }
+    return {
+      pending: 0,
+      timedOut: false,
+    }
+  }
   const perceptionStateByCard = new Map<string, AlicizationPerceptionState>()
   const visualPresenceStateByCard = new Map<string, AlicizationVisualPresenceStateSnapshot>()
   const visualPresenceCapturePersistMetaByCard = new Map<string, {
@@ -971,13 +1054,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       throw new Error('SOUL lifecycle runtime is not initialized yet.')
     return await soulLifecycleRuntime.bootstrap()
   }
-  async function withCardScope<T>(nextCardIdRaw: unknown, task: () => Promise<T>, options?: {
-    label?: string
-    skipQueueWhenScopeAlreadyActive?: boolean
-  }) {
+  async function withCardScope<T>(
+    nextCardIdRaw: unknown,
+    task: (context: { signal: AbortSignal }) => Promise<T>,
+    options?: CardScopeOptions,
+  ) {
     if (!cardScopeOrchestrator)
       throw new Error('Card scope orchestrator is not initialized yet.')
     return await cardScopeOrchestrator.withCardScope(nextCardIdRaw, task, options)
+  }
+  function retainCurrentForegroundScope() {
+    if (!cardScopeOrchestrator)
+      throw new Error('Card scope orchestrator is not initialized yet.')
+    return cardScopeOrchestrator.retainCurrentForegroundScope()
   }
   const queueSoulMutation = async (task: (current: AlicizationSoulSnapshot) => Promise<AlicizationSoulSnapshot>) => {
     if (!soulLifecycleRuntime)
@@ -1078,12 +1167,18 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     userDataPath,
     activeCardIdRef: () => activeCardId,
     normalizeCardId,
-    getMetaValue: key => alicizationDb.getMetaValue(key),
-    setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
-    getLatestConversationSessionId: async () => await alicizationDb.getLatestConversationSessionId().catch(() => undefined),
+    getMetaValue: (key, readOptions) => readOptions
+      ? alicizationDb.getMetaValue(key, readOptions)
+      : alicizationDb.getMetaValue(key),
+    setMetaValue: (key, value, writeOptions) => writeOptions
+      ? alicizationDb.setMetaValue(key, value, writeOptions)
+      : alicizationDb.setMetaValue(key, value),
+    getLatestConversationSessionId: async (_cardId, readOptions) =>
+      await alicizationDb.getLatestConversationSessionId(_cardId, readOptions).catch(() => undefined),
     migrateLegacyConversationSessionsToPrimary: async input =>
       await alicizationDb.migrateLegacyConversationSessionsToPrimary(input),
-    appendAuditLog: async (input, cardId) => await appendAuditLog(input, cardId),
+    appendAuditLog: async (input, cardId, writeOptions) =>
+      await appendAuditLog(input, cardId, writeOptions),
     getAlicizationKillSwitchSnapshot,
     getAlicizationCardKillSwitchSnapshot,
     setAlicizationCardKillSwitchState,
@@ -1329,12 +1424,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   } = createAlicizationRuntimeSupportingRuntimesComposition({
     execution: {
       alicizationDb: {
-        getMetaValue: key => alicizationDb.getMetaValue(key),
-        setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
-        compareAndSetMetaValue: (key, expectedValue, nextValue) =>
-          alicizationDb.compareAndSetMetaValue(key, expectedValue, nextValue),
-        listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
-        listTaskThreads: input => alicizationDb.listTaskThreads(input),
+        getMetaValue: (key, ownerOptions) => alicizationDb.getMetaValue(key, ownerOptions),
+        setMetaValue: (key, value, ownerOptions) => alicizationDb.setMetaValue(key, value, ownerOptions),
+        compareAndSetMetaValue: (key, expectedValue, nextValue, ownerOptions) =>
+          alicizationDb.compareAndSetMetaValue(key, expectedValue, nextValue, ownerOptions),
+        listExecutionEvents: (input, ownerOptions) => alicizationDb.listExecutionEvents(input, ownerOptions),
+        listTaskThreads: (input, ownerOptions) => alicizationDb.listTaskThreads(input, ownerOptions),
       },
     },
     memoryFeedback: {
@@ -1351,7 +1446,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       now: () => Date.now(),
       snapshotMetaKey: alicizationSelfEvolutionVersionRuntimeMetaKey,
       alicizationDb: {
-        getMetaValue: key => alicizationDb.getMetaValue(key),
+        getMetaValue: (key, ownerOptions) => alicizationDb.getMetaValue(key, ownerOptions),
         setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
       },
     },
@@ -1365,7 +1460,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       listActiveThoughts: async () => await alicizationDb.listActiveThoughts(),
       countSubconsciousFragments: async () => await alicizationDb.countSubconsciousFragments(),
       listRecentSubconsciousFragments: async limit => await alicizationDb.listRecentSubconsciousFragments(limit),
-      getMetaValue: async key => await alicizationDb.getMetaValue(key),
+      getMetaValue: async (key, readOptions) => await alicizationDb.getMetaValue(key, readOptions),
       replaceActiveThoughts: async (items) => {
         await alicizationDb.replaceActiveThoughts(items)
       },
@@ -1402,9 +1497,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       recordMemoryPrewarmAccess: async hit => await memoryRetrievalTelemetryRuntime.recordPrewarmAccess(hit),
       recordMemoryBudgetClass: async budgetClass => await memoryRetrievalTelemetryRuntime.recordBudgetClass(budgetClass),
       recordMemoryHotKeyOutcome: async input => await memoryRetrievalTelemetryRuntime.recordHotKeyOutcome(input),
-      getMemoryRetrievalTelemetry: async () => await memoryRetrievalTelemetryRuntime.getTelemetry(),
-      getActiveSelfRevisionStatePatch: async () => await selfEvolutionRuntime.getActivePatch(),
-      getActiveSelfEvolutionCandidateId: async () => (await selfEvolutionRuntime.getActiveCandidate())?.id ?? null,
+      getMemoryRetrievalTelemetry: async ownerOptions =>
+        await memoryRetrievalTelemetryRuntime.getTelemetry(ownerOptions),
+      getActiveSelfRevisionStatePatch: async ownerOptions =>
+        await selfEvolutionRuntime.getActivePatch(ownerOptions),
+      getActiveSelfEvolutionCandidateId: async ownerOptions =>
+        (await selfEvolutionRuntime.getActiveCandidate(ownerOptions))?.id ?? null,
     },
     organicMemorySearch: {
       normalizeOrganicRecallText,
@@ -1482,15 +1580,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         upsertMemoryFacts: (facts, source) => alicizationDb.upsertMemoryFacts(facts, source),
         appendMindTurnEvents: events => alicizationDb.appendMindTurnEvents(events),
         insertLearningTask: (input, writeOptions) => alicizationDb.insertLearningTask(input, writeOptions),
-        claimDueLearningTasks: (cardId, nowMs, limit) => alicizationDb.claimDueLearningTasks(cardId, nowMs, limit),
-        startLearningTask: (taskId, startedAt) => alicizationDb.startLearningTask(taskId, startedAt),
-        blockLearningTask: (taskId, input, updatedAt) => alicizationDb.blockLearningTask(taskId, input, updatedAt),
-        completeLearningTask: (taskId, input, completedAt) => alicizationDb.completeLearningTask(taskId, input, completedAt),
-        failLearningTask: (taskId, input, updatedAt) => alicizationDb.failLearningTask(taskId, input, updatedAt),
-        reopenLearningTask: (taskId, input, updatedAt) => alicizationDb.reopenLearningTask(taskId, input, updatedAt),
-        downgradeLearningTask: (taskId, input, updatedAt) => alicizationDb.downgradeLearningTask(taskId, input, updatedAt),
-        cancelLearningTask: (taskId, input, updatedAt) => alicizationDb.cancelLearningTask(taskId, input, updatedAt),
-        listLearningTasks: input => alicizationDb.listLearningTasks(input),
+        claimDueLearningTasks: (cardId, nowMs, limit, writeOptions) => alicizationDb.claimDueLearningTasks(cardId, nowMs, limit, writeOptions),
+        startLearningTask: (taskId, startedAt, writeOptions) => alicizationDb.startLearningTask(taskId, startedAt, writeOptions),
+        blockLearningTask: (taskId, input, updatedAt, writeOptions) => alicizationDb.blockLearningTask(taskId, input, updatedAt, writeOptions),
+        completeLearningTask: (taskId, input, completedAt, writeOptions) => alicizationDb.completeLearningTask(taskId, input, completedAt, writeOptions),
+        failLearningTask: (taskId, input, updatedAt, writeOptions) => alicizationDb.failLearningTask(taskId, input, updatedAt, writeOptions),
+        reopenLearningTask: (taskId, input, updatedAt, writeOptions) => alicizationDb.reopenLearningTask(taskId, input, updatedAt, writeOptions),
+        downgradeLearningTask: (taskId, input, updatedAt, writeOptions) => alicizationDb.downgradeLearningTask(taskId, input, updatedAt, writeOptions),
+        cancelLearningTask: (taskId, input, updatedAt, writeOptions) => alicizationDb.cancelLearningTask(taskId, input, updatedAt, writeOptions),
+        listLearningTasks: (input, readOptions) => alicizationDb.listLearningTasks(input, readOptions),
       },
       assimilateMemoryFactsDetailed: input => memoryRuntime.knowledgeAssimilationRuntime.assimilateMemoryFactsDetailed(input),
       recordLearningExecutionTelemetry: input => memoryRetrievalTelemetryRuntime.recordLearningExecution(input),
@@ -1590,7 +1688,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const agentRuntime = createAlicizationAgentRuntime({
     enforceCanonicalConversationSessionId: true,
     getSensorySnapshot: async () => sensoryBus.getSnapshot(),
-    resolveConversationSessionId: async cardId => await ensureActiveOrLatestSessionId(cardId),
+    resolveConversationSessionId: async (cardId, signalOptions) =>
+      await ensureActiveOrLatestSessionId(cardId, signalOptions),
   })
   const dialogueSessionManager = createAlicizationDialogueSessionManager()
   const executorRuntime = createAlicizationExecutorRuntime({
@@ -1638,10 +1737,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     normalizeCardId,
     normalizeSessionId,
     getActiveSessionIdByCard: cardId => activeSessionIdByCard.get(cardId),
-    getLatestConversationSessionId: async () => await alicizationDb.getLatestConversationSessionId().catch(() => undefined),
+    getLatestConversationSessionId: async (_cardId, readOptions) =>
+      await alicizationDb.getLatestConversationSessionId(_cardId, readOptions).catch(() => undefined),
     openAgentTurn: input => agentRuntime.openTurn(input),
     buildMainGatewayAgentTurnId,
-    resolveAgentSessionContinuityContext: async cardId => await resolveAgentSessionContinuityContext(cardId),
+    resolveAgentSessionContinuityContext: async (cardId, input) =>
+      await resolveAgentSessionContinuityContext(cardId, input),
     buildTaskThreadSessionMirrorAction,
     buildSceneResidueSessionMirrorAction,
     buildProactiveFeedbackSessionMirrorAction,
@@ -2271,19 +2372,23 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   mainChatRuntime.bindInspectionIntentFromMessageHistory(sensoryRuntime.resolveInspectionIntentFromMessageHistory)
   const workingMemoryStore = createWorkingMemoryStore()
   const mainChatSessionRuntime = createAlicizationMainChatSessionRuntime({
+    appendRuntimeDebugLine,
     buildToolRegistry: () => runtimeToolRegistry,
     workingMemoryStore,
     buildMainRuntimeCorePromptBlocks,
     dialogueSessionManager,
+    redactStaleInspectionHistoryMessages: (messages, latestUserText) =>
+      redactStaleInspectionHistoryMessagesForChat(messages, latestUserText),
     persistAutobiographicalEpisodesFromPreparedMirror: persistPreparedMirrorAutobiographicalEpisodes,
+    getDeferredMemoryAbortSignal: () => deferredMemoryPostCommitAbortController.signal,
     enqueueWorkingMemoryLongTermQueue: async input => await alicizationDb.enqueueWorkingMemoryLongTermQueueItems(input),
     drainWorkingMemoryLongTermQueue: async limit => await alicizationDb.drainWorkingMemoryLongTermQueue(limit),
     drainWorkingMemoryLongTermQueueScoped: async input =>
       await alicizationDb.drainWorkingMemoryLongTermQueueScoped(input),
     listConversationTurnsBySession: async (sessionId, options) =>
       await alicizationDb.listConversationTurnsBySession(sessionId, options),
-    getWorkingMemoryCheckpoint: async (cardId, sessionId) =>
-      await alicizationDb.getWorkingMemoryCheckpoint(cardId, sessionId),
+    getWorkingMemoryCheckpoint: async (cardId, sessionId, readOptions) =>
+      await alicizationDb.getWorkingMemoryCheckpoint(cardId, sessionId, readOptions),
     persistWorkingMemoryCheckpoint: async snapshot =>
       await alicizationDb.upsertWorkingMemoryCheckpoint(snapshot),
     retrieveLongTermMemoryEvidence: async input => await alicizationDb.retrieveLongTermMemoryEvidence(input),
@@ -2300,12 +2405,16 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveExecutionCapabilitiesForPrompt,
     prewarmOrganicMemoryAccessibility: async input => await memoryRuntime.prewarmAccessibilityLine(input),
     resolveTurnRetrievalPolicySnapshot: async input => await memoryRuntime.resolveTurnRetrievalPolicySnapshot(input),
-    getActiveSelfEvolutionSnapshot: async () => await selfEvolutionRuntime.getSnapshot(),
+    getActiveSelfEvolutionSnapshot: async ownerOptions =>
+      await selfEvolutionRuntime.getSnapshot(ownerOptions),
     resolveOrganicMemoryPromptContext,
     scheduleOrganicLearningAction: async input => await learningActionScheduler.scheduleLearningTask(input),
-    listMemoryReflections: async (cardId, limit) => await alicizationDb.listMemoryReflections({ cardId, limit }).catch(() => []),
-    listRelationshipOutcomes: async (cardId, limit) => await alicizationDb.listRelationshipOutcomes({ cardId, limit }).catch(() => []),
-    resolveSessionContinuitySignals: async ({ cardId }) => await resolveAgentSessionContinuitySignals(cardId),
+    listMemoryReflections: async (cardId, limit, readOptions) =>
+      await alicizationDb.listMemoryReflections({ cardId, limit }, readOptions).catch(() => []),
+    listRelationshipOutcomes: async (cardId, limit, readOptions) =>
+      await alicizationDb.listRelationshipOutcomes({ cardId, limit }, readOptions).catch(() => []),
+    resolveSessionContinuitySignals: async ({ cardId, signal }) =>
+      await resolveAgentSessionContinuitySignals(cardId, { signal }),
     browserOpenUrl: localBrowserAutomation.openUrl,
     browserSearchWeb: localBrowserAutomation.searchWeb,
     browserReadPage: localBrowserAutomation.readPage,
@@ -2420,17 +2529,27 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
   }
 
-  async function appendAuditLog(input: AlicizationAuditLogInput, cardId = activeCardId) {
+  async function appendAuditLog(
+    input: AlicizationAuditLogInput,
+    cardId = activeCardId,
+    writeOptions: { signal?: AbortSignal } = {},
+  ) {
     try {
-      await alicizationDb.appendAuditLog({
+      const entry = {
         ...input,
         payload: {
           ...input.payload,
           cardId,
         },
-      })
+      }
+      if (writeOptions.signal)
+        await alicizationDb.appendAuditLog(entry, writeOptions)
+      else
+        await alicizationDb.appendAuditLog(entry)
     }
     catch (error) {
+      if (writeOptions.signal?.aborted)
+        throw error
       console.warn('[alicization-runtime] failed to append audit log:', error)
     }
   }
@@ -2479,31 +2598,80 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   async function resolveAgentSessionContinuitySignals(
     cardIdRaw: unknown,
+    options?: { signal?: AbortSignal },
   ): Promise<AlicizationAgentSessionContinuityInput[]> {
-    const context = await resolveAgentSessionContinuityContext(cardIdRaw)
+    const context = await resolveAgentSessionContinuityContext(cardIdRaw, options)
     return context.sessionContinuitySignals
+  }
+
+  async function readSessionContinuityOwner<T>(input: {
+    label: string
+    read: () => Promise<T>
+    fallback: T
+    signal?: AbortSignal
+  }) {
+    if (input.signal?.aborted)
+      throw input.signal.reason ?? createAbortError(`session-continuity:${input.label}`)
+    try {
+      const value = input.signal
+        ? await awaitAlicizationPromiseWithAbort(input.read(), input.signal)
+        : await input.read()
+      if (input.signal?.aborted)
+        throw input.signal.reason ?? createAbortError(`session-continuity:${input.label}`)
+      return value
+    }
+    catch (error) {
+      if (input.signal?.aborted || isAbortError(error))
+        throw error
+      void appendRuntimeDebugLine('agent-session-continuity.owner-failed', {
+        owner: input.label,
+        reason: errorMessageFrom(error) ?? String(error),
+      })
+      return input.fallback
+    }
   }
 
   async function resolveAgentSessionContinuityContext(
     cardIdRaw: unknown,
     options?: {
       digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+      signal?: AbortSignal
     },
   ): Promise<{
     digitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
     sessionContinuitySignals: AlicizationAgentSessionContinuityInput[]
   }> {
     const cardId = normalizeCardId(cardIdRaw)
-    const readState = async () => {
+    const readState = async (signal?: AbortSignal) => {
       const now = Date.now()
       const activeSessionId = normalizeSessionId(
         activeSessionIdByCard.get(cardId)
-        ?? await alicizationDb.getLatestConversationSessionId().catch(() => undefined),
+        ?? await readSessionContinuityOwner({
+          label: 'latest-conversation-session',
+          read: () => alicizationDb.getLatestConversationSessionId(cardId, { signal }),
+          fallback: undefined,
+          signal,
+        }),
       )
       const [visualPresenceState, proactiveState, recentEpisodicEvents] = await Promise.all([
-        ensureVisualPresenceState(cardId).catch(() => null),
-        ensureProactiveLoopState(cardId).catch(() => null),
-        alicizationDb.listRecentEpisodicEvents(24).catch(() => []),
+        readSessionContinuityOwner({
+          label: 'visual-presence',
+          read: () => ensureVisualPresenceState(cardId, { signal }),
+          fallback: null,
+          signal,
+        }),
+        readSessionContinuityOwner({
+          label: 'proactive-loop',
+          read: () => ensureProactiveLoopState(cardId, { signal }),
+          fallback: null,
+          signal,
+        }),
+        readSessionContinuityOwner({
+          label: 'recent-episodic-events',
+          read: () => alicizationDb.listRecentEpisodicEvents(24, { signal }),
+          fallback: [],
+          signal,
+        }),
       ])
       const dialogueSignal = visualPresenceState ? buildDialogueContinuitySignal(visualPresenceState) : null
       const visualPresenceSignal = visualPresenceState ? buildVisualPresenceContinuitySignal(visualPresenceState) : null
@@ -2548,10 +2716,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
 
     if (cardId === activeCardId)
-      return await readState()
+      return await readState(options?.signal)
 
-    return await withCardScope(cardId, async () => await readState(), {
+    return await withCardScope(cardId, async context => await readState(context.signal), {
       label: `agent-session-continuity:${cardId}`,
+      signal: options?.signal,
     })
   }
 
@@ -2818,29 +2987,67 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
-  async function persistSubconsciousState(cardId: string, state: SubconsciousCardState) {
+  async function persistSubconsciousState(
+    cardId: string,
+    state: SubconsciousCardState,
+    persistOptions: { signal?: AbortSignal } = {},
+  ) {
+    if (persistOptions.signal?.aborted)
+      throw persistOptions.signal.reason ?? createAbortError('subconscious-state-persistence')
     const normalizedCardId = normalizeCardId(cardId)
+    const serializedState = JSON.stringify({
+      boredom: state.boredom,
+      loneliness: state.loneliness,
+      fatigue: state.fatigue,
+      lastTickAt: state.lastTickAt,
+      lastInteractionAt: state.lastInteractionAt,
+      lastSavedAt: state.lastSavedAt,
+      updatedAt: state.updatedAt,
+    })
+    const persistState = persistOptions.signal
+      ? alicizationDb.setMetaValue(
+          alicizationSubconsciousStateMetaKey,
+          serializedState,
+          persistOptions,
+        )
+      : alicizationDb.setMetaValue(
+          alicizationSubconsciousStateMetaKey,
+          serializedState,
+        )
+    await persistState.catch((error) => {
+      if (persistOptions.signal?.aborted || isAbortError(error))
+        throw persistOptions.signal?.reason ?? error
+    })
+    if (persistOptions.signal?.aborted)
+      throw persistOptions.signal.reason ?? createAbortError('subconscious-state-persistence')
+    const persistLastDreamedAt = persistOptions.signal
+      ? alicizationDb.setMetaValue(
+          alicizationDreamLastRunMetaKey,
+          `${state.lastDreamedAt}`,
+          persistOptions,
+        )
+      : alicizationDb.setMetaValue(
+          alicizationDreamLastRunMetaKey,
+          `${state.lastDreamedAt}`,
+        )
+    await persistLastDreamedAt.catch((error) => {
+      if (persistOptions.signal?.aborted || isAbortError(error))
+        throw persistOptions.signal?.reason ?? error
+    })
+    if (persistOptions.signal?.aborted)
+      throw persistOptions.signal.reason ?? createAbortError('subconscious-state-persistence')
     subconsciousStateByCard.set(normalizedCardId, state)
-    await alicizationDb.setMetaValue(
-      alicizationSubconsciousStateMetaKey,
-      JSON.stringify({
-        boredom: state.boredom,
-        loneliness: state.loneliness,
-        fatigue: state.fatigue,
-        lastTickAt: state.lastTickAt,
-        lastInteractionAt: state.lastInteractionAt,
-        lastSavedAt: state.lastSavedAt,
-        updatedAt: state.updatedAt,
-      }),
-    ).catch(() => {})
-    await alicizationDb.setMetaValue(alicizationDreamLastRunMetaKey, `${state.lastDreamedAt}`).catch(() => {})
   }
 
-  async function restoreSubconsciousState(cardId: string) {
+  async function restoreSubconsciousState(cardId: string, restoreOptions: { signal?: AbortSignal } = {}) {
+    if (restoreOptions.signal?.aborted)
+      throw restoreOptions.signal.reason ?? createAbortError('subconscious-state-restore')
     const normalizedCardId = normalizeCardId(cardId)
     const now = Date.now()
-    const raw = await alicizationDb.getMetaValue(alicizationSubconsciousStateMetaKey).catch(() => undefined)
-    const rawDreamedAt = await alicizationDb.getMetaValue(alicizationDreamLastRunMetaKey).catch(() => undefined)
+    const raw = await alicizationDb.getMetaValue(alicizationSubconsciousStateMetaKey, restoreOptions).catch(() => undefined)
+    const rawDreamedAt = await alicizationDb.getMetaValue(alicizationDreamLastRunMetaKey, restoreOptions).catch(() => undefined)
+    if (restoreOptions.signal?.aborted)
+      throw restoreOptions.signal.reason ?? createAbortError('subconscious-state-restore')
     const parsed = (() => {
       if (!raw)
         return createDefaultSubconsciousState(now)
@@ -2883,12 +3090,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return normalized
   }
 
-  async function ensureSubconsciousState(cardId: string) {
+  async function ensureSubconsciousState(cardId: string, restoreOptions: { signal?: AbortSignal } = {}) {
     const normalizedCardId = normalizeCardId(cardId)
     const current = subconsciousStateByCard.get(normalizedCardId)
     if (current)
       return current
-    return await restoreSubconsciousState(normalizedCardId)
+    return await restoreSubconsciousState(normalizedCardId, restoreOptions)
   }
 
   async function persistProactiveLoopState(
@@ -3078,25 +3285,29 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       title?: string
     } | null
     source: 'sensory-snapshot' | 'subconscious-tick' | 'chat-start'
+    signal?: AbortSignal
   }) {
     return await queuePerceptionStateMutation(input.cardId, current => updatePerceptionStateWithObservation({
       state: current,
       now: input.now,
       target: input.target,
       source: input.source,
-    }))
+    }), { signal: input.signal })
   }
 
   async function rememberSceneResidue(input: {
     cardId: string
     now: number
     residue: AlicizationPerceptionSceneResidue
+    signal?: AbortSignal
   }) {
     const next = await queuePerceptionStateMutation(input.cardId, current => rememberPerceptionSceneResidue({
       state: current,
       now: input.now,
       residue: input.residue,
-    }))
+    }), { signal: input.signal })
+    if (input.signal?.aborted)
+      throw input.signal.reason ?? createAbortError('perception-scene-residue')
     await syncSessionMirrorFromCurrentCardState({
       cardId: input.cardId,
       source: input.residue.source,
@@ -3586,7 +3797,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       sourceTurnId?: string
     },
     source: ReminderScheduleSource,
+    writeOptions: { signal?: AbortSignal } = {},
   ): Promise<AlicizationReminderScheduleResult> {
+    if (writeOptions.signal?.aborted)
+      throw writeOptions.signal.reason ?? createAbortError('reminder-scheduling')
     const debugPrefix = source === 'tool'
       ? 'reminder.tool-execute'
       : source === 'autonomy'
@@ -3659,18 +3873,24 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const triggerAt = Date.now() + normalizedMinutes * 60_000
     const taskId = `reminder:${cardId}:${Date.now()}:${randomUUID().slice(0, 8)}`
     const sourceTurnId = sanitizeText(input.sourceTurnId)
-    const record = await withCardScope(cardId, async () => await alicizationDb.insertScheduledTask({
-      taskId,
-      triggerAt,
-      message: normalizedMessage,
-      sourceTurnId: sourceTurnId || undefined,
-    }), {
+    const record = await withCardScope(cardId, async () => {
+      const taskInput = {
+        taskId,
+        triggerAt,
+        message: normalizedMessage,
+        sourceTurnId: sourceTurnId || undefined,
+      }
+      return writeOptions.signal
+        ? await alicizationDb.insertScheduledTask(taskInput, writeOptions)
+        : await alicizationDb.insertScheduledTask(taskInput)
+    }, {
       label: source === 'tool'
         ? `tool:set-reminder:${cardId}`
         : source === 'autonomy'
           ? `autonomy:set-reminder:${cardId}`
           : `manual:set-reminder:${cardId}`,
       skipQueueWhenScopeAlreadyActive: true,
+      signal: writeOptions.signal,
     })
 
     await appendRuntimeDebugLine('reminder.task-inserted', {
@@ -3938,6 +4158,73 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     startDreamTimer()
   }
 
+  function scheduleWorkingMemoryLongTermRecovery(
+    reason: string,
+    delayMs: number,
+  ) {
+    if (
+      !backgroundMaintenanceEnabled
+      || workingMemoryLongTermRecoveryStopped
+      || workingMemoryLongTermRecoveryTimer
+    ) {
+      return
+    }
+    void appendRuntimeDebugLine('working-memory-long-term-recovery.scheduled', {
+      reason,
+      delayMs,
+    })
+    workingMemoryLongTermRecoveryTimer = setTimeout(() => {
+      workingMemoryLongTermRecoveryTimer = undefined
+      if (workingMemoryLongTermRecoveryStopped || workingMemoryLongTermRecoveryInFlight)
+        return
+
+      const recoveryAbortController = new AbortController()
+      workingMemoryLongTermRecoveryAbortController = recoveryAbortController
+      const recovery = (async () => {
+        try {
+          const result = await alicizationDb.drainWorkingMemoryLongTermQueue(16, {
+            signal: recoveryAbortController.signal,
+          })
+          await appendRuntimeDebugLine('working-memory-long-term-recovery.completed', {
+            reason,
+            ...result,
+          })
+          scheduleWorkingMemoryLongTermRecovery(
+            result.pending > 0 ? 'pending-remains' : 'idle-poll',
+            result.pending > 0 ? 1_000 : 60_000,
+          )
+        }
+        catch (error) {
+          if (
+            recoveryAbortController.signal.aborted
+            || (error instanceof Error && error.name === 'AbortError')
+          ) {
+            return
+          }
+          await appendAuditLog({
+            level: 'warning',
+            category: 'memory',
+            action: 'working-memory-long-term-recovery-failed',
+            message: 'Persisted WorkingMemory long-term queue recovery failed.',
+            payload: {
+              reason: error instanceof Error ? error.message : String(error),
+            },
+          })
+          scheduleWorkingMemoryLongTermRecovery('retry-after-failure', 30_000)
+        }
+      })()
+      workingMemoryLongTermRecoveryInFlight = recovery
+      const cleanupRecovery = () => {
+        if (workingMemoryLongTermRecoveryInFlight === recovery)
+          workingMemoryLongTermRecoveryInFlight = null
+        if (workingMemoryLongTermRecoveryAbortController === recoveryAbortController)
+          workingMemoryLongTermRecoveryAbortController = null
+      }
+      trackRuntimeTask(deferredMemoryPostCommitTasks, recovery, true)
+      void recovery.then(cleanupRecovery, cleanupRecovery)
+    }, delayMs)
+  }
+
   function scheduleBackgroundMaintenanceStartup(reason: string) {
     if (!backgroundMaintenanceEnabled || backgroundMaintenanceStarted || backgroundMaintenanceStartupTimer)
       return
@@ -4102,7 +4389,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   async function appendConversationTurnWithGuards(payload: AlicizationConversationTurnInput & {
     turnRuntimeContext?: unknown
     onPersisted?: (() => Promise<void> | void) | null
+    abortSignal?: AbortSignal
   }) {
+    if (payload.abortSignal?.aborted)
+      return false
     const payloadStructured = payload.structured && typeof payload.structured === 'object'
       ? payload.structured as Record<string, unknown>
       : null
@@ -4230,8 +4520,30 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return false
     }
 
-    const signal = createTurnWriteAbortSignal(normalizedPayload.turnId)
-    if (signal?.aborted) {
+    const turnSignal = createTurnWriteAbortSignal(normalizedPayload.turnId)
+    const writeController = new AbortController()
+    const forwardAbort = (source: AbortSignal) => {
+      if (!writeController.signal.aborted)
+        writeController.abort(source.reason)
+    }
+    const forwardTurnAbort = () => {
+      if (turnSignal)
+        forwardAbort(turnSignal)
+    }
+    const forwardExternalAbort = () => {
+      if (payload.abortSignal)
+        forwardAbort(payload.abortSignal)
+    }
+    if (turnSignal)
+      turnSignal.addEventListener('abort', forwardTurnAbort, { once: true })
+    if (payload.abortSignal)
+      payload.abortSignal.addEventListener('abort', forwardExternalAbort, { once: true })
+    if (turnSignal?.aborted)
+      forwardAbort(turnSignal)
+    if (payload.abortSignal?.aborted)
+      forwardAbort(payload.abortSignal)
+    const signal = writeController.signal
+    if (signal.aborted) {
       releaseTurnWriteAbortController(normalizedPayload.turnId)
       await appendAuditLog({
         level: 'notice',
@@ -4970,6 +5282,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       throw error
     }
     finally {
+      turnSignal?.removeEventListener('abort', forwardTurnAbort)
+      payload.abortSignal?.removeEventListener('abort', forwardExternalAbort)
       releaseTurnWriteAbortController(normalizedPayload.turnId)
       if (normalizedPayload.turnId)
         pendingMindTraceTelemetryByTurnId.delete(normalizedPayload.turnId)
@@ -5512,6 +5826,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       decisionTraceId?: string | null
     },
     agentTurn?: AlicizationAgentTurnRuntime | null,
+    providerOptions: { signal?: AbortSignal } = {},
   ) {
     const now = Date.now()
     const hostPersonModel = organicPromptContext.hostPersonModel ?? null
@@ -5635,6 +5950,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       cardId: activeCardId,
       agentTurn,
       agentTurnInput,
+      abortSignal: providerOptions.signal,
       extraSystemBlocks: [
         ...buildOrganicMemoryProviderFactBlocks(organicPromptContext),
       ],
@@ -5854,6 +6170,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       decisionTraceId?: string | null
     },
     agentTurn?: AlicizationAgentTurnRuntime | null,
+    providerOptions: { signal?: AbortSignal } = {},
   ) {
     const system = buildAlicizationProviderFactBlock('alicization-reminder-turn-context', {
       version: 'alicization-reminder-turn-context-v1',
@@ -5885,6 +6202,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       cardId: activeCardId,
       agentTurn,
       agentTurnInput,
+      abortSignal: providerOptions.signal,
     })
     if (!raw)
       return null
@@ -6059,9 +6377,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return pending
   }
 
-  const processDueLearningActionsForCurrentCard = async (trigger: 'timer' | 'force') => {
-    const recovery = await learningActionScheduler.recoverRetryableLearningTasks()
-    const result = await learningActionScheduler.processDueLearningTasks()
+  const processDueLearningActionsForCurrentCard = async (
+    trigger: 'timer' | 'force',
+    processOptions: { signal?: AbortSignal } = {},
+  ) => {
+    const recovery = await learningActionScheduler.recoverRetryableLearningTasks(12, processOptions)
+    const result = await learningActionScheduler.processDueLearningTasks(8, processOptions)
     if (recovery.reopened > 0) {
       for (let index = 0; index < recovery.reopened; index += 1)
         await memoryRetrievalTelemetryRuntime.recordLearningExecution({ status: 'reopened' })
@@ -6192,7 +6513,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       minutes: unknown
       message: unknown
       sourceTurnId?: string
-    }) => await scheduleReminderTask(cardId, payload, 'autonomy'),
+    }, writeOptions?: { signal?: AbortSignal }) => await scheduleReminderTask(cardId, payload, 'autonomy', writeOptions),
     planAutonomyTaskThread,
     dispatchAutonomyTaskThread: async (payload: any) => await dispatchTaskThreadWithExecutionDelivery({
       port: {
@@ -6226,11 +6547,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const suppressedCards: string[] = []
     try {
       for (const cardId of cardIds) {
-        await withCardScope(cardId, async () => {
-          const previousVisualPresenceState = await ensureVisualPresenceState(activeCardId)
-          const result = await runSubconsciousTickForCurrentCard(trigger)
+        await withCardScope(cardId, async ({ signal }) => {
+          const previousVisualPresenceState = await ensureVisualPresenceState(activeCardId, { signal })
+          const result = await runSubconsciousTickForCurrentCard(trigger, { signal })
           const nextVisualPresenceState = visualPresenceStateByCard.get(activeCardId)
-            ?? await ensureVisualPresenceState(activeCardId)
+            ?? await ensureVisualPresenceState(activeCardId, { signal })
           const quietCompanionshipOutcome = deriveQuietCompanionshipOutcome({
             now: nextVisualPresenceState.updatedAt,
             state: nextVisualPresenceState,
@@ -6289,6 +6610,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           if (result.suppressed)
             suppressedCards.push(activeCardId)
         }, {
+          lane: 'background',
           label: `subconscious-tick:${trigger}:${cardId}`,
         })
       }
@@ -6462,6 +6784,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     payload: AlicizationChatStartPayload,
     invokeOptions?: { raw?: { ipcMainEvent?: IpcMainEvent, event?: unknown } },
   ): Promise<AlicizationChatStartResult> {
+    if (runtimeShuttingDown)
+      throw createAbortError('runtime-shutdown')
     const normalizedPayload = payload
     await appendRuntimeDebugLine('chat-start.entered', {
       cardId: normalizedPayload.cardId,
@@ -6554,7 +6878,29 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const { key, mainGateway, runState } = accepted
     const isRunActive = () => chatRuns.get(key)?.state === 'running'
     const requestedConversationSessionId = normalizeSessionId(normalizedPayload.sessionId)
-    const conversationSessionId = await ensureActiveOrLatestSessionId(normalizedPayload.cardId)
+    let conversationSessionId: string
+    try {
+      conversationSessionId = await raceAlicizationMainChatPreparation({
+        preparationPromise: foregroundWork.run(async () =>
+          await ensureActiveOrLatestSessionId(
+            normalizedPayload.cardId,
+            { signal: preparationDeadline.signal },
+          )),
+        signal: preparationDeadline.signal,
+      })
+    }
+    catch (error) {
+      cleanupAlicizationAcceptedMainChatStartFailure({
+        clearPreparationDeadline: preparationDeadline.clear,
+        finishRun: () => mainChatRunState.finishRun(key, {
+          status: resolveAlicizationRuntimeTimeoutReason(error) ? 'aborted' : 'failed',
+          finishReason: resolveAlicizationRuntimeTimeoutReason(error) ?? 'conversation-session-open-failed',
+          error: error instanceof Error ? error.message : String(error),
+        }),
+        releaseForeground,
+      })
+      throw error
+    }
     if (requestedConversationSessionId && requestedConversationSessionId !== conversationSessionId) {
       await appendRuntimeDebugLine('chat-start.session-id-normalized', {
         cardId: normalizedPayload.cardId,
@@ -6569,6 +6915,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           cardId: normalizedPayload.cardId,
           conversationSessionId,
           turnId: normalizedPayload.turnId,
+          signal: preparationDeadline.signal,
         })),
         signal: preparationDeadline.signal,
       })
@@ -6600,6 +6947,22 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       throw error
     }
     preparationDeadline.clear()
+    let releaseForegroundCardScope: () => void
+    try {
+      releaseForegroundCardScope = retainCurrentForegroundScope()
+    }
+    catch (error) {
+      cleanupAlicizationAcceptedMainChatStartFailure({
+        clearPreparationDeadline: preparationDeadline.clear,
+        finishRun: () => mainChatRunState.finishRun(key, {
+          status: resolveAlicizationRuntimeTimeoutReason(error) ? 'aborted' : 'failed',
+          finishReason: resolveAlicizationRuntimeTimeoutReason(error) ?? 'foreground-card-scope-retain-failed',
+          error: error instanceof Error ? error.message : String(error),
+        }),
+        releaseForeground,
+      })
+      throw error
+    }
 
     let resolvePrelude!: (value: Awaited<ReturnType<typeof prepareMainChatPrelude>>) => void
     let rejectPrelude!: (reason?: unknown) => void
@@ -6624,12 +6987,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         }
       }
     }
-    void foregroundWork.run(async () => await runAlicizationMainChatBackground({
+    const backgroundTask = foregroundWork.run(async () => await runAlicizationMainChatBackground({
       key,
       payload: normalizedPayload,
       activeCardId,
       mainGateway,
       runState,
+      providerRetryPolicy: {
+        ...alicizationProviderRetryDefaults,
+      },
       prepareTurn: async ({ abortSignal }) => {
         try {
           const prelude = await foregroundWork.run(
@@ -6712,6 +7078,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           suppressedCount,
         })
       },
+      trackDeferredTask: trackDeferredMemoryPostCommitTask,
       turnLoop: {
         conversationId,
         userId: localRuntimeUserId,
@@ -6723,9 +7090,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         },
       },
     })).finally(() => {
+      releaseForegroundCardScope()
       releaseForeground()
       scheduleBackgroundMaintenanceStartup('foreground-turn-finished')
     })
+    trackRuntimeTask(mainChatBackgroundTasks, backgroundTask, true)
 
     const startResult = await resolveAlicizationMainChatStartResult({
       cardId: normalizeCardId(normalizedPayload.cardId),
@@ -6816,8 +7185,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   async function planAutonomyTaskThread(
     cardId: string,
     input: Parameters<typeof executorRuntime.planTaskThread>[0],
+    processOptions: { signal?: AbortSignal } = {},
   ) {
+    if (processOptions.signal?.aborted)
+      throw processOptions.signal.reason ?? createAbortError('autonomy-task-planning')
     const result = await executorRuntime.planTaskThread(input)
+    if (processOptions.signal?.aborted)
+      throw processOptions.signal.reason ?? createAbortError('autonomy-task-planning')
     await syncSessionMirrorFromCurrentCardState({
       cardId,
       decisionTraceId: result.thread.decisionTraceId,
@@ -6829,9 +7203,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return result
   }
 
-  async function resolveExecutionCapabilitiesForPrompt() {
+  async function resolveExecutionCapabilitiesForPrompt(input?: { signal?: AbortSignal }) {
     const [baseCapabilities, localCapabilities] = await Promise.all([
-      executorRuntime.resolveExecutionCapabilitiesForPrompt(),
+      executorRuntime.resolveExecutionCapabilitiesForPrompt(input),
       localBrowserAutomation.resolveCapabilityChannels(),
     ])
     return mergeExecutionCapabilitiesWithLocalAutomation(baseCapabilities, localCapabilities)
@@ -7102,6 +7476,58 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   powerMonitor.on('suspend', handleSystemSuspend)
 
   onAppBeforeQuit(async () => {
+    runtimeShuttingDown = true
+    workingMemoryLongTermRecoveryStopped = true
+    if (workingMemoryLongTermRecoveryTimer) {
+      clearTimeout(workingMemoryLongTermRecoveryTimer)
+      workingMemoryLongTermRecoveryTimer = undefined
+    }
+    if (
+      workingMemoryLongTermRecoveryAbortController
+      && !workingMemoryLongTermRecoveryAbortController.signal.aborted
+    ) {
+      workingMemoryLongTermRecoveryAbortController.abort(
+        createAbortError('app-before-quit'),
+      )
+    }
+    if (!deferredMemoryPostCommitAbortController.signal.aborted) {
+      deferredMemoryPostCommitAbortController.abort(
+        createAbortError('app-before-quit'),
+      )
+    }
+    for (const controller of turnWriteAbortControllers.values()) {
+      if (!controller.signal.aborted)
+        controller.abort(createAbortError('app-before-quit'))
+    }
+    await abortAlicizationRunningChatRuns({
+      runs: chatRuns.entries(),
+      reason: 'app-before-quit',
+      mainChatRunState,
+      createAbortError,
+    }).catch(() => 0)
+    const mainChatShutdown = await waitForRuntimeTasksWithinGrace(
+      mainChatBackgroundTasks,
+    )
+    const deferredMemoryShutdown = await waitForRuntimeTasksWithinGrace(
+      deferredMemoryPostCommitTasks,
+    )
+    runtimeShutdownAdmissionOpen = false
+    if (
+      mainChatShutdown.timedOut
+      || deferredMemoryShutdown.timedOut
+    ) {
+      await appendAuditLog({
+        level: 'warning',
+        category: 'memory',
+        action: 'runtime-shutdown-grace-expired',
+        message: 'Runtime shutdown grace expired before all background tasks settled.',
+        payload: {
+          mainChatPending: mainChatShutdown.pending,
+          deferredMemoryPending: deferredMemoryShutdown.pending,
+          shutdownGraceMs,
+        },
+      }).catch(() => {})
+    }
     await taskThreadOrchestrator.dispose()
     desktopCaptureAccessRuntime.clear()
     executionDeliveryRuntime.clear()
@@ -7145,6 +7571,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       globalShortcut.unregister(killSwitchShortcut)
     }
     powerMonitor.removeListener('suspend', handleSystemSuspend)
+    runtimeTestInternals.currentTrackDeferredMemoryPostCommitTask = null
+    runtimeTestInternals.currentActiveSessionIdByCard = null
   })
 
   // Sync initial snapshots for listeners.
@@ -7163,6 +7591,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
   })
   void scheduleNextReminderDueCheck('startup').catch(() => {})
+  scheduleWorkingMemoryLongTermRecovery('startup', 30_000)
   if (backgroundMaintenanceEnabled) {
     // Background maintenance is scheduled only after the first foreground
     // dialogue turn finishes. It is not a prerequisite for opening chat.

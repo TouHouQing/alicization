@@ -395,12 +395,58 @@ function trimTypedMemoryContext(text: string, budgetTokens: number) {
     return false
   }
 
-  while (estimateTokens(serialize()) > budgetTokens) {
-    if (longTermRecall && Array.isArray(longTermRecall.evidence) && longTermRecall.evidence.length > 0) {
-      longTermRecall.evidence.pop()
-      continue
+  const compactLongTermEvidence = () => {
+    const evidence = longTermRecall?.evidence
+    if (!Array.isArray(evidence) || evidence.length === 0)
+      return false
+
+    // Keep the highest-ranked item. Losing the only recalled fact turns a
+    // successful recall into a misleading "empty" state for the Provider.
+    if (evidence.length > 1) {
+      evidence.pop()
+      return true
     }
-    if (dropTail('compressedTimeline'))
+
+    const item = evidence[0]
+    if (!item || typeof item !== 'object' || Array.isArray(item))
+      return false
+
+    const record = item as Record<string, unknown>
+    for (const key of ['cues', 'entities']) {
+      const values = record[key]
+      if (Array.isArray(values) && values.length > 0) {
+        values.pop()
+        return true
+      }
+    }
+
+    for (const key of ['threadAnchor', 'threadId', 'updatedAt', 'occurredAt', 'salience', 'sensitivity']) {
+      if (key in record && record[key] !== null) {
+        record[key] = null
+        return true
+      }
+    }
+
+    const summary = record.summary
+    if (typeof summary === 'string' && summary.length > 96) {
+      record.summary = trimTextToTokenBudget(summary, 24, 'head')
+      return true
+    }
+
+    const source = record.source
+    if (typeof source === 'string' && source.length > 48) {
+      record.source = trimTextToTokenBudget(source, 12, 'head')
+      return true
+    }
+
+    return false
+  }
+
+  while (estimateTokens(serialize()) > budgetTokens) {
+    // Compressed timeline is the durable short-term memory projection. Drop
+    // redundant raw dialogue first so compression remains available to the
+    // next provider turn under budget pressure.
+    if (dropTail('recentDialogue'))
       continue
     if (dropTail('rememberedItems'))
       continue
@@ -409,6 +455,10 @@ function trimTypedMemoryContext(text: string, budgetTokens: number) {
     if (dropTail('commitments'))
       continue
     if (dropTail('corrections'))
+      continue
+    if (compactLongTermEvidence())
+      continue
+    if (dropTail('compressedTimeline'))
       continue
 
     if (workingMemory?.current && typeof workingMemory.current === 'object') {
@@ -422,6 +472,12 @@ function trimTypedMemoryContext(text: string, budgetTokens: number) {
     }
 
     break
+  }
+
+  if (longTermRecall && Array.isArray(longTermRecall.evidence)) {
+    longTermRecall.status = longTermRecall.evidence.length > 0
+      ? 'recalled'
+      : 'empty'
   }
 
   const compacted = serialize()
@@ -445,7 +501,34 @@ function trimTypedMemoryContext(text: string, budgetTokens: number) {
             emotionalPosture: null,
             executionState: null,
           },
-          longTermRecall: null,
+          longTermRecall: longTermRecall && Array.isArray(longTermRecall.evidence)
+            && longTermRecall.evidence.length > 0
+            ? {
+                owner: 'long-term-memory-recall',
+                status: 'recalled',
+                confidence: Number.isFinite(longTermRecall.confidence)
+                  ? longTermRecall.confidence
+                  : 0,
+                evidence: longTermRecall.evidence.slice(0, 1).map((item: unknown) => {
+                  if (!item || typeof item !== 'object' || Array.isArray(item))
+                    return item
+                  const record = item as Record<string, unknown>
+                  return {
+                    id: typeof record.id === 'string' ? record.id : null,
+                    kind: typeof record.kind === 'string' ? record.kind : null,
+                    summary: typeof record.summary === 'string'
+                      ? trimTextToTokenBudget(record.summary, 12, 'head')
+                      : null,
+                    source: typeof record.source === 'string' ? record.source : null,
+                    scope: record.scope ?? null,
+                    provenance: record.provenance ?? null,
+                    confidence: Number.isFinite(record.confidence)
+                      ? record.confidence
+                      : null,
+                  }
+                }),
+              }
+            : null,
         },
       })
 }
@@ -594,7 +677,11 @@ export function applyPromptBudget(messages: Message[], options?: PromptBudgetOpt
 
   const result = cloneMessages(messages)
   const soulIndex = result.findIndex(message => message.role === 'system')
-  const runtimeIndex = result.findIndex((message, index) => index !== soulIndex && message.role === 'system')
+  const runtimeIndex = result.findIndex((message, index) =>
+    index !== soulIndex
+    && message.role === 'system'
+    && !isMemoryMessage(message),
+  )
   const currentTurnIndex = getLastUserIndex(result)
   const memoryIndex = result.findIndex((message, index) => index !== soulIndex && isMemoryMessage(message))
   let anchorPreserved = true

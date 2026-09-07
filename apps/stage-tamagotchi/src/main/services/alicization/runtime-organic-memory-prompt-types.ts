@@ -29,6 +29,12 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     activeThoughts: OrganicMemoryPromptContext['activeThoughts']
     learningExecutionState?: OrganicMemoryPromptContext['learningExecutionState']
   }>
+  getOrganicMemoryPromptSnapshot?: (options?: { signal?: AbortSignal }) => Promise<{
+    hostAttitude: string
+    coreIncarnation: string
+    activeThoughts: OrganicMemoryPromptContext['activeThoughts']
+    learningExecutionState?: OrganicMemoryPromptContext['learningExecutionState']
+  }>
   getLatestRelationshipDynamics: () => Promise<OrganicMemoryPromptContext['relationshipDynamics']>
   retrieveMemoryFacts: (recallSeed: string, limit: number) => Promise<OrganicMemoryPromptContext['retrievedFacts']>
   recallSubconsciousFragmentsWithGovernor: (input: {
@@ -43,6 +49,7 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
+    signal?: AbortSignal
   }) => Promise<AlicizationEpisodicEventRecord[]>
   buildHostPersonModel: (input?: {
     now?: number
@@ -72,11 +79,13 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
+    signal?: AbortSignal
   }) => Promise<NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>>
   resolveTurnRetrievalPolicySnapshot?: (input: {
     recallSeed: string
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    signal?: AbortSignal
   }) => Promise<AlicizationTurnRetrievalPolicySnapshot>
   planRecollectionIntent?: (input: {
     recallSeed: string

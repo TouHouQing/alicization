@@ -570,7 +570,8 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
       || semanticIntent.reasonCodes.includes('scene-shift-cue')
       || semanticIntent.reasonCodes.includes('recheck-cue')
       || semanticIntent.reasonCodes.includes('continuation-cue')
-    const repairSignal = /重新|再|现在|自己|别猜|不要猜|不对|看准|看清|贴近|只看|认真/.test(normalized)
+    const repairSignal = semanticIntent.reasonCodes.includes('recheck-cue')
+      && semanticIntentProfile.focusAnchored
     const shortRepairTurn = normalized.length > 0 && normalized.length <= 28
     const anchoredSceneContinuation = Boolean(
       hasDirectVisualCue

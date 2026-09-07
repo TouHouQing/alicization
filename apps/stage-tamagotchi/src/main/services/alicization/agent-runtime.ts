@@ -143,6 +143,7 @@ export interface OpenAlicizationAgentTurnInput {
   decisionTraceId?: string | null
   conversationSessionId?: string | null
   turnId: string
+  signal?: AbortSignal
 }
 
 interface CreateAlicizationAgentRuntimeOptions {
@@ -157,7 +158,10 @@ interface CreateAlicizationAgentRuntimeOptions {
   getSensorySnapshot: () => Promise<AlicizationSensoryCacheSnapshot> | AlicizationSensoryCacheSnapshot
   maxTaskHistory?: number
   maxRecentTasksInExecutionContext?: number
-  resolveConversationSessionId?: (cardId: string) => Promise<string | null | undefined> | string | null | undefined
+  resolveConversationSessionId?: (
+    cardId: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<string | null | undefined> | string | null | undefined
   sessionTtlMs?: number
 }
 
@@ -459,19 +463,23 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
     touchSession(session)
   }
 
-  async function resolveConversationSessionId(cardId: string) {
-    const resolved = await options.resolveConversationSessionId?.(cardId)
+  async function resolveConversationSessionId(cardId: string, signal?: AbortSignal) {
+    const resolved = await options.resolveConversationSessionId?.(cardId, { signal })
     const normalized = sanitizeText(resolved, 160)
     return normalized || null
   }
 
   async function openTurn(input: OpenAlicizationAgentTurnInput): Promise<AlicizationAgentTurnRuntime> {
+    if (input.signal?.aborted)
+      throw input.signal.reason ?? new DOMException('Agent turn opening aborted', 'AbortError')
     expireIdleSessions()
     const cardId = sanitizeText(input.cardId, 120) || 'default'
     const explicitConversationSessionId = sanitizeText(input.conversationSessionId, 160)
     const resolvedConversationSessionId = options.enforceCanonicalConversationSessionId
-      ? await resolveConversationSessionId(cardId).catch(() => null)
+      ? await resolveConversationSessionId(cardId, input.signal)
       : null
+    if (input.signal?.aborted)
+      throw input.signal.reason ?? new DOMException('Agent turn opening aborted', 'AbortError')
     if (options.enforceCanonicalConversationSessionId) {
       if (!resolvedConversationSessionId) {
         throw new TypeError('agent turn requires a canonical conversation session')
@@ -479,7 +487,7 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
     }
     const conversationSessionId = options.enforceCanonicalConversationSessionId
       ? resolvedConversationSessionId
-      : explicitConversationSessionId || await resolveConversationSessionId(cardId).catch(() => null)
+      : explicitConversationSessionId || await resolveConversationSessionId(cardId, input.signal)
     const session = getOrCreateSession(cardId, conversationSessionId)
     const trace = createAlicizationRuntimeCallChain({
       getNow,

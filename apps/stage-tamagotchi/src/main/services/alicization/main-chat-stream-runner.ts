@@ -13,7 +13,10 @@ import type {
   AlicizationVisibleReplyExecution,
 } from '../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
-import type { AlicizationProviderRetryOverrides } from './provider-retry-policy'
+import type {
+  AlicizationProviderRetryDecision,
+  AlicizationProviderRetryOverrides,
+} from './provider-retry-policy'
 import type { AlicizationModelAction } from './turn-os/event-loop'
 import type { AlicizationTurnRuntimeContext } from './turn-os/runtime'
 import type {
@@ -23,6 +26,7 @@ import type {
 } from './visible-reply/facade'
 
 import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
 
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
@@ -117,6 +121,40 @@ function readProviderFullStream(result: unknown) {
   return typeof readerFactory === 'function'
     ? fullStream as AlicizationProviderFullStream
     : null
+}
+
+function createProviderEventSignature(rawEvent: unknown) {
+  if (!rawEvent || typeof rawEvent !== 'object' || Array.isArray(rawEvent))
+    return null
+
+  const event = rawEvent as Record<string, unknown>
+  const eventType = normalizeMainGatewayStreamEventType(event.type)
+  if (!eventType)
+    return null
+
+  let identity: unknown
+  if (
+    eventType === 'tool-call'
+    || eventType === 'tool-call-streaming-start'
+    || eventType === 'tool-result'
+  ) {
+    identity = {
+      arguments: event.arguments ?? event.args ?? null,
+      result: event.result ?? null,
+      toolCallId: event.toolCallId ?? event.tool_call_id ?? null,
+      toolName: event.toolName ?? event.tool_name ?? event.name ?? null,
+    }
+  }
+  else {
+    return null
+  }
+
+  try {
+    return `${eventType}:${JSON.stringify(identity)}`
+  }
+  catch {
+    return null
+  }
 }
 
 function createAlicizationToolExecutionError(
@@ -370,6 +408,212 @@ export interface RunAlicizationMainChatProviderStepOptions {
   providerRetryPolicy?: AlicizationProviderRetryOverrides
 }
 
+interface AlicizationProviderAttemptReplayState {
+  hasToolCall: boolean
+  hasToolSideEffect: boolean
+  hasVisibleProgress: boolean
+  retryDecision: AlicizationProviderRetryDecision | null
+}
+
+interface RunAlicizationMainChatProviderAttemptOptions
+  extends RunAlicizationMainChatProviderStepOptions {
+  attemptReplayState: AlicizationProviderAttemptReplayState
+}
+
+export interface AlicizationProviderRequestSnapshot {
+  version: 'alicization-provider-request-snapshot-v1'
+  messageCount: number
+  roleCounts: Record<'system' | 'user' | 'assistant' | 'tool', number>
+  totalTextChars: number
+  systemBlockTypes: string[]
+  messageHashes: string[]
+  requestHash: string
+  workingMemory: {
+    present: boolean
+    version: string | null
+    compressionObserved: boolean
+    compressedTimelineCount: number
+    compressedSourceTurnCount: number
+    recentDialogueCount: number
+    correctionCount: number
+    commitmentCount: number
+    contentHash: string | null
+  }
+  longTermRecall: {
+    present: boolean
+    status: string | null
+    confidence: number | null
+    evidenceIds: string[]
+    evidenceCount: number
+    contentHash: string | null
+  }
+}
+
+function readProviderMessageText(content: Message['content']) {
+  if (typeof content === 'string')
+    return content
+  if (!Array.isArray(content))
+    return ''
+
+  return content.reduce((text, part) => {
+    if (!part || typeof part !== 'object')
+      return text
+    const record = part as unknown as Record<string, unknown>
+    const partText = ['text', 'input_text', 'output_text']
+      .map(key => record[key])
+      .find(value => typeof value === 'string') as string | undefined
+    return `${text}${partText ?? ''}`
+  }, '')
+}
+
+function sha256(value: string) {
+  return createHash('sha256')
+    .update(value)
+    .digest('hex')
+}
+
+function readJsonRecord(value: string) {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null
+  }
+  catch {
+    return null
+  }
+}
+
+function readNestedRecord(
+  record: Record<string, unknown> | null,
+  key: string,
+) {
+  const value = record?.[key]
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+function readNestedArray(
+  record: Record<string, unknown> | null,
+  key: string,
+) {
+  return Array.isArray(record?.[key])
+    ? record[key] as unknown[]
+    : []
+}
+
+export function buildAlicizationProviderRequestSnapshot(
+  messages: Message[],
+): AlicizationProviderRequestSnapshot {
+  const roleCounts: AlicizationProviderRequestSnapshot['roleCounts'] = {
+    system: 0,
+    user: 0,
+    assistant: 0,
+    tool: 0,
+  }
+  const systemBlockTypes: string[] = []
+  const messageHashes: string[] = []
+  const workingMemory = {
+    present: false,
+    version: null as string | null,
+    compressionObserved: false,
+    compressedTimelineCount: 0,
+    compressedSourceTurnCount: 0,
+    recentDialogueCount: 0,
+    correctionCount: 0,
+    commitmentCount: 0,
+    contentHash: null as string | null,
+  }
+  const longTermRecall = {
+    present: false,
+    status: null as string | null,
+    confidence: null as number | null,
+    evidenceIds: [] as string[],
+    evidenceCount: 0,
+    contentHash: null as string | null,
+  }
+
+  let totalTextChars = 0
+  for (const message of messages) {
+    const text = readProviderMessageText(message.content)
+    totalTextChars += text.length
+    messageHashes.push(sha256(JSON.stringify({
+      role: message.role,
+      text,
+      toolCallId: 'tool_call_id' in message ? message.tool_call_id ?? null : null,
+    })))
+    if (message.role in roleCounts)
+      roleCounts[message.role as keyof typeof roleCounts] += 1
+    if (message.role !== 'system')
+      continue
+
+    const parsed = readJsonRecord(text)
+    const type = typeof parsed?.type === 'string' ? parsed.type : 'text'
+    if (!systemBlockTypes.includes(type))
+      systemBlockTypes.push(type)
+    if (type !== 'alicization-turn-memory-context')
+      continue
+
+    const data = readNestedRecord(parsed, 'data') ?? parsed
+    const workingMemoryRecord = readNestedRecord(data, 'workingMemory')
+    if (workingMemoryRecord) {
+      workingMemory.present = true
+      workingMemory.version = typeof workingMemoryRecord.version === 'string'
+        ? workingMemoryRecord.version
+        : null
+      const compressedTimeline = readNestedArray(workingMemoryRecord, 'compressedTimeline')
+      const compressedSourceTurnCount = compressedTimeline.reduce((count: number, entry: unknown) => {
+        const episodelet = entry && typeof entry === 'object' && !Array.isArray(entry)
+          ? entry as Record<string, unknown>
+          : null
+        return count + readNestedArray(episodelet, 'sourceTurnIds').length
+      }, 0)
+      workingMemory.compressedTimelineCount = compressedTimeline.length
+      workingMemory.compressedSourceTurnCount = compressedSourceTurnCount
+      workingMemory.compressionObserved = compressedTimeline.length > 0
+      workingMemory.recentDialogueCount = readNestedArray(workingMemoryRecord, 'recentDialogue').length
+      workingMemory.correctionCount = readNestedArray(workingMemoryRecord, 'corrections').length
+      workingMemory.commitmentCount = readNestedArray(workingMemoryRecord, 'commitments').length
+      workingMemory.contentHash = sha256(JSON.stringify(workingMemoryRecord))
+    }
+
+    const longTermRecallRecord = readNestedRecord(data, 'longTermRecall')
+    if (longTermRecallRecord) {
+      longTermRecall.present = true
+      longTermRecall.status = typeof longTermRecallRecord.status === 'string'
+        ? longTermRecallRecord.status
+        : null
+      longTermRecall.confidence = Number.isFinite(longTermRecallRecord.confidence)
+        ? Number(longTermRecallRecord.confidence)
+        : null
+      const evidence = readNestedArray(longTermRecallRecord, 'evidence')
+      longTermRecall.evidenceCount = evidence.length
+      longTermRecall.evidenceIds = evidence
+        .map((entry) => {
+          const record = entry && typeof entry === 'object' && !Array.isArray(entry)
+            ? entry as Record<string, unknown>
+            : null
+          return typeof record?.id === 'string' ? record.id.trim() : ''
+        })
+        .filter(Boolean)
+      longTermRecall.contentHash = sha256(JSON.stringify(longTermRecallRecord))
+    }
+  }
+
+  return {
+    version: 'alicization-provider-request-snapshot-v1',
+    messageCount: messages.length,
+    roleCounts,
+    totalTextChars,
+    systemBlockTypes,
+    messageHashes,
+    requestHash: sha256(JSON.stringify(messageHashes)),
+    workingMemory,
+    longTermRecall,
+  }
+}
+
 function createProviderProposalTools(tools: Tool[] | undefined) {
   return tools?.map(tool => ({
     ...tool,
@@ -393,6 +637,9 @@ function projectRegisteredProviderTools(
       && prepared.toolRegistry.resolveActive(manifest.capabilityId),
     )
   })
+  if (!activeTools || activeTools.length === 0)
+    return undefined
+
   return adaptAlicizationProviderTools({
     providerId,
     tools: activeTools,
@@ -464,8 +711,8 @@ function createProviderEmptyCompletionError() {
   )
 }
 
-export async function runAlicizationMainChatProviderStep(
-  input: RunAlicizationMainChatProviderStepOptions,
+async function runAlicizationMainChatProviderAttempt(
+  input: RunAlicizationMainChatProviderAttemptOptions,
 ): Promise<AlicizationMainChatProviderStepResult> {
   const startedAt = Date.now()
   const providerRetryAttempt = input.providerRetryAttempt ?? 0
@@ -652,6 +899,28 @@ export async function runAlicizationMainChatProviderStep(
     })
   }
 
+  const providerAttempt = providerRetryAttempt + 1
+  const providerRequestSnapshot = buildAlicizationProviderRequestSnapshot(input.messages)
+  const providerRequestStartedAt = Date.now()
+  const providerToolNames = Array.isArray(providerTools)
+    ? providerTools
+        .map(tool => sanitizeText(tool.function?.name))
+        .filter(Boolean)
+    : []
+  let providerRequestSettlement: 'completed' | 'failed' | 'retrying' | 'aborted' = 'aborted'
+  let providerEventCount = 0
+
+  appendDebugLine('chat-provider-request.started', {
+    providerAttempt,
+    request: providerRequestSnapshot,
+  })
+  appendDebugLine('chat-provider-request.dispatch', {
+    providerAttempt,
+    toolCount: providerToolNames.length,
+    toolNames: providerToolNames,
+    toolBytes: Buffer.byteLength(JSON.stringify(providerTools ?? [])),
+  })
+
   const cleanupProviderAttempt = async (reason = 'provider-step-settled') => {
     if (attemptCleanupDone)
       return
@@ -707,12 +976,29 @@ export async function runAlicizationMainChatProviderStep(
       throw createAbortError('chat-run-inactive')
 
     const queuedEvents: unknown[] = []
+    let legacyEventObserved = false
     const enqueueLegacyEvent = (event: unknown) => {
       queuedEvents.push(event)
+      if (!legacyEventObserved) {
+        legacyEventObserved = true
+        appendDebugLine('chat-provider-request.legacy-event-observed', {
+          providerAttempt,
+          elapsedMs: Date.now() - providerRequestStartedAt,
+          eventType: normalizeMainGatewayStreamEventType(
+            (event as { type?: unknown } | null)?.type,
+          ),
+        })
+      }
       const wake = wakeLegacyEventWaiter
       wakeLegacyEventWaiter = null
       wake?.()
     }
+    appendDebugLine('chat-provider-request.invoke-started', {
+      providerAttempt,
+      elapsedMs: Date.now() - providerRequestStartedAt,
+      toolCount: providerToolNames.length,
+      toolBytes: Buffer.byteLength(JSON.stringify(providerTools ?? [])),
+    })
     const result = await awaitAlicizationPromiseWithAbort(
       Promise.resolve(invokeStreamText({
         ...input.prepared.chatConfig,
@@ -727,9 +1013,20 @@ export async function runAlicizationMainChatProviderStep(
       })),
       providerController.signal,
     )
+    appendDebugLine('chat-provider-request.invoke-resolved', {
+      providerAttempt,
+      elapsedMs: Date.now() - providerRequestStartedAt,
+      queuedLegacyEventCount: queuedEvents.length,
+      hasFullStream: Boolean(readProviderFullStream(result)),
+    })
     observeStreamTextResultErrors(result, error => providerController.abort(error))
     const fullStream = readProviderFullStream(result)
     reader = fullStream?.getReader?.() ?? null
+    appendDebugLine('chat-provider-request.reader-ready', {
+      providerAttempt,
+      elapsedMs: Date.now() - providerRequestStartedAt,
+      hasReader: Boolean(reader),
+    })
     const fullTextParts: string[] = []
     let finishReason: string | null = null
     let finishObserved = false
@@ -742,6 +1039,7 @@ export async function runAlicizationMainChatProviderStep(
       if (eventType) {
         sawAnyEvent = true
         lastEventType = eventType
+        providerEventCount += 1
       }
 
       if (isMainGatewayProgressEventType(eventType) && eventType !== 'error') {
@@ -850,6 +1148,15 @@ export async function runAlicizationMainChatProviderStep(
           readerCompleted = true
           break
         }
+        if (providerEventCount === 0) {
+          appendDebugLine('chat-provider-request.first-stream-event', {
+            providerAttempt,
+            elapsedMs: Date.now() - providerRequestStartedAt,
+            eventType: normalizeMainGatewayStreamEventType(
+              (next.value as { type?: unknown } | null)?.type,
+            ),
+          })
+        }
         const step = handleEvent(next.value)
         if (step)
           return step
@@ -889,8 +1196,6 @@ export async function runAlicizationMainChatProviderStep(
 
     const fullText = fullTextParts.join('')
     const text = fullText.trim()
-    if (!finishObserved)
-      throw createProviderFinishMissingError()
     const completedAction = pendingAction as (
       AlicizationModelAction & {
         input: Record<string, unknown>
@@ -898,6 +1203,7 @@ export async function runAlicizationMainChatProviderStep(
       }
     ) | null
     if (completedAction) {
+      providerRequestSettlement = 'completed'
       appendProviderToolCallMessage(input.messages, {
         input: completedAction.input,
         toolCallId: completedAction.toolCallId,
@@ -915,11 +1221,14 @@ export async function runAlicizationMainChatProviderStep(
         action: completedAction,
       }
     }
+    if (!finishObserved)
+      throw createProviderFinishMissingError()
     if (!text && !outputObserved)
       throw createAbortError('chat-first-event-timeout')
     if (!text)
       throw createProviderEmptyCompletionError()
 
+    providerRequestSettlement = 'completed'
     return {
       kind: 'reply',
       finishReason: finishReason ?? 'stop',
@@ -928,6 +1237,9 @@ export async function runAlicizationMainChatProviderStep(
     }
   }
   catch (error) {
+    input.attemptReplayState.hasToolCall = pendingAction !== null
+    input.attemptReplayState.hasToolSideEffect = false
+    input.attemptReplayState.hasVisibleProgress = false
     const retryDecision = resolveAlicizationProviderRetryDecision(error, {
       attempt: providerRetryAttempt,
       options: {
@@ -939,35 +1251,152 @@ export async function runAlicizationMainChatProviderStep(
           // Provider-step text is still provisional. The EventLoop settles and
           // publishes it only after the complete payload passes visible-reply
           // validation, so a partial delta has not become user-visible yet.
-          hasVisibleProgress: false,
-          hasToolCall: pendingAction !== null,
-          hasToolSideEffect: false,
+          hasVisibleProgress: input.attemptReplayState.hasVisibleProgress,
+          hasToolCall: input.attemptReplayState.hasToolCall,
+          hasToolSideEffect: input.attemptReplayState.hasToolSideEffect,
         },
       },
     })
-    if (!retryDecision.retry)
+    input.attemptReplayState.retryDecision = retryDecision
+    if (!retryDecision.retry) {
+      providerRequestSettlement = input.signal?.aborted
+        || input.controller.signal.aborted
+        ? 'aborted'
+        : 'failed'
       throw error
+    }
 
+    providerRequestSettlement = 'retrying'
     appendDebugLine('chat-provider-step.retry-scheduled', {
       attempt: providerRetryAttempt,
       nextAttempt: retryDecision.nextAttempt,
       delayMs: retryDecision.delayMs,
       reason: retryDecision.reason,
     })
-    await cleanupProviderAttempt('provider-retry')
-    await waitForAlicizationProviderRetry({
-      delayMs: retryDecision.delayMs,
-      signal: input.signal ?? input.controller.signal,
-      sleep: input.providerRetryPolicy?.sleep,
-    })
-    return await runAlicizationMainChatProviderStep({
-      ...input,
-      providerRetryAttempt: retryDecision.nextAttempt,
-      providerRetryDeadlineAt,
-    })
+    throw error
   }
   finally {
-    await cleanupProviderAttempt()
+    await cleanupProviderAttempt(
+      input.attemptReplayState.retryDecision?.retry
+        ? 'provider-retry'
+        : 'provider-step-settled',
+    )
+    appendDebugLine('chat-provider-request.settled', {
+      providerAttempt,
+      settlement: providerRequestSettlement,
+      durationMs: Math.max(0, Date.now() - providerRequestStartedAt),
+      eventCount: providerEventCount,
+      outputObserved,
+      sawAnyEvent,
+      lastEventType: lastEventType || null,
+    })
+  }
+}
+
+export async function runAlicizationMainChatProviderStep(
+  input: RunAlicizationMainChatProviderStepOptions,
+): Promise<AlicizationMainChatProviderStepResult> {
+  const retryController = new AbortController()
+  const forwardRetryAbort = () => {
+    if (retryController.signal.aborted)
+      return
+    const abortedSignal = input.signal?.aborted
+      ? input.signal
+      : input.controller.signal
+    retryController.abort(
+      abortedSignal.reason ?? createAbortError('chat-abort'),
+    )
+  }
+  if (input.signal?.aborted || input.controller.signal.aborted) {
+    forwardRetryAbort()
+  }
+  else {
+    input.signal?.addEventListener('abort', forwardRetryAbort, { once: true })
+    input.controller.signal.addEventListener('abort', forwardRetryAbort, { once: true })
+  }
+  const retrySignal = retryController.signal
+  const initialAttempt = input.providerRetryAttempt ?? 0
+  const providerRetryDeadlineAt = input.providerRetryDeadlineAt !== undefined
+    ? input.providerRetryDeadlineAt
+    : resolveAlicizationProviderRetryDeadline({
+        deadlineAt: input.providerRetryPolicy?.deadlineAt,
+        baseDelayMs: input.providerRetryPolicy?.baseDelayMs,
+        maxDelayMs: input.providerRetryPolicy?.maxDelayMs,
+        maxRetries: input.providerRetryPolicy?.maxRetries,
+        maxTotalRetryWindowMs: input.providerRetryPolicy?.maxTotalRetryWindowMs,
+        timeoutMs: input.firstEventTimeoutMs,
+      })
+  let providerRetryAttempt = initialAttempt
+
+  try {
+    while (true) {
+      if (retrySignal.aborted) {
+        throw retrySignal.reason
+          ?? createAbortError('chat-abort')
+      }
+
+      const attemptReplayState: AlicizationProviderAttemptReplayState = {
+        hasToolCall: false,
+        hasToolSideEffect: false,
+        hasVisibleProgress: false,
+        retryDecision: null,
+      }
+
+      try {
+        return await runAlicizationMainChatProviderAttempt({
+          ...input,
+          signal: retrySignal,
+          providerRetryAttempt,
+          providerRetryDeadlineAt,
+          attemptReplayState,
+        })
+      }
+      catch (error) {
+        const retryDecision = attemptReplayState.retryDecision
+          ?? resolveAlicizationProviderRetryDecision(error, {
+            attempt: providerRetryAttempt,
+            options: {
+              ...input.providerRetryPolicy,
+              operation: 'main-chat-stream',
+              signal: retrySignal,
+              deadlineAt: providerRetryDeadlineAt,
+              replayState: attemptReplayState,
+            },
+          })
+        if (retrySignal.aborted) {
+          throw retrySignal.reason
+            ?? createAbortError('chat-abort')
+        }
+        if (!retryDecision.retry)
+          throw error
+
+        await waitForAlicizationProviderRetry({
+          delayMs: retryDecision.delayMs,
+          signal: retrySignal,
+          sleep: input.providerRetryPolicy?.sleep,
+        })
+        if (retrySignal.aborted) {
+          throw retrySignal.reason
+            ?? createAbortError('chat-abort')
+        }
+        if (input.appendRuntimeDebugLine) {
+          await Promise.resolve(input.appendRuntimeDebugLine('chat-provider-step.retry-started', {
+            cardId: input.payload.cardId,
+            turnId: input.payload.turnId,
+            attempt: retryDecision.nextAttempt,
+            providerAttempt: retryDecision.nextAttempt + 1,
+            delayMs: retryDecision.delayMs,
+            reason: retryDecision.reason,
+            status: retryDecision.status,
+          })).catch(() => {})
+        }
+        providerRetryAttempt = retryDecision.nextAttempt
+      }
+    }
+  }
+  finally {
+    input.signal?.removeEventListener('abort', forwardRetryAbort)
+    input.controller.signal.removeEventListener('abort', forwardRetryAbort)
   }
 }
 
@@ -1731,6 +2160,47 @@ export async function runAlicizationMainChatStream(
         rejectOnce(nextError)
       }
 
+      const queuedLegacyEvents: unknown[] = []
+      const processedProviderEventSignatures = new Set<string>()
+      let providerEventSource: 'pending' | 'full-stream' | 'legacy-on-event' = 'pending'
+      const flushQueuedLegacyEvents = async (options?: {
+        includeReplyEvents?: boolean
+        prioritizeReplyEvents?: boolean
+      }) => {
+        const includeReplyEvents = options?.includeReplyEvents ?? true
+        const queuedEvents = queuedLegacyEvents.splice(0)
+        const events = includeReplyEvents
+          ? queuedEvents
+          : queuedEvents.filter((event) => {
+              const eventType = normalizeMainGatewayStreamEventType(
+                sanitizeText((event as { type?: unknown } | null)?.type),
+              )
+              return eventType !== 'text-delta'
+                && eventType !== 'reasoning-delta'
+            })
+        const orderedEvents = options?.prioritizeReplyEvents
+          ? [
+              ...events.filter((event) => {
+                const eventType = normalizeMainGatewayStreamEventType(
+                  sanitizeText((event as { type?: unknown } | null)?.type),
+                )
+                return eventType === 'text-delta'
+                  || eventType === 'reasoning-delta'
+              }),
+              ...events.filter((event) => {
+                const eventType = normalizeMainGatewayStreamEventType(
+                  sanitizeText((event as { type?: unknown } | null)?.type),
+                )
+                return eventType !== 'text-delta'
+                  && eventType !== 'reasoning-delta'
+              }),
+            ]
+          : events
+
+        for (const event of orderedEvents)
+          await processProviderEvent(event, 'legacy')
+      }
+
       async function handleProviderEvent(event: any) {
         if (settled || providerController.signal.aborted)
           return
@@ -1992,6 +2462,24 @@ export async function runAlicizationMainChatStream(
             finishReason,
             fullTextChars: fullText.length,
           })
+          if (
+            !fullText.trim()
+            && queuedLegacyEvents.some((legacyEvent) => {
+              const legacyEventType = normalizeMainGatewayStreamEventType(
+                sanitizeText((legacyEvent as { type?: unknown } | null)?.type),
+              )
+              return legacyEventType === 'text-delta'
+                && Boolean(readRawTextDelta(
+                  legacyEvent as Record<string, unknown>,
+                ).trim())
+            })
+          ) {
+            await flushQueuedLegacyEvents({
+              prioritizeReplyEvents: true,
+            })
+            if (settled)
+              return
+          }
           if (activeProviderToolCallIds.size > 0 || pendingToolResultHandoffIds.size > 0) {
             appendStreamDebugLine('chat-stream.provider-finish-before-tool-result', {
               elapsedMs: Date.now() - startedAt,
@@ -2057,13 +2545,30 @@ export async function runAlicizationMainChatStream(
         }
       }
 
-      const queuedLegacyEvents: unknown[] = []
+      async function processProviderEvent(
+        event: unknown,
+        source: 'full-stream' | 'legacy',
+      ) {
+        const signature = createProviderEventSignature(event)
+        if (signature && processedProviderEventSignatures.has(signature)) {
+          appendStreamDebugLine('chat-stream.provider-event-duplicate-skipped', {
+            eventType: normalizeMainGatewayStreamEventType(
+              sanitizeText((event as { type?: unknown } | null)?.type),
+            ),
+            source,
+          })
+          return
+        }
+        if (signature)
+          processedProviderEventSignatures.add(signature)
+        await handleProviderEvent(event)
+      }
+
       let legacyEventQueue = Promise.resolve()
       let legacyEventQueueHasWork = false
-      let providerEventSource: 'pending' | 'full-stream' | 'legacy-on-event' = 'pending'
       const enqueueLegacyEvent = (event: unknown) => {
         legacyEventQueueHasWork = true
-        const next = legacyEventQueue.then(async () => await handleProviderEvent(event))
+        const next = legacyEventQueue.then(async () => await processProviderEvent(event, 'legacy'))
         legacyEventQueue = next.catch(rejectInvocation).finally(() => {
           legacyEventQueueHasWork = false
         })
@@ -2126,6 +2631,8 @@ export async function runAlicizationMainChatStream(
         }
         if (providerEventSource === 'legacy-on-event')
           enqueueLegacyEvent(event)
+        else if (providerEventSource === 'full-stream')
+          queuedLegacyEvents.push(event)
       }
 
       void Promise.resolve(invokeStreamText({
@@ -2147,24 +2654,24 @@ export async function runAlicizationMainChatStream(
             if (legacyEventQueueHasWork)
               await legacyEventQueue
             for (const event of legacyEvents)
-              await handleProviderEvent(event)
+              await processProviderEvent(event, 'legacy')
             return
           }
 
           providerEventSource = 'full-stream'
-          const legacyToolEvents = queuedLegacyEvents
-            .splice(0)
-            .filter((event) => {
-              const eventType = normalizeMainGatewayStreamEventType(
-                sanitizeText((event as { type?: unknown } | null)?.type),
-              )
-              return eventType === 'tool-call'
-                || eventType === 'tool-result'
-            })
+          const pendingLegacyEvents = queuedLegacyEvents.splice(0)
+          const legacyToolEvents = pendingLegacyEvents.filter((event) => {
+            const eventType = normalizeMainGatewayStreamEventType(
+              sanitizeText((event as { type?: unknown } | null)?.type),
+            )
+            return eventType === 'tool-call'
+              || eventType === 'tool-result'
+          })
+          queuedLegacyEvents.push(...pendingLegacyEvents.filter(event => !legacyToolEvents.includes(event)))
           if (legacyEventQueueHasWork)
             await legacyEventQueue
           for (const event of legacyToolEvents)
-            await handleProviderEvent(event)
+            await processProviderEvent(event, 'legacy')
           const reader = fullStream.getReader?.()
           if (!reader) {
             rejectInvocation(new Error('chat-stream-reader-unavailable'))
@@ -2182,7 +2689,18 @@ export async function runAlicizationMainChatStream(
               )
               if (next.done || settled || providerController.signal.aborted)
                 break
-              await handleProviderEvent(next.value)
+              await processProviderEvent(next.value, 'full-stream')
+            }
+
+            if (!settled) {
+              if (legacyEventQueueHasWork)
+                await legacyEventQueue
+              if (queuedLegacyEvents.length > 0) {
+                await flushQueuedLegacyEvents({
+                  includeReplyEvents: fullText.trim().length === 0,
+                  prioritizeReplyEvents: fullText.trim().length === 0,
+                })
+              }
             }
 
             if (!settled) {
@@ -2191,7 +2709,7 @@ export async function runAlicizationMainChatStream(
               else if (providerContinuationState !== 'none')
                 rejectOnce(new Error('chat-provider-continuation-incomplete'))
               else if (sawProgressEvent)
-                resolveOnce()
+                rejectOnce(createProviderFinishMissingError())
               else
                 rejectOnce(createAbortError('chat-first-event-timeout'))
             }

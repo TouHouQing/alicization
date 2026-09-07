@@ -72,6 +72,7 @@ export interface LongTermMemoryEvidenceCandidate {
   kind: LongTermMemoryEvidenceKind
   summary: string
   source: string
+  sourceIds?: string[] | null
   origin?: string | null
   scope?: LongTermMemoryEvidenceScope | null
   provenance?: AlicizationMemoryProvenance | null
@@ -179,6 +180,25 @@ function uniqueTexts(values: Array<string | null | undefined>, maxItems = 10, ma
   return result
 }
 
+function collapseDerivedCandidates(
+  candidates: LongTermMemoryEvidenceCandidate[],
+) {
+  const episodeLineageIds = new Set(
+    candidates
+      .filter(candidate => candidate.kind === 'episode')
+      .flatMap(candidate => [
+        candidate.id,
+        ...(candidate.sourceIds ?? []),
+      ]),
+  )
+
+  return candidates.filter((candidate) => {
+    if (candidate.kind !== 'consolidation')
+      return true
+    return !(candidate.sourceIds ?? []).some(sourceId => episodeLineageIds.has(sourceId))
+  })
+}
+
 function containsAny(text: string, patterns: RegExp[]) {
   return patterns.some(pattern => pattern.test(text))
 }
@@ -213,7 +233,7 @@ export function deriveLongTermMemoryRecallIntent(input: {
   let rationale = 'recall:none'
 
   const recollectionCue = containsAny(normalized, [
-    /记得|记不记得|还记得|想起|回想|上次|之前|以前|那次/u,
+    /记得|记不记得|还记得|想起|回想|回忆|回顾|上次|之前|以前|那次/u,
     /说过|提到|告诉过|刚才.*(?:说|提|告诉|表达|喜欢|偏好)/u,
   ])
   const gameCue = containsAny(normalized, [/游戏|打游戏|开黑|联机|steam|minecraft|mc\b|原神|崩铁|lol|瓦|valorant/iu])
@@ -384,14 +404,14 @@ export function buildLongTermMemoryEvidenceBundle(input: {
   }
 
   const limit = Math.max(1, Math.min(8, Math.floor(input.limit ?? 5)))
-  const candidates = input.candidates.filter((candidate) => {
+  const candidates = collapseDerivedCandidates(input.candidates.filter((candidate) => {
     if (candidate.reviewStatus != null && candidate.reviewStatus !== 'confirmed')
       return false
     return !containsAlicizationFixedTemplateResidue(candidate.summary, {
       origin: candidate.origin,
       source: candidate.source,
     })
-  })
+  }))
   const ranked = rankLongTermMemoryHybridEvidence({
     intent: input.intent,
     plan: input.plan,

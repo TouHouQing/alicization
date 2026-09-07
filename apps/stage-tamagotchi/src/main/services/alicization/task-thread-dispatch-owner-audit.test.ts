@@ -120,7 +120,8 @@ describe('task-thread dispatch owner audit', () => {
       const source = readFileSync(new URL(`./${entry.relativePath}`, import.meta.url), 'utf8')
 
       expect(resolveAlicizationTaskThreadDispatchOwnerMode(entry.relativePath)).toBe('autonomy-dispatch-owner')
-      expect(source).toContain('await input.dispatchTaskThread(buildAutonomousTaskDispatchInput({')
+      expect(source).toContain('const dispatchInput = buildAutonomousTaskDispatchInput({')
+      expect(source).toContain('await input.dispatchTaskThread(dispatchInput')
       expect(source).toContain('planning.plan.state === \'routed\'')
       expect(source).toContain('actuationPlan.task.autoDispatchEligible')
       expect(source).toContain('planning.thread.selectedChannel === actuationPlan.task.requestedDispatchChannel')
@@ -138,7 +139,8 @@ describe('task-thread dispatch owner audit', () => {
       const source = readFileSync(new URL(`./${entry.relativePath}`, import.meta.url), 'utf8')
 
       expect(resolveAlicizationTaskThreadDispatchOwnerMode(entry.relativePath)).toBe('subconscious-bridge-owner')
-      expect(source).toContain('dispatchTaskThread: async (payload: any) => await dispatchAutonomyTaskThread(payload)')
+      expect(source).toContain('dispatchTaskThread: async (payload: any) =>')
+      expect(source).toContain('await dispatchAutonomyTaskThread(payload')
       expect(source).not.toContain('dispatchTaskThreadWithExecutionDelivery(invocation)')
     }
   })

@@ -449,6 +449,35 @@ describe('main chat execution surface', () => {
     expect(codexTool.function.parameters.properties).not.toHaveProperty('model')
   })
 
+  it('keeps terminal out of the local visual channel schema', async () => {
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-local-visual-channel-schema',
+        decisionTraceId: 'trace-local-visual-channel-schema',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const localVisualTool = tools.find((entry: any) =>
+      entry.function?.name === 'local_visual',
+    ) as any
+
+    expect(localVisualTool.function.parameters.properties.channel.enum).toEqual([
+      'browser',
+      'software',
+      'desktop',
+    ])
+    expect(localVisualTool.function.parameters.properties.channel.enum).not.toContain('terminal')
+  })
+
   it('keeps generic and coding-agent-like MCP dispatch outside the model tool surface', async () => {
     const invokeMcpCallTool = vi.fn(async () => ({ ok: true, isError: false }))
     const tools = await buildMainGatewayTools({
@@ -1273,6 +1302,33 @@ describe('main chat execution surface', () => {
     expect(executeTaskThread).not.toHaveBeenCalled()
   })
 
+  it('does not expose CLI without turn-bound delegation', async () => {
+    const tools = await buildMainGatewayTools({
+      toolSurface: 'main-chat',
+      userText: '我只是问问，你认为自己可以用 Coding Agent 做什么？请不要执行工具。',
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-capability-no-tools',
+        decisionTraceId: 'trace-capability-no-tools',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const toolNames = tools.map((entry: any) => entry.function?.name)
+    expect(toolNames).not.toContain('cli')
+    expect(toolNames).not.toContain('coding_agent')
+    expect(toolNames).not.toContain('executor_run_cli')
+    expect(toolNames).not.toContain('executor_run_coding_agent')
+  })
+
   it('exposes direct CLI instead of the coding-agent facade for a command-scoped delegation', async () => {
     const tools = await buildMainGatewayTools({
       toolSurface: 'main-chat',
@@ -1306,6 +1362,40 @@ describe('main chat execution surface', () => {
     expect(toolNames).toContain('cli')
     expect(toolNames).not.toContain('coding_agent')
     expect(toolNames).not.toContain('openclaw')
+  })
+
+  it('does not re-parse user wording after structured coding-agent delegation', async () => {
+    const tools = await buildMainGatewayTools({
+      toolSurface: 'main-chat',
+      userText: '你认为自己可以用 Coding Agent 做什么？请不要执行工具。',
+      codingAgentDelegation: {
+        allowed: true,
+        allowedAgents: ['codex'],
+        evidenceId: 'cognition:turn-stale-capability:investigation',
+        turnId: 'turn-stale-capability',
+        sourceTurnId: 'turn-stale-capability',
+        allowInvestigation: true,
+        allowEdit: false,
+      },
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-stale-capability',
+        decisionTraceId: 'trace-stale-capability',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    expect(tools.map((entry: any) => entry.function?.name)).toEqual(expect.arrayContaining([
+      'coding_agent',
+    ]))
   })
 
   it('does not expose CLI when the turn authority does not allow commands', async () => {

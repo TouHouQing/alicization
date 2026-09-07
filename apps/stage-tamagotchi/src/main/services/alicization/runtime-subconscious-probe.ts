@@ -65,7 +65,9 @@ export function createAlicizationSubconsciousProbeRuntime(options: any) {
     return next
   }
 
-  async function sampleSubconsciousInterruptionContext() {
+  async function sampleSubconsciousInterruptionContext(input?: { signal?: AbortSignal }) {
+    if (input?.signal?.aborted)
+      throw input.signal.reason ?? new DOMException('Subconscious interruption probe aborted', 'AbortError')
     const degraded: string[] = []
     let idleSeconds = Number.NaN
     const sensorySnapshot = getSensorySnapshot()

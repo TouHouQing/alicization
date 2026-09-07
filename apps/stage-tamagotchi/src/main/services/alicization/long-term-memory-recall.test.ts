@@ -567,4 +567,57 @@ describe('long-term memory recall owner', () => {
       'rrf:semantic:semantic-score',
     ]))
   })
+
+  it('folds consolidations derived from recalled episodes to avoid duplicate evidence', () => {
+    const intent = deriveLongTermMemoryRecallIntent({
+      currentUserText: '你还记得我们上周一起做过什么吗？',
+    })
+    const plan = buildLongTermMemoryQueryPlan({
+      intent,
+      currentUserText: '你还记得我们上周一起做过什么吗？',
+    })
+    const bundle = buildLongTermMemoryEvidenceBundle({
+      intent,
+      plan,
+      now,
+      candidates: [
+        {
+          id: 'episode-1',
+          kind: 'episode',
+          summary: '上周我们一起完成了长期记忆开发。',
+          source: 'episodic_events',
+          confidence: 0.84,
+          salience: 0.86,
+          occurredAt: now - 7 * 24 * 60 * 60 * 1000,
+        },
+        {
+          id: 'consolidation-daily-1',
+          kind: 'consolidation',
+          summary: '当天主要完成了长期记忆开发。',
+          source: 'memory_consolidations',
+          sourceIds: ['episode-1'],
+          confidence: 0.9,
+          salience: 0.82,
+          occurredAt: now - 6 * 24 * 60 * 60 * 1000,
+        },
+        {
+          id: 'consolidation-weekly-1',
+          kind: 'consolidation',
+          summary: '这一周主要围绕长期记忆开发。',
+          source: 'memory_consolidations',
+          sourceIds: ['episode-1'],
+          confidence: 0.92,
+          salience: 0.88,
+          occurredAt: now - 5 * 24 * 60 * 60 * 1000,
+        },
+      ],
+      semanticScores: {
+        'episode-1': 0.82,
+        'consolidation-daily-1': 0.98,
+        'consolidation-weekly-1': 0.99,
+      },
+    })
+
+    expect(bundle.evidence.map(item => item.candidate.id)).toEqual(['episode-1'])
+  })
 })

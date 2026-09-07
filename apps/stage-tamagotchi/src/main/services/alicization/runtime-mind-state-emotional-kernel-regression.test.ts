@@ -1214,7 +1214,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
     expect(result.answerCompiler?.openingDirective).not.toContain('Thin runtime shell line')
     expect(result.answerCompiler?.mustDo).not.toContain('Thin runtime shell line')
     expect(result.answerCompiler?.mustNotDo).not.toContain('Thin runtime shell line')
-    expect(generateMainGatewayText).toHaveBeenCalledTimes(1)
+    expect(generateMainGatewayText).not.toHaveBeenCalled()
   })
 
   it('lets cautious embodiment recollection authority retune runtime emotional carry into measured-return instead of leaving body memory inert', async () => {

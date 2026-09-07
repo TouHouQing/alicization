@@ -61,8 +61,12 @@ function containsExecutionFailureSignal(value: unknown): boolean {
     return true
   if (record.timedOut === true)
     return true
-  if (typeof record.status === 'string' && record.status.trim().toLowerCase() === 'timeout')
+  if (
+    typeof record.status === 'string'
+    && ['failed', 'timeout'].includes(record.status.trim().toLowerCase())
+  ) {
     return true
+  }
   if (record.origin === 'failure-surface')
     return true
   if (record.artifactRole === 'memory-side-failure')
@@ -88,7 +92,10 @@ interface CreateAlicizationRuntimeMemoryClosureOptions {
   }, cardId?: string) => Promise<void>
   alicizationDb: {
     appendRelationshipOutcomes: (entries: AlicizationOutcomeClosureResult['relationshipOutcomes']) => Promise<unknown>
-    appendEpisodicEvents: (events: AlicizationOutcomeClosureResult['episodicEvents'] | AlicizationEpisodicEventInput[]) => Promise<unknown>
+    appendEpisodicEvents: (
+      events: AlicizationOutcomeClosureResult['episodicEvents'] | AlicizationEpisodicEventInput[],
+      options?: { signal?: AbortSignal },
+    ) => Promise<unknown>
     persistEpisodicReconsolidations?: (events: AlicizationEpisodicEventRecord[]) => Promise<unknown>
     appendPersonaReinforcementEvents: (events: AlicizationOutcomeClosureResult['reinforcementEvents']) => Promise<unknown>
     appendPersonStateEvolutionEntries: (entries: Array<{
@@ -311,13 +318,27 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
   async function persistAutobiographicalEpisodes(cardIdRaw: unknown, input: {
     label: string
     events: AlicizationEpisodicEventInput[]
+    signal?: AbortSignal
   }) {
     const cardId = options.normalizeCardId(cardIdRaw)
     if (input.events.length === 0)
       return
+    if (input.signal?.aborted)
+      throw input.signal.reason ?? new DOMException('Autobiographical persistence aborted', 'AbortError')
 
     const task = async () => {
-      await options.alicizationDb.appendEpisodicEvents(sanitizeMemoryClosureWritebackValue(input.events, 'autobiographicalEpisodes'))
+      const events = sanitizeMemoryClosureWritebackValue(
+        input.events,
+        'autobiographicalEpisodes',
+      )
+      if (input.signal) {
+        await options.alicizationDb.appendEpisodicEvents(events, {
+          signal: input.signal,
+        })
+      }
+      else {
+        await options.alicizationDb.appendEpisodicEvents(events)
+      }
     }
 
     try {
@@ -329,10 +350,17 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
           await task()
         }, {
           label: `${input.label}:${cardId}`,
+          signal: input.signal,
         })
       }
     }
     catch (error) {
+      if (
+        input.signal?.aborted
+        || (error instanceof Error && error.name === 'AbortError')
+      ) {
+        throw input.signal?.reason ?? error
+      }
       await options.appendAuditLog({
         level: 'warning',
         category: 'alicization.memory',
@@ -355,6 +383,7 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
     sessionId: string
     previousMirror?: AlicizationDialogueSessionMirror | null
     mirror: AlicizationDialogueSessionMirror
+    signal?: AbortSignal
   }) {
     const events = buildAutobiographicalEpisodesFromPreparedMirror({
       ...input,
@@ -362,6 +391,7 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
     await persistAutobiographicalEpisodes(input.cardId, {
       label: 'prepared-session-mirror.autobio',
       events,
+      signal: input.signal,
     })
   }
 

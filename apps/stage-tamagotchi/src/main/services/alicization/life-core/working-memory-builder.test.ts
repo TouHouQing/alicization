@@ -9,6 +9,12 @@ function createWorkingMemoryLongTermEvidence(input: {
   summary: string
   reason: string
   evidenceSnippet: string
+  supersedesText?: string[]
+  claim?: {
+    subject: string
+    predicate: string
+    object: string
+  }
 }) {
   return {
     version: 'working-memory-long-term-evidence-v1' as const,
@@ -20,6 +26,8 @@ function createWorkingMemoryLongTermEvidence(input: {
     salience: 0.82,
     sensitivity: 'personal' as const,
     confidence: 0.9,
+    supersedesText: input.supersedesText,
+    claim: input.claim,
   }
 }
 
@@ -702,5 +710,43 @@ describe('working memory snapshot builder', () => {
         allowTraining: false,
       }),
     ]))
+  })
+
+  it('preserves correction replacement metadata in the WorkingMemory owner snapshot', () => {
+    const snapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-project-correction',
+      now: 16_000,
+      currentTurnId: 'turn-project-correction',
+      currentUserText: '更正一下：项目界面强调色已经从蓝色改成绿色，蓝色是旧信息。',
+      currentAssistantText: '收到，我会以绿色为当前信息。',
+      currentOrigin: 'provider',
+      currentLearningPolicy: {
+        allowLongTermCondensation: true,
+        allowPersonaLearning: true,
+        allowTraining: false,
+      },
+      currentMemoryEvidence: createWorkingMemoryLongTermEvidence({
+        kind: 'correction',
+        summary: '项目界面强调色现在是绿色。',
+        reason: '用户明确纠正了之前的长期记忆事实。',
+        evidenceSnippet: '更正一下：项目界面强调色已经从蓝色改成绿色，蓝色是旧信息。',
+        supersedesText: ['蓝色'],
+        claim: {
+          subject: '项目界面强调色',
+          predicate: 'is',
+          object: '绿色',
+        },
+      }),
+    })
+
+    expect(snapshot.longTermCandidates[0]?.memoryEvidence).toEqual(expect.objectContaining({
+      supersedesText: ['蓝色'],
+      claim: {
+        subject: '项目界面强调色',
+        predicate: 'is',
+        object: '绿色',
+      },
+    }))
   })
 })

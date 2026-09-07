@@ -299,6 +299,15 @@ const dbStub = {
     archived: 0,
     lastPrunedAt: null,
   }),
+  drainWorkingMemoryLongTermQueue: vi.fn().mockResolvedValue({
+    cleaned: 0,
+    admitted: 0,
+    applied: 0,
+    rejected: 0,
+    review: 0,
+    failed: 0,
+    pending: 0,
+  }),
   importLegacyMemory: vi.fn().mockResolvedValue({
     migrated: false,
     importedFacts: 0,
@@ -941,6 +950,15 @@ describe('alicization runtime audit helpers', () => {
     dbStub.getTaskThread.mockReset().mockResolvedValue(undefined)
     dbStub.listTaskThreads.mockReset().mockResolvedValue([])
     dbStub.listMemoryConsolidations.mockReset().mockResolvedValue([])
+    dbStub.drainWorkingMemoryLongTermQueue.mockReset().mockResolvedValue({
+      cleaned: 0,
+      admitted: 0,
+      applied: 0,
+      rejected: 0,
+      review: 0,
+      failed: 0,
+      pending: 0,
+    })
     dbStub.upsertTaskThread.mockReset().mockImplementation(async (input: any) => ({
       id: input.id ?? 'thread-test-1',
       decisionTraceId: input.decisionTraceId ?? null,
@@ -1021,6 +1039,127 @@ describe('alicization runtime audit helpers', () => {
     expect(afterGenesis.soulPath.startsWith(sandboxPath)).toBe(true)
     expect(afterGenesis.needsGenesis).toBe(false)
     expect(afterGenesis.watching).toBe(true)
+  })
+
+  it('recovers persisted WorkingMemory long-term queue items after startup without blocking bootstrap', async () => {
+    vi.useFakeTimers()
+    try {
+      dbStub.drainWorkingMemoryLongTermQueue
+        .mockResolvedValueOnce({
+          cleaned: 16,
+          admitted: 16,
+          applied: 16,
+          rejected: 0,
+          review: 0,
+          failed: 0,
+          pending: 1,
+        })
+        .mockResolvedValueOnce({
+          cleaned: 1,
+          admitted: 1,
+          applied: 1,
+          rejected: 0,
+          review: 0,
+          failed: 0,
+          pending: 0,
+        })
+      const sandboxPath = await createSandboxPath()
+
+      await setupAlicizationRuntime({
+        userDataPathOverride: sandboxPath,
+        backgroundMaintenanceEnabled: true,
+      })
+
+      expect(dbStub.drainWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(dbStub.drainWorkingMemoryLongTermQueue).toHaveBeenCalledTimes(1)
+      expect(dbStub.drainWorkingMemoryLongTermQueue).toHaveBeenLastCalledWith(
+        16,
+        expect.objectContaining({
+          signal: expect.any(AbortSignal),
+        }),
+      )
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(dbStub.drainWorkingMemoryLongTermQueue).toHaveBeenCalledTimes(2)
+
+      await runAppBeforeQuitHandlers()
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(dbStub.drainWorkingMemoryLongTermQueue).toHaveBeenCalledTimes(2)
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('aborts in-flight WorkingMemory long-term recovery before closing sqlite', async () => {
+    vi.useFakeTimers()
+    let recoverySignal: AbortSignal | undefined
+    try {
+      dbStub.drainWorkingMemoryLongTermQueue.mockImplementationOnce(async (
+        _limit: number,
+        options?: { signal?: AbortSignal },
+      ) => {
+        recoverySignal = options?.signal
+        await new Promise<void>((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => {
+            reject(options.signal?.reason ?? new DOMException('aborted', 'AbortError'))
+          }, { once: true })
+        })
+        throw new Error('unreachable')
+      })
+      const sandboxPath = await createSandboxPath()
+      await setupAlicizationRuntime({
+        userDataPathOverride: sandboxPath,
+        backgroundMaintenanceEnabled: true,
+      })
+
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(dbStub.drainWorkingMemoryLongTermQueue).toHaveBeenCalledOnce()
+
+      await runAppBeforeQuitHandlers()
+
+      expect(recoverySignal).toEqual(expect.any(AbortSignal))
+      expect(recoverySignal?.aborted).toBe(true)
+      expect(dbStub.close).toHaveBeenCalledOnce()
+      expect(dbStub.appendAuditLog).not.toHaveBeenCalledWith(expect.objectContaining({
+        action: 'working-memory-long-term-recovery-failed',
+      }))
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('bounds shutdown when WorkingMemory recovery ignores AbortSignal', async () => {
+    vi.useFakeTimers()
+    try {
+      dbStub.drainWorkingMemoryLongTermQueue.mockImplementationOnce(async (
+        _limit: number,
+        options?: { signal?: AbortSignal },
+      ) => {
+        expect(options?.signal).toEqual(expect.any(AbortSignal))
+        return await new Promise<void>(() => {})
+      })
+      const sandboxPath = await createSandboxPath()
+      await setupAlicizationRuntime({
+        userDataPathOverride: sandboxPath,
+        backgroundMaintenanceEnabled: true,
+        shutdownGraceMs: 100,
+      })
+
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(dbStub.drainWorkingMemoryLongTermQueue).toHaveBeenCalledOnce()
+
+      const shutdown = runAppBeforeQuitHandlers()
+      await vi.advanceTimersByTimeAsync(100)
+      await expect(shutdown).resolves.toBeUndefined()
+
+      expect(dbStub.close).toHaveBeenCalledOnce()
+    }
+    finally {
+      vi.useRealTimers()
+    }
   })
 
   it('restores the persisted embedding provider before opening the database during startup', async () => {
@@ -1234,6 +1373,48 @@ describe('alicization runtime audit helpers', () => {
       'drain-finished',
       'db-closed',
     ])
+  })
+
+  it('bounds deferred memory shutdown wait before closing sqlite', async () => {
+    vi.useFakeTimers()
+    try {
+      const sandboxPath = await createSandboxPath()
+      await setupAlicizationRuntime({
+        userDataPathOverride: sandboxPath,
+        shutdownGraceMs: 100,
+      } as any)
+      const neverSettles = new Promise<void>(() => {})
+      const trackDeferredTask = (runtimeTestInternals as any)
+        .currentTrackDeferredMemoryPostCommitTask as ((task: Promise<void>) => boolean) | undefined
+
+      expect(trackDeferredTask).toBeTypeOf('function')
+      expect(trackDeferredTask?.(neverSettles)).toBe(true)
+
+      const shutdown = runAppBeforeQuitHandlers()
+      await vi.advanceTimersByTimeAsync(100)
+      await shutdown
+
+      expect(dbStub.close).toHaveBeenCalledOnce()
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('tracks a deferred memory owner registered after shutdown starts', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+    const trackDeferredTask = (runtimeTestInternals as any)
+      .currentTrackDeferredMemoryPostCommitTask as ((task: Promise<void>) => boolean) | undefined
+    const shutdown = runAppBeforeQuitHandlers()
+
+    expect(trackDeferredTask).toBeTypeOf('function')
+    expect(trackDeferredTask?.(Promise.resolve())).toBe(true)
+
+    await shutdown
+    expect(dbStub.close).toHaveBeenCalledOnce()
   })
 
   it('surfaces sqlite close failures from the app-before-quit lifecycle hook', async () => {
@@ -7047,6 +7228,69 @@ describe('alicization runtime audit helpers', () => {
     })
   })
 
+  it('forwards the accepted chat preparation signal into canonical session persistence', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    const abortChat = invokeHandlers.get(electronAlicizationChatAbort)
+    expect(startChat).toBeTypeOf('function')
+    expect(abortChat).toBeTypeOf('function')
+
+    const persistenceGate = createDeferredGate()
+    let sessionPersistenceSignal: AbortSignal | undefined
+    runtimeTestInternals.currentActiveSessionIdByCard?.delete('default')
+    dbStub.setMetaValue.mockClear()
+    dbStub.setMetaValue.mockImplementation(async (
+      key: string,
+      value: string,
+      options?: { signal?: AbortSignal },
+    ) => {
+      if (key === 'active_session_id_v1') {
+        sessionPersistenceSignal = options?.signal
+        await persistenceGate.wait
+      }
+      metaStore.set(key, value)
+    })
+
+    const turnId = 'turn-session-persistence-signal'
+    const startPromise = startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{ role: 'user', content: '等待会话初始化时中止。' }],
+    })
+
+    await vi.waitFor(() => {
+      expect(dbStub.setMetaValue).toHaveBeenCalledWith(
+        'active_session_id_v1',
+        'session:primary:default',
+        expect.objectContaining({
+          signal: expect.any(AbortSignal),
+        }),
+      )
+    })
+    expect(sessionPersistenceSignal).toEqual(expect.any(AbortSignal))
+
+    const abortResult = await abortChat!({
+      cardId: 'default',
+      turnId,
+      reason: 'session-persistence-signal-test',
+    })
+    expect(abortResult.accepted).toBe(true)
+    expect(sessionPersistenceSignal?.aborted).toBe(true)
+
+    persistenceGate.release()
+    await expect(startPromise).rejects.toBeDefined()
+  })
+
   it('accepts main chat stream over direct ipc transport', async () => {
     const sandboxPath = await createSandboxPath()
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
@@ -7123,6 +7367,15 @@ describe('alicization runtime audit helpers', () => {
       state: 'accepted',
     }))
     await waitForChatFinishEvent(turnId)
+    await vi.waitFor(() => {
+      expect(
+        dbStub.appendRuntimeEvent.mock.calls
+          .filter(([scope, event]) =>
+            scope.turnId === turnId
+            && event.eventType === 'memory.owner.settled',
+          ),
+      ).toHaveLength(7)
+    })
 
     const appendCalls = dbStub.appendRuntimeEvent.mock.calls
       .filter(([scope]) => scope.turnId === turnId)
@@ -7144,20 +7397,39 @@ describe('alicization runtime audit helpers', () => {
       'memory.owner.settled',
       'memory.owner.settled',
       'memory.owner.settled',
-      'memory.owner.settled',
-      'memory.owner.settled',
-      'memory.owner.settled',
       'memory.write.accepted',
       'working_memory.snapshot.created',
+      'memory.owner.settled',
+      'memory.owner.settled',
+      'memory.owner.settled',
+    ])
+    const ownerSettlements = appendCalls.flatMap(([, event], index) =>
+      event.eventType === 'memory.owner.settled'
+        ? [{
+            index,
+            owner: (event.payload as { owner?: string }).owner,
+          }]
+        : [],
+    )
+    expect(ownerSettlements.map(settlement => settlement.owner)).toEqual([
+      'working-memory-store',
+      'working-memory-checkpoint',
+      'long-term-memory-queue',
+      'dialogue-session-mirror',
+      'long-term-memory-drain',
+      'autobiographical-memory',
+      'persona-learning',
     ])
     expect(eventTypes.indexOf('turn.completed'))
       .toBeLessThan(eventTypes.indexOf('memory.write.proposed'))
     expect(eventTypes.indexOf('memory.write.proposed'))
       .toBeLessThan(eventTypes.indexOf('memory.owner.settled'))
-    expect(eventTypes.lastIndexOf('memory.owner.settled'))
+    expect(ownerSettlements[3]?.index)
       .toBeLessThan(eventTypes.indexOf('memory.write.accepted'))
     expect(eventTypes.indexOf('memory.write.accepted'))
       .toBeLessThan(eventTypes.indexOf('working_memory.snapshot.created'))
+    expect(eventTypes.indexOf('working_memory.snapshot.created'))
+      .toBeLessThan(ownerSettlements[4]?.index ?? -1)
 
     const localUserId = metaStore.get('alicization.runtime.local-user-id.v1')
     expect(localUserId).toEqual(expect.any(String))
@@ -7701,11 +7973,7 @@ describe('alicization runtime audit helpers', () => {
     })
     expect(startResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(turnId)
 
     const groundedImageMessage = capturedMessageBatches
       .flat()
@@ -7798,11 +8066,7 @@ describe('alicization runtime audit helpers', () => {
     })
     expect(startResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(turnId)
 
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.perception',
@@ -8230,12 +8494,8 @@ describe('alicization runtime audit helpers', () => {
       .filter(message => message.role === 'system')
       .map(message => String(message.content ?? ''))
       .join('\n\n')
-    expect(findAlicizationProviderFactInSystemText(systemText, 'alicization-perception')?.data).toMatchObject({
-      inspectionMode: 'passive-memory',
-      continuity: {
-        invited_inspection_active: 'false',
-      },
-    })
+    expect(findAlicizationProviderFactInSystemText(systemText, 'alicization-perception')).toBeNull()
+    expect(findAlicizationProviderFactInSystemText(systemText, 'alicization-inspection')).toBeNull()
     expect(findAlicizationProviderFactInSystemText(systemText, 'alicization-turn-memory-context')?.data).toMatchObject({
       workingMemory: {
         current: {
@@ -8322,11 +8582,7 @@ describe('alicization runtime audit helpers', () => {
     })
     expect(startResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(turnId)
 
     const fallbackImageMessage = capturedMessageBatches
       .flat()
@@ -10687,7 +10943,7 @@ describe('alicization runtime audit helpers', () => {
     const callbackPreviewBefore = await callbackRuntime?.buildPendingExecutionCallbackContext?.({
       sessionId: 'session:primary:default',
       consume: false,
-    }) as { callbacks?: Array<{ createdAt?: number }> } | undefined
+    }) as { callbacks?: Array<{ activityAt?: number, createdAt?: number }> } | undefined
     const callbackCursorBefore = callbackRuntime?.peekSurfacedCursor?.('session:primary:default') ?? null
     expect(callbackPreviewBefore?.callbacks ?? []).toHaveLength(1)
     const persistedDeliveryBefore = JSON.parse(metaStore.get('execution_delivery_state_v1') ?? '{}') as {
@@ -10745,10 +11001,10 @@ describe('alicization runtime audit helpers', () => {
     const callbackPreviewAfter = await callbackRuntime?.buildPendingExecutionCallbackContext?.({
       sessionId: 'session:primary:default',
       consume: false,
-    }) as { callbacks?: Array<{ createdAt?: number }> } | undefined
+    }) as { callbacks?: Array<{ activityAt?: number, createdAt?: number }> } | undefined
     const callbackCursorAfter = callbackRuntime?.peekSurfacedCursor?.('session:primary:default') ?? null
     expect(callbackPreviewAfter?.callbacks ?? []).toHaveLength(0)
-    expect(callbackCursorAfter).toBe(callbackPreviewBefore?.callbacks?.[0]?.createdAt ?? null)
+    expect(callbackCursorAfter).toBe(callbackPreviewBefore?.callbacks?.[0]?.activityAt ?? null)
     const callbackSettlementFailures = dbStub.appendAuditLog.mock.calls
       .map(([entry]) => entry)
       .filter(entry => entry.action === 'inline-surface-settlement-failed')
@@ -11133,6 +11389,9 @@ describe('alicization runtime audit helpers', () => {
       'task-reminder-typed-provider',
       expect.stringMatching(/^reminder:/),
       expect.any(Number),
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
     )
     const persistedReminderTurn = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0]
     expect(persistedReminderTurn).toEqual(expect.objectContaining({
@@ -11195,6 +11454,9 @@ describe('alicization runtime audit helpers', () => {
       'task-reminder-fallback',
       'llm-unavailable',
       expect.any(Number),
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
     )
     expect(dbStub.appendConversationTurn).toBeCalledTimes(0)
 

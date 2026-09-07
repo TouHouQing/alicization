@@ -45,10 +45,41 @@ function sanitizeText(raw: unknown, maxChars = 180) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+const internalConsolidationCuePattern = /(?:memory_)?recollection:[a-z0-9]+(?:[-_][a-z0-9]+)*(?::[a-z0-9]+(?:[-_][a-z0-9]+)*)+|structured[-_]state|(?:opening[-_]policy|relationship[-_]cadence)\s*(?:[:=]\s*[^\s,;|，；。！？!?]+)?|visibility\s*[:=]\s*redacted[_-]internal|project[-_]state[-_]brief|runtime[-_]mind[-_]state|structured[-_]continuity[-_]digest|pre_turn_context_digest|internal[-_]structured[-_]fact/giu
+
+function sanitizeConsolidationText(raw: unknown, maxChars = 180) {
+  const normalized = sanitizeText(raw, 2400)
+  if (!normalized)
+    return ''
+
+  return normalized
+    .replace(internalConsolidationCuePattern, ' ')
+    .replace(/\s+([，。！？,.!?;；:：])/gu, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxChars)
+    .trim()
+}
+
 function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
   const result: string[] = []
   for (const value of values) {
     const normalized = sanitizeText(value)
+    if (!normalized)
+      continue
+    if (result.some(item => item.toLowerCase() === normalized.toLowerCase()))
+      continue
+    result.push(normalized)
+    if (result.length >= maxItems)
+      break
+  }
+  return result
+}
+
+function uniqueConsolidationList(values: Array<string | null | undefined>, maxItems = 6) {
+  const result: string[] = []
+  for (const value of values) {
+    const normalized = sanitizeConsolidationText(value)
     if (!normalized)
       continue
     if (result.some(item => item.toLowerCase() === normalized.toLowerCase()))
@@ -144,7 +175,7 @@ function buildEvidenceSummary(
   events: AlicizationEpisodicEventRecord[],
   fallbackCode: string,
 ) {
-  return uniqueList(sortEvents(events).flatMap(event => [
+  return uniqueConsolidationList(sortEvents(events).flatMap(event => [
     event.relationshipMeaning,
     event.lesson,
     event.whatHappened,
@@ -154,7 +185,7 @@ function buildEvidenceSummary(
 }
 
 function buildLesson(events: AlicizationEpisodicEventRecord[]) {
-  const lessons = uniqueList(events.flatMap(event => [
+  const lessons = uniqueConsolidationList(events.flatMap(event => [
     event.lesson,
     event.relationshipMeaning,
     event.whatChanged,
@@ -195,7 +226,7 @@ function inferAutobiographicalFacets(event: AlicizationEpisodicEventRecord): Arr
 }
 
 function deriveDominantMood(events: AlicizationEpisodicEventRecord[]) {
-  const ranked = uniqueList(events.flatMap(event => [
+  const ranked = uniqueConsolidationList(events.flatMap(event => [
     ...event.emotionTags,
     event.felt,
   ]), 6)
@@ -203,7 +234,7 @@ function deriveDominantMood(events: AlicizationEpisodicEventRecord[]) {
 }
 
 function deriveRecurrentBurden(events: AlicizationEpisodicEventRecord[]) {
-  const burdenCandidates = uniqueList(events.flatMap(event => [
+  const burdenCandidates = uniqueConsolidationList(events.flatMap(event => [
     event.lesson,
     event.relationshipMeaning,
     event.whatChanged,
@@ -225,7 +256,7 @@ function buildAutobiographicalSummary(input: {
 function buildAutobiographicalCues(events: AlicizationEpisodicEventRecord[]) {
   const dominantMood = deriveDominantMood(events)
   const recurrentBurden = deriveRecurrentBurden(events)
-  return uniqueList(events.flatMap(event => [
+  return uniqueConsolidationList(events.flatMap(event => [
     event.threadAnchor,
     event.whereSummary,
     event.relationshipMeaning,
@@ -292,7 +323,7 @@ export function buildMemoryConsolidationRecords(input: {
       periodEndedAt: Math.max(...bucketEvents.map(event => event.occurredAt)),
       summary: buildEvidenceSummary(bucketEvents, `consolidation:daily:${periodKey}`),
       lesson: buildLesson(bucketEvents),
-      cues: uniqueList(sorted.flatMap(event => [
+      cues: uniqueConsolidationList(sorted.flatMap(event => [
         event.threadAnchor,
         event.whereSummary,
         event.whatHappened,
@@ -320,7 +351,7 @@ export function buildMemoryConsolidationRecords(input: {
       periodEndedAt: Math.max(...bucketEvents.map(event => event.occurredAt)),
       summary: buildEvidenceSummary(bucketEvents, `consolidation:weekly:${periodKey}`),
       lesson: buildLesson(bucketEvents),
-      cues: uniqueList(sorted.flatMap(event => [
+      cues: uniqueConsolidationList(sorted.flatMap(event => [
         event.threadAnchor,
         event.whereSummary,
         event.relationshipMeaning,
@@ -407,9 +438,11 @@ export function buildMemoryConsolidationRecords(input: {
       periodKey: item.id,
       periodStartedAt: Math.min(...supporting.map(event => event.occurredAt)),
       periodEndedAt: Math.max(...supporting.map(event => event.occurredAt)),
-      summary: sanitizeText(item.approach || item.label || `consolidation:procedural:${item.id}`, 280),
-      lesson: item.pitfalls[0] ?? null,
-      cues: uniqueList(item.cues, 5),
+      summary: sanitizeConsolidationText(item.approach, 280)
+        || sanitizeConsolidationText(item.label, 280)
+        || `consolidation:procedural:${item.id}`,
+      lesson: sanitizeConsolidationText(item.pitfalls[0]) || null,
+      cues: uniqueConsolidationList(item.cues, 5),
       confidence: item.confidence,
       dominantProvenance: pickDominantProvenance(supporting.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
       derivedEventIds: supporting.map(event => event.id),

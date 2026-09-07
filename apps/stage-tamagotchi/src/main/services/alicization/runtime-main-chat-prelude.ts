@@ -14,6 +14,7 @@ import type {
 import type { MainGatewayResolvedConfig } from './runtime-soul'
 
 import { deriveMainChatActionObligation } from './main-chat-action-obligation'
+import { shouldInjectInteractivePerceptionForUserText } from './runtime-perception-helpers'
 import { preserveLatestUserMultimodalContent } from './runtime-transport-content'
 
 interface CreateAlicizationMainChatPreludeRuntimeOptions {
@@ -27,13 +28,24 @@ interface CreateAlicizationMainChatPreludeRuntimeOptions {
       redactStaleInspectionHistoryForUserText?: string
     },
   ) => Message[]
-  buildMainChatContextualString: (payload: AlicizationChatStartPayload) => Promise<string>
-  buildMainChatExecutionCallbackContext: (payload: AlicizationChatStartPayload) => Promise<any>
-  buildMainChatExecutionLedgerContext: (payload: AlicizationChatStartPayload) => Promise<any>
+  buildMainChatContextualString: (
+    payload: AlicizationChatStartPayload,
+    options?: { signal?: AbortSignal },
+  ) => Promise<string>
+  buildMainChatExecutionCallbackContext: (
+    payload: AlicizationChatStartPayload,
+    options?: { signal?: AbortSignal },
+  ) => Promise<any>
+  buildMainChatExecutionLedgerContext: (
+    payload: AlicizationChatStartPayload,
+    options?: { signal?: AbortSignal },
+  ) => Promise<any>
   hydrateWorkingMemory?: (input: {
     cardId: string
     turnId: string
     sessionId: string
+    currentUserText?: string | null
+    signal?: AbortSignal
   }) => Promise<AlicizationWorkingMemoryHydration>
   augmentMainChatMessagesWithPerception: (input: {
     cardId: string
@@ -85,6 +97,8 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
           cardId: normalizedPayload.cardId,
           turnId: normalizedPayload.turnId,
           sessionId: workingMemorySessionId,
+          currentUserText: latestUserText,
+          signal: options?.abortSignal,
         }), options?.abortSignal)
       : null
     let messages = resolveChatMessages(normalizedPayload, {
@@ -96,10 +110,22 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     })
     const perceptionMessages = scopeMessagesForCurrentTurn(messages)
 
-    const contextualStringPromise = buildMainChatContextualString(normalizedPayload)
-    const executionCallbackContextPromise = buildMainChatExecutionCallbackContext(normalizedPayload)
-    const executionLedgerContextPromise = buildMainChatExecutionLedgerContext(normalizedPayload)
-    const perceptionAugmentation = latestUserText
+    const ownerReadOptions = {
+      signal: options?.abortSignal,
+    }
+    const contextualStringPromise = awaitAlicizationPromiseWithAbort(
+      buildMainChatContextualString(normalizedPayload, ownerReadOptions),
+      options?.abortSignal,
+    )
+    const executionCallbackContextPromise = awaitAlicizationPromiseWithAbort(
+      buildMainChatExecutionCallbackContext(normalizedPayload, ownerReadOptions),
+      options?.abortSignal,
+    )
+    const executionLedgerContextPromise = awaitAlicizationPromiseWithAbort(
+      buildMainChatExecutionLedgerContext(normalizedPayload, ownerReadOptions),
+      options?.abortSignal,
+    )
+    const rawPerceptionAugmentation = latestUserText
       ? await awaitAlicizationPromiseWithAbort(augmentMainChatMessagesWithPerception({
           cardId: normalizedPayload.cardId,
           turnId: normalizedPayload.turnId,
@@ -128,10 +154,17 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
             mindTurnGovernance: null,
           },
         }
-    messages = mergePerceptionMessagesIntoTransportMessages(
-      messages,
-      perceptionAugmentation.messages,
-    )
+    const perceptionInjectionAuthorized = shouldInjectInteractivePerceptionForUserText(latestUserText)
+      || rawPerceptionAugmentation.capture?.inspectionRequested === true
+    const perceptionAugmentation = perceptionInjectionAuthorized
+      ? rawPerceptionAugmentation
+      : suppressUnrequestedPerceptionAugmentation(rawPerceptionAugmentation, messages)
+    if (perceptionInjectionAuthorized) {
+      messages = mergePerceptionMessagesIntoTransportMessages(
+        messages,
+        perceptionAugmentation.messages,
+      )
+    }
     const actionObligation = deriveMainChatActionObligation({
       userText: latestUserText || '',
       runtimeSurface: perceptionAugmentation.digitalLifeRuntimeSurface,
@@ -176,6 +209,44 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
   return {
     prepareMainChatPrelude,
     prepareMainChatExecution,
+  }
+}
+
+function suppressUnrequestedPerceptionAugmentation<T extends {
+  messages: Message[]
+  capture?: {
+    groundedThisTurn: boolean
+    inspectionRequested: boolean
+  }
+  promptSystemBlocks?: string[]
+  systemBlocks?: string[]
+}>(
+  augmentation: T,
+  fallbackMessages: Message[],
+) {
+  return {
+    ...augmentation,
+    messages: fallbackMessages,
+    systemBlocks: (augmentation.systemBlocks ?? []).filter(block => !isPerceptionBlock(block)),
+    promptSystemBlocks: (augmentation.promptSystemBlocks ?? []).filter(block => !isPerceptionBlock(block)),
+    capture: augmentation.capture
+      ? {
+          ...augmentation.capture,
+          inspectionRequested: false,
+          groundedThisTurn: false,
+        }
+      : augmentation.capture,
+  }
+}
+
+function isPerceptionBlock(block: string) {
+  try {
+    const parsed = JSON.parse(block) as { type?: unknown }
+    return parsed.type === 'alicization-perception'
+      || parsed.type === 'alicization-inspection'
+  }
+  catch {
+    return false
   }
 }
 

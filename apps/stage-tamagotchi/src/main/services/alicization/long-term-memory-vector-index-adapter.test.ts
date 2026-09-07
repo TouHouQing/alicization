@@ -163,6 +163,178 @@ describe('long-term memory vector index adapter', () => {
     })
   })
 
+  it('propagates cancellation through canonical and native deletion', async () => {
+    const deleteCanonical = vi.fn(async () => 1)
+    const deleteNative = vi.fn(async () => 1)
+    const adapter = createLongTermMemoryVectorIndexAdapter({
+      store: {
+        initialize: vi.fn(async () => {}),
+        upsertVectors: vi.fn(async () => {}),
+        searchVectors: vi.fn(async () => []),
+        deleteVectorsBySource: deleteCanonical,
+        pruneOrphanedVectors: vi.fn(async () => ({ deleted: 0, spaces: [] })),
+        reindexByModel: vi.fn(async input => ({
+          modelId: input.modelId,
+          sourceIds: [],
+          recordCount: 0,
+        })),
+        getHealth: vi.fn(async () => ({
+          providerConfigured: true,
+          modelId: 'model-a',
+          dimensions: 3,
+          searchReady: true,
+          reindexRequired: false,
+          canonicalCount: 1,
+          indexedCount: 1,
+          missingCount: 0,
+          textHashMismatchCount: 0,
+          staleOrFailedCount: 0,
+          orphanedCount: 0,
+          coverageRatio: 1,
+        })),
+      },
+      native: {
+        mode: 'sqlite-vec',
+        approximate: false,
+        initialize: vi.fn(async () => {}),
+        upsert: vi.fn(async () => {}),
+        delete: deleteNative,
+        search: vi.fn(async () => []),
+        rebuild: vi.fn(async () => {}),
+        getHealth: vi.fn(async () => ({ ready: true, lastError: null })),
+      },
+    })
+    await adapter.initialize()
+
+    const controller = new AbortController()
+    await expect(adapter.delete({
+      cardId: 'card-a',
+      sourceIds: ['shared-id'],
+      source: 'memory_reflections',
+      signal: controller.signal,
+    })).resolves.toBe(1)
+
+    expect(deleteCanonical).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'card-a',
+      sourceIds: ['shared-id'],
+      source: 'memory_reflections',
+      signal: controller.signal,
+    }))
+    expect(deleteNative).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'card-a',
+      sourceIds: ['shared-id'],
+      source: 'memory_reflections',
+      signal: controller.signal,
+    }))
+  })
+
+  it('does not start vector deletion after cancellation', async () => {
+    const deleteCanonical = vi.fn(async () => 1)
+    const adapter = createLongTermMemoryVectorIndexAdapter({
+      store: {
+        initialize: vi.fn(async () => {}),
+        upsertVectors: vi.fn(async () => {}),
+        searchVectors: vi.fn(async () => []),
+        deleteVectorsBySource: deleteCanonical,
+        pruneOrphanedVectors: vi.fn(async () => ({ deleted: 0, spaces: [] })),
+        reindexByModel: vi.fn(async input => ({
+          modelId: input.modelId,
+          sourceIds: [],
+          recordCount: 0,
+        })),
+        getHealth: vi.fn(async () => ({
+          providerConfigured: true,
+          modelId: 'model-a',
+          dimensions: 3,
+          searchReady: true,
+          reindexRequired: false,
+          canonicalCount: 0,
+          indexedCount: 0,
+          missingCount: 0,
+          textHashMismatchCount: 0,
+          staleOrFailedCount: 0,
+          orphanedCount: 0,
+          coverageRatio: null,
+        })),
+      },
+    })
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(adapter.delete({
+      cardId: 'card-a',
+      sourceIds: ['shared-id'],
+      signal: controller.signal,
+    })).rejects.toMatchObject({ name: 'AbortError' })
+    expect(deleteCanonical).not.toHaveBeenCalled()
+  })
+
+  it('does not start canonical or native upsert after cancellation', async () => {
+    const upsertCanonical = vi.fn(async () => {})
+    const upsertNative = vi.fn(async () => {})
+    const adapter = createLongTermMemoryVectorIndexAdapter({
+      store: {
+        initialize: vi.fn(async () => {}),
+        upsertVectors: upsertCanonical,
+        searchVectors: vi.fn(async () => []),
+        deleteVectorsBySource: vi.fn(async () => 0),
+        pruneOrphanedVectors: vi.fn(async () => ({ deleted: 0, spaces: [] })),
+        reindexByModel: vi.fn(async input => ({
+          modelId: input.modelId,
+          sourceIds: [],
+          recordCount: 0,
+        })),
+        getHealth: vi.fn(async () => ({
+          providerConfigured: true,
+          modelId: 'model-a',
+          dimensions: 3,
+          searchReady: true,
+          reindexRequired: false,
+          canonicalCount: 0,
+          indexedCount: 0,
+          missingCount: 0,
+          textHashMismatchCount: 0,
+          staleOrFailedCount: 0,
+          orphanedCount: 0,
+          coverageRatio: null,
+        })),
+      },
+      native: {
+        mode: 'sqlite-vec',
+        approximate: false,
+        initialize: vi.fn(async () => {}),
+        upsert: upsertNative,
+        delete: vi.fn(async () => 0),
+        search: vi.fn(async () => []),
+        rebuild: vi.fn(async () => {}),
+        getHealth: vi.fn(async () => ({ ready: true, lastError: null })),
+      },
+    })
+    await adapter.initialize()
+    const controller = new AbortController()
+    controller.abort(new DOMException('runtime shutdown', 'AbortError'))
+
+    await expect((adapter.upsert as any)([{
+      id: 'cancelled-vector',
+      cardId: 'card-a',
+      sourceId: 'source-a',
+      source: 'memory_reflections',
+      text: 'cancelled',
+      textHash: 'hash-cancelled',
+      updatedAt: 1,
+      vector: [1, 0, 0],
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
+    }], {
+      signal: controller.signal,
+    })).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(upsertCanonical).not.toHaveBeenCalled()
+    expect(upsertNative).not.toHaveBeenCalled()
+  })
+
   it('prunes canonical orphans and rebuilds every affected native vector space', async () => {
     const pruneOrphanedVectors = vi.fn(async () => ({
       deleted: 2,
@@ -414,6 +586,76 @@ describe('long-term memory vector index adapter', () => {
     expect(nativeRebuild).toHaveBeenCalled()
   })
 
+  it('propagates native reindex requirements even when canonical vectors are synchronized', async () => {
+    const adapter = createLongTermMemoryVectorIndexAdapter({
+      store: {
+        initialize: vi.fn(async () => {}),
+        upsertVectors: vi.fn(async () => {}),
+        searchVectors: vi.fn(async () => []),
+        deleteVectorsBySource: vi.fn(async () => 0),
+        pruneOrphanedVectors: vi.fn(async () => ({ deleted: 0, spaces: [] })),
+        reindexByModel: vi.fn(async input => ({
+          modelId: input.modelId,
+          sourceIds: [],
+          recordCount: 0,
+        })),
+        getHealth: vi.fn(async () => ({
+          providerConfigured: true,
+          modelId: 'model-a',
+          dimensions: 3,
+          searchReady: true,
+          reindexRequired: false,
+          canonicalCount: 1,
+          indexedCount: 1,
+          missingCount: 0,
+          textHashMismatchCount: 0,
+          staleOrFailedCount: 0,
+          orphanedCount: 0,
+          coverageRatio: 1,
+        })),
+      },
+      native: {
+        mode: 'sqlite-vec',
+        approximate: true,
+        initialize: vi.fn(async () => {}),
+        upsert: vi.fn(async () => {}),
+        delete: vi.fn(async () => 0),
+        search: vi.fn(async () => []),
+        rebuild: vi.fn(async () => {}),
+        getHealth: vi.fn(async () => ({
+          ready: false,
+          reindexRequired: true,
+          lastError: 'sqlite-vec index schema migration requires reindex',
+        })),
+      },
+    })
+
+    await adapter.initialize()
+
+    await expect(adapter.getHealth({
+      cardId: 'card-a',
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
+    })).resolves.toMatchObject({
+      reindexRequired: true,
+      degraded: true,
+      nativeIndexReady: false,
+      lastError: 'sqlite-vec index schema migration requires reindex',
+    })
+    await expect(adapter.getHealth({
+      cardId: 'card-a',
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: modelAVectorSpaceId,
+    })).resolves.toMatchObject({
+      reindexRequired: true,
+      degraded: true,
+      nativeIndexReady: false,
+      lastError: 'sqlite-vec index schema migration requires reindex',
+    })
+  })
+
   it.each([
     {
       mutate: async (adapter: ReturnType<typeof createLongTermMemoryVectorIndexAdapter>) => {
@@ -515,6 +757,7 @@ describe('long-term memory vector index adapter', () => {
       degraded: true,
       nativeIndexReady: false,
       lastError: 'native index mutation failed',
+      reindexRequired: false,
     })
     expect(nativeHealth).toHaveBeenCalledTimes(2)
   })

@@ -188,7 +188,7 @@ interface AlicizationSensoryRuntimeOptions {
   detectInvitedInspectionIntent: (message: string) => {
     active: boolean
   }
-  ensurePerceptionState: (cardId: string) => Promise<AlicizationPerceptionState>
+  ensurePerceptionState: (cardId: string, options?: { signal?: AbortSignal }) => Promise<AlicizationPerceptionState>
   queuePerceptionStateMutation: (
     cardId: string,
     mutate: (current: AlicizationPerceptionState) => AlicizationPerceptionState | Promise<AlicizationPerceptionState>,
@@ -279,11 +279,13 @@ interface AlicizationSensoryRuntimeOptions {
       processName?: string
       title?: string
     } | null
+    signal?: AbortSignal
   }) => Promise<AlicizationPerceptionState>
   rememberSceneResidue: (input: {
     cardId: string
     now: number
     residue: AlicizationPerceptionSceneResidue
+    signal?: AbortSignal
   }) => Promise<AlicizationPerceptionState>
   resolveDesktopCaptureAccess: (input: {
     thumbnailSize: {
@@ -613,8 +615,11 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
     abortSignal?: AbortSignal
   }): Promise<AlicizationPreparedInteractivePerceptionPrelude> {
     const now = Date.now()
-    let perceptionState = await options.ensurePerceptionState(input.cardId)
-    const visualPresenceState = await options.ensureVisualPresenceState(input.cardId)
+    const [initialPerceptionState, visualPresenceState] = await Promise.all([
+      options.ensurePerceptionState(input.cardId),
+      options.ensureVisualPresenceState(input.cardId),
+    ])
+    let perceptionState = initialPerceptionState
     const sensorySnapshot = options.getSensorySnapshot()
     const senderCaptureSnapshot = options.resolveSenderCaptureSnapshot(input.senderWebContentsId)
 

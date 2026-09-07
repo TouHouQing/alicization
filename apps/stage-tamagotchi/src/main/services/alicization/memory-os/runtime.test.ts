@@ -129,4 +129,34 @@ describe('memory-os runtime', () => {
       recallGovernor,
     })
   })
+
+  it('passes the turn signal into context resolution and stops before tuning after abort', async () => {
+    const controller = new AbortController()
+    const context = {
+      hostAttitude: 'focused',
+      coreIncarnation: '',
+      activeThoughts: [],
+      retrievedFacts: [],
+      recalledFragments: [],
+    } as any
+    const resolveContext = vi.fn(async () => {
+      controller.abort(new DOMException('memory turn cancelled', 'AbortError'))
+      return context
+    })
+    const tuneContext = vi.fn(async input => input.context)
+
+    await expect(runAlicizationMemoryOsTurnRuntime({
+      recallSeed: '继续当前记忆链路',
+      signal: controller.signal,
+      resolveContext,
+      tuneContext,
+    } as any)).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+
+    expect(resolveContext).toHaveBeenCalledWith(expect.objectContaining({
+      signal: controller.signal,
+    }))
+    expect(tuneContext).not.toHaveBeenCalled()
+  })
 })

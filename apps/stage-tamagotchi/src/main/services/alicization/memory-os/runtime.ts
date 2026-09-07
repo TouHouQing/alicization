@@ -125,6 +125,11 @@ function sanitizeMemoryOsContext(context: OrganicMemoryPromptContext) {
   return sanitizeMemoryOsContextValue(context) as OrganicMemoryPromptContext
 }
 
+function throwIfMemoryOsAborted(signal?: AbortSignal) {
+  if (signal?.aborted)
+    throw signal.reason ?? new DOMException('Memory OS turn aborted', 'AbortError')
+}
+
 function compact(values: Array<string | null | undefined>, limit = 6) {
   const result: string[] = []
   for (const value of values) {
@@ -279,6 +284,7 @@ export async function runAlicizationMemoryOsTurnRuntime(input: {
   budgetClass?: string | null
   retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+  signal?: AbortSignal
   resolveContext: (input: {
     recallSeed: string
     recallGovernor?: unknown
@@ -287,6 +293,7 @@ export async function runAlicizationMemoryOsTurnRuntime(input: {
     budgetClass?: string | null
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
     digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+    signal?: AbortSignal
   }) => Promise<OrganicMemoryPromptContext>
   tuneContext?: (input: {
     context: OrganicMemoryPromptContext
@@ -296,6 +303,7 @@ export async function runAlicizationMemoryOsTurnRuntime(input: {
 }) {
   const now = input.nowMs ?? (() => Date.now())
   const startedAt = now()
+  throwIfMemoryOsAborted(input.signal)
   const rawContext = await input.resolveContext({
     recallSeed: input.recallSeed,
     recallGovernor: input.recallGovernor,
@@ -304,13 +312,16 @@ export async function runAlicizationMemoryOsTurnRuntime(input: {
     budgetClass: input.budgetClass,
     retrievalPolicySnapshot: input.retrievalPolicySnapshot,
     digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
+    signal: input.signal,
   })
+  throwIfMemoryOsAborted(input.signal)
   const context = input.tuneContext
     ? await input.tuneContext({
         context: rawContext,
         recallGovernor: input.recallGovernor,
       })
     : rawContext
+  throwIfMemoryOsAborted(input.signal)
   return runAlicizationMemoryOsTurn({
     context,
     retrievalPolicySnapshot: input.retrievalPolicySnapshot,

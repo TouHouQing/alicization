@@ -8,6 +8,7 @@ export interface AlicizationFixedTemplateSanitizerContext {
   provenance?: string | null
   schemaType?: string | null
   visibility?: string | null
+  fragmentPolicy?: 'strip' | 'drop-only'
 }
 
 function normalizeFixedTemplateText(raw: unknown, maxChars: number) {
@@ -55,6 +56,10 @@ function hasInternalStructuredProvenance(context?: AlicizationFixedTemplateSanit
   return signals.includes('internal-structured-fact')
 }
 
+function shouldDropOnlyInternalFragments(context?: AlicizationFixedTemplateSanitizerContext | null) {
+  return context?.fragmentPolicy === 'drop-only'
+}
+
 function looksLikeStructuredInternalFactText(text: string) {
   if (isSerializedStructuredPayload(text))
     return false
@@ -91,6 +96,44 @@ function looksLikeInternalCueText(text: string) {
   ].includes(normalized)
 }
 
+const internalCueFragmentPatterns = [
+  /autobiographical\s+phase/giu,
+  /emotion\s*:[\p{L}\p{N}_-]+/gu,
+  /recollection(?::[\p{L}\p{N}_-]+){1,4}/gu,
+  /cleaned:working-memory-long-term(?::[^\s;|,，。！？]*)?/giu,
+  /(?:opening_policy|relationship_cadence)\s*[:=]\s*[^\s;|,，。！？]+/giu,
+  /visibility\s*=\s*redacted_internal/giu,
+  /(?:pre_turn_context_digest|structured-state|project-state-brief|runtime-mind-state)/giu,
+  /(?:answer_evidence|recall_mode|kernel_[\p{L}\p{N}_-]+)\s*[:=]\s*[^\s;|,，。！？]+/giu,
+]
+
+function hasStrongInternalCueFragment(text: string) {
+  return internalCueFragmentPatterns.some((pattern) => {
+    pattern.lastIndex = 0
+    return pattern.test(text)
+  })
+}
+
+function hasInternalCueFragment(text: string) {
+  const normalized = text.trim().replace(/\s+/gu, ' ')
+  return hasStrongInternalCueFragment(text) || normalized === '共同经历'
+}
+
+function stripInternalCueFragments(text: string) {
+  let stripped = text
+  for (const pattern of internalCueFragmentPatterns) {
+    pattern.lastIndex = 0
+    stripped = stripped.replace(pattern, ' ')
+  }
+  if (hasStrongInternalCueFragment(text) || stripped.trim() === '共同经历')
+    stripped = stripped.replace(/共同经历/gu, ' ')
+
+  return stripped
+    .replace(/\s*[,，;；|:：]\s*/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
+}
+
 export function containsAlicizationFixedTemplateResidue(
   raw: unknown,
   context?: AlicizationFixedTemplateSanitizerContext | null,
@@ -103,6 +146,7 @@ export function containsAlicizationFixedTemplateResidue(
   return Boolean(normalized) && (
     looksLikeStructuredInternalFactText(normalized)
     || looksLikeInternalCueText(normalized)
+    || hasInternalCueFragment(normalized)
   )
 }
 
@@ -116,9 +160,25 @@ export function sanitizeAlicizationProviderFacingText(
   const normalized = normalizeFixedTemplateText(raw, maxChars)
   if (!normalized)
     return ''
-  return !serializedPayload && containsAlicizationFixedTemplateResidue(raw, context)
+  if (serializedPayload || !hasInternalStructuredProvenance(context))
+    return normalized
+  if (!containsAlicizationFixedTemplateResidue(raw, context))
+    return normalized
+  if (
+    looksLikeStructuredInternalFactText(normalizeStructuredFactCandidate(raw, 2400))
+    || looksLikeInternalCueText(normalized)
+  ) {
+    return replacement
+  }
+  if (shouldDropOnlyInternalFragments(context))
+    return normalized
+
+  const stripped = stripInternalCueFragments(normalized)
+  return !stripped
+    || looksLikeStructuredInternalFactText(stripped)
+    || looksLikeInternalCueText(stripped)
     ? replacement
-    : normalized
+    : stripped
 }
 
 export function sanitizeAlicizationMemoryEvidenceText(
@@ -131,9 +191,25 @@ export function sanitizeAlicizationMemoryEvidenceText(
   if (!normalized)
     return ''
 
-  return !serializedPayload && containsAlicizationFixedTemplateResidue(raw, context)
+  if (serializedPayload || !hasInternalStructuredProvenance(context))
+    return normalized.slice(0, Math.max(0, maxChars)).trim()
+  if (!containsAlicizationFixedTemplateResidue(raw, context))
+    return normalized.slice(0, Math.max(0, maxChars)).trim()
+  if (
+    looksLikeStructuredInternalFactText(normalizeStructuredFactCandidate(raw, 2400))
+    || looksLikeInternalCueText(normalized)
+  ) {
+    return ''
+  }
+  if (shouldDropOnlyInternalFragments(context))
+    return normalized.slice(0, Math.max(0, maxChars)).trim()
+
+  const stripped = stripInternalCueFragments(normalized)
+  return !stripped
+    || looksLikeStructuredInternalFactText(stripped)
+    || looksLikeInternalCueText(stripped)
     ? ''
-    : normalized.slice(0, Math.max(0, maxChars)).trim()
+    : stripped.slice(0, Math.max(0, maxChars)).trim()
 }
 
 export function sanitizeAlicizationStructuredInternalText(
@@ -147,7 +223,23 @@ export function sanitizeAlicizationStructuredInternalText(
   if (!normalized)
     return ''
 
-  return !serializedPayload && containsAlicizationFixedTemplateResidue(raw, context)
+  if (serializedPayload || !hasInternalStructuredProvenance(context))
+    return normalized
+  if (!containsAlicizationFixedTemplateResidue(raw, context))
+    return normalized
+  if (
+    looksLikeStructuredInternalFactText(normalizeStructuredFactCandidate(raw, 2400))
+    || looksLikeInternalCueText(normalized)
+  ) {
+    return replacement
+  }
+  if (shouldDropOnlyInternalFragments(context))
+    return normalized
+
+  const stripped = stripInternalCueFragments(normalized)
+  return !stripped
+    || looksLikeStructuredInternalFactText(stripped)
+    || looksLikeInternalCueText(stripped)
     ? replacement
-    : normalized
+    : stripped
 }

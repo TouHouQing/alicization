@@ -335,6 +335,7 @@ export type CardScopeLane = 'foreground' | 'background'
 export interface CardScopeOptions {
   label?: string
   lane?: CardScopeLane
+  signal?: AbortSignal
   skipQueueWhenScopeAlreadyActive?: boolean
 }
 

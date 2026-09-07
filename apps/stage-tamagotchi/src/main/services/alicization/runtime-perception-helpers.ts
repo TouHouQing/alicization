@@ -3,7 +3,10 @@ import type { AlicizationPerceptionSceneResidue, AlicizationPerceptionState } fr
 import type { AlicizationProactivePerceptionSignals } from './proactive-policy'
 import type { AlicizationScreenSemanticSummary } from './proactive-screen-semantic'
 
-import { isWeakAlicizationScreenSurfaceTarget } from '@proj-alicization/stage-shared'
+import {
+  inferAlicizationInspectionIntent,
+  isWeakAlicizationScreenSurfaceTarget,
+} from '@proj-alicization/stage-shared'
 
 import {
   extractInspectionHintTerms,
@@ -44,6 +47,12 @@ export function isGenericScreenInspectionRequest(userText: string) {
   const mentionsScreen = /屏幕|桌面|工作区|workspace|desktop|界面|画面|screen|display/i.test(normalized)
   const mentionsSpecificTask = /代码|diff|改动|报错|错误|exception|traceback|terminal|终端|cursor|vs\s*code|xcode|jetbrains|chrome|safari|firefox|edge|tab|标签页|url|网址|控制台|console|日志|log/i.test(normalized)
   return mentionsScreen && !mentionsSpecificTask
+}
+
+export function shouldInjectInteractivePerceptionForUserText(userText: string) {
+  return inferAlicizationInspectionIntent({
+    message: userText,
+  }).active
 }
 
 export function isWeakGenericBrowserPerceptionTarget(target?: {
@@ -475,15 +484,25 @@ function normalizeForegroundDecisionTarget(
   const appName = sanitizeText(target?.appName)
   const processName = sanitizeText(target?.processName)
   const title = sanitizeText(target?.title)
-  const pid = Number.isFinite(Number(target?.pid)) ? Math.max(1, Math.floor(Number(target?.pid))) : null
+  const pid = typeof target?.pid === 'number' && Number.isFinite(target.pid)
+    ? Math.max(1, Math.floor(target.pid))
+    : null
   if (!appName && !processName && !title && pid === null)
     return undefined
-  return {
-    appName: appName || undefined,
-    processName: processName || undefined,
-    title: title || undefined,
-    pid,
-  }
+
+  const normalized: {
+    appName?: string
+    processName?: string
+    title?: string
+    pid: number | null
+  } = { pid }
+  if (appName)
+    normalized.appName = appName
+  if (processName)
+    normalized.processName = processName
+  if (title)
+    normalized.title = title
+  return normalized
 }
 
 function buildForegroundDecisionText(
@@ -560,12 +579,25 @@ function mergeForegroundDecisionTarget(
     return secondary ?? undefined
   if (!secondary)
     return primary
-  return {
-    appName: primary.appName ?? secondary.appName,
-    processName: primary.processName ?? secondary.processName,
-    title: primary.title ?? secondary.title,
+
+  const merged: {
+    appName?: string
+    processName?: string
+    title?: string
+    pid: number | null
+  } = {
     pid: primary.pid ?? secondary.pid ?? null,
   }
+  const appName = primary.appName ?? secondary.appName
+  const processName = primary.processName ?? secondary.processName
+  const title = primary.title ?? secondary.title
+  if (appName)
+    merged.appName = appName
+  if (processName)
+    merged.processName = processName
+  if (title)
+    merged.title = title
+  return merged
 }
 
 export function resolveForegroundDecisionTarget(input: {

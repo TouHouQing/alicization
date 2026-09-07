@@ -1138,6 +1138,29 @@ describe('memory embedding reindex runtime', () => {
     expect(progress.status).toBe('cancelled')
   })
 
+  it('passes the active worker signal into the atomic vector commit callback', async () => {
+    let observedSignal: AbortSignal | undefined
+    const { runtime } = await createRuntimeHarness({
+      commitVectorAndItem: async ({ signal }) => {
+        observedSignal = signal
+        return false
+      },
+    })
+    const controller = new AbortController()
+    const job = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      entries: [{ sourceId: 'memory-1', source: 'memory_reflections', text: '提交信号透传' }],
+    })
+
+    await runtime.runNextBatch({
+      jobId: job.jobId,
+      batchSize: 1,
+      signal: controller.signal,
+    })
+
+    expect(observedSignal).toBe(controller.signal)
+  })
+
   it('renews claimed leases before committing a long batch', async () => {
     let now = 1_000
     let commitCalls = 0

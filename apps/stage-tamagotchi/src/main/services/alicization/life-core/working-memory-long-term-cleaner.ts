@@ -118,6 +118,8 @@ function buildCleanedCandidate(input: {
     confidence: item.confidence,
     sensitivity: item.sensitivity,
     trainingEligibility: 'blocked',
+    supersedesText: item.memoryEvidence?.supersedesText,
+    claim: item.memoryEvidence?.claim,
     createdAt: item.createdAt,
   }
 }

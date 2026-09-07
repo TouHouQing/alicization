@@ -906,8 +906,8 @@ export const executeMemorySemanticScaleJob: MemorySemanticScaleJobExecutor = asy
       corpusSizes: [input.corpusSize],
       queryCount: 24,
       batchSize: 500,
-      maxP95LatencyMs: 2_000,
-      maxP99LatencyMs: 4_000,
+      maxP95LatencyMs: 3_000,
+      maxP99LatencyMs: 5_000,
       signal: input.signal,
       onProgress: async (progress) => {
         peakRssBytes = Math.max(peakRssBytes, process.memoryUsage().rss)

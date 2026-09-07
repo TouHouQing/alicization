@@ -209,7 +209,10 @@ export interface AlicizationBudgetLatencyTelemetry {
 interface CreateAlicizationMemoryRetrievalTelemetryRuntimeOptions {
   now: () => number
   key: string
-  getMetaValue: (key: string) => Promise<string | undefined>
+  getMetaValue: (
+    key: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<string | undefined>
   upsertMeta: (key: string, value: string) => Promise<void>
   enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
 }
@@ -833,8 +836,8 @@ function updateHotKeyStats(input: {
 export function createAlicizationMemoryRetrievalTelemetryRuntime(
   input: CreateAlicizationMemoryRetrievalTelemetryRuntimeOptions,
 ) {
-  const getTelemetry = async () => {
-    const raw = await input.getMetaValue(input.key)
+  const getTelemetry = async (ownerOptions?: { signal?: AbortSignal }) => {
+    const raw = await input.getMetaValue(input.key, ownerOptions)
     if (!raw)
       return defaultAlicizationMemoryRetrievalTelemetry()
 

@@ -84,6 +84,36 @@ describe('runtime chat prompt blocks fixed governance removal', () => {
     expect(inspection).not.toContain('[ALICIZATION_INSPECTION_CONTRACT]')
   })
 
+  it('does not emit passive perception context after inspection ownership is released', () => {
+    const state = {
+      attentionAnchor: {
+        appName: 'Safari',
+        processName: 'Safari',
+        title: 'Memory settings',
+        anchoredAt: 10,
+        lastObservedAt: 10,
+        reason: 'recent-foreground',
+        workloadKind: 'browsing',
+        confidence: 0.9,
+      },
+      browserWorkflowState: null,
+      lastNonSelfForegroundTarget: null,
+      recentObservations: [{
+        appName: 'Safari',
+        observedAt: 10,
+      }],
+      invitedInspection: null,
+      recentSceneResidue: null,
+      updatedAt: 10,
+    } as any
+
+    expect(buildChatPerceptionSystemBlock({
+      now: 10,
+      state,
+      inspectionRequested: false,
+    })).toBe('')
+  })
+
   it('emits screenshot grounding as a typed fact instead of a natural-language cue block', () => {
     const state = {
       attentionAnchor: {

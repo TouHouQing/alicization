@@ -310,6 +310,68 @@ describe('learning action scheduler', () => {
     expect(scheduledMessage).not.toMatch(/continuity|identity continuity|project|stay anchored|risk is tracked|continuity progress/u)
   })
 
+  it('passes the turn AbortSignal into scheduled learning audit writes', async () => {
+    const controller = new AbortController()
+    const insertLearningTask = vi.fn(async (input: any): Promise<AlicizationLearningTaskRecord> => ({
+      id: `row:${input.taskId}`,
+      cardId: input.cardId,
+      taskId: input.taskId,
+      status: 'scheduled',
+      triggerAt: input.triggerAt,
+      action: input.action,
+      message: input.message,
+      payload: input.payload,
+      attemptCount: 0,
+      maxAttempts: 3,
+      createdAt: 1_000,
+      updatedAt: 1_000,
+      claimedAt: null,
+      startedAt: null,
+      completedAt: null,
+      blockedAt: null,
+      cancelledAt: null,
+      downgradedAt: null,
+      reopenedAt: null,
+      nextRetryAt: null,
+      sourceTurnId: input.payload.sourceTurnId ?? null,
+      resultSummary: null,
+      failureKind: null,
+      lastError: null,
+      firedTurnId: null,
+    } as AlicizationLearningTaskRecord))
+    const appendAuditLog = vi.fn(async () => {})
+    const scheduler = createAlicizationLearningActionScheduler({
+      now: () => 1_000,
+      insertLearningTask,
+      claimDueLearningTasks: async () => [],
+      startLearningTask: async () => {},
+      blockLearningTask: async () => {},
+      completeLearningTask: async () => {},
+      failLearningTask: async () => {},
+      reopenLearningTask: async () => {},
+      downgradeLearningTask: async () => {},
+      cancelLearningTask: async () => {},
+      listLearningTasks: async () => [],
+      appendAuditLog,
+      executeLearningTask: async () => ({ status: 'completed' }),
+      randomUUID: () => 'uuid-learning-signal',
+      getActiveCardId: () => 'default',
+    })
+
+    await scheduler.scheduleLearningTask({
+      turnId: 'turn-learning-signal',
+      context: buildSchedulableLearningContext(),
+      signal: controller.signal,
+    })
+
+    const scheduledAuditCall = (appendAuditLog.mock.calls as any[][]).find(
+      call => call[0]?.action === 'alicization.learning.task.scheduled',
+    )
+    expect(scheduledAuditCall?.[2]).toEqual({
+      signal: controller.signal,
+    })
+  })
+
   it('omits obsolete continuity governance from delayed learning payloads', async () => {
     const insertLearningTask = vi.fn(async (input: any): Promise<AlicizationLearningTaskRecord> => ({
       id: `row:${input.taskId}`,

@@ -6,6 +6,7 @@ export type AlicizationMemoryIngestJournalStatus = 'pending' | 'applied' | 'fail
 export interface AlicizationMemoryIngestJournalRow<OperationKind extends string = string> {
   id: string
   operation_kind: OperationKind
+  card_id: string | null
   payload_json: string
   status: AlicizationMemoryIngestJournalStatus
   attempt_count: number
@@ -19,6 +20,7 @@ export interface AlicizationMemoryIngestJournalRow<OperationKind extends string 
 
 interface CreateAlicizationMemoryIngestJournalRuntimeOptions<Payload> {
   database: sqlite3.Database
+  scopeCardId?: string
   now: () => number
   randomUUID: () => string
   run: (database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<unknown>
@@ -26,21 +28,34 @@ interface CreateAlicizationMemoryIngestJournalRuntimeOptions<Payload> {
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
   parsePayload: (raw: string) => Payload | null
-  applyPayload: (payload: Payload) => Promise<void>
+  applyPayload: (payload: Payload, writeOptions?: { signal?: AbortSignal }) => Promise<void>
   buildBackoffMs: (attemptCount: number) => number
 }
 
 export function createAlicizationMemoryIngestJournalRuntime<OperationKind extends string, Payload>(
   input: CreateAlicizationMemoryIngestJournalRuntimeOptions<Payload>,
 ) {
+  const assertNotAborted = (signal?: AbortSignal) => {
+    if (!signal?.aborted)
+      return
+    throw signal.reason ?? new DOMException('Memory ingest journal write aborted', 'AbortError')
+  }
+
+  const isAbortError = (error: unknown) => (
+    error instanceof Error
+    && error.name === 'AbortError'
+  )
+
   const appendEntries = async (entries: Array<{
     operationKind: OperationKind
     payload: Payload
+    cardId?: string | null
     createdAt?: number
-  }>) => {
+  }>, writeOptions: { signal?: AbortSignal } = {}) => {
     if (entries.length === 0)
       return
     for (const entry of entries) {
+      assertNotAborted(writeOptions.signal)
       const createdAt = Number.isFinite(entry.createdAt)
         ? Math.max(0, Math.floor(Number(entry.createdAt)))
         : input.now()
@@ -58,8 +73,9 @@ export function createAlicizationMemoryIngestJournalRuntime<OperationKind extend
           updated_at,
           last_attempt_at,
           applied_at,
-          next_attempt_at
-        ) VALUES (?, ?, ?, 'pending', 0, NULL, ?, ?, NULL, NULL, ?)
+          next_attempt_at,
+          card_id
+        ) VALUES (?, ?, ?, 'pending', 0, NULL, ?, ?, NULL, NULL, ?, ?)
         `,
         [
           input.randomUUID(),
@@ -68,20 +84,33 @@ export function createAlicizationMemoryIngestJournalRuntime<OperationKind extend
           createdAt,
           createdAt,
           createdAt,
+          entry.cardId?.trim() || input.scopeCardId?.trim() || null,
         ],
       )
     }
+    assertNotAborted(writeOptions.signal)
   }
 
-  const countPendingEntries = async () => {
+  const scopeClause = input.scopeCardId?.trim()
+    ? ' AND card_id = ?'
+    : ''
+  const scopeParams = input.scopeCardId?.trim()
+    ? [input.scopeCardId.trim()]
+    : []
+
+  const countPendingEntries = async (writeOptions: { signal?: AbortSignal } = {}) => {
+    assertNotAborted(writeOptions.signal)
     const row = await input.get<{ total: number }>(
       input.database,
       `
       SELECT COUNT(1) AS total
       FROM memory_ingest_journal
       WHERE status IN ('pending', 'failed')
+        ${scopeClause}
       `,
+      scopeParams,
     )
+    assertNotAborted(writeOptions.signal)
     return Math.max(0, Math.floor(row?.total ?? 0))
   }
 
@@ -92,9 +121,11 @@ export function createAlicizationMemoryIngestJournalRuntime<OperationKind extend
       SELECT *
       FROM memory_ingest_journal
       WHERE status IN ('pending', 'failed')
+        ${scopeClause}
       ORDER BY created_at ASC
       LIMIT 256
       `,
+      scopeParams,
     )
     if (rows.length === 0) {
       return {
@@ -130,22 +161,31 @@ export function createAlicizationMemoryIngestJournalRuntime<OperationKind extend
     }
   }
 
-  const listPendingEntries = async (limit = 64, dueAt = input.now()) => {
-    return await input.all<AlicizationMemoryIngestJournalRow<OperationKind>>(
+  const listPendingEntries = async (
+    limit = 64,
+    dueAt = input.now(),
+    writeOptions: { signal?: AbortSignal } = {},
+  ) => {
+    assertNotAborted(writeOptions.signal)
+    const rows = await input.all<AlicizationMemoryIngestJournalRow<OperationKind>>(
       input.database,
       `
       SELECT *
       FROM memory_ingest_journal
       WHERE status IN ('pending', 'failed')
         AND COALESCE(next_attempt_at, created_at) <= ?
+        ${scopeClause}
       ORDER BY created_at ASC
       LIMIT ?
       `,
-      [dueAt, Math.max(1, Math.min(512, Math.floor(limit)))],
+      [dueAt, ...scopeParams, Math.max(1, Math.min(512, Math.floor(limit)))],
     )
+    assertNotAborted(writeOptions.signal)
+    return rows
   }
 
-  const markApplied = async (id: string, appliedAt: number) => {
+  const markApplied = async (id: string, appliedAt: number, writeOptions: { signal?: AbortSignal } = {}) => {
+    assertNotAborted(writeOptions.signal)
     await input.run(
       input.database,
       `
@@ -161,9 +201,17 @@ export function createAlicizationMemoryIngestJournalRuntime<OperationKind extend
       `,
       [appliedAt, appliedAt, appliedAt, id],
     )
+    assertNotAborted(writeOptions.signal)
   }
 
-  const markFailed = async (id: string, message: string, failedAt: number, nextAttemptAt: number) => {
+  const markFailed = async (
+    id: string,
+    message: string,
+    failedAt: number,
+    nextAttemptAt: number,
+    writeOptions: { signal?: AbortSignal } = {},
+  ) => {
+    assertNotAborted(writeOptions.signal)
     await input.run(
       input.database,
       `
@@ -178,40 +226,58 @@ export function createAlicizationMemoryIngestJournalRuntime<OperationKind extend
       `,
       [message, failedAt, failedAt, nextAttemptAt, id],
     )
+    assertNotAborted(writeOptions.signal)
   }
 
-  const drainJournal = async (limit = 64, dueAt = input.now()) => {
+  const drainJournal = async (
+    limit = 64,
+    dueAt = input.now(),
+    writeOptions: { signal?: AbortSignal } = {},
+  ) => {
+    assertNotAborted(writeOptions.signal)
     let applied = 0
     let failed = 0
-    const rows = await listPendingEntries(limit, dueAt)
+    const rows = await listPendingEntries(limit, dueAt, writeOptions)
     for (const row of rows) {
+      assertNotAborted(writeOptions.signal)
       const payload = input.parsePayload(row.payload_json)
       const attemptAt = input.now()
       if (!payload) {
         const nextAttemptAt = attemptAt + input.buildBackoffMs(row.attempt_count)
-        await markFailed(row.id, 'invalid memory ingest payload', attemptAt, nextAttemptAt)
+        await input.runInTransaction(input.database, async () => {
+          await markFailed(row.id, 'invalid memory ingest payload', attemptAt, nextAttemptAt, writeOptions)
+        })
         failed += 1
         continue
       }
       try {
         await input.runInTransaction(input.database, async () => {
-          await input.applyPayload(payload)
-          await markApplied(row.id, attemptAt)
+          await input.applyPayload(payload, writeOptions)
+          await markApplied(row.id, attemptAt, writeOptions)
         })
         applied += 1
       }
       catch (error) {
+        if (isAbortError(error) || writeOptions.signal?.aborted)
+          throw error
         const nextAttemptAt = attemptAt + input.buildBackoffMs(row.attempt_count)
         await input.runInTransaction(input.database, async () => {
-          await markFailed(row.id, error instanceof Error ? error.message : String(error), attemptAt, nextAttemptAt)
+          await markFailed(
+            row.id,
+            error instanceof Error ? error.message : String(error),
+            attemptAt,
+            nextAttemptAt,
+            writeOptions,
+          )
         }).catch(() => {})
         failed += 1
       }
     }
+    assertNotAborted(writeOptions.signal)
     return {
       applied,
       failed,
-      pending: await countPendingEntries(),
+      pending: await countPendingEntries(writeOptions),
     }
   }
 

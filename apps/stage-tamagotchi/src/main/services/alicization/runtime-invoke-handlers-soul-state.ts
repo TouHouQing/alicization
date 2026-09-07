@@ -33,6 +33,7 @@ interface RegisterAlicizationSoulStateInvokeHandlersOptions {
   registerInvokeHandler: (channel: unknown, handler: (...args: any[]) => Promise<unknown>) => void
   withCardScope: <T>(nextCardIdRaw: unknown, task: () => Promise<T>, options?: {
     label?: string
+    lane?: 'foreground' | 'background'
     skipQueueWhenScopeAlreadyActive?: boolean
   }) => Promise<T>
   cardIdFrom: (scope?: Partial<AlicizationCardScope>) => string
@@ -120,7 +121,10 @@ export function registerAlicizationSoulStateInvokeHandlers(options: RegisterAlic
   } = options
 
   registerInvokeHandler(electronAlicizationBootstrap, async (scope: AlicizationCardScope) => {
-    return await withCardScope(cardIdFrom(scope), async () => await bootstrap())
+    return await withCardScope(cardIdFrom(scope), async () => await bootstrap(), {
+      lane: 'foreground',
+      skipQueueWhenScopeAlreadyActive: true,
+    })
   })
 
   registerInvokeHandler(electronAlicizationGetSoul, async (scope: AlicizationCardScope) => {
@@ -132,12 +136,18 @@ export function registerAlicizationSoulStateInvokeHandlers(options: RegisterAlic
         ...soulSnapshot,
         watching: getWatching(),
       }
+    }, {
+      lane: 'foreground',
+      skipQueueWhenScopeAlreadyActive: true,
     })
   })
 
   registerInvokeHandler(electronAlicizationInitializeGenesis, async (payload: AlicizationCardScope & AlicizationGenesisInput) => {
     const { cardId, ...genesisPayload } = payload
-    return await withCardScope(cardId, async () => await initializeGenesis(genesisPayload))
+    return await withCardScope(cardId, async () => await initializeGenesis(genesisPayload), {
+      lane: 'foreground',
+      skipQueueWhenScopeAlreadyActive: true,
+    })
   })
 
   registerInvokeHandler(electronAlicizationUpdateSoul, async (payload: AlicizationCardScope & AlicizationSoulUpdatePayload) => {
@@ -153,6 +163,9 @@ export function registerAlicizationSoulStateInvokeHandlers(options: RegisterAlic
         const content = toSoulContent(parsed.frontmatter, buildSoulBody(parsed.frontmatter, personaNotes))
         return await snapshotFromContent(content)
       })
+    }, {
+      lane: 'foreground',
+      skipQueueWhenScopeAlreadyActive: true,
     })
   })
 
@@ -212,12 +225,24 @@ export function registerAlicizationSoulStateInvokeHandlers(options: RegisterAlic
         const content = toSoulContent(nextFrontmatter, nextBody)
         return await snapshotFromContent(content)
       })
+    }, {
+      lane: 'foreground',
+      skipQueueWhenScopeAlreadyActive: true,
     })
   })
 
-  registerInvokeHandler(electronAlicizationKillSwitchGetState, async (scope: AlicizationCardScope) => await withCardScope(cardIdFrom(scope), async () => getScopedKillSwitchSnapshot()))
-  registerInvokeHandler(electronAlicizationKillSwitchSuspend, async payload => await withCardScope(cardIdFrom(payload), async () => await suspendKillSwitch(payload?.reason ?? 'manual')))
-  registerInvokeHandler(electronAlicizationKillSwitchResume, async payload => await withCardScope(cardIdFrom(payload), async () => await resumeKillSwitch(payload?.reason ?? 'manual')))
+  registerInvokeHandler(electronAlicizationKillSwitchGetState, async (scope: AlicizationCardScope) => await withCardScope(cardIdFrom(scope), async () => getScopedKillSwitchSnapshot(), {
+    lane: 'foreground',
+    skipQueueWhenScopeAlreadyActive: true,
+  }))
+  registerInvokeHandler(electronAlicizationKillSwitchSuspend, async payload => await withCardScope(cardIdFrom(payload), async () => await suspendKillSwitch(payload?.reason ?? 'manual'), {
+    lane: 'foreground',
+    skipQueueWhenScopeAlreadyActive: true,
+  }))
+  registerInvokeHandler(electronAlicizationKillSwitchResume, async payload => await withCardScope(cardIdFrom(payload), async () => await resumeKillSwitch(payload?.reason ?? 'manual'), {
+    lane: 'foreground',
+    skipQueueWhenScopeAlreadyActive: true,
+  }))
 
   registerInvokeHandler(electronAlicizationGetSensorySnapshot, async (scope: AlicizationCardScope, eventaOptions: unknown) => {
     return await withCardScope(cardIdFrom(scope), async () => {
@@ -260,6 +285,9 @@ export function registerAlicizationSoulStateInvokeHandlers(options: RegisterAlic
         source: 'sensory-snapshot',
       })
       return snapshot
+    }, {
+      lane: 'foreground',
+      skipQueueWhenScopeAlreadyActive: true,
     })
   })
 
@@ -279,6 +307,9 @@ export function registerAlicizationSoulStateInvokeHandlers(options: RegisterAlic
         ...state,
         runtimeDigest,
       }
+    }, {
+      lane: 'foreground',
+      skipQueueWhenScopeAlreadyActive: true,
     })
   })
 }

@@ -21,7 +21,10 @@ interface CreateAlicizationAgentSessionMirrorRuntimeOptions {
   normalizeCardId: (raw: unknown) => string
   normalizeSessionId: (raw: unknown) => string
   getActiveSessionIdByCard: (cardId: string) => string | undefined
-  getLatestConversationSessionId: () => Promise<string | null | undefined>
+  getLatestConversationSessionId: (
+    cardId?: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<string | null | undefined>
   openAgentTurn: (input: {
     cardId: string
     conversationSessionId?: string | null
@@ -29,7 +32,7 @@ interface CreateAlicizationAgentSessionMirrorRuntimeOptions {
     decisionTraceId?: string | null
   }) => Promise<AlicizationAgentTurnRuntime>
   buildMainGatewayAgentTurnId: (...segments: Array<unknown>) => string
-  resolveAgentSessionContinuityContext: (cardId: string) => Promise<{
+  resolveAgentSessionContinuityContext: (cardId: string, options?: { signal?: AbortSignal }) => Promise<{
     digitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
     sessionContinuitySignals: AlicizationAgentSessionContinuityInput[]
   }>

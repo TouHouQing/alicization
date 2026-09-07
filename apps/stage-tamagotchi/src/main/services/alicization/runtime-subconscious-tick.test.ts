@@ -1,12 +1,13 @@
 import { readFileSync } from 'node:fs'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { buildDeferredAutonomyCanonicalSignal } from './runtime-deferred-autonomy-summary'
 import { sanitizeBriefText as sanitizeRuntimeBriefText } from './runtime-realtime'
 import { createAlicizationSessionContinuityBuildersRuntime } from './runtime-session-continuity-builders'
 import {
   buildDeferredAutonomyContinuitySignalFallback,
+  createAlicizationSubconsciousTickRuntime,
   normalizeDeferredAutonomyContinuitySignal,
   resolveProactiveProviderFailureKind,
 } from './runtime-subconscious-tick'
@@ -65,6 +66,57 @@ function selectCanonicalDeferredFields(signal: Record<string, any> | null | unde
 }
 
 describe('presence-only subconscious continuity cleanup', () => {
+  it('stops before opening background work when the card scope is already aborted', async () => {
+    const controller = new AbortController()
+    const abortReason = new DOMException('card scope cancelled', 'AbortError')
+    controller.abort(abortReason)
+    const ensureSubconsciousState = vi.fn()
+    const runtime = createAlicizationSubconsciousTickRuntime({
+      ensureSubconsciousState,
+    })
+
+    await expect(
+      (runtime.runSubconsciousTickForCurrentCard as unknown as (
+        trigger: 'timer' | 'force',
+        options?: { signal?: AbortSignal },
+      ) => Promise<unknown>)('force', { signal: controller.signal }),
+    ).rejects.toBe(abortReason)
+    expect(ensureSubconsciousState).not.toHaveBeenCalled()
+  })
+
+  it('forwards a card scope abort through state reads before opening further tick work', async () => {
+    const controller = new AbortController()
+    const abortReason = new DOMException('foreground card scope requested', 'AbortError')
+    const ensureSubconsciousState = vi.fn(async () => ({
+      boredom: 0,
+      loneliness: 0,
+      fatigue: 0,
+      lastTickAt: 0,
+      lastInteractionAt: 0,
+      lastSavedAt: 0,
+      lastDreamedAt: 0,
+      updatedAt: 0,
+    }))
+    const ensureProactiveLoopState = vi.fn(async (_cardId: string, input?: { signal?: AbortSignal }) => {
+      expect(input?.signal).toBe(controller.signal)
+      controller.abort(abortReason)
+      return {}
+    })
+    const openAgentTurn = vi.fn()
+    const runtime = createAlicizationSubconsciousTickRuntime({
+      getActiveCardId: () => 'default',
+      getAlicizationDb: () => ({}),
+      ensureSubconsciousState,
+      ensureProactiveLoopState,
+      openAgentTurn,
+    })
+
+    await expect(
+      runtime.runSubconsciousTickForCurrentCard('force', { signal: controller.signal }),
+    ).rejects.toBe(abortReason)
+    expect(openAgentTurn).not.toHaveBeenCalled()
+  })
+
   it('prefers the typed proactive Provider failure kind over message inference', () => {
     expect(resolveProactiveProviderFailureKind({
       reason: 'Provider returned an invalid proactive response.',

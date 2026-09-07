@@ -272,6 +272,8 @@ function createSensoryRuntimeHarness() {
     buildChatInspectionGroundingParts,
     clearDesktopCaptureAccessCache,
     detectInvitedInspectionIntent,
+    ensurePerceptionState,
+    ensureVisualPresenceState,
     inferAlicizationInspectionIntent,
     resolveDesktopCaptureAccess,
     runtime,
@@ -279,6 +281,39 @@ function createSensoryRuntimeHarness() {
 }
 
 describe('sensory runtime', () => {
+  it('restores perception and visual presence state concurrently for a chat turn', async () => {
+    const harness = createSensoryRuntimeHarness()
+    let releasePerception!: () => void
+    const perceptionGate = new Promise<void>((resolve) => {
+      releasePerception = resolve
+    })
+    harness.ensurePerceptionState.mockImplementation(async () => {
+      await perceptionGate
+      return createPerceptionState()
+    })
+
+    const preparation = harness.runtime.prepareInteractivePerceptionPrelude({
+      cardId: 'default',
+      userText: '你好',
+      messages: [{ role: 'user', content: '你好' }],
+    })
+
+    await vi.waitFor(() => {
+      expect(harness.ensurePerceptionState).toHaveBeenCalledOnce()
+    })
+    try {
+      expect(harness.ensureVisualPresenceState).toHaveBeenCalledOnce()
+    }
+    finally {
+      releasePerception()
+    }
+
+    await expect(preparation).resolves.toMatchObject({
+      inspectionRequested: false,
+      messages: [{ role: 'user', content: '你好' }],
+    })
+  })
+
   it('short-circuits message-history inspection detection when there are no inspection cues', () => {
     const harness = createSensoryRuntimeHarness()
     harness.detectInvitedInspectionIntent.mockReturnValue({ active: false })

@@ -72,35 +72,6 @@ function createDataset(overrides: Partial<PersonaTrainingDatasetVersion> = {}): 
   }
 }
 
-function createManifest(overrides: Partial<PersonaTrainingDatasetManifest> = {}): PersonaTrainingDatasetManifest {
-  return {
-    datasetId: 'dataset-1',
-    cardId: 'card-a',
-    version: 1,
-    schemaVersion: 'persona-training-dataset-v1',
-    exportedAt: 100,
-    consentSnapshot: consent,
-    exampleCount: 1,
-    examples: [{
-      id: 'example-1',
-      sourceId: 'reflection-1',
-      sourceKind: 'cleaned-long-term-reflection',
-      schemaVersion: 'persona-training-example-v1',
-      contentHash: 'hash-1',
-      provenance: {
-        kind: 'working-memory-cleaning',
-        cleaningTransactionId: 'cleaning-1',
-        cleanedAt: 99,
-      },
-      behaviorLesson: '失败时透明说明。',
-      positiveExample: '我会直接说明失败原因。',
-      negativeExample: null,
-    }],
-    manifestHash: 'manifest-hash-1',
-    ...overrides,
-  }
-}
-
 function createQualityGate(passed: boolean): PersonaTrainingDatasetQualityGateResult {
   return {
     passed,
@@ -133,6 +104,81 @@ function personaTrainingExampleHash(
     .digest('hex')
 }
 
+function createDatasetExample(
+  overrides: Partial<PersonaTrainingDatasetExample> = {},
+): PersonaTrainingDatasetExample {
+  const example = {
+    id: 'example-1',
+    datasetId: 'dataset-1',
+    cardId: 'card-a',
+    schemaVersion: 'persona-training-example-v1',
+    sourceId: 'reflection-1',
+    sourceKind: 'cleaned-long-term-reflection' as const,
+    behaviorLesson: '失败时透明说明。',
+    positiveExample: '我会直接说明失败原因。',
+    negativeExample: null,
+    sensitivity: 'personal',
+    piiStatus: 'clear' as const,
+    piiReason: null,
+    consentSnapshot: consent,
+    provenance: {
+      kind: 'working-memory-cleaning' as const,
+      cleaningTransactionId: 'cleaning-1',
+      cleanedAt: 99,
+    },
+    allowTraining: true,
+    state: 'staged' as const,
+    createdAt: 100,
+    revokedAt: null,
+    ...overrides,
+  }
+  return {
+    ...example,
+    contentHash: overrides.contentHash ?? personaTrainingExampleHash(example),
+  }
+}
+
+function createManifest(overrides: Partial<PersonaTrainingDatasetManifest> = {}): PersonaTrainingDatasetManifest {
+  const dataset = createDataset({
+    id: overrides.datasetId ?? 'dataset-1',
+    cardId: overrides.cardId ?? 'card-a',
+    version: overrides.version ?? 1,
+    schemaVersion: overrides.schemaVersion ?? 'persona-training-dataset-v1',
+    consentSnapshot: overrides.consentSnapshot ?? consent,
+  })
+  const examples = overrides.examples ?? [{
+    id: 'example-1',
+    sourceId: 'reflection-1',
+    sourceKind: 'cleaned-long-term-reflection',
+    schemaVersion: 'persona-training-example-v1',
+    contentHash: personaTrainingExampleHash(createDatasetExample()),
+    provenance: {
+      kind: 'working-memory-cleaning',
+      cleaningTransactionId: 'cleaning-1',
+      cleanedAt: 99,
+    },
+    behaviorLesson: '失败时透明说明。',
+    positiveExample: '我会直接说明失败原因。',
+    negativeExample: null,
+  }]
+  const generated = buildPersonaTrainingDatasetManifest({
+    dataset,
+    examples: examples.map(example => createDatasetExample({
+      ...example,
+      datasetId: dataset.id,
+      cardId: dataset.cardId,
+    })),
+    exportedAt: overrides.exportedAt ?? 100,
+  })
+  return {
+    ...generated,
+    exampleCount: overrides.exampleCount ?? examples.length,
+    examples,
+    ...overrides,
+    manifestHash: overrides.manifestHash ?? generated.manifestHash,
+  }
+}
+
 function createDatasetRuntime(input: {
   dataset?: PersonaTrainingDatasetVersion
   manifest?: PersonaTrainingDatasetManifest
@@ -142,16 +188,22 @@ function createDatasetRuntime(input: {
 } = {}) {
   let dataset = input.dataset ?? createDataset()
   let activeVersionId = input.activeVersionId === undefined ? dataset.id : input.activeVersionId
+  const manifest = input.manifest ?? createManifest({ datasetId: dataset.id, cardId: dataset.cardId })
+  const examples = input.examples ?? manifest.examples.map(example => createDatasetExample({
+    ...example,
+    datasetId: dataset.id,
+    cardId: dataset.cardId,
+  }))
   const runtime: PersonaTrainingDatasetRuntime = {
     stageVersion: async () => dataset,
     getSnapshot: async () => ({
       activeVersionId,
       versions: [dataset],
-      examples: input.examples ?? [],
+      examples,
     }),
     exportVersion: async () => ({
       dataset,
-      manifest: input.manifest ?? createManifest({ datasetId: dataset.id, cardId: dataset.cardId }),
+      manifest,
       qualityGate: input.qualityGate ?? createQualityGate(true),
     }),
     activateVersion: async () => dataset,
@@ -461,12 +513,12 @@ describe('persona training pipeline gate', () => {
       runId: 'run-persisted',
       cardId: 'card-a',
       datasetId: 'dataset-1',
-      manifestHash: 'manifest-hash-1',
+      manifestHash: createManifest().manifestHash,
       status: 'completed',
     })])
     expect(recorder.increments).toEqual([expect.objectContaining({
       id: 'persona-training-increment:run-persisted',
-      manifestHash: 'manifest-hash-1',
+      manifestHash: createManifest().manifestHash,
       state: 'available',
     })])
     expect(recorder.events.map(event => event.action)).toEqual([
@@ -476,7 +528,7 @@ describe('persona training pipeline gate', () => {
     expect(recorder.events[0]).toMatchObject({
       runId: 'run-persisted',
       datasetId: 'dataset-1',
-      manifestHash: 'manifest-hash-1',
+      manifestHash: createManifest().manifestHash,
     })
   })
 
@@ -583,6 +635,22 @@ describe('persona training pipeline gate', () => {
     await expect(qualityFailedGate.train({ cardId: 'card-a' })).rejects.toThrow('quality gate')
   })
 
+  it('rejects a manifest whose examples disappeared from the current dataset snapshot', async () => {
+    const executor = vi.fn(async () => ({ artifact: createArtifact('run-missing-examples') }))
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime({
+        examples: [],
+      }),
+      trainingExecutor: executor,
+      now: () => 200,
+      randomUUID: () => 'run-missing-examples',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await expect(gate.train({ cardId: 'card-a' })).rejects.toThrow('manifest')
+    expect(executor).not.toHaveBeenCalled()
+  })
+
   it('rejects a quality-approved manifest whose content or provenance no longer matches the dataset snapshot', async () => {
     const executor = vi.fn(async () => ({ artifact: createArtifact('run-must-not-run') }))
     const currentExample: PersonaTrainingDatasetExample = {
@@ -678,7 +746,7 @@ describe('persona training pipeline gate', () => {
         id: 'persona-training-increment:run-success',
         kind: 'persona-lora-increment',
         datasetId: 'dataset-1',
-        manifestHash: 'manifest-hash-1',
+        manifestHash: createManifest().manifestHash,
         basePersonaRevision: 'persona-core-v1',
         artifact: expect.objectContaining({
           artifactId: 'artifact-run-success',
@@ -691,7 +759,7 @@ describe('persona training pipeline gate', () => {
     expect(calls[0]).toMatchObject({
       cardId: 'card-a',
       datasetId: 'dataset-1',
-      manifest: { manifestHash: 'manifest-hash-1' },
+      manifest: { manifestHash: createManifest().manifestHash },
       basePersonaRevision: 'persona-core-v1',
     })
     expect(gate.listIncrements()).toEqual([expect.objectContaining({
@@ -1254,6 +1322,10 @@ describe('persona training pipeline gate', () => {
         ...createManifest().examples[0],
         sourceId: 'shared-source',
         sourceKind: 'persona-reinforcement',
+        contentHash: personaTrainingExampleHash({
+          ...createDatasetExample(),
+          sourceKind: 'persona-reinforcement',
+        }),
       }],
     })
     const gate = createPersonaTrainingPipelineGate({

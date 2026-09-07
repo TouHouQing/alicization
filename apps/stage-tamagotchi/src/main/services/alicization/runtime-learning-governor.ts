@@ -6,19 +6,21 @@ interface RuntimeOrganicLearningGovernorInput {
   agentTurn: Pick<AlicizationAgentTurnRuntime, 'trackPhase'>
   cardId: string
   turnId: string
+  signal?: AbortSignal
   personaKernelMode: AlicizationMindTurnGovernance['personaKernelMode']
   organicPromptContext: OrganicMemoryPromptContext
   scheduleOrganicLearningAction?: (input: {
     context: OrganicMemoryPromptContext
     turnId?: string | null
+    signal?: AbortSignal
   }) => Promise<unknown>
-  listMemoryReflections?: (cardId: string, limit?: number) => Promise<Array<{
+  listMemoryReflections?: (cardId: string, limit?: number, readOptions?: { signal?: AbortSignal }) => Promise<Array<{
     id: string
     summary: string
     lesson: string
     status: 'pending' | 'confirmed' | 'denied' | 'superseded'
   }>>
-  listRelationshipOutcomes?: (cardId: string, limit?: number) => Promise<Array<{
+  listRelationshipOutcomes?: (cardId: string, limit?: number, readOptions?: { signal?: AbortSignal }) => Promise<Array<{
     id: string
     summary: string
   }>>
@@ -29,12 +31,22 @@ export async function runOrganicLearningGovernor(
 ) {
   if (!input.scheduleOrganicLearningAction)
     return
+  if (input.signal?.aborted)
+    throw input.signal.reason ?? new DOMException('Organic learning scheduling aborted', 'AbortError')
 
   await input.agentTurn.trackPhase('organic-learning-scheduler', async () => {
+    const readMemoryReflections = input.signal
+      ? input.listMemoryReflections?.(input.cardId, 8, { signal: input.signal })
+      : input.listMemoryReflections?.(input.cardId, 8)
+    const readRelationshipOutcomes = input.signal
+      ? input.listRelationshipOutcomes?.(input.cardId, 8, { signal: input.signal })
+      : input.listRelationshipOutcomes?.(input.cardId, 8)
     const [recentMemoryReflections, recentRelationshipOutcomes] = await Promise.all([
-      input.listMemoryReflections?.(input.cardId, 8).catch(() => []) ?? Promise.resolve([]),
-      input.listRelationshipOutcomes?.(input.cardId, 8).catch(() => []) ?? Promise.resolve([]),
+      readMemoryReflections?.catch(() => []) ?? Promise.resolve([]),
+      readRelationshipOutcomes?.catch(() => []) ?? Promise.resolve([]),
     ])
+    if (input.signal?.aborted)
+      throw input.signal.reason ?? new DOMException('Organic learning scheduling aborted', 'AbortError')
     await input.scheduleOrganicLearningAction?.({
       context: {
         ...input.organicPromptContext,
@@ -42,6 +54,7 @@ export async function runOrganicLearningGovernor(
         recentRelationshipOutcomes: recentRelationshipOutcomes as any,
       },
       turnId: input.turnId,
+      signal: input.signal,
     })
   }, {
     personaKernelMode: input.personaKernelMode,

@@ -1370,6 +1370,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   ) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchStagePersonaTrainingDataset)
       return null
+    personaTrainingDatasetExport.value = null
     personaTrainingDatasetLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchStagePersonaTrainingDataset!({ consent })
@@ -1409,6 +1410,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   async function activatePersonaTrainingDataset(datasetId: string) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchActivatePersonaTrainingDataset)
       return null
+    personaTrainingDatasetExport.value = null
     let operationError: string | null = null
     personaTrainingDatasetLoading.value = true
     try {
@@ -1430,6 +1432,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   async function rollbackPersonaTrainingDataset(datasetId: string) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRollbackPersonaTrainingDataset)
       return null
+    personaTrainingDatasetExport.value = null
     let operationError: string | null = null
     personaTrainingDatasetLoading.value = true
     try {
@@ -1453,6 +1456,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   ) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy)
       return null
+    personaTrainingDatasetExport.value = null
     personaTrainingDatasetLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy!(payload)
@@ -1474,6 +1478,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   ) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRevokePersonaTrainingDatasetSource)
       return null
+    personaTrainingDatasetExport.value = null
     let operationError: string | null = null
     personaTrainingDatasetLoading.value = true
     try {

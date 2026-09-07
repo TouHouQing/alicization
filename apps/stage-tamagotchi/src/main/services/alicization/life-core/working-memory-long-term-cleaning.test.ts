@@ -61,6 +61,43 @@ describe('working memory long-term cleaning domain', () => {
     expect(maximumActive).toBe(1)
   })
 
+  it('cancels a queued drain without letting later work bypass the active owner', async () => {
+    const mutex = createWorkingMemoryLongTermDrainMutex()
+    let releaseFirst: (() => void) | undefined
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    const executionOrder: string[] = []
+    const first = mutex.run(async () => {
+      executionOrder.push('first-started')
+      await firstGate
+      executionOrder.push('first-finished')
+    })
+    const controller = new AbortController()
+    const cancelled = mutex.run(async () => {
+      executionOrder.push('cancelled-task-ran')
+    }, {
+      signal: controller.signal,
+    })
+    const third = mutex.run(async () => {
+      executionOrder.push('third-ran')
+    })
+
+    controller.abort(new DOMException('runtime shutdown', 'AbortError'))
+    await expect(cancelled).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(executionOrder).toEqual(['first-started'])
+
+    releaseFirst?.()
+    await Promise.all([first, third])
+    expect(executionOrder).toEqual([
+      'first-started',
+      'first-finished',
+      'third-ran',
+    ])
+  })
+
   it('builds stable idempotency keys from owner queue identity and evidence', () => {
     const item = queueItem()
 

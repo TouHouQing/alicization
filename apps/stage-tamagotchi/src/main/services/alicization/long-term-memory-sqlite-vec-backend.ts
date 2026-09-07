@@ -52,7 +52,20 @@ interface SqliteVecCanonicalRow {
   metadata_json: string | null
 }
 
+interface SqliteVecSearchRow extends Partial<SqliteVecCanonicalRow> {
+  native_rowid: number
+  distance: number
+  retrieval_valid?: number
+}
+
+interface SqliteVecHealth {
+  ready: boolean
+  reindexRequired: boolean
+  lastError: string | null
+}
+
 const sqliteVecUpsertBatchSize = 500
+const sqliteVecHealthCacheTtlMs = 5_000
 
 function normalizeText(raw: unknown, maxChars = 360) {
   return typeof raw === 'string'
@@ -71,6 +84,24 @@ function isValidVector(vector: unknown, dimensions: number): vector is number[] 
   return Array.isArray(vector)
     && vector.length === dimensions
     && vector.every(value => Number.isFinite(value))
+}
+
+function cosineSimilarity(left: number[], right: number[]) {
+  if (left.length !== right.length || left.length === 0)
+    return 0
+  let dot = 0
+  let leftNorm = 0
+  let rightNorm = 0
+  for (let index = 0; index < left.length; index += 1) {
+    const leftValue = left[index] ?? 0
+    const rightValue = right[index] ?? 0
+    dot += leftValue * rightValue
+    leftNorm += leftValue * leftValue
+    rightNorm += rightValue * rightValue
+  }
+  if (leftNorm === 0 || rightNorm === 0)
+    return 0
+  return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm))
 }
 
 function encodeVector(vector: number[]) {
@@ -104,6 +135,13 @@ function hasPartitionedScopeSchema(sql: string | null | undefined) {
   return normalized.includes('card_id text partition key')
     && normalized.includes('model_id text partition key')
     && normalized.includes('vector_space_id text partition key')
+}
+
+function hasCompactPartitionedScopeSchema(sql: string | null | undefined) {
+  const normalized = sql?.toLowerCase().replace(/\s+/g, ' ') ?? ''
+  return hasPartitionedScopeSchema(sql)
+    && normalized.includes('embedding int8[')
+    && normalized.includes('source text partition key')
 }
 
 function packagedExtensionPath(path: string) {
@@ -161,24 +199,55 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
   run: (database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<unknown>
   get: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T | undefined>
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
-  enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
+  enqueueWrite: <T>(task: () => Promise<T>, writeOptions?: { signal?: AbortSignal }) => Promise<T>
+  runInTransaction?: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
 }): LongTermMemoryVectorIndexNativeBackend {
   let initialized = false
   let lastError: string | null = null
   const ensuredVectorDimensions = new Set<number>()
+  const healthCache = new Map<string, {
+    health: SqliteVecHealth
+    expiresAt: number
+  }>()
 
-  async function ensureVectorTable(dimensions: number) {
+  function healthCacheKey(healthInput: {
+    cardId: string
+    modelId: string
+    dimensions: number
+    vectorSpaceId: string
+  }) {
+    return [
+      healthInput.cardId,
+      healthInput.modelId,
+      healthInput.dimensions,
+      healthInput.vectorSpaceId,
+    ].join('\u0000')
+  }
+
+  function clearHealthCache() {
+    healthCache.clear()
+  }
+
+  function assertNotAborted(signal?: AbortSignal) {
+    if (!signal?.aborted)
+      return
+    throw signal.reason ?? new DOMException('SQLite vector operation aborted', 'AbortError')
+  }
+
+  async function ensureVectorTable(dimensions: number, signal?: AbortSignal) {
+    assertNotAborted(signal)
     if (ensuredVectorDimensions.has(dimensions))
       return
     await input.run(input.database, `
       CREATE VIRTUAL TABLE IF NOT EXISTS ${tableName(dimensions)} USING vec0(
-        embedding float[${dimensions}] distance_metric=cosine,
+        embedding int8[${dimensions}] distance_metric=cosine,
         card_id text partition key,
         model_id text partition key,
         vector_space_id text partition key,
-        source text
+        source text partition key
       )
     `)
+    assertNotAborted(signal)
     ensuredVectorDimensions.add(dimensions)
   }
 
@@ -186,71 +255,82 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
     try {
       await loadExtension(input.database, resolveSqliteVecExtensionPath())
       await input.get<{ version: string }>(input.database, 'SELECT vec_version() AS version')
-      const existingMappingColumns = await input.all<{ name: string }>(
-        input.database,
-        'PRAGMA table_info(long_term_memory_sqlite_vec_rows)',
-      )
-      const mappingColumnNames = new Set(existingMappingColumns.map(column => column.name))
-      if (existingMappingColumns.length > 0 && (!mappingColumnNames.has('vector_space_id') || !mappingColumnNames.has('canonical_text_hash'))) {
-        const vectorTables = await input.all<{ name: string }>(
+      const migrateSchema = async () => {
+        const existingMappingColumns = await input.all<{ name: string }>(
           input.database,
-          `SELECT name
+          'PRAGMA table_info(long_term_memory_sqlite_vec_rows)',
+        )
+        const mappingColumnNames = new Set(existingMappingColumns.map(column => column.name))
+        if (existingMappingColumns.length > 0 && (!mappingColumnNames.has('vector_space_id') || !mappingColumnNames.has('canonical_text_hash'))) {
+          const vectorTables = await input.all<{ name: string }>(
+            input.database,
+            `SELECT name
+             FROM sqlite_master
+             WHERE type = 'table'
+               AND name GLOB 'long_term_memory_vec_[0-9]*'
+               AND sql LIKE 'CREATE VIRTUAL TABLE%'`,
+          )
+          for (const table of vectorTables)
+            await input.run(input.database, `DROP TABLE IF EXISTS "${table.name.replaceAll('"', '""')}"`)
+          await input.run(
+            input.database,
+            'DROP TABLE IF EXISTS long_term_memory_sqlite_vec_rows',
+          )
+        }
+        await input.run(input.database, `
+          CREATE TABLE IF NOT EXISTS long_term_memory_sqlite_vec_rows (
+            native_rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+            record_id TEXT NOT NULL UNIQUE,
+            card_id TEXT NOT NULL,
+            source_id TEXT NOT NULL,
+            source TEXT NOT NULL,
+            model_id TEXT NOT NULL,
+            dimensions INTEGER NOT NULL,
+            vector_space_id TEXT NOT NULL,
+            canonical_text_hash TEXT NOT NULL,
+            canonical_updated_at INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+          )
+        `)
+        await input.run(
+          input.database,
+          'CREATE INDEX IF NOT EXISTS idx_ltm_sqlite_vec_space ON long_term_memory_sqlite_vec_rows(card_id, vector_space_id, model_id, dimensions, source)',
+        )
+        await input.run(
+          input.database,
+          'CREATE INDEX IF NOT EXISTS idx_ltm_sqlite_vec_source ON long_term_memory_sqlite_vec_rows(card_id, source_id)',
+        )
+        const existingVectorTables = await input.all<{ name: string, sql: string | null }>(
+          input.database,
+          `SELECT name, sql
            FROM sqlite_master
            WHERE type = 'table'
              AND name GLOB 'long_term_memory_vec_[0-9]*'
              AND sql LIKE 'CREATE VIRTUAL TABLE%'`,
         )
-        for (const table of vectorTables)
+        for (const table of existingVectorTables) {
+          if (hasCompactPartitionedScopeSchema(table.sql))
+            continue
+          const dimensions = normalizeDimensions(table.name.replace('long_term_memory_vec_', ''))
           await input.run(input.database, `DROP TABLE IF EXISTS "${table.name.replaceAll('"', '""')}"`)
-        await input.run(input.database, 'DROP TABLE IF EXISTS long_term_memory_sqlite_vec_rows')
-      }
-      await input.run(input.database, `
-        CREATE TABLE IF NOT EXISTS long_term_memory_sqlite_vec_rows (
-          native_rowid INTEGER PRIMARY KEY AUTOINCREMENT,
-          record_id TEXT NOT NULL UNIQUE,
-          card_id TEXT NOT NULL,
-          source_id TEXT NOT NULL,
-          source TEXT NOT NULL,
-          model_id TEXT NOT NULL,
-          dimensions INTEGER NOT NULL,
-          vector_space_id TEXT NOT NULL,
-          canonical_text_hash TEXT NOT NULL,
-          canonical_updated_at INTEGER NOT NULL,
-          created_at INTEGER NOT NULL,
-          updated_at INTEGER NOT NULL
-        )
-      `)
-      await input.run(
-        input.database,
-        'CREATE INDEX IF NOT EXISTS idx_ltm_sqlite_vec_space ON long_term_memory_sqlite_vec_rows(card_id, vector_space_id, model_id, dimensions, source)',
-      )
-      await input.run(
-        input.database,
-        'CREATE INDEX IF NOT EXISTS idx_ltm_sqlite_vec_source ON long_term_memory_sqlite_vec_rows(card_id, source_id)',
-      )
-      const existingVectorTables = await input.all<{ name: string, sql: string | null }>(
-        input.database,
-        `SELECT name, sql
-         FROM sqlite_master
-         WHERE type = 'table'
-           AND name GLOB 'long_term_memory_vec_[0-9]*'
-           AND sql LIKE 'CREATE VIRTUAL TABLE%'`,
-      )
-      for (const table of existingVectorTables) {
-        if (hasPartitionedScopeSchema(table.sql))
-          continue
-        const dimensions = normalizeDimensions(table.name.replace('long_term_memory_vec_', ''))
-        await input.run(input.database, `DROP TABLE IF EXISTS "${table.name.replaceAll('"', '""')}"`)
-        if (dimensions) {
-          await input.run(
-            input.database,
-            'DELETE FROM long_term_memory_sqlite_vec_rows WHERE dimensions = ?',
-            [dimensions],
-          )
+          if (dimensions) {
+            await input.run(
+              input.database,
+              'DELETE FROM long_term_memory_sqlite_vec_rows WHERE dimensions = ?',
+              [dimensions],
+            )
+          }
         }
       }
+      await input.enqueueWrite(async () => {
+        if (input.runInTransaction)
+          return await input.runInTransaction(input.database, migrateSchema)
+        return await migrateSchema()
+      })
       initialized = true
       lastError = null
+      clearHealthCache()
     }
     catch (error) {
       initialized = false
@@ -259,8 +339,12 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
     }
   }
 
-  async function upsertPrepared(records: PersistentLongTermMemoryVectorRecord[]) {
+  async function upsertPrepared(
+    records: PersistentLongTermMemoryVectorRecord[],
+    signal?: AbortSignal,
+  ) {
     for (let offset = 0; offset < records.length; offset += sqliteVecUpsertBatchSize) {
+      assertNotAborted(signal)
       const batch = records.slice(offset, offset + sqliteVecUpsertBatchSize)
       const recordsByDimensions = new Map<number, PersistentLongTermMemoryVectorRecord[]>()
       for (const record of batch) {
@@ -272,8 +356,9 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
         recordsByDimensions.set(dimensions, grouped)
       }
       for (const dimensions of recordsByDimensions.keys())
-        await ensureVectorTable(dimensions)
+        await ensureVectorTable(dimensions, signal)
 
+      assertNotAborted(signal)
       const previousMappings = await input.all<SqliteVecMappingRow>(
         input.database,
         `SELECT *
@@ -281,6 +366,7 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
          WHERE record_id IN (${batch.map(() => '?').join(', ')})`,
         batch.map(record => record.id),
       )
+      assertNotAborted(signal)
       const nextRecordById = new Map(batch.map(record => [record.id, record]))
       const staleRowIdsByDimensions = new Map<number, number[]>()
       for (const previous of previousMappings) {
@@ -292,14 +378,17 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
         staleRowIdsByDimensions.set(previous.dimensions, rowIds)
       }
       for (const [dimensions, rowIds] of staleRowIdsByDimensions) {
+        assertNotAborted(signal)
         await input.run(
           input.database,
           `DELETE FROM ${tableName(dimensions)}
            WHERE rowid IN (${rowIds.map(() => '?').join(', ')})`,
           rowIds,
         )
+        assertNotAborted(signal)
       }
 
+      assertNotAborted(signal)
       const now = input.now()
       const mappings = await input.all<SqliteVecMappingRow>(input.database, `
         INSERT INTO long_term_memory_sqlite_vec_rows (
@@ -330,16 +419,32 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
         now,
         now,
       ]))
+      assertNotAborted(signal)
       const mappingByRecordId = new Map(mappings.map(mapping => [mapping.record_id, mapping]))
       for (const [dimensions, dimensionRecords] of recordsByDimensions) {
-        await input.run(input.database, `
-          INSERT OR REPLACE INTO ${tableName(dimensions)} (
-            rowid, embedding, card_id, model_id, vector_space_id, source
-          ) VALUES ${dimensionRecords.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}
-        `, dimensionRecords.flatMap((record) => {
+        assertNotAborted(signal)
+        const uniqueDimensionRecords = [...new Map(
+          dimensionRecords.map(record => [record.id, record] as const),
+        ).values()]
+        const nativeRecords = uniqueDimensionRecords.map((record) => {
           const mapping = mappingByRecordId.get(record.id)
           if (!mapping)
             throw new Error(`sqlite-vec mapping was not created for vector: ${record.id}`)
+          return { mapping, record }
+        })
+        const nativeRowIds = [...new Set(nativeRecords.map(({ mapping }) => mapping.native_rowid))]
+        await input.run(
+          input.database,
+          `DELETE FROM ${tableName(dimensions)}
+           WHERE rowid IN (${nativeRowIds.map(() => '?').join(', ')})`,
+          nativeRowIds,
+        )
+        assertNotAborted(signal)
+        await input.run(input.database, `
+          INSERT OR REPLACE INTO ${tableName(dimensions)} (
+            rowid, embedding, card_id, model_id, vector_space_id, source
+          ) VALUES ${nativeRecords.map(() => '(?, vec_quantize_int8(vec_normalize(?), \'unit\'), ?, ?, ?, ?)').join(', ')}
+        `, nativeRecords.flatMap(({ mapping, record }) => {
           return [
             mapping.native_rowid,
             encodeVector(record.vector),
@@ -349,11 +454,16 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
             record.source,
           ]
         }))
+        assertNotAborted(signal)
       }
     }
   }
 
-  async function upsert(records: PersistentLongTermMemoryVectorRecord[]) {
+  async function upsert(
+    records: PersistentLongTermMemoryVectorRecord[],
+    options: { signal?: AbortSignal } = {},
+  ) {
+    assertNotAborted(options.signal)
     if (!initialized)
       throw new Error(lastError ?? 'sqlite-vec backend is not initialized')
     const prepared = records
@@ -392,13 +502,17 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
       .filter((record): record is NonNullable<typeof record> => Boolean(record))
     if (prepared.length === 0)
       return
+    clearHealthCache()
     await input.enqueueWrite(async () => {
-      await upsertPrepared(prepared)
-    })
+      await upsertPrepared(prepared, options.signal)
+    }, options)
+    assertNotAborted(options.signal)
+    clearHealthCache()
     lastError = null
   }
 
   async function deleteVectors(deleteInput: PersistentLongTermMemoryVectorDeleteInput) {
+    assertNotAborted(deleteInput.signal)
     if (!initialized)
       throw new Error(lastError ?? 'sqlite-vec backend is not initialized')
     const cardId = normalizeText(deleteInput.cardId, 120)
@@ -415,7 +529,9 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
       return 0
     if (hasPartialVectorSpaceFilter && !hasCompleteVectorSpaceFilter)
       return 0
+    clearHealthCache()
     return await input.enqueueWrite(async () => {
+      assertNotAborted(deleteInput.signal)
       const vectorSpaceClause = hasCompleteVectorSpaceFilter
         ? ' AND model_id = ? AND dimensions = ? AND vector_space_id = ?'
         : ''
@@ -435,6 +551,7 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
         ],
       )
       for (const row of rows) {
+        assertNotAborted(deleteInput.signal)
         await input.run(
           input.database,
           `DELETE FROM ${tableName(row.dimensions)} WHERE rowid = ?`,
@@ -446,15 +563,17 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
           [row.native_rowid],
         )
       }
+      clearHealthCache()
       lastError = null
       return rows.length
-    })
+    }, { signal: deleteInput.signal })
   }
 
   async function search(
     queryVector: number[],
     filters: PersistentLongTermMemoryVectorSearchFilters,
   ): Promise<LongTermMemoryVectorSearchResult[]> {
+    assertNotAborted(filters.signal)
     if (!initialized)
       throw new Error(lastError ?? 'sqlite-vec backend is not initialized')
     const cardId = normalizeText(filters.cardId, 120)
@@ -471,80 +590,135 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
     if (!cardId || !modelId || !vectorSpaceId || !dimensions || !isValidVector(queryVector, dimensions))
       return []
     const limit = Math.max(1, Math.min(32, Math.floor(Number(filters.limit ?? 8))))
-    const nativeLimit = Math.min(64, Math.max(limit, limit * 4))
-    const nativeRows = await input.all<SqliteVecCanonicalRow & {
-      native_rowid: number
-      distance: number
-    }>(
-      input.database,
-      `
+    const initialNativeLimit = Math.min(64, Math.max(limit, limit * 4))
+    const fetchNativeRows = async (nativeLimit: number) => {
+      assertNotAborted(filters.signal)
+      const rows = await input.all<SqliteVecSearchRow>(
+        input.database,
+        `
+      WITH native_candidates AS MATERIALIZED (
+        SELECT
+          native.rowid AS native_rowid,
+          native.distance AS distance
+        FROM ${tableName(dimensions)} native
+        WHERE native.embedding MATCH vec_quantize_int8(vec_normalize(?), 'unit')
+          AND native.k = ?
+          AND native.card_id = ?
+          AND native.model_id = ?
+          AND native.vector_space_id = ?
+          ${source ? 'AND native.source = ?' : ''}
+        ORDER BY native.distance
+      )
       SELECT
-        native.rowid AS native_rowid,
-        native.distance AS distance,
+        native.native_rowid,
+        native.distance,
+        CASE WHEN canonical.id IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM long_term_memory_search_documents doc
+            WHERE doc.card_id = canonical.card_id
+              AND doc.source = canonical.source
+              AND doc.source_id = canonical.source_id
+              AND doc.text_hash = canonical.text_hash
+              AND doc.tombstoned = 0
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM long_term_memory_tombstones tomb
+            WHERE tomb.card_id = canonical.card_id
+              AND tomb.source_id = canonical.source_id
+              AND (tomb.source = canonical.source OR tomb.source = 'long_term_memory')
+          )
+          THEN 1 ELSE 0 END AS retrieval_valid,
         canonical.*
-      FROM ${tableName(dimensions)} native
-      JOIN long_term_memory_sqlite_vec_rows mapping
-        ON mapping.native_rowid = native.rowid
-      JOIN long_term_memory_vectors canonical
+      FROM native_candidates native
+      LEFT JOIN long_term_memory_sqlite_vec_rows mapping
+        ON mapping.native_rowid = native.native_rowid
+      LEFT JOIN long_term_memory_vectors canonical
         ON canonical.id = mapping.record_id
        AND canonical.card_id = ?
        AND canonical.model_id = ?
        AND canonical.dimensions = ?
        AND canonical.vector_space_id = ?
        AND canonical.status = 'indexed'
+       AND mapping.card_id = canonical.card_id
+       AND mapping.source_id = canonical.source_id
+       AND mapping.source = canonical.source
+       AND mapping.model_id = canonical.model_id
+       AND mapping.dimensions = canonical.dimensions
        AND mapping.vector_space_id = canonical.vector_space_id
        AND mapping.canonical_text_hash = canonical.text_hash
-      JOIN long_term_memory_search_documents doc
-        ON doc.card_id = canonical.card_id
-       AND doc.source = canonical.source
-       AND doc.source_id = canonical.source_id
-       AND doc.text_hash = canonical.text_hash
-       AND doc.tombstoned = 0
-      WHERE native.embedding MATCH ?
-        AND native.k = ?
-        AND native.card_id = ?
-        AND native.model_id = ?
-        AND native.vector_space_id = ?
-        ${source ? 'AND native.source = ?' : ''}
-        AND NOT EXISTS (
-          SELECT 1
-          FROM long_term_memory_tombstones tomb
-          WHERE tomb.card_id = canonical.card_id
-            AND tomb.source_id = canonical.source_id
-            AND (tomb.source = canonical.source OR tomb.source = 'long_term_memory')
-        )
       ORDER BY native.distance
-      `,
-      [
-        cardId,
-        modelId,
-        dimensions,
-        vectorSpaceId,
-        encodeVector(queryVector),
-        nativeLimit,
-        cardId,
-        modelId,
-        vectorSpaceId,
-        ...(source ? [source] : []),
-      ],
-    )
-    if (nativeRows.length === 0)
-      return []
-    const results: LongTermMemoryVectorSearchResult[] = []
-    for (const nativeRow of nativeRows) {
-      const row = nativeRow
-      const score = 1 - Number(nativeRow.distance)
-      if (score > 0) {
-        results.push({
-          record: mapCanonicalRow(row),
-          score,
-        })
-      }
+        `,
+        [
+          encodeVector(queryVector),
+          nativeLimit,
+          cardId,
+          modelId,
+          vectorSpaceId,
+          ...(source ? [source] : []),
+          cardId,
+          modelId,
+          dimensions,
+          vectorSpaceId,
+        ],
+      )
+      assertNotAborted(filters.signal)
+      return rows
     }
+    let nativeLimit = initialNativeLimit
+    let nativeRows = await fetchNativeRows(nativeLimit)
+    const scoredByCandidateKey = new Map<string, LongTermMemoryVectorSearchResult | null>()
+    const scoreNativeRows = (rows: SqliteVecSearchRow[]) => rows
+      .map((nativeRow) => {
+        if (nativeRow.retrieval_valid === 0 || !nativeRow.id)
+          return null
+        const candidateKey = [
+          nativeRow.native_rowid,
+          nativeRow.id,
+          nativeRow.text_hash,
+          nativeRow.updated_at,
+        ].join('\u0000')
+        if (scoredByCandidateKey.has(candidateKey))
+          return scoredByCandidateKey.get(candidateKey) ?? null
+        const record = mapCanonicalRow(nativeRow as SqliteVecCanonicalRow)
+        const result = {
+          record,
+          score: cosineSimilarity(queryVector, record.vector),
+        }
+        scoredByCandidateKey.set(candidateKey, result.score > 0 ? result : null)
+        return result.score > 0 ? result : null
+      })
+      .filter((result): result is LongTermMemoryVectorSearchResult => result !== null)
+      .sort((left, right) =>
+        right.score - left.score
+        || right.record.updatedAt - left.record.updatedAt
+        || right.record.id.localeCompare(left.record.id),
+      )
+    let results = scoreNativeRows(nativeRows)
+    while (results.length < limit && nativeRows.length >= nativeLimit) {
+      assertNotAborted(filters.signal)
+      const nextNativeLimit = Math.max(nativeLimit + 1, nativeLimit * 2)
+      if (!Number.isSafeInteger(nextNativeLimit) || nextNativeLimit <= nativeLimit)
+        break
+      nativeLimit = nextNativeLimit
+      nativeRows = await fetchNativeRows(nativeLimit)
+      results = scoreNativeRows(nativeRows)
+    }
+    if (results.length === 0)
+      return []
+    assertNotAborted(filters.signal)
     return results.slice(0, limit)
   }
 
-  async function rebuild(rebuildInput: { cardId: string, modelId: string, dimensions: number, vectorSpaceId: string }) {
+  async function rebuild(rebuildInput: {
+    cardId: string
+    modelId: string
+    dimensions: number
+    vectorSpaceId: string
+    signal?: AbortSignal
+  }) {
+    assertNotAborted(rebuildInput.signal)
     if (!initialized)
       throw new Error(lastError ?? 'sqlite-vec backend is not initialized')
     const cardId = normalizeText(rebuildInput.cardId, 120)
@@ -553,6 +727,7 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
     const dimensions = normalizeDimensions(rebuildInput.dimensions)
     if (!cardId || !modelId || !vectorSpaceId || !dimensions)
       throw new Error('sqlite-vec rebuild requires cardId, modelId, dimensions, and vectorSpaceId')
+    clearHealthCache()
     const canonicalRows = await input.all<SqliteVecCanonicalRow>(
       input.database,
       `
@@ -580,7 +755,9 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
       `,
       [cardId, modelId, dimensions, vectorSpaceId],
     )
-    await input.enqueueWrite(async () => {
+    assertNotAborted(rebuildInput.signal)
+    const rebuildNativeScope = async () => {
+      assertNotAborted(rebuildInput.signal)
       await ensureVectorTable(dimensions)
       const mappings = await input.all<SqliteVecMappingRow>(
         input.database,
@@ -592,6 +769,7 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
         [cardId, modelId, dimensions, vectorSpaceId],
       )
       for (const mapping of mappings) {
+        assertNotAborted(rebuildInput.signal)
         await input.run(
           input.database,
           `DELETE FROM ${tableName(dimensions)} WHERE rowid = ?`,
@@ -603,8 +781,16 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
         'DELETE FROM long_term_memory_sqlite_vec_rows WHERE card_id = ? AND model_id = ? AND dimensions = ? AND vector_space_id = ?',
         [cardId, modelId, dimensions, vectorSpaceId],
       )
+      assertNotAborted(rebuildInput.signal)
       await upsertPrepared(canonicalRows.map(mapCanonicalRow))
-    })
+    }
+    await input.enqueueWrite(async () => {
+      assertNotAborted(rebuildInput.signal)
+      if (input.runInTransaction)
+        return await input.runInTransaction(input.database, rebuildNativeScope)
+      return await rebuildNativeScope()
+    }, { signal: rebuildInput.signal })
+    assertNotAborted(rebuildInput.signal)
     lastError = null
   }
 
@@ -612,6 +798,7 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
     if (!initialized) {
       return {
         ready: false,
+        reindexRequired: false,
         lastError: lastError ?? 'sqlite-vec backend is not initialized',
       }
     }
@@ -622,9 +809,20 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
     if (!cardId || !modelId || !vectorSpaceId || !dimensions) {
       return {
         ready: false,
+        reindexRequired: false,
         lastError: 'sqlite-vec health requires cardId, modelId, dimensions, and vectorSpaceId',
       }
     }
+    const cacheKey = healthCacheKey({
+      cardId,
+      modelId,
+      dimensions,
+      vectorSpaceId,
+    })
+    const cached = healthCache.get(cacheKey)
+    const timestamp = Date.now()
+    if (cached && cached.expiresAt > timestamp)
+      return cached.health
     const table = await input.get<{ name: string }>(
       input.database,
       'SELECT name FROM sqlite_master WHERE type = ? AND name = ?',
@@ -658,12 +856,18 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
     )
     const canonicalCount = Number(canonical?.count ?? 0)
     if (!table) {
-      return canonicalCount === 0
-        ? { ready: true, lastError: null }
+      const health = canonicalCount === 0
+        ? { ready: true, reindexRequired: false, lastError: null }
         : {
             ready: false,
+            reindexRequired: true,
             lastError: 'sqlite-vec index is not synchronized with canonical vectors',
           }
+      healthCache.set(cacheKey, {
+        health,
+        expiresAt: timestamp + sqliteVecHealthCacheTtlMs,
+      })
+      return health
     }
     const native = await input.get<{ count: number }>(
       input.database,
@@ -682,6 +886,15 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
         AND mapping.model_id = ?
         AND mapping.dimensions = ?
         AND mapping.vector_space_id = ?
+        AND mapping.card_id = canonical.card_id
+        AND mapping.source_id = canonical.source_id
+        AND mapping.source = canonical.source
+        AND mapping.model_id = canonical.model_id
+        AND mapping.dimensions = canonical.dimensions
+        AND native.card_id = canonical.card_id
+        AND native.model_id = canonical.model_id
+        AND native.vector_space_id = canonical.vector_space_id
+        AND native.source = canonical.source
         AND mapping.vector_space_id = canonical.vector_space_id
         AND mapping.canonical_text_hash = canonical.text_hash
         AND mapping.canonical_updated_at = canonical.updated_at
@@ -718,15 +931,22 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
       && canonicalCount === mappingCount
       && canonicalCount === nativeTableCount
     const ready = synchronized
-    return {
+    const health = {
       ready,
+      reindexRequired: !synchronized,
       lastError: ready ? null : 'sqlite-vec index is not synchronized with canonical vectors',
     }
+    healthCache.set(cacheKey, {
+      health,
+      expiresAt: timestamp + sqliteVecHealthCacheTtlMs,
+    })
+    return health
   }
 
   return {
     mode: 'sqlite-vec',
-    approximate: false,
+    // Native search uses compact int8 candidates and canonical float32 reranking.
+    approximate: true,
     initialize,
     upsert,
     delete: deleteVectors,

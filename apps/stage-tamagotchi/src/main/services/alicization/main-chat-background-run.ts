@@ -1,6 +1,7 @@
 import type {
   AlicizationRuntimeEventEnvelope,
 } from '@proj-alicization/stage-shared'
+import type { Message } from '@xsai/shared-chat'
 
 import type {
   AlicizationChatErrorEvent,
@@ -16,6 +17,7 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
+import type { AlicizationProviderRetryOverrides } from './provider-retry-policy'
 import type { AlicizationRuntimeCallChainSnapshot } from './runtime-call-chain'
 import type {
   ChatRunState,
@@ -27,11 +29,7 @@ import type { AlicizationEventLoopRuntimeView } from './turn-os/event-loop'
 import type { AlicizationRuntimeEventScope } from './turn-os/event-store'
 import type { AlicizationMemoryWriteProposal } from './turn-os/memory-participant'
 
-import {
-  extractAlicizationToolExecutionFailure,
-  isAlicizationToolExecutionFailureResult,
-  resolveAlicizationChatFailureSurface,
-} from '@proj-alicization/stage-shared'
+import { createAlicizationRuntimeEvent, extractAlicizationToolExecutionFailure, isAlicizationToolExecutionFailureResult, resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 
 import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
 import {
@@ -40,7 +38,10 @@ import {
 } from './main-chat-preparation-deadline'
 import { handleAlicizationMainChatRunFailure } from './main-chat-run-lifecycle'
 import { createAlicizationChatStreamMetaEmitter } from './main-chat-stream-meta'
-import { runAlicizationMainChatProviderStep } from './main-chat-stream-runner'
+import {
+  buildAlicizationProviderRequestSnapshot,
+  runAlicizationMainChatProviderStep,
+} from './main-chat-stream-runner'
 import {
   mergePreferredSelfContinuityAuthority,
   resolvePreferredPersonStateProjection,
@@ -68,6 +69,27 @@ function readRecord(raw: unknown): Record<string, unknown> | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
   return raw as Record<string, unknown>
+}
+
+function canonicalizeToolObservationOutput(value: unknown): unknown {
+  if (value === undefined)
+    return null
+  if (Array.isArray(value)) {
+    return value.map(item => item === undefined ? null : canonicalizeToolObservationOutput(item))
+  }
+  if (
+    value
+    && typeof value === 'object'
+    && Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    const output: Record<string, unknown> = {}
+    for (const [key, item] of Object.entries(value)) {
+      if (item !== undefined)
+        output[key] = canonicalizeToolObservationOutput(item)
+    }
+    return output
+  }
+  return value
 }
 
 function buildMainChatToolFailureObservation(input: {
@@ -147,6 +169,7 @@ interface RunAlicizationMainChatBackgroundOptions {
   prepareTurn: (input: {
     abortSignal: AbortSignal
   }) => Promise<AlicizationPreparedMainChatExecutionResult>
+  providerRetryPolicy: AlicizationProviderRetryOverrides
   preparationTimeoutMs?: number
   headers?: Record<string, string>
   isRunActive: () => boolean
@@ -174,6 +197,7 @@ interface RunAlicizationMainChatBackgroundOptions {
     cardId: string
     callbacks: NonNullable<AlicizationPreparedMainChatExecutionResult['presentedExecutionCallbacks']>
   }) => Promise<void> | void
+  trackDeferredTask?: (task: Promise<void>) => void
   turnLoop: {
     conversationId: string
     userId: string
@@ -286,6 +310,14 @@ export async function runAlicizationMainChatBackground(
   let registeredCancelTurn: ChatRunState['cancelTurn']
   const registeredCancellations: Array<Promise<boolean>> = []
   const nonProgressEventTypes = new Set<string>()
+  let finishRunInvoked = false
+
+  const finishRunOnce = (payload: AlicizationBackgroundFinishPayload) => {
+    if (finishRunInvoked)
+      return
+    finishRunInvoked = true
+    input.runStateController.finishRun(input.key, payload)
+  }
 
   const recordToolEventDeliveryFailure = (
     eventType: 'tool-call' | 'tool-progress' | 'tool-result',
@@ -388,32 +420,95 @@ export async function runAlicizationMainChatBackground(
   }
 
   const emitFailure = async (error: unknown) => {
-    await handleAlicizationMainChatRunFailure({
-      error,
-      prepared,
-      controller: input.runState.controller,
-      mainGateway: input.mainGateway,
-      payload: input.payload,
-      dispatchBound: input.runState.hasLoggedDispatchBinding === true,
-      nonProgressEventTypes,
-      emitError: (reason, metadata) => {
-        input.emitError({
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          error: reason,
-          ...metadata,
-        })
-      },
-      finish: (finishPayload) => {
-        input.runStateController.finishRun(input.key, {
-          ...finishPayload,
-          visibleReplyCritic: null,
-          visibleReplyClosure: null,
-        })
-      },
-      appendRuntimeDebugLine: input.appendRuntimeDebugLine,
-      queueScopedAuditLog: input.queueScopedAuditLog,
-    })
+    try {
+      await handleAlicizationMainChatRunFailure({
+        error,
+        prepared,
+        controller: input.runState.controller,
+        mainGateway: input.mainGateway,
+        payload: input.payload,
+        dispatchBound: input.runState.hasLoggedDispatchBinding === true,
+        nonProgressEventTypes,
+        emitError: (reason, metadata) => {
+          input.emitError({
+            cardId: input.payload.cardId,
+            turnId: input.payload.turnId,
+            error: reason,
+            ...metadata,
+          })
+        },
+        finish: (finishPayload) => {
+          finishRunOnce({
+            ...finishPayload,
+            visibleReplyCritic: null,
+            visibleReplyClosure: null,
+          })
+        },
+        appendRuntimeDebugLine: input.appendRuntimeDebugLine,
+        queueScopedAuditLog: input.queueScopedAuditLog,
+      })
+    }
+    catch (failureHandlerError) {
+      const diagnostics = {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        reason: failureHandlerError instanceof Error
+          ? failureHandlerError.message
+          : String(failureHandlerError),
+      }
+      try {
+        void input.appendRuntimeDebugLine(
+          'chat-stream.failure-lifecycle-failed',
+          diagnostics,
+        ).catch(() => {})
+      }
+      catch {
+        // Failure diagnostics must not become a second unhandled failure.
+      }
+      try {
+        void Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
+          level: 'warning',
+          category: 'alicization.main-gateway',
+          action: 'failure-lifecycle-failed',
+          message: 'The main chat failure lifecycle threw before it could complete.',
+          payload: diagnostics,
+        })).catch(() => {})
+      }
+      catch {
+        // Failure diagnostics must not become a second unhandled failure.
+      }
+    }
+    finally {
+      if (!finishRunInvoked) {
+        try {
+          finishRunOnce({
+            status: 'failed',
+            finishReason: 'failure-lifecycle-error',
+            error: error instanceof Error ? error.message : String(error),
+            visibleReplyCritic: null,
+            visibleReplyClosure: null,
+          })
+        }
+        catch (finishError) {
+          const diagnostics = {
+            cardId: input.payload.cardId,
+            turnId: input.payload.turnId,
+            reason: finishError instanceof Error
+              ? finishError.message
+              : String(finishError),
+          }
+          try {
+            void input.appendRuntimeDebugLine(
+              'chat-stream.failure-finish-failed',
+              diagnostics,
+            ).catch(() => {})
+          }
+          catch {
+            // Failure diagnostics must not become a second unhandled failure.
+          }
+        }
+      }
+    }
   }
 
   const recordMemorySideFailure = (
@@ -640,7 +735,8 @@ export async function runAlicizationMainChatBackground(
             const intent = resolvedMemoryWriteIntents.get(runtime.turnId)
             const committed = await context.prepared.commitMemoryWriteIntent?.({
               assistantText,
-              intent,
+              ...(intent ? { intent } : {}),
+              deferPostCommit: true,
             })
             if (committed)
               committedMemoryWrites.set(runtime.turnId, committed)
@@ -666,6 +762,24 @@ export async function runAlicizationMainChatBackground(
         )
       },
       runProviderStep: async (context, runtime) => {
+        const preparedRequest = buildAlicizationProviderRequestSnapshot(
+          context.prepared.messages as Message[],
+        )
+        const participantRequest = buildAlicizationProviderRequestSnapshot(
+          context.providerMessages,
+        )
+        try {
+          await input.appendRuntimeDebugLine('chat-provider-context.assembled', {
+            preparedRequest,
+            participantRequest,
+            messageProjectionPreserved: preparedRequest.requestHash === participantRequest.requestHash,
+            preparedLongTermRecall: preparedRequest.longTermRecall,
+            participantLongTermRecall: participantRequest.longTermRecall,
+          })
+        }
+        catch {
+          // Diagnostics must never prevent the Provider from receiving a turn.
+        }
         const providerStep = await runAlicizationMainChatProviderStep({
           payload: input.payload,
           prepared: context.prepared,
@@ -677,6 +791,7 @@ export async function runAlicizationMainChatBackground(
             ? mainChatFirstEventTimeoutWithVisualGroundingMs
             : mainChatFirstEventTimeoutMs,
           providerContinuationTimeoutMs: mainChatProviderContinuationTimeoutMs,
+          providerRetryPolicy: input.providerRetryPolicy,
           isRunActive: input.isRunActive,
           nonProgressEventTypes,
           emitToolCall: () => {},
@@ -811,7 +926,7 @@ export async function runAlicizationMainChatBackground(
           toolCallId: action.toolCallId,
           terminal: true,
           outcome: 'success',
-          output: result,
+          output: canonicalizeToolObservationOutput(result),
         }
       },
       publishReply: async ({ cardId, text, turnId }) => {
@@ -882,6 +997,29 @@ export async function runAlicizationMainChatBackground(
               snapshot: committedMemoryWrite.workingMemorySnapshot,
             })
           }
+          if (
+            visibleReplyCommitted
+            && context?.prepared.waitForDeferredMemoryPostCommit
+          ) {
+            const deferredTask = context.prepared.waitForDeferredMemoryPostCommit()
+              .then(async (ownerSettlements) => {
+                await memoryParticipant.recordOwnerSettlements({
+                  proposal: settledProposal,
+                  ownerSettlements,
+                })
+              })
+              .catch((deferredError) => {
+                recordMemorySideFailure(context.prepared, {
+                  stage: 'memory-turn-settlement',
+                  errorSummary: deferredError instanceof Error
+                    ? deferredError.message
+                    : String(deferredError),
+                })
+              })
+            input.trackDeferredTask?.(deferredTask)
+            if (!input.trackDeferredTask)
+              void deferredTask
+          }
         }
         finally {
           memoryParticipants.delete(runtime.turnId)
@@ -897,6 +1035,37 @@ export async function runAlicizationMainChatBackground(
       persistence: input.turnLoop.persistence,
       participant,
       onPersistedEvent: projectPersistedToolEvent,
+      onLateEvent: async (event) => {
+        if (
+          event.source !== 'memory'
+          || event.eventType !== 'memory.owner.settled'
+          || event.terminalEventType !== 'turn.completed'
+        ) {
+          return
+        }
+        try {
+          await input.turnLoop.persistence.appendRuntimeEvent(
+            event.scope,
+            createAlicizationRuntimeEvent({
+              eventType: event.eventType,
+              ...event.scope,
+              source: event.source,
+              idempotencyKey: event.idempotencyKey,
+              payload: event.payload,
+            }),
+          )
+        }
+        catch (lateEventError) {
+          recordMemorySideFailure(prepared, {
+            stage: 'runtime-event-store',
+            errorSummary: lateEventError instanceof Error
+              ? lateEventError.message
+              : String(lateEventError),
+            eventType: event.eventType,
+            idempotencyKey: event.idempotencyKey,
+          })
+        }
+      },
       onPersistedEventFailure: ({ event, error }) => {
         const reason = error instanceof Error ? error.message : String(error)
         const diagnostics = {
@@ -1043,7 +1212,7 @@ export async function runAlicizationMainChatBackground(
 
     await settlePresentedExecutionCallbacks()
 
-    input.runStateController.finishRun(input.key, {
+    finishRunOnce({
       status: 'completed',
       finishReason: finalReply.finishReason,
       origin: 'provider',

@@ -13,14 +13,22 @@ import { chromium } from 'playwright'
 
 import { runMemoryQualityTrialCli } from '../src/main/services/alicization/memory-quality-trial-cli'
 import {
-  countFailedTurnMemoryLeaks,
+  assessFailedTurnMemoryLeaks,
+  assessLocalAppCompressionEvidence,
+  assessLocalAppProviderRequestEvidence,
+  assessLocalAppSingleSession,
   createPlaywrightLocalAppBlackboxAutomation,
+  findMemoryRecallQuery,
   parseLocalAppBlackboxTrialArgs,
+  readLocalAppMemoryClosureSnapshot,
+  readLocalAppProviderRequestEvidence,
   readLocalAppRuntimeRecall,
   readRuntimeDebugTraceSince,
   resolveLocalAppMemoryDatabasePath,
   runLocalAppBlackboxTrial,
   runLocalAppProductionTrial,
+  validateLocalAppProductionMessageCount,
+  waitForLocalAppMemoryClosure,
 } from './local-app-blackbox-trial-runtime'
 
 const help = `用法：
@@ -91,18 +99,12 @@ function countByStatus(rows: Array<{ status: string, count: number }>, ...status
     .reduce((total, row) => total + Number(row.count || 0), 0)
 }
 
-function findMemoryRecallQuery(messages: string[]) {
-  return [...messages]
-    .reverse()
-    .find(message => /记得|之前|上次|以前|喜欢什么|偏好/u.test(message))
-    ?? ''
-}
-
-async function inspectLocalAppMemory(input: {
+export async function inspectLocalAppMemory(input: {
   userDataPath: string
   cardId: string
   messages: string[]
   chatTurns: LocalAppBlackboxChatTurnEvidence[]
+  runtimeDebugTrace?: Array<Record<string, unknown>>
 }): Promise<LocalAppBlackboxMemoryAssertions> {
   const cardId = input.cardId.trim() || 'default'
   const dbPath = resolveLocalAppMemoryDatabasePath({
@@ -130,7 +132,7 @@ async function inspectLocalAppMemory(input: {
       },
       recall: {
         query: recallQuery,
-        matched: !recallQuery,
+        matched: false,
         status: recallQuery ? 'unknown' : 'not-requested',
         turnId: null,
         matchedIds: [],
@@ -141,13 +143,18 @@ async function inspectLocalAppMemory(input: {
       },
       failedTurnCount: failedTurns.length,
       failedTurnMemoryLeakCount: 0,
-      failureIsolationPassed: failedTurns.length === 0,
+      failureIsolationStatus: failedTurns.length === 0 ? 'passed' : 'unknown',
+      failureIsolationIndeterminateTurnCount: failedTurns.length,
+      failureIsolationPassed: failedTurns.length === 0 ? true : null,
       errors: [`找不到黑盒 App 数据库：${dbPath}`],
     }
   }
 
   const database = await openDatabase(dbPath)
   try {
+    const closureWait = await waitForLocalAppMemoryClosure({
+      readSnapshot: async () => await readLocalAppMemoryClosureSnapshot(database, cardId),
+    })
     const [checkpointRows, queueRows, factRows, reflectionRows, searchRows, vectorRows] = await Promise.all([
       all<{ count: number }>(
         database,
@@ -181,20 +188,93 @@ async function inspectLocalAppMemory(input: {
       ),
     ])
 
+    const expectedTurnIds = [...new Set(input.chatTurns
+      .map(turn => turn.turnId?.trim() ?? '')
+      .filter(Boolean))]
+    const runtimeEventRows = expectedTurnIds.length > 0
+      ? await all<{
+          event_id: string
+          event_type: string
+          turn_id: string
+          conversation_id: string
+          occurred_at: number
+          sequence: number
+          payload_json: string
+        }>(
+          database,
+          `
+          SELECT event_id, event_type, turn_id, conversation_id, occurred_at, sequence, payload_json
+          FROM alicization_runtime_events
+          WHERE card_id = ?
+            AND turn_id IN (${expectedTurnIds.map(() => '?').join(', ')})
+          ORDER BY occurred_at ASC, sequence ASC, event_id ASC
+          `,
+          [cardId, ...expectedTurnIds],
+        )
+      : []
+    const runtimeEvents = runtimeEventRows.map((row) => {
+      let payload: Record<string, unknown> = {}
+      try {
+        const parsed = JSON.parse(row.payload_json)
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
+          payload = parsed as Record<string, unknown>
+      }
+      catch {
+        payload = {}
+      }
+      return {
+        eventId: row.event_id,
+        eventType: row.event_type,
+        turnId: row.turn_id,
+        conversationId: row.conversation_id,
+        occurredAt: row.occurred_at,
+        sequence: row.sequence,
+        payload,
+      }
+    })
+    const singleSession = assessLocalAppSingleSession({
+      expectedTurnIds,
+      events: runtimeEventRows.map(row => ({
+        turnId: row.turn_id,
+        conversationId: row.conversation_id,
+      })),
+    })
+    const providerRequests = readLocalAppProviderRequestEvidence({
+      events: input.runtimeDebugTrace ?? [],
+      cardId,
+    })
+    const compression = assessLocalAppCompressionEvidence({
+      runtimeEvents,
+      providerRequests,
+      expectedTurnCount: input.chatTurns.length,
+    })
     const recall = await readLocalAppRuntimeRecall({
       database,
       cardId,
       query: recallQuery,
       chatTurns: input.chatTurns,
     })
+    const providerRequestAssessment = assessLocalAppProviderRequestEvidence(
+      providerRequests,
+      recall.turnId && recall.status
+        ? {
+            requiredRecall: {
+              turnId: recall.turnId,
+              status: recall.status,
+              matchedIds: recall.matchedIds,
+            },
+          }
+        : undefined,
+    )
     const errors = [...(recall.errors ?? [])]
-    const failedTurnMemoryLeakCount = await countFailedTurnMemoryLeaks({
+    const failureIsolation = await assessFailedTurnMemoryLeaks({
       database,
       cardId,
       failedTurns,
     })
     return {
       cardId,
+      closureWait,
       checkpointCount: Number(checkpointRows[0]?.count ?? 0),
       queue: {
         pending: countByStatus(queueRows, 'pending-cleaning', 'admitted'),
@@ -210,10 +290,25 @@ async function inspectLocalAppMemory(input: {
         vectorCount: Number(vectorRows[0]?.count ?? 0),
       },
       recall,
+      singleSession,
+      providerRequests,
+      providerRequestAssessment,
+      compression,
       failedTurnCount: failedTurns.length,
-      failedTurnMemoryLeakCount,
-      failureIsolationPassed: failedTurnMemoryLeakCount === 0,
-      errors,
+      failedTurnMemoryLeakCount: failureIsolation.leakedCount,
+      failureIsolationStatus: failureIsolation.status,
+      failureIsolationIndeterminateTurnCount: failureIsolation.indeterminateTurnCount,
+      failureIsolationPassed: failureIsolation.status === 'passed'
+        ? true
+        : failureIsolation.status === 'failed'
+          ? false
+          : null,
+      errors: closureWait.settled
+        ? errors
+        : [
+            ...errors,
+            `记忆闭环在 ${closureWait.waitedMs}ms 内未收敛：activeQueue=${closureWait.snapshot?.activeQueueCount ?? 'unknown'} activeIngest=${closureWait.snapshot?.activeIngestCount ?? 'unknown'} activeReindex=${closureWait.snapshot?.activeReindexCount ?? 'unknown'}`,
+          ],
     }
   }
   finally {
@@ -229,6 +324,7 @@ async function main() {
   }
 
   const args = parseLocalAppBlackboxTrialArgs(rawArgs)
+  validateLocalAppProductionMessageCount(args.messages.length)
   const automation = createPlaywrightLocalAppBlackboxAutomation({
     args,
     connectOverCDP: async endpoint => await chromium.connectOverCDP(endpoint),

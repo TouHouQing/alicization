@@ -41,6 +41,16 @@ export interface AlicizationProviderMemoryEvidence {
   salience: number
   sensitivity: AlicizationProviderMemoryEvidenceSensitivity
   confidence: number
+  /**
+   * Local correction metadata. These fields are intentionally outside the
+   * provider response schema and are only added by local evidence handling.
+   */
+  supersedesText?: string[]
+  claim?: {
+    subject: string
+    predicate: string
+    object: string
+  }
 }
 
 export interface AlicizationProviderPerformancePayload {
@@ -114,16 +124,16 @@ export function normalizeAlicizationProviderMemoryEvidence(
     && record.kind !== 'correction'
     || typeof record.summary !== 'string'
     || typeof record.reason !== 'string'
-      || !Array.isArray(record.evidenceSnippets)
+    || !Array.isArray(record.evidenceSnippets)
     || record.sensitivity !== 'public'
     && record.sensitivity !== 'personal'
-      && record.sensitivity !== 'private'
+    && record.sensitivity !== 'private'
     && record.sensitivity !== 'secret'
-      || typeof record.salience !== 'number'
+    || typeof record.salience !== 'number'
     || !Number.isFinite(record.salience)
-      || record.salience < 0
+    || record.salience < 0
     || record.salience > 1
-      || typeof record.confidence !== 'number'
+    || typeof record.confidence !== 'number'
     || !Number.isFinite(record.confidence)
       || record.confidence < 0
     || record.confidence > 1

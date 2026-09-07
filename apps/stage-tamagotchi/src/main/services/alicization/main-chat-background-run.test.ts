@@ -10,6 +10,7 @@ import {
 import { handleAlicizationMainChatRunFailure } from './main-chat-run-lifecycle'
 import { createAlicizationChatStreamMetaEmitter } from './main-chat-stream-meta'
 import { runAlicizationMainChatProviderStep } from './main-chat-stream-runner'
+import { startProviderHttpFaultServer } from './provider-http-fault-server.test-support'
 import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
 vi.mock('./main-chat-run-lifecycle', () => ({
@@ -21,9 +22,15 @@ vi.mock('./main-chat-runtime-surface', () => ({
   extractHostNameFromMessages: vi.fn(() => ''),
 }))
 
-vi.mock('./main-chat-stream-runner', () => ({
-  runAlicizationMainChatProviderStep: vi.fn(),
-}))
+vi.mock('./main-chat-stream-runner', async () => {
+  const actual = await vi.importActual<typeof import('./main-chat-stream-runner')>(
+    './main-chat-stream-runner',
+  )
+  return {
+    ...actual,
+    runAlicizationMainChatProviderStep: vi.fn(),
+  }
+})
 
 vi.mock('./main-chat-stream-meta', async () => {
   const actual = await vi.importActual<typeof import('./main-chat-stream-meta')>('./main-chat-stream-meta')
@@ -242,6 +249,7 @@ function createInput(
         { role: 'user' as const, content: userText },
       ],
     })),
+    providerRetryPolicy: {},
     turnLoop: {
       conversationId: 'conversation-1',
       userId: 'local-user-stable',
@@ -312,6 +320,141 @@ describe('main chat background run', () => {
         origin: 'provider',
       }),
     )
+  })
+
+  it('keeps recalled long-term memory in the EventLoop participant context before Provider dispatch', async () => {
+    const memoryContext = JSON.stringify({
+      type: 'alicization-turn-memory-context',
+      data: {
+        version: 'alicization-main-chat-memory-context-v1',
+        workingMemory: {
+          version: 'working-memory-owner-context-v1',
+          owner: 'working-memory',
+          recentDialogue: [],
+          compressedTimeline: [],
+          rememberedItems: [],
+          unresolvedQuestions: [],
+          commitments: [],
+          corrections: [],
+        },
+        longTermRecall: {
+          owner: 'long-term-memory-recall',
+          status: 'recalled',
+          confidence: 0.91,
+          evidence: [{
+            id: 'memory-background-recalled',
+            kind: 'fact',
+            summary: '用户喜欢在晚上继续讨论长期记忆。',
+            source: 'memory_facts',
+            scope: {
+              userId: 'local-user-stable',
+              cardId: 'card-1',
+            },
+            provenance: 'remembered',
+            confidence: 0.88,
+            salience: null,
+            updatedAt: null,
+            occurredAt: null,
+            threadId: null,
+            threadAnchor: null,
+            cues: [],
+            entities: [],
+            sensitivity: 'personal',
+            retrievalScore: 0.91,
+            queryMatches: ['长期记忆'],
+            rankReasons: ['semantic match'],
+            evidenceVersion: 'long-term-memory-evidence-v1',
+            version: 'long-term-memory-evidence-v1',
+          }],
+        },
+      },
+    })
+    const input = createInput('继续长期记忆', {
+      prepareTurn: vi.fn(async () => createPrepared({
+        messages: [
+          { role: 'system', content: memoryContext },
+          { role: 'user', content: '继续长期记忆' },
+        ],
+        memoryContext: {
+          longTermRecall: {
+            status: 'recalled',
+            confidence: 0.91,
+            evidence: [{
+              id: 'memory-background-recalled',
+              kind: 'fact',
+              summary: '用户喜欢在晚上继续讨论长期记忆。',
+              source: 'memory_facts',
+              scope: {
+                userId: 'local-user-stable',
+                cardId: 'card-1',
+              },
+              provenance: 'remembered',
+              confidence: 0.88,
+              salience: null,
+              updatedAt: null,
+              occurredAt: null,
+              threadId: null,
+              threadAnchor: null,
+              cues: [],
+              entities: [],
+              sensitivity: 'personal',
+              retrievalScore: 0.91,
+              queryMatches: ['长期记忆'],
+              rankReasons: ['semantic match'],
+              evidenceVersion: 'long-term-memory-evidence-v1',
+              version: 'long-term-memory-evidence-v1',
+            }],
+          },
+        },
+      })),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'chat-provider-context.assembled',
+      expect.objectContaining({
+        messageProjectionPreserved: true,
+        preparedLongTermRecall: expect.objectContaining({
+          status: 'recalled',
+          evidenceIds: ['memory-background-recalled'],
+          evidenceCount: 1,
+        }),
+        participantLongTermRecall: expect.objectContaining({
+          status: 'recalled',
+          evidenceIds: ['memory-background-recalled'],
+          evidenceCount: 1,
+        }),
+      }),
+    )
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'system',
+            content: memoryContext,
+          }),
+        ]),
+      }),
+    )
+  })
+
+  it('passes the active provider retry policy to the EventLoop Provider step', async () => {
+    const providerRetryPolicy = {
+      baseDelayMs: 17,
+      maxDelayMs: 53,
+      maxRetries: 2,
+      maxTotalRetryWindowMs: 1_337,
+    }
+    const input = createInput('测试 provider retry policy', {
+      providerRetryPolicy,
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledWith(expect.objectContaining({
+      providerRetryPolicy,
+    }))
   })
 
   it('routes the production turn through one EventLoop persistence owner', async () => {
@@ -721,6 +864,133 @@ describe('main chat background run', () => {
       .toBe(providerFailure)
   })
 
+  it('finishes exactly once and resolves when the failure handler throws before finishing', async () => {
+    const providerFailure = new Error('provider failed before failure settlement')
+    vi.mocked(runAlicizationMainChatProviderStep).mockRejectedValueOnce(providerFailure)
+    vi.mocked(handleAlicizationMainChatRunFailure).mockRejectedValueOnce(
+      new Error('failure handler crashed before finish'),
+    )
+    const input = createInput()
+
+    await expect(runAlicizationMainChatBackground(input)).resolves.toBeUndefined()
+
+    expect(input.runStateController.finishRun).toHaveBeenCalledOnce()
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(
+      input.key,
+      expect.objectContaining({
+        status: 'failed',
+        finishReason: 'failure-lifecycle-error',
+        error: providerFailure.message,
+      }),
+    )
+  })
+
+  it('does not double-finish when the failure handler throws after finishing', async () => {
+    const providerFailure = new Error('provider failed after failure settlement')
+    vi.mocked(runAlicizationMainChatProviderStep).mockRejectedValueOnce(providerFailure)
+    vi.mocked(handleAlicizationMainChatRunFailure).mockImplementationOnce(async (failureInput) => {
+      failureInput.finish({
+        status: 'failed',
+        finishReason: 'provider-failure',
+        error: 'provider failure was already surfaced',
+      })
+      throw new Error('failure handler crashed after finish')
+    })
+    const input = createInput()
+
+    await expect(runAlicizationMainChatBackground(input)).resolves.toBeUndefined()
+
+    expect(input.runStateController.finishRun).toHaveBeenCalledOnce()
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(
+      input.key,
+      expect.objectContaining({
+        status: 'failed',
+        finishReason: 'provider-failure',
+      }),
+    )
+  })
+
+  it('does not write memory or persona data after six real HTTP Provider failures', async () => {
+    const actualRunner = await vi.importActual<typeof import('./main-chat-stream-runner')>(
+      './main-chat-stream-runner',
+    )
+    const server = await startProviderHttpFaultServer({
+      respond: ({ attempt }) => ({
+        status: 503,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          error: {
+            message: `provider unavailable on attempt ${attempt}`,
+            type: 'server_error',
+          },
+        }),
+      }),
+    })
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    const commitMemoryWriteIntent = vi.fn(async () => {})
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(
+      input => actualRunner.runAlicizationMainChatProviderStep(input),
+    )
+    const input = createInput('请记住这轮', {
+      prepareTurn: vi.fn(async () => createPrepared({
+        chatConfig: {
+          apiKey: 'test-key',
+          baseURL: server.baseUrl,
+          model: 'gpt-test',
+        },
+        commitMemoryWriteIntent,
+        memoryWriteItems: [createMemoryWriteItem()],
+      })),
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        maxRetries: 5,
+        maxTotalRetryWindowMs: 5_000,
+        random: () => 0,
+      },
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+
+    try {
+      await runAlicizationMainChatBackground(input)
+
+      expect(server.requests).toHaveLength(6)
+      expect(commitMemoryWriteIntent).not.toHaveBeenCalled()
+      expect(input.runStateController.finishRun).not.toHaveBeenCalledWith(
+        input.key,
+        expect.objectContaining({
+          status: 'completed',
+          learningPolicy: expect.objectContaining({
+            allowPersonaLearning: true,
+          }),
+        }),
+      )
+      expect(events.map(event => event.eventType)).toContain('memory.write.rejected')
+      expect(events.map(event => event.eventType)).not.toContain('memory.write.proposed')
+      expect(events.map(event => event.eventType)).not.toContain('memory.write.accepted')
+    }
+    finally {
+      await server.close()
+    }
+  })
+
   it('rejects memory writeback without committing it when the Provider fails', async () => {
     const events: any[] = []
     const persistence = {
@@ -836,6 +1106,7 @@ describe('main chat background run', () => {
     expect(commitMemoryWriteIntent).toHaveBeenCalledOnce()
     expect(commitMemoryWriteIntent).toHaveBeenCalledWith({
       assistantText: '工具失败后仍完成回复。',
+      deferPostCommit: true,
     })
     expect(events.map(event => event.eventType)).toContain('action.failed')
     expect(events.map(event => event.eventType)).toContain('memory.write.accepted')
@@ -1009,6 +1280,7 @@ describe('main chat background run', () => {
     expect(commitMemoryWriteIntent).toHaveBeenCalledOnce()
     expect(commitMemoryWriteIntent).toHaveBeenCalledWith({
       assistantText: '最终 Provider 回复',
+      deferPostCommit: true,
     })
     const eventTypes = events.map(event => event.eventType)
     expect(eventTypes.indexOf('turn.completed')).toBeLessThan(
@@ -1020,6 +1292,93 @@ describe('main chat background run', () => {
     expect(eventTypes.indexOf('working_memory.compression.completed')).toBeLessThan(
       eventTypes.indexOf('working_memory.snapshot.created'),
     )
+  })
+
+  it('finishes the visible turn without waiting for deferred memory post-commit owners', async () => {
+    let releasePostCommit = () => {}
+    const postCommit = new Promise<any[]>((resolve) => {
+      releasePostCommit = () => resolve([{
+        owner: 'long-term-memory-drain',
+        status: 'succeeded',
+      }])
+    })
+    const trackedDeferredTasks: Promise<void>[] = []
+    const trackDeferredTask = vi.fn((task: Promise<void>) => {
+      trackedDeferredTasks.push(task)
+    })
+    const commitMemoryWriteIntent = vi.fn(async () => ({
+      workingMemorySnapshot: {
+        version: 'working-memory-v1',
+        updatedAt: 100,
+        compressedTimeline: [],
+        compression: {
+          level: 'none',
+          sourceTurnIds: [],
+          lastCompressedAt: null,
+        },
+      },
+      memoryWriteItems: [createMemoryWriteItem()],
+      ownerSettlements: [{
+        owner: 'working-memory-checkpoint',
+        status: 'succeeded',
+      }, {
+        owner: 'long-term-memory-queue',
+        status: 'succeeded',
+      }],
+    }))
+    const waitForDeferredMemoryPostCommit = vi.fn(() => postCommit)
+    const persistence = createInMemoryPersistence()
+    const input = createInput('记住成功回复', {
+      prepareTurn: vi.fn(async () => createPrepared({
+        commitMemoryWriteIntent,
+        waitForDeferredMemoryPostCommit,
+        memoryWriteItems: [createMemoryWriteItem()],
+      })),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+      trackDeferredTask,
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'reply',
+      finishReason: 'stop',
+      fullText: '最终 Provider 回复',
+      text: '最终 Provider 回复',
+    })
+
+    const run = runAlicizationMainChatBackground(input)
+    const outcome = await Promise.race([
+      run.then(() => 'finished' as const),
+      new Promise<'still-waiting'>(resolve =>
+        setTimeout(() => resolve('still-waiting'), 25)),
+    ])
+
+    expect(outcome).toBe('finished')
+    expect(commitMemoryWriteIntent).toHaveBeenCalledWith({
+      assistantText: '最终 Provider 回复',
+      deferPostCommit: true,
+    })
+    expect(waitForDeferredMemoryPostCommit).toHaveBeenCalledOnce()
+    expect(trackDeferredTask).toHaveBeenCalledOnce()
+    expect(trackedDeferredTasks).toHaveLength(1)
+    expect(input.runStateController.finishRun).toHaveBeenCalledOnce()
+
+    releasePostCommit()
+    await trackedDeferredTasks[0]
+    await vi.waitFor(() => {
+      expect(persistence.appendRuntimeEvent).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.objectContaining({
+          eventType: 'memory.owner.settled',
+          payload: expect.objectContaining({
+            owner: 'long-term-memory-drain',
+            status: 'succeeded',
+          }),
+        }),
+      )
+    })
   })
 
   it('publishes memory write events from the final settled candidates instead of prepare-time candidates', async () => {
@@ -1092,6 +1451,7 @@ describe('main chat background run', () => {
     expect(commitMemoryWriteIntent).toHaveBeenCalledWith({
       assistantText: '最终 Provider 回复',
       intent: resolvedIntent,
+      deferPostCommit: true,
     })
     expect(events.find(event => event.eventType === 'memory.write.proposed')?.payload)
       .toMatchObject({
@@ -1196,6 +1556,7 @@ describe('main chat background run', () => {
     expect(commitMemoryWriteIntent).toHaveBeenCalledWith({
       assistantText: '我会记住你更喜欢先说结论。',
       intent: resolvedIntent,
+      deferPostCommit: true,
     })
     expect(events.map(event => event.eventType)).toContain('memory.write.proposed')
   })
@@ -1654,6 +2015,76 @@ describe('main chat background run', () => {
     )
     expect(order.indexOf('checkpoint:action.observation')).toBeLessThan(
       order.indexOf('emit:tool-result'),
+    )
+  })
+
+  it('canonicalizes optional undefined tool fields before persisting the observation', async () => {
+    const persistence = createInMemoryPersistence()
+    const prepared = createPrepared({
+      toolRegistry: createCanonicalToolRegistry(),
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute: vi.fn(async () => ({
+          status: 'completed',
+          focusTarget: {
+            appName: 'Codex',
+            title: undefined,
+          },
+        })),
+      }],
+    })
+    const input = createInput('检查当前项目', {
+      prepareTurn: vi.fn(async () => prepared),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockResolvedValueOnce({
+        kind: 'action',
+        action: {
+          actionId: 'turn-1:action:json-safe-observation',
+          input: {
+            agent: 'codex',
+            prompt: 'inspect the repository',
+          },
+          providerToolName: 'coding_agent',
+          capabilityId: 'coding_agent.codex',
+          toolCallId: 'json-safe-observation',
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: '检查完成。',
+        text: '检查完成。',
+      })
+
+    await runAlicizationMainChatBackground(input)
+
+    const persistedEvents = vi.mocked(persistence.appendRuntimeEvent).mock.calls.map(([, event]) => event)
+    const observation = persistedEvents.find(event => event.eventType === 'action.observation')
+    const output = (observation?.payload as any)?.output
+    expect(output?.focusTarget).toEqual({
+      appName: 'Codex',
+    })
+    expect(Object.prototype.hasOwnProperty.call(output?.focusTarget ?? {}, 'title')).toBe(false)
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(
+      'card-1::turn-1',
+      expect.objectContaining({
+        status: 'completed',
+        fullText: '检查完成。',
+      }),
     )
   })
 

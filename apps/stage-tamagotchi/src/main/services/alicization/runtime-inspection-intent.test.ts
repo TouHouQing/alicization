@@ -55,6 +55,145 @@ function createInspectionCarryState(): AlicizationPerceptionState {
 }
 
 describe('runtime inspection intent', () => {
+  it('releases screen carry for an answer-only uncertainty instruction', () => {
+    const runtime = createInspectionIntentRuntime()
+    const visualPresenceState = createDefaultVisualPresenceState(2_000)
+    visualPresenceState.watchMode = 'invited-inspection'
+
+    const result = runtime.resolveInspectionIntentForChatTurn({
+      now: 2_000,
+      userText: '如果你不确定某件事，不要猜，直接说不确定。',
+      messages: [
+        { role: 'user', content: '帮我看看 Cursor 里面这个 diff 有什么问题' },
+        { role: 'assistant', content: '我在看着。' },
+        { role: 'user', content: '如果你不确定某件事，不要猜，直接说不确定。' },
+      ],
+      perceptionState: createInspectionCarryState(),
+      visualPresenceState,
+      currentForeground: {
+        appName: 'Alicization',
+        processName: 'Codex',
+        title: 'Chat Overlay',
+      },
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.releaseCarry).toBe(true)
+    expect(result.inspectionState).toBe('dialogue-first')
+    expect(result.reasonCodes).toContain('dialogue-pivot-away-from-inspection')
+  })
+
+  it('releases screen carry when the user explicitly asks for dialogue without tools', () => {
+    const runtime = createInspectionIntentRuntime()
+    const visualPresenceState = createDefaultVisualPresenceState(2_000)
+    visualPresenceState.watchMode = 'invited-inspection'
+
+    const result = runtime.resolveInspectionIntentForChatTurn({
+      now: 2_000,
+      userText: '不调用工具，只用对话回答。',
+      messages: [
+        { role: 'user', content: '帮我看看 Cursor 里面这个 diff 有什么问题' },
+        { role: 'assistant', content: '我在看着。' },
+        { role: 'user', content: '不调用工具，只用对话回答。' },
+      ],
+      perceptionState: createInspectionCarryState(),
+      visualPresenceState,
+      currentForeground: {
+        appName: 'Alicization',
+        processName: 'Codex',
+        title: 'Chat Overlay',
+      },
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.releaseCarry).toBe(true)
+    expect(result.inspectionState).toBe('dialogue-first')
+  })
+
+  it('releases screen carry for the blackbox dialogue-only wording', () => {
+    const runtime = createInspectionIntentRuntime()
+    const visualPresenceState = createDefaultVisualPresenceState(2_000)
+    visualPresenceState.watchMode = 'invited-inspection'
+
+    const result = runtime.resolveInspectionIntentForChatTurn({
+      now: 2_000,
+      userText: '现在先不要执行任何工具，只和我聊天。',
+      messages: [
+        { role: 'user', content: '帮我看看 Cursor 里面这个 diff 有什么问题' },
+        { role: 'assistant', content: '我在看着。' },
+        { role: 'user', content: '现在先不要执行任何工具，只和我聊天。' },
+      ],
+      perceptionState: createInspectionCarryState(),
+      visualPresenceState,
+      currentForeground: {
+        appName: 'Alicization',
+        processName: 'Codex',
+        title: 'Chat Overlay',
+      },
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.releaseCarry).toBe(true)
+    expect(result.inspectionState).toBe('dialogue-first')
+    expect(result.reasonCodes).toContain('dialogue-pivot-away-from-inspection')
+  })
+
+  it('does not turn a current preference recall question into screen inspection', () => {
+    const runtime = createInspectionIntentRuntime()
+    const visualPresenceState = createDefaultVisualPresenceState(2_000)
+    visualPresenceState.watchMode = 'invited-inspection'
+
+    const result = runtime.resolveInspectionIntentForChatTurn({
+      now: 2_000,
+      userText: '最后再问一次：我现在喜欢什么颜色？',
+      messages: [
+        { role: 'user', content: '帮我看看 Cursor 里面这个 diff 有什么问题' },
+        { role: 'assistant', content: '我在看着。' },
+        { role: 'user', content: '最后再问一次：我现在喜欢什么颜色？' },
+      ],
+      perceptionState: createInspectionCarryState(),
+      visualPresenceState,
+      currentForeground: {
+        appName: 'Alicization',
+        processName: 'Codex',
+        title: 'Chat Overlay',
+      },
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.releaseCarry).toBe(true)
+    expect(result.inspectionState).toBe('dialogue-first')
+    expect(result.reasonCodes).toContain('dialogue-pivot-away-from-inspection')
+  })
+
+  it('releases screen carry when the user pivots back to a non-visual project topic', () => {
+    const runtime = createInspectionIntentRuntime()
+    const visualPresenceState = createDefaultVisualPresenceState(2_000)
+    visualPresenceState.watchMode = 'invited-inspection'
+
+    const result = runtime.resolveInspectionIntentForChatTurn({
+      now: 2_000,
+      userText: '继续回到数字生命项目：短期记忆的 owner 应该是谁？',
+      messages: [
+        { role: 'user', content: '帮我看看 Cursor 里面这个 diff 有什么问题' },
+        { role: 'assistant', content: '我在看着。' },
+        { role: 'user', content: '继续回到数字生命项目：短期记忆的 owner 应该是谁？' },
+      ],
+      perceptionState: createInspectionCarryState(),
+      visualPresenceState,
+      currentForeground: {
+        appName: 'Alicization',
+        processName: 'Codex',
+        title: 'Chat Overlay',
+      },
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.releaseCarry).toBe(true)
+    expect(result.inspectionState).toBe('dialogue-first')
+    expect(result.reasonCodes).toContain('dialogue-pivot-away-from-inspection')
+  })
+
   it('releases inspection carry when the new turn only contains a weak observe filler', () => {
     const runtime = createInspectionIntentRuntime()
     const visualPresenceState = createDefaultVisualPresenceState(2_000)

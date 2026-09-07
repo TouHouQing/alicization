@@ -30,7 +30,7 @@ function mirror(input: Record<string, unknown> = {}) {
 }
 
 describe('autobiographical episode sync', () => {
-  it.each(['blocked', 'failed', 'cancelled', 'dead-lettered'] as const)(
+  it.each(['running', 'needs-affirmation', 'blocked', 'failed', 'cancelled', 'dead-lettered'] as const)(
     'does not persist %s task-thread diagnostics as autobiographical memory',
     (status) => {
       const events = buildAutobiographicalEpisodesFromSessionMirrorSync({

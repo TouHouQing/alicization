@@ -92,6 +92,45 @@ describe('long-term memory evidence mappers', () => {
       summary: expect.stringContaining('Minecraft'),
     }))
 
+    expect(episodicEventToLongTermEvidenceCandidate({
+      id: 'episode-with-lineage',
+      cardId: 'default',
+      decisionTraceId: null,
+      turnId: null,
+      sessionId: 'session-1',
+      sourceKind: 'reply',
+      provenance: 'remembered',
+      occurredAt: 10,
+      whereSummary: null,
+      withWhom: ['user'],
+      threadAnchor: '一起打游戏',
+      whatHappened: '上周一起玩过 Minecraft',
+      felt: null,
+      emotionTags: [],
+      whatChanged: null,
+      relationshipMeaning: '共同经历',
+      lesson: null,
+      sourceSummary: null,
+      confidence: 0.84,
+      salience: 0.8,
+      sceneAttachment: 0.4,
+      consolidationPriority: 0.6,
+      relationshipShift: null,
+      derivedFrom: [{
+        kind: 'turn',
+        id: 'turn-episode-with-lineage',
+      }],
+      tags: ['游戏'],
+      createdAt: 10,
+      updatedAt: 10,
+      lastRecalledAt: null,
+      recallCount: 0,
+      reconsolidationCount: 0,
+      latestReconsolidation: null,
+    })).toEqual(expect.objectContaining({
+      sourceIds: ['turn-episode-with-lineage'],
+    }))
+
     expect(memoryConsolidationToLongTermEvidenceCandidate({
       id: 'consolidation-1',
       kind: 'weekly',
@@ -110,6 +149,25 @@ describe('long-term memory evidence mappers', () => {
       kind: 'consolidation',
       source: 'memory_consolidations',
       summary: expect.stringContaining('先做召回'),
+      sourceIds: [],
+    }))
+
+    expect(memoryConsolidationToLongTermEvidenceCandidate({
+      id: 'consolidation-with-lineage',
+      kind: 'weekly',
+      facet: 'task-era',
+      periodKey: '2026-W27',
+      periodStartedAt: 1,
+      periodEndedAt: 2,
+      summary: '这一周主要围绕长期记忆开发',
+      lesson: '先做召回，再扩写入',
+      cues: ['长期记忆', '召回'],
+      confidence: 0.8,
+      dominantProvenance: 'remembered',
+      derivedEventIds: ['episode-1', 'episode-2'],
+      updatedAt: 2,
+    })).toEqual(expect.objectContaining({
+      sourceIds: ['episode-1', 'episode-2'],
     }))
   })
 

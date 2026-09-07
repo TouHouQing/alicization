@@ -126,4 +126,24 @@ describe('working memory history owner', () => {
       },
     })
   })
+
+  it('passes the current turn abort signal to persisted history reads', async () => {
+    const controller = new AbortController()
+    const listConversationTurnsBySession = vi.fn(async () => [])
+    const owner = createWorkingMemoryHistoryOwner({
+      listConversationTurnsBySession,
+    })
+
+    await owner.loadFallback('session-owner', {
+      signal: controller.signal,
+    })
+
+    expect(listConversationTurnsBySession).toHaveBeenCalledWith(
+      'session-owner',
+      {
+        limit: workingMemoryHistoryFallbackTurnBudget,
+        signal: controller.signal,
+      },
+    )
+  })
 })

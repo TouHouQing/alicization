@@ -111,13 +111,31 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
     const auditPayload = preparedPerception.auditPayload
     const captureGovernance = preparedPerception.captureGovernance
 
-    const proactiveState = await ensureProactiveLoopState(input.cardId)
+    const proactiveStatePromise = ensureProactiveLoopState(input.cardId)
+    const subconsciousStatePromise = ensureSubconsciousState(input.cardId)
+    const soulSnapshot = getSoulSnapshot()
+    const soulForPerceptionPromise = soulSnapshot
+      ? Promise.resolve(soulSnapshot)
+      : bootstrap()
+    const reminderBacklogPromise = listPendingScheduledTaskCount(16)
+    const humanlikeMemoryRecallSeedPromise = resolveHumanlikeMemoryRecallSeedFromEventHistory({
+      listHumanlikeMemoryRecallEvents,
+      limit: 24,
+    })
+    const [
+      proactiveState,
+      subconsciousState,
+      soulForPerception,
+      reminderBacklog,
+    ] = await Promise.all([
+      proactiveStatePromise,
+      subconsciousStatePromise,
+      soulForPerceptionPromise,
+      reminderBacklogPromise,
+    ])
     const lateNightActiveMinutes = proactiveState.lateNightActivityStartedAt
       ? Math.max(0, (now - proactiveState.lateNightActivityStartedAt) / 60_000)
       : 0
-    const subconsciousState = await ensureSubconsciousState(input.cardId)
-    const soulForPerception = getSoulSnapshot() ?? await bootstrap()
-    const reminderBacklog = await listPendingScheduledTaskCount(16)
     const chatLayeredContext = buildProactiveLayeredContext({
       now,
       probeSample: sensorySnapshot?.sample,
@@ -318,10 +336,7 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
         },
       }, input.cardId)
     }
-    const humanlikeMemoryRecallSeed = await resolveHumanlikeMemoryRecallSeedFromEventHistory({
-      listHumanlikeMemoryRecallEvents,
-      limit: 24,
-    })
+    const humanlikeMemoryRecallSeed = await humanlikeMemoryRecallSeedPromise
 
     return {
       messages,

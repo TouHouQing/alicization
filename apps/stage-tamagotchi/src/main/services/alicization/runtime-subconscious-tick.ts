@@ -465,24 +465,39 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     return normalizeDeferredAutonomyContinuitySignal(signal)
   }
 
-  async function runSubconsciousTickForCurrentCard(trigger: 'timer' | 'force') {
+  async function runSubconsciousTickForCurrentCard(
+    trigger: 'timer' | 'force',
+    options: { signal?: AbortSignal } = {},
+  ) {
+    const assertNotAborted = () => {
+      if (options.signal?.aborted)
+        throw options.signal.reason ?? new DOMException('Subconscious tick aborted', 'AbortError')
+    }
+    assertNotAborted()
     const activeCardId = getActiveCardId()
     const alicizationDb = getAlicizationDb()
-    const state = await ensureSubconsciousState(activeCardId)
-    let proactiveLoopState = await ensureProactiveLoopState(activeCardId)
+    const state = await ensureSubconsciousState(activeCardId, { signal: options.signal })
+    assertNotAborted()
+    let proactiveLoopState = await ensureProactiveLoopState(activeCardId, { signal: options.signal })
+    assertNotAborted()
     const now = Date.now()
     const backgroundAgentTurn = await openAgentTurn({
       cardId: activeCardId,
       turnId: buildMainGatewayAgentTurnId('subconscious-tick', trigger, activeCardId, now),
+      signal: options.signal,
     })
-    const reminderResult = await processDueRemindersForCurrentCard(trigger, backgroundAgentTurn)
-    const learningResult = await processDueLearningActionsForCurrentCard(trigger)
-    proactiveLoopState = await settleExpiredPendingProactiveOutcomes(activeCardId, now, `subconscious-tick:${trigger}`)
+    assertNotAborted()
+    const reminderResult = await processDueRemindersForCurrentCard(trigger, backgroundAgentTurn, { signal: options.signal })
+    assertNotAborted()
+    const learningResult = await processDueLearningActionsForCurrentCard(trigger, { signal: options.signal })
+    assertNotAborted()
+    proactiveLoopState = await settleExpiredPendingProactiveOutcomes(activeCardId, now, `subconscious-tick:${trigger}`, { signal: options.signal })
+    assertNotAborted()
     const elapsedMinutes = Math.max(1 / 6, (now - state.lastTickAt) / 60_000)
     const sensorySnapshot = getSensorySnapshot()
     const cpuUsage = Number(sensorySnapshot?.sample?.cpu?.usagePercent ?? 0)
-    let perceptionState = await ensurePerceptionState(activeCardId)
-    const rawInterruptionContext = await sampleSubconsciousInterruptionContext()
+    let perceptionState = await ensurePerceptionState(activeCardId, { signal: options.signal })
+    const rawInterruptionContext = await sampleSubconsciousInterruptionContext({ signal: options.signal })
     const resolvedForegroundWindow = resolveForegroundDecisionTarget({
       snapshotForeground: sensorySnapshot?.sample?.foregroundWindow,
       probedForeground: rawInterruptionContext.foregroundWindow,
@@ -497,9 +512,11 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       now,
       target: resolvedForegroundWindow,
       source: 'subconscious-tick',
+      signal: options.signal,
     })
-    perceptionState = await ensurePerceptionState(activeCardId)
-    let visualPresenceState = await ensureVisualPresenceState(activeCardId)
+    assertNotAborted()
+    perceptionState = await ensurePerceptionState(activeCardId, { signal: options.signal })
+    let visualPresenceState = await ensureVisualPresenceState(activeCardId, { signal: options.signal })
     const idleLikely = interruptionContext.inputActivity === 'idle'
       || (interruptionContext.inputActivity !== 'active' && cpuUsage <= 10)
 
@@ -525,7 +542,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     })
     proactiveLoopState = lateNightState.state
     setProactiveLoopStateCache(activeCardId, proactiveLoopState)
-    const reminderBacklog = (await alicizationDb.listPendingScheduledTasks(32).catch(() => [])).length
+    const reminderBacklog = (await alicizationDb.listPendingScheduledTasks(32, { signal: options.signal }).catch(() => [])).length
+    assertNotAborted()
     const canAttemptScreenSemanticSummary
       = !killSwitchSuspended
         && !interruptionContext.fullscreenLikely
@@ -538,6 +556,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
           foregroundWindow: interruptionContext.foregroundWindow,
           perceptionState,
           agentTurn: backgroundAgentTurn,
+          signal: options.signal,
         })
       : {
           summary: null,
@@ -649,6 +668,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       now,
     })
     const organicMemorySnapshot = await getOrganicMemorySnapshot().catch(() => null)
+    assertNotAborted()
     const visualHeartbeat = buildVisualHeartbeat({
       now,
       scenario: inferredScenario,
@@ -687,6 +707,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       agentTurn: backgroundAgentTurn,
       selfEvolution: visualPresenceState.selfEvolution ?? null,
       organicMemoryContext: organicMemorySnapshot,
+      signal: options.signal,
     })
     const previousMindPresenceState = visualPresenceState
     const committedDigitalLifeSpine = commitAlicizationDigitalLifeSpine({
@@ -719,7 +740,9 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     await persistVisualPresenceState(activeCardId, visualPresenceState, {
       debounceWindowMs: visualPresenceCapturePersistDebounceWindowMs,
       fingerprint: buildVisualPresenceCapturePersistFingerprint(visualPresenceState),
+      signal: options.signal,
     })
+    assertNotAborted()
 
     const mindContinuityText = buildMindContinuityFragment({
       previousRuntimeSurface: previousDigitalLifeRuntimeSurface,
@@ -729,7 +752,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       await alicizationDb.appendSubconsciousFragments([{
         text: mindContinuityText,
         sourceKind: 'mind-continuity',
-      }]).catch(async (error: unknown) => {
+      }], { signal: options.signal }).catch(async (error: unknown) => {
+        assertNotAborted()
         await appendAuditLog({
           level: 'warning',
           category: 'alicization.mind',
@@ -751,7 +775,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       await alicizationDb.appendSubconsciousFragments([{
         text: reflectionLedgerText,
         sourceKind: 'reflection-ledger',
-      }]).catch(async (error: unknown) => {
+      }], { signal: options.signal }).catch(async (error: unknown) => {
+        assertNotAborted()
         await appendAuditLog({
           level: 'warning',
           category: 'alicization.mind',
@@ -773,7 +798,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       await alicizationDb.appendSubconsciousFragments([{
         text: autobiographicalEpisodeText,
         sourceKind: 'autobiographical-episode',
-      }]).catch(async (error: unknown) => {
+      }], { signal: options.signal }).catch(async (error: unknown) => {
+        assertNotAborted()
         await appendAuditLog({
           level: 'warning',
           category: 'alicization.mind',
@@ -796,7 +822,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         await alicizationDb.appendSubconsciousFragments([{
           text: visualSedimentText,
           sourceKind: 'visual-sediment',
-        }]).catch(async (error: unknown) => {
+        }], { signal: options.signal }).catch(async (error: unknown) => {
+          assertNotAborted()
           await appendAuditLog({
             level: 'warning',
             category: 'alicization.visual-memory',
@@ -824,7 +851,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     let proactive = false
     let outwardProactiveTriggered = false
     let suppressed = false
-    const executionDelivered = await processPendingExecutionDeliveriesForCurrentCard(trigger, backgroundAgentTurn)
+    const executionDelivered = await processPendingExecutionDeliveriesForCurrentCard(trigger, backgroundAgentTurn, { signal: options.signal })
+    assertNotAborted()
     if (executionDelivered) {
       proactive = true
       outwardProactiveTriggered = true
@@ -939,13 +967,13 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             capabilities: planningCapabilities,
             workspaceRoot,
             listPendingReminders: async (limit?: number) =>
-              (await alicizationDb.listPendingScheduledTasks(limit ?? 128).catch(() => []))
+              (await alicizationDb.listPendingScheduledTasks(limit ?? 128, { signal: options.signal }).catch(() => []))
                 .filter((task: any) => String(task?.taskId ?? '').startsWith(`reminder:${activeCardId}:`)),
             scheduleReminder: async (payload: {
               minutes: number
               message: string
               sourceTurnId?: string
-            }) => await scheduleAutonomyReminder(activeCardId, payload),
+            }, writeOptions?: { signal?: AbortSignal }) => await scheduleAutonomyReminder(activeCardId, payload, writeOptions),
             buildExecutionRuntimeContext: async ({
               cardId,
               decisionTraceId,
@@ -957,9 +985,10 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
               sessionId,
               turnId,
               sensorySnapshot,
-            }),
-            planTaskThread: async (payload: any) => await planAutonomyTaskThread(activeCardId, payload),
-            dispatchTaskThread: async (payload: any) => await dispatchAutonomyTaskThread(payload),
+            }, { signal: options.signal }),
+            planTaskThread: async (payload: any) => await planAutonomyTaskThread(activeCardId, payload, { signal: options.signal }),
+            dispatchTaskThread: async (payload: any) => await dispatchAutonomyTaskThread(payload, { signal: options.signal }),
+            signal: options.signal,
           })
           autonomyExecutionProposalSurface = deriveAutonomyExecutionProposalSurface({
             actuationResult: autonomyActuation,
@@ -1191,6 +1220,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
               turnId,
             },
             backgroundAgentTurn,
+            { signal: options.signal },
           )
           if (
             generated
@@ -1390,7 +1420,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         if (!proactiveVisibleUtterance.shouldPersistVisibleUtterance) {
           proactive = false
           try {
-            const persistedPresenceState = await ensureVisualPresenceState(activeCardId)
+            const persistedPresenceState = await ensureVisualPresenceState(activeCardId, { signal: options.signal })
             const latestRuntimeSurface = committedDigitalLifeSpine.current.runtimeSurface
             const persistedPresenceRuntimeSnapshot = derivePostPolicyQuietHoldRuntimeSnapshot(
               policyAdjustedRuntimeSnapshot ?? proactiveRuntimeSnapshot,
@@ -1501,7 +1531,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             catch {
               nextPresenceStateToPersist = nextPresenceStateWithBodyAuthority
             }
-            await persistVisualPresenceState(activeCardId, nextPresenceStateToPersist)
+            await persistVisualPresenceState(activeCardId, nextPresenceStateToPersist, { signal: options.signal })
             visualPresenceState = nextPresenceStateToPersist
           }
           catch (error) {
@@ -1561,6 +1591,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             }
           })()
           const performanceManifest = await getPerformanceManifest()
+          assertNotAborted()
           const normalizedProactiveDialoguePayload = proactiveStructuredForPersistence
             ? normalizeDialogueRespondedPayload({
                 turnId,
@@ -1591,6 +1622,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             structured: persistedStructured,
             origin: proactiveOrigin,
             createdAt: now,
+            abortSignal: options.signal,
           })
           if (!persisted) {
             proactive = false
@@ -1651,11 +1683,12 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       || proactive
       || suppressed
       || now - nextState.lastSavedAt >= alicizationSubconsciousPersistMs
-    const latestProactiveLoopState = await ensureProactiveLoopState(activeCardId)
-    await persistProactiveLoopState(activeCardId, latestProactiveLoopState)
+    assertNotAborted()
+    const latestProactiveLoopState = await ensureProactiveLoopState(activeCardId, { signal: options.signal })
+    await persistProactiveLoopState(activeCardId, latestProactiveLoopState, { signal: options.signal })
     if (shouldPersist) {
       nextState.lastSavedAt = now
-      await persistSubconsciousState(activeCardId, nextState)
+      await persistSubconsciousState(activeCardId, nextState, { signal: options.signal })
     }
     else {
       setSubconsciousStateCache(activeCardId, nextState)

@@ -9,6 +9,7 @@ import type {
   AlicizationRecallGovernorSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type {
@@ -113,6 +114,54 @@ function uniquePromptList(values: Array<string | null | undefined>, maxItems = 6
       break
   }
   return result
+}
+
+function organicMemoryAbortError(signal?: AbortSignal) {
+  return signal?.reason ?? new DOMException('Organic memory resolution aborted', 'AbortError')
+}
+
+function throwIfOrganicMemoryAborted(signal?: AbortSignal) {
+  if (signal?.aborted)
+    throw organicMemoryAbortError(signal)
+}
+
+function awaitOrganicMemoryOwner<T>(
+  promise: Promise<T>,
+  signal?: AbortSignal,
+) {
+  if (!signal)
+    return promise
+  if (signal.aborted)
+    return Promise.reject(organicMemoryAbortError(signal))
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const onAbort = () => {
+      if (settled)
+        return
+      settled = true
+      signal.removeEventListener('abort', onAbort)
+      reject(organicMemoryAbortError(signal))
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    void promise.then(
+      (value) => {
+        if (settled)
+          return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error) => {
+        if (settled)
+          return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
 }
 
 function normalizeMemorySuppressionTag(raw: unknown) {
@@ -553,6 +602,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     normalizeOrganicRecallText,
     selectPromptActiveThoughts,
     getOrganicMemorySnapshot,
+    getOrganicMemoryPromptSnapshot,
     getLatestRelationshipDynamics,
     retrieveMemoryFacts,
     recallSubconsciousFragmentsWithGovernor,
@@ -615,9 +665,12 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     sessionId?: string | null
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
     sessionMirrorRecollection?: OrganicMemoryRecollectionCarry | null
     providerPlanning?: 'enabled' | 'disabled'
+    signal?: AbortSignal
   }): Promise<AlicizationOrganicMemoryPreludeResolution> {
+    throwIfOrganicMemoryAborted(input.signal)
     const budgetClass = input.budgetClass ?? 'realtime-reply'
     const sessionMirrorRecollectionIntent = deriveSessionMirrorRecollectionIntent(
       input.sessionMirrorRecollection,
@@ -630,24 +683,31 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       input.recallSeed ?? input.recallGovernor?.recallSeed ?? '',
       sessionMirrorForeground,
     ], 2).join('\n')
-    const retrievalPolicySnapshot = await (
-      resolveTurnRetrievalPolicySnapshot
-      ?? (async (innerInput: {
-        recallSeed: string
-        recallGovernor?: AlicizationRecallGovernorSnapshot | null
-        budgetClass?: AlicizationMemoryRetrievalBudgetClass
-      }) => buildAlicizationTurnRetrievalPolicySnapshot({
-        recallSeed: innerInput.recallSeed,
-        recallGovernor: innerInput.recallGovernor ?? null,
-        budgetClass: innerInput.budgetClass,
-        telemetry: null,
-        tuningAdvice: null,
-      }))
-    )({
-      recallSeed: retrievalPolicyRecallSeed,
-      recallGovernor: input.recallGovernor ?? null,
-      budgetClass,
-    })
+    const retrievalPolicySnapshot = input.retrievalPolicySnapshot
+      ?? await awaitOrganicMemoryOwner(
+        (
+          resolveTurnRetrievalPolicySnapshot
+          ?? (async (innerInput: {
+            recallSeed: string
+            recallGovernor?: AlicizationRecallGovernorSnapshot | null
+            budgetClass?: AlicizationMemoryRetrievalBudgetClass
+            signal?: AbortSignal
+          }) => buildAlicizationTurnRetrievalPolicySnapshot({
+            recallSeed: innerInput.recallSeed,
+            recallGovernor: innerInput.recallGovernor ?? null,
+            budgetClass: innerInput.budgetClass,
+            telemetry: null,
+            tuningAdvice: null,
+          }))
+        )({
+          recallSeed: retrievalPolicyRecallSeed,
+          recallGovernor: input.recallGovernor ?? null,
+          budgetClass,
+          signal: input.signal,
+        }),
+        input.signal,
+      )
+    throwIfOrganicMemoryAborted(input.signal)
     const preludeStartedAt = Date.now()
     void recordOrganicMemoryStageBudget?.({
       stage: 'search-prelude',
@@ -655,7 +715,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     }).catch(() => {})
     const prelude = await resolveMemorySearchPrelude({
       access: {
-        getOrganicMemorySnapshot,
+        getOrganicMemorySnapshot: getOrganicMemoryPromptSnapshot
+          ? () => getOrganicMemoryPromptSnapshot({ signal: input.signal })
+          : getOrganicMemorySnapshot,
         getLatestRelationshipDynamics,
         retrieveMemoryFacts,
         recallSubconsciousFragmentsWithGovernor,
@@ -678,7 +740,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       retrievalPolicySnapshot,
       digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
       sessionMirrorRecollection: input.sessionMirrorRecollection ?? null,
+      signal: input.signal,
     })
+    throwIfOrganicMemoryAborted(input.signal)
     void recordOrganicMemoryStageLatency?.({
       stage: 'search-prelude',
       latencyMs: Date.now() - preludeStartedAt,
@@ -694,7 +758,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recentRelationshipOutcomes,
       recentMemoryReflections,
       memoryClosureExecution,
-    ] = await Promise.all([
+    ] = await awaitOrganicMemoryOwner(Promise.all([
       getPersonStateEvolutionSummary?.().catch(() => null) ?? Promise.resolve(null),
       getMemoryStats?.().catch(() => null) ?? Promise.resolve(null),
       listRelationshipOutcomes?.({
@@ -707,7 +771,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         sessionId: input.sessionId ?? null,
         turnId: input.turnId ?? null,
       }),
-    ])
+    ]), input.signal)
+    throwIfOrganicMemoryAborted(input.signal)
     const now = Date.now()
     const confirmedRecentMemoryReflections = (recentMemoryReflections ?? [])
       .filter(reflection => reflection.status === 'confirmed')
@@ -751,7 +816,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
   async function resolveOrganicMemoryCandidates(input: {
     prelude: AlicizationOrganicMemoryPreludeResolution
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
+    signal?: AbortSignal
   }): Promise<AlicizationOrganicMemoryCandidateResolution> {
+    throwIfOrganicMemoryAborted(input.signal)
     const candidateGenerationStartedAt = Date.now()
     void recordOrganicMemoryStageBudget?.({
       stage: 'candidate-generation',
@@ -766,7 +833,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recalledEpisodes: input.prelude.recalledEpisodes,
       budgetClass: input.prelude.retrievalPolicySnapshot.plan.budgetClass,
       retrievalPolicySnapshot: input.prelude.retrievalPolicySnapshot,
+      signal: input.signal,
     })
+    throwIfOrganicMemoryAborted(input.signal)
     void recordMemoryCandidateGenerationLatency?.(Date.now() - candidateGenerationStartedAt).catch(() => {})
     void recordOrganicMemoryStageLatency?.({
       stage: 'candidate-generation',
@@ -814,6 +883,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       proceduralMemories: retrieved.proceduralMemories,
       recalledEpisodes: input.prelude.recalledEpisodes,
     })
+    throwIfOrganicMemoryAborted(input.signal)
     void recordOrganicMemoryStageLatency?.({
       stage: 'candidate-ranking',
       latencyMs: Date.now() - candidateRankingStartedAt,
@@ -836,9 +906,12 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     sessionId?: string | null
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
     sessionMirrorRecollection?: OrganicMemoryRecollectionCarry | null
     providerPlanning?: 'enabled' | 'disabled'
+    signal?: AbortSignal
   }): Promise<OrganicMemoryPromptContext> {
+    throwIfOrganicMemoryAborted(options?.signal)
     const prelude = await resolveOrganicMemoryPrelude({
       recallSeed: options?.recallSeed,
       recallGovernor: options?.recallGovernor ?? null,
@@ -847,9 +920,12 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       sessionId: options?.sessionId ?? null,
       turnId: options?.turnId ?? null,
       budgetClass: options?.budgetClass,
+      retrievalPolicySnapshot: options?.retrievalPolicySnapshot ?? null,
       sessionMirrorRecollection: options?.sessionMirrorRecollection ?? null,
       providerPlanning: options?.providerPlanning,
+      signal: options?.signal,
     })
+    throwIfOrganicMemoryAborted(options?.signal)
     const {
       budgetClass,
       snapshot,
@@ -884,7 +960,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     } = await resolveOrganicMemoryCandidates({
       prelude,
       recallGovernor: options?.recallGovernor ?? null,
+      signal: options?.signal,
     })
+    throwIfOrganicMemoryAborted(options?.signal)
     void recordOrganicMemoryStageBudget?.({
       stage: 'recollection-planning',
       budgetClass,
@@ -899,29 +977,33 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recollectionNarratives,
       recollectionSpeechPlan,
       rawMemoryDeliberation,
-    } = await resolveOrganicMemoryRecollectionPlanningStage({
-      recallSeed,
-      activeRecollectionIntent: activeRecollectionIntent ?? null,
-      relationshipLineCandidates,
-      consolidatedMemories: agendaRankedConsolidatedMemoriesClustered,
-      recollectedWindows: agendaRankedWindowsClustered,
-      proceduralMemories: agendaRankedProceduralMemories,
-      recalledEpisodes: agendaRankedEpisodes,
-      clusterState,
-      digitalLifeRuntimeSurface,
-      resolveRecollectionPlanSearch,
-      planMemoryRecollection: options?.providerPlanning === 'disabled'
-        ? undefined
-        : planMemoryRecollection,
-      planRecollectionSpeech: options?.providerPlanning === 'disabled'
-        ? undefined
-        : planRecollectionSpeech,
-      planMemoryDeliberation: options?.providerPlanning === 'disabled'
-        ? undefined
-        : planMemoryDeliberation,
-      recordMemoryPlannerLatency,
-      recordMemorySpeechPlanLatency,
-    })
+    } = await awaitOrganicMemoryOwner(
+      resolveOrganicMemoryRecollectionPlanningStage({
+        recallSeed,
+        activeRecollectionIntent: activeRecollectionIntent ?? null,
+        relationshipLineCandidates,
+        consolidatedMemories: agendaRankedConsolidatedMemoriesClustered,
+        recollectedWindows: agendaRankedWindowsClustered,
+        proceduralMemories: agendaRankedProceduralMemories,
+        recalledEpisodes: agendaRankedEpisodes,
+        clusterState,
+        digitalLifeRuntimeSurface,
+        resolveRecollectionPlanSearch,
+        planMemoryRecollection: options?.providerPlanning === 'disabled'
+          ? undefined
+          : planMemoryRecollection,
+        planRecollectionSpeech: options?.providerPlanning === 'disabled'
+          ? undefined
+          : planRecollectionSpeech,
+        planMemoryDeliberation: options?.providerPlanning === 'disabled'
+          ? undefined
+          : planMemoryDeliberation,
+        recordMemoryPlannerLatency,
+        recordMemorySpeechPlanLatency,
+      }),
+      options?.signal,
+    )
+    throwIfOrganicMemoryAborted(options?.signal)
     void recordOrganicMemoryStageLatency?.({
       stage: 'recollection-planning',
       latencyMs: Date.now() - recollectionPlanningStartedAt,
@@ -1427,6 +1509,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       suppressionReasons: recallPlannerDecision.suppressionReasons,
       suppressionConflictVariants: recallPlannerDecision.suppressionConflictVariants,
     })
+    throwIfOrganicMemoryAborted(options?.signal)
     return enrichOrganicMemoryPromptContextWithSettlement({
       context: {
         hostAttitude: relationshipDynamics?.hostAttitude || snapshot.hostAttitude,

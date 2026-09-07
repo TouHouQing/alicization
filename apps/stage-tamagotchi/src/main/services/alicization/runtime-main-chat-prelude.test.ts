@@ -57,6 +57,10 @@ function createVisibleBrowserContinuationRuntimeSurface() {
 function createRuntime(overrides?: {
   callbacks?: Array<Record<string, unknown>>
   runtimeSurface?: Record<string, unknown> | null
+  augmentMainChatMessagesWithPerception?: (input: {
+    messages: Message[]
+    userText: string
+  }) => Promise<any>
 }) {
   return createAlicizationMainChatPreludeRuntime({
     readLatestUserMessageText: messages => String(messages.at(-1)?.content ?? ''),
@@ -80,25 +84,26 @@ function createRuntime(overrides?: {
       entries: [],
       recallText: '',
     })) as any,
-    augmentMainChatMessagesWithPerception: vi.fn(async input => ({
-      messages: input.messages,
-      systemBlocks: [],
-      promptSystemBlocks: [],
-      digitalLifeRuntimeSurface: overrides?.runtimeSurface ?? null,
-      memoryRecallSeed: '',
-      recallGovernor: null,
-      capture: {
-        inspectionRequested: false,
-        groundedThisTurn: false,
-        snapshot: null,
-        fallbackReason: null,
-      },
-      chatGovernance: {
-        turnMode: 'answer' as const,
-        personaKernelMode: 'full' as const,
-        mindTurnGovernance: null,
-      },
-    })),
+    augmentMainChatMessagesWithPerception: overrides?.augmentMainChatMessagesWithPerception
+      ?? vi.fn(async input => ({
+        messages: input.messages,
+        systemBlocks: [],
+        promptSystemBlocks: [],
+        digitalLifeRuntimeSurface: overrides?.runtimeSurface ?? null,
+        memoryRecallSeed: '',
+        recallGovernor: null,
+        capture: {
+          inspectionRequested: false,
+          groundedThisTurn: false,
+          snapshot: null,
+          fallbackReason: null,
+        },
+        chatGovernance: {
+          turnMode: 'answer' as const,
+          personaKernelMode: 'full' as const,
+          mindTurnGovernance: null,
+        },
+      })),
     prepareMainChatSessionExecution: vi.fn(async input => ({
       payload: input.payload,
       prelude: input.prelude,
@@ -284,7 +289,7 @@ describe('runtime main chat prelude', () => {
       systemMessage,
       oldUserMessage,
       oldAssistantMessage,
-      { ...currentUserMessage, content: '当前用户轮次（perception 改写）' },
+      currentUserMessage,
     ])
   })
 
@@ -390,6 +395,102 @@ describe('runtime main chat prelude', () => {
     ])).rejects.toMatchObject({
       name: 'AbortError',
     })
+  })
+
+  it('passes the turn abort signal into every prelude owner read', async () => {
+    const controller = new AbortController()
+    const buildMainChatContextualString = vi.fn(async () => '')
+    const buildMainChatExecutionCallbackContext = vi.fn(async () => ({
+      actions: [],
+      callbacks: [],
+      continuitySignals: [],
+      recallText: '',
+      systemBlock: '',
+    }))
+    const buildMainChatExecutionLedgerContext = vi.fn(async () => ({
+      systemBlock: '',
+      entries: [],
+      recallText: '',
+    }))
+    const hydrateWorkingMemory = vi.fn(async () => ({
+      version: 'working-memory-hydration-v1' as const,
+      cardId: 'card-prelude-owner-signal',
+      turnId: 'turn-prelude-owner-signal',
+      sessionId: 'session-prelude-owner-signal',
+      snapshot: null,
+      recentTurns: [],
+      failures: [],
+    }))
+    const runtime = createAlicizationMainChatPreludeRuntime({
+      readLatestUserMessageText: messages => String(messages.at(-1)?.content ?? ''),
+      senderWebContentsIdFromInvokeOptions: () => null,
+      resolveChatMessages: payload => payload.messages as any,
+      buildMainChatContextualString,
+      buildMainChatExecutionCallbackContext,
+      buildMainChatExecutionLedgerContext,
+      hydrateWorkingMemory,
+      augmentMainChatMessagesWithPerception: vi.fn(async input => ({
+        messages: input.messages,
+        systemBlocks: [],
+        promptSystemBlocks: [],
+        digitalLifeRuntimeSurface: null,
+        memoryRecallSeed: '',
+        recallGovernor: null,
+        capture: {
+          inspectionRequested: false,
+          groundedThisTurn: false,
+          snapshot: null,
+          fallbackReason: null,
+        },
+        chatGovernance: {
+          turnMode: 'answer' as const,
+          personaKernelMode: 'full' as const,
+          mindTurnGovernance: null,
+        },
+      })),
+      prepareMainChatSessionExecution: vi.fn(),
+    })
+
+    const payload = {
+      cardId: 'card-prelude-owner-signal',
+      turnId: 'turn-prelude-owner-signal',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [{ role: 'user', content: '继续当前任务' }],
+    } as any
+    const prelude = await runtime.prepareMainChatPrelude(
+      payload,
+      mainGateway,
+      undefined,
+      {
+        abortSignal: controller.signal,
+        agentTurn: {
+          conversationSessionId: 'session-prelude-owner-signal',
+        } as any,
+      },
+    )
+    await Promise.all([
+      prelude.contextualStringPromise,
+      prelude.executionCallbackContextPromise,
+      prelude.executionLedgerContextPromise,
+    ])
+
+    expect(hydrateWorkingMemory).toHaveBeenCalledWith(expect.objectContaining({
+      signal: controller.signal,
+    }))
+    expect(buildMainChatContextualString).toHaveBeenCalledWith(
+      payload,
+      { signal: controller.signal },
+    )
+    expect(buildMainChatExecutionCallbackContext).toHaveBeenCalledWith(
+      payload,
+      { signal: controller.signal },
+    )
+    expect(buildMainChatExecutionLedgerContext).toHaveBeenCalledWith(
+      payload,
+      { signal: controller.signal },
+    )
   })
 
   it('passes ordinary dialogue to session preparation unchanged', async () => {
@@ -516,5 +617,188 @@ describe('runtime main chat prelude', () => {
 
     expect(prelude.actionObligation.kind).toBe('answer')
     expect(prelude.actionObligation).not.toHaveProperty('routingIntent')
+  })
+
+  it('does not expose passive perception or inspection context for an answer-only dialogue request', async () => {
+    const passivePerceptionBlock = JSON.stringify({
+      type: 'alicization-perception',
+      data: {
+        currentForegroundSample: 'Codex | Chat Overlay',
+      },
+    })
+    const inspectionBlock = JSON.stringify({
+      type: 'alicization-inspection',
+      data: {
+        groundedScreenshotAttached: true,
+      },
+    })
+    const recallGovernor = {
+      mode: 'long-term-recall',
+      budget: 3,
+    }
+    const augmentedUserMessage = {
+      role: 'user',
+      content: [
+        { type: 'text', text: '如果你不确定某件事，不要猜，直接说不确定。' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,screen' } },
+      ],
+    } as Message
+    const runtime = createRuntime({
+      augmentMainChatMessagesWithPerception: vi.fn(async () => ({
+        messages: [augmentedUserMessage],
+        systemBlocks: [inspectionBlock],
+        promptSystemBlocks: [passivePerceptionBlock, inspectionBlock],
+        digitalLifeRuntimeSurface: null,
+        memoryRecallSeed: 'screen should stay internal',
+        recallGovernor,
+        capture: {
+          inspectionRequested: false,
+          groundedThisTurn: false,
+          snapshot: null,
+          fallbackReason: null,
+        },
+        chatGovernance: {
+          turnMode: 'answer' as const,
+          personaKernelMode: 'full' as const,
+          mindTurnGovernance: null,
+        },
+      })),
+    })
+
+    const userMessage = {
+      role: 'user',
+      content: '如果你不确定某件事，不要猜，直接说不确定。',
+    } as Message
+    const prelude = await runtime.prepareMainChatPrelude({
+      cardId: 'card-prelude-answer-only-perception',
+      turnId: 'turn-prelude-answer-only-perception',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [userMessage],
+    } as any, mainGateway)
+
+    expect(prelude.messages).toEqual([userMessage])
+    expect(prelude.perceptionAugmentation.systemBlocks).toEqual([])
+    expect(prelude.perceptionAugmentation.promptSystemBlocks).toEqual([])
+    expect(prelude.perceptionAugmentation.capture).toMatchObject({
+      inspectionRequested: false,
+      groundedThisTurn: false,
+    })
+    expect(prelude.perceptionAugmentation.memoryRecallSeed).toBe('screen should stay internal')
+    expect(prelude.perceptionAugmentation.recallGovernor).toEqual(recallGovernor)
+    expect(JSON.stringify(prelude)).not.toContain('alicization-perception')
+    expect(JSON.stringify(prelude)).not.toContain('alicization-inspection')
+  })
+
+  it('keeps perception and inspection context when the user explicitly asks to view the screen', async () => {
+    const passivePerceptionBlock = JSON.stringify({
+      type: 'alicization-perception',
+      data: {
+        currentForegroundSample: 'Codex | Chat Overlay',
+      },
+    })
+    const inspectionBlock = JSON.stringify({
+      type: 'alicization-inspection',
+      data: {
+        groundedScreenshotAttached: true,
+      },
+    })
+    const augmentedUserMessage = {
+      role: 'user',
+      content: [
+        { type: 'text', text: '请查看当前屏幕内容，告诉我你看到了什么。' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,screen' } },
+      ],
+    } as Message
+    const runtime = createRuntime({
+      augmentMainChatMessagesWithPerception: vi.fn(async () => ({
+        messages: [augmentedUserMessage],
+        systemBlocks: [inspectionBlock],
+        promptSystemBlocks: [passivePerceptionBlock, inspectionBlock],
+        digitalLifeRuntimeSurface: null,
+        memoryRecallSeed: '',
+        recallGovernor: null,
+        capture: {
+          inspectionRequested: true,
+          groundedThisTurn: true,
+          snapshot: null,
+          fallbackReason: null,
+        },
+        chatGovernance: {
+          turnMode: 'answer' as const,
+          personaKernelMode: 'full' as const,
+          mindTurnGovernance: null,
+        },
+      })),
+    })
+
+    const prelude = await runtime.prepareMainChatPrelude({
+      cardId: 'card-prelude-explicit-perception',
+      turnId: 'turn-prelude-explicit-perception',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [{
+        role: 'user',
+        content: '请查看当前屏幕内容，告诉我你看到了什么。',
+      }],
+    } as any, mainGateway)
+
+    expect(prelude.messages).toEqual([augmentedUserMessage])
+    expect(prelude.perceptionAugmentation.systemBlocks).toEqual([inspectionBlock])
+    expect(prelude.perceptionAugmentation.promptSystemBlocks).toEqual([
+      passivePerceptionBlock,
+      inspectionBlock,
+    ])
+    expect(prelude.perceptionAugmentation.capture).toMatchObject({
+      inspectionRequested: true,
+      groundedThisTurn: true,
+    })
+  })
+
+  it('keeps perception context for a short follow-up owned by an active inspection carry', async () => {
+    const perceptionBlock = JSON.stringify({
+      type: 'alicization-perception',
+      data: {
+        currentForegroundSample: 'QQMusic',
+      },
+    })
+    const runtime = createRuntime({
+      augmentMainChatMessagesWithPerception: vi.fn(async input => ({
+        messages: input.messages,
+        systemBlocks: [],
+        promptSystemBlocks: [perceptionBlock],
+        digitalLifeRuntimeSurface: null,
+        memoryRecallSeed: '',
+        recallGovernor: null,
+        capture: {
+          inspectionRequested: true,
+          groundedThisTurn: false,
+          snapshot: null,
+          fallbackReason: null,
+        },
+        chatGovernance: {
+          turnMode: 'answer' as const,
+          personaKernelMode: 'full' as const,
+          mindTurnGovernance: null,
+        },
+      })),
+    })
+
+    const prelude = await runtime.prepareMainChatPrelude({
+      cardId: 'card-prelude-inspection-follow-up',
+      turnId: 'turn-prelude-inspection-follow-up',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [{
+        role: 'user',
+        content: '这首呢',
+      }],
+    } as any, mainGateway)
+
+    expect(prelude.perceptionAugmentation.promptSystemBlocks).toEqual([perceptionBlock])
+    expect(prelude.perceptionAugmentation.capture.inspectionRequested).toBe(true)
   })
 })

@@ -79,6 +79,72 @@ describe('alicization fixed template sanitizer', () => {
     }
   })
 
+  it('removes mixed internal cue fragments while preserving the natural evidence around them', () => {
+    const internalContext = { provenance: 'internal-structured-fact' as const }
+    const mixed = [
+      '用户明确喜欢白色樱花。 emotion:hesitant-curiosity',
+      '这是一段真实事件。 autobiographical phase recollection:relationship-history:structured-state',
+      '用户偏好中文。 visibility=redacted_internal cleaned:working-memory-long-term:turn-1',
+      '用户希望继续当前任务。 opening_policy=none relationship_cadence=measured',
+    ]
+
+    for (const text of mixed) {
+      expect(containsAlicizationFixedTemplateResidue(text, internalContext)).toBe(true)
+      const sanitized = sanitizeAlicizationMemoryEvidenceText(text, 500, internalContext)
+      expect(sanitized).not.toMatch(
+        /autobiographical\s+phase|emotion:|recollection:|structured-state|opening_policy|relationship_cadence|visibility\s*=\s*redacted_internal|cleaned:working-memory-long-term/iu,
+      )
+      expect(sanitized.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('can drop only pure internal values while preserving mixed natural text', () => {
+    const internalContext = {
+      provenance: 'internal-structured-fact' as const,
+      fragmentPolicy: 'drop-only' as const,
+    }
+    const naturalDiscussion = '用户正在讨论 opening_policy=legacy 这个代码字段。'
+
+    expect(sanitizeAlicizationMemoryEvidenceText(
+      'pre_turn_context_digest',
+      500,
+      internalContext,
+    )).toBe('')
+    expect(sanitizeAlicizationMemoryEvidenceText(
+      naturalDiscussion,
+      500,
+      internalContext,
+    )).toBe(naturalDiscussion)
+  })
+
+  it('drops an internal evidence item when cue stripping leaves no natural content', () => {
+    const internalContext = { provenance: 'internal-structured-fact' as const }
+    const text = '共同经历 autobiographical phase emotion:hesitant-curiosity'
+
+    expect(containsAlicizationFixedTemplateResidue(text, internalContext)).toBe(true)
+    expect(sanitizeAlicizationProviderFacingText(text, 360, '', internalContext)).toBe('')
+    expect(sanitizeAlicizationMemoryEvidenceText(text, 360, internalContext)).toBe('')
+  })
+
+  it('does not strip the same words from user-authored evidence', () => {
+    const text = '我们共同经历过一次很重要的修复过程。'
+
+    expect(containsAlicizationFixedTemplateResidue(text)).toBe(false)
+    expect(sanitizeAlicizationMemoryEvidenceText(
+      text,
+      500,
+      { origin: 'user-turn' },
+    )).toBe(text)
+  })
+
+  it('preserves a natural shared-experience sentence even for internal structured provenance', () => {
+    const text = '我们共同经历过一次很重要的修复过程。'
+    const internalContext = { provenance: 'internal-structured-fact' as const }
+
+    expect(containsAlicizationFixedTemplateResidue(text, internalContext)).toBe(false)
+    expect(sanitizeAlicizationMemoryEvidenceText(text, 500, internalContext)).toBe(text)
+  })
+
   it('does not scan serialized typed payload values as free-form control text', () => {
     const serialized = JSON.stringify({
       type: 'alicization-runtime-fact',

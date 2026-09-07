@@ -57,6 +57,72 @@ import {
 } from './runtime-soul'
 import { rankSubconsciousRecallFragments } from './subconscious-recall-ranking'
 
+function retrievalAbortError(signal?: AbortSignal) {
+  return signal?.reason ?? new DOMException('Memory retrieval aborted', 'AbortError')
+}
+
+function throwIfRetrievalAborted(signal?: AbortSignal) {
+  if (signal?.aborted)
+    throw retrievalAbortError(signal)
+}
+
+function awaitRetrievalOwner<T>(
+  promise: Promise<T>,
+  signal?: AbortSignal,
+) {
+  if (!signal)
+    return promise
+  if (signal.aborted)
+    return Promise.reject(retrievalAbortError(signal))
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const onAbort = () => {
+      if (settled)
+        return
+      settled = true
+      signal.removeEventListener('abort', onAbort)
+      reject(retrievalAbortError(signal))
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    void promise.then(
+      (value) => {
+        if (settled)
+          return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error) => {
+        if (settled)
+          return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
+}
+
+async function readOptionalRetrievalOwner<T>(
+  read: () => Promise<T>,
+  fallback: T,
+  signal?: AbortSignal,
+) {
+  throwIfRetrievalAborted(signal)
+  try {
+    const value = await awaitRetrievalOwner(read(), signal)
+    throwIfRetrievalAborted(signal)
+    return value
+  }
+  catch (error) {
+    if (signal?.aborted || (error instanceof Error && error.name === 'AbortError'))
+      throw error
+    return fallback
+  }
+}
+
 export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
   getActiveCardId: () => string
   getSoulSnapshot: () => AlicizationSoulSnapshot | null
@@ -64,7 +130,7 @@ export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
   listActiveThoughts: () => Promise<AlicizationActiveThought[]>
   countSubconsciousFragments: () => Promise<number>
   listRecentSubconsciousFragments: (limit: number) => Promise<AlicizationSubconsciousFragment[]>
-  getMetaValue: (key: string) => Promise<string | undefined>
+  getMetaValue: (key: string, options?: { signal?: AbortSignal }) => Promise<string | undefined>
   replaceActiveThoughts: (items: Array<{ text: string }>) => Promise<void>
   setMetaValue: (key: string, value: string) => Promise<void>
   searchSubconsciousFragments: (query: string, limit: number) => Promise<AlicizationSubconsciousFragment[]>
@@ -106,11 +172,13 @@ export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
     allowDream?: boolean
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
     reconsolidationDecisionTraceId?: string | null
+    signal?: AbortSignal
   }) => Promise<AlicizationEpisodicEventRecord[]>
   searchMemoryConsolidations: (input: {
     query: string
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
+    signal?: AbortSignal
   }) => Promise<Array<{
     id: string
     kind: 'daily' | 'weekly' | 'procedural' | 'autobiographical'
@@ -140,9 +208,9 @@ export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
     hit: boolean
     won?: boolean
   }) => Promise<void>
-  getMemoryRetrievalTelemetry?: () => Promise<AlicizationMemoryRetrievalTelemetrySnapshot | null>
-  getActiveSelfRevisionStatePatch?: () => Promise<AlicizationSelfRevisionStatePatch | null>
-  getActiveSelfEvolutionCandidateId?: () => Promise<string | null>
+  getMemoryRetrievalTelemetry?: (options?: { signal?: AbortSignal }) => Promise<AlicizationMemoryRetrievalTelemetrySnapshot | null>
+  getActiveSelfRevisionStatePatch?: (options?: { signal?: AbortSignal }) => Promise<AlicizationSelfRevisionStatePatch | null>
+  getActiveSelfEvolutionCandidateId?: (options?: { signal?: AbortSignal }) => Promise<string | null>
 }
 
 export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlicizationOrganicMemoryAccessRuntimeOptions) {
@@ -192,13 +260,30 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     recallSeed: string
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    signal?: AbortSignal
   }): Promise<AlicizationTurnRetrievalPolicySnapshot> {
     const [telemetry, tuningAdvice] = await Promise.all([
-      options.getMemoryRetrievalTelemetry?.().catch(() => null) ?? Promise.resolve(null),
-      getMemoryTuningAdvice().catch(() => null),
+      readOptionalRetrievalOwner(
+        () => options.getMemoryRetrievalTelemetry?.({ signal: input.signal }) ?? Promise.resolve(null),
+        null,
+        input.signal,
+      ),
+      readOptionalRetrievalOwner(
+        () => getMemoryTuningAdvice({ signal: input.signal }),
+        null,
+        input.signal,
+      ),
     ])
-    const selfRevisionPatch = await options.getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
-    const activeSelfEvolutionCandidateId = await options.getActiveSelfEvolutionCandidateId?.().catch(() => null) ?? null
+    const selfRevisionPatch = await readOptionalRetrievalOwner(
+      () => options.getActiveSelfRevisionStatePatch?.({ signal: input.signal }) ?? Promise.resolve(null),
+      null,
+      input.signal,
+    )
+    const activeSelfEvolutionCandidateId = await readOptionalRetrievalOwner(
+      () => options.getActiveSelfEvolutionCandidateId?.({ signal: input.signal }) ?? Promise.resolve(null),
+      null,
+      input.signal,
+    )
     return buildAlicizationTurnRetrievalPolicySnapshot({
       recallSeed: input.recallSeed,
       recallGovernor: input.recallGovernor ?? null,
@@ -217,7 +302,9 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
+    signal?: AbortSignal
   }) {
+    throwIfRetrievalAborted(input.signal)
     const recallSeed = normalizeOrganicRecallText(input.recallSeed)
     if (!recallSeed)
       return null
@@ -225,6 +312,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       recallSeed,
       recallGovernor: input.recallGovernor ?? null,
       budgetClass: input.budgetClass,
+      signal: input.signal,
     })
     const plan = buildAlicizationMemoryAccessibilityPlan({
       recallSeed,
@@ -246,14 +334,16 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       recallGovernor: input.recallGovernor ?? null,
       budgetClass: snapshot.plan.budgetClass,
       retrievalPolicySnapshot: snapshot,
-    }).catch(() => [])
+      signal: input.signal,
+    }).catch(() => {})
     void recallMemoryConsolidations({
       query: recallSeed,
       limit: plan.consolidationLimit,
       recollectionIntent: input.recallGovernor?.recollectionIntent ?? null,
       budgetClass: snapshot.plan.budgetClass,
       retrievalPolicySnapshot: snapshot,
-    }).catch(() => [])
+      signal: input.signal,
+    }).catch(() => {})
     return plan
   }
 
@@ -444,8 +534,46 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     } satisfies AlicizationOrganicMemorySnapshot
   }
 
-  async function getPerformanceManifest() {
-    const raw = await options.getMetaValue(alicizationPerformanceManifestMetaKey).catch(() => undefined)
+  async function getOrganicMemoryPromptSnapshot(
+    ownerOptions?: { signal?: AbortSignal },
+  ) {
+    throwIfRetrievalAborted(ownerOptions?.signal)
+    const currentSoul = options.getSoulSnapshot()
+      ?? await awaitRetrievalOwner(options.bootstrap(), ownerOptions?.signal)
+    const activeCardId = options.getActiveCardId()
+    const [rawActiveThoughts, learningExecutionState] = await awaitRetrievalOwner(
+      Promise.all([
+        options.listActiveThoughts(),
+        readOptionalRetrievalOwner(
+          () => options.getLatestLearningExecutionState?.(activeCardId) ?? Promise.resolve(null),
+          null,
+          ownerOptions?.signal,
+        ),
+      ]),
+      ownerOptions?.signal,
+    )
+    throwIfRetrievalAborted(ownerOptions?.signal)
+    const activeThoughts = filterOrganicMemoryEntries(rawActiveThoughts)
+    if (activeThoughts.length !== rawActiveThoughts.length) {
+      void options.replaceActiveThoughts(
+        activeThoughts.map(item => ({ text: item.text })),
+      ).catch(() => {})
+    }
+    return {
+      hostAttitude: currentSoul.frontmatter.host_attitude,
+      coreIncarnation: currentSoul.frontmatter.core_incarnation,
+      activeThoughts,
+      learningExecutionState,
+    }
+  }
+
+  async function getPerformanceManifest(readOptions?: { signal?: AbortSignal }) {
+    const raw = await options.getMetaValue(alicizationPerformanceManifestMetaKey, readOptions).catch((error) => {
+      if (readOptions?.signal?.aborted)
+        throw readOptions.signal.reason ?? error
+      return undefined
+    })
+    throwIfRetrievalAborted(readOptions?.signal)
     return parsePerformanceManifestFromMeta(raw)
   }
 
@@ -503,7 +631,9 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
+    signal?: AbortSignal
   }) {
+    throwIfRetrievalAborted(input.signal)
     const recallSeed = normalizeOrganicRecallText(input.recallSeed)
     if (!recallSeed)
       return []
@@ -511,6 +641,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       recallSeed,
       recallGovernor: input.recallGovernor ?? null,
       budgetClass: input.budgetClass,
+      signal: input.signal,
     })
     const plan = buildAlicizationMemoryAccessibilityPlan({
       recallSeed,
@@ -570,7 +701,10 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
         hit: true,
         won: false,
       }).catch(() => {})
-      return await inFlight as AlicizationEpisodicEventRecord[]
+      return await awaitRetrievalOwner(
+        inFlight as Promise<AlicizationEpisodicEventRecord[]>,
+        input.signal,
+      )
     }
     void options.recordMemoryCacheAccess?.(false).catch(() => {})
     if (plan.prewarmKey)
@@ -581,16 +715,21 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       won: false,
     }).catch(() => {})
 
-    const searchPromise = options.searchEpisodicEvents({
-      recallSeed,
-      limit: effectiveEpisodicLimit,
-      sessionId: input.sessionId ?? null,
-      turnId: input.turnId ?? null,
-      ...episodicSearchParameters,
-    }).catch(() => [])
+    const searchPromise = readOptionalRetrievalOwner(
+      () => options.searchEpisodicEvents({
+        recallSeed,
+        limit: effectiveEpisodicLimit,
+        sessionId: input.sessionId ?? null,
+        turnId: input.turnId ?? null,
+        ...episodicSearchParameters,
+        signal: input.signal,
+      }),
+      [],
+      input.signal,
+    )
     inFlightRecallCache.set(cacheKey, searchPromise)
     try {
-      const rows = await searchPromise
+      const rows = await awaitRetrievalOwner(searchPromise, input.signal)
       if ((input.recallGovernor?.carryAsMemory ?? false) && rows.length > 0)
         invalidateTransientRecallCacheNamespace('consolidation')
       if (inFlightRecallCache.get(cacheKey) === searchPromise)
@@ -646,8 +785,13 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     }).catch(() => [])
   }
 
-  async function getMemoryTuningAdvice(): Promise<AlicizationMemoryTuningAdvice | null> {
-    const raw = await options.getMetaValue(replayBenchmarkTuningAdviceMetaKey).catch(() => undefined)
+  async function getMemoryTuningAdvice(
+    ownerOptions?: { signal?: AbortSignal },
+  ): Promise<AlicizationMemoryTuningAdvice | null> {
+    const raw = await options.getMetaValue(
+      replayBenchmarkTuningAdviceMetaKey,
+      ownerOptions,
+    )
     return parseMemoryTuningAdvice(raw)
   }
 
@@ -657,11 +801,14 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
+    signal?: AbortSignal
   }) {
+    throwIfRetrievalAborted(input.signal)
     const snapshot = input.retrievalPolicySnapshot ?? await resolveTurnRetrievalPolicySnapshot({
       recallSeed: input.query,
       recallGovernor: input.recollectionIntent ? { recollectionIntent: input.recollectionIntent } as AlicizationRecallGovernorSnapshot : null,
       budgetClass: input.budgetClass,
+      signal: input.signal,
     })
     const plan = buildAlicizationMemoryAccessibilityPlan({
       recallSeed: input.query,
@@ -697,7 +844,10 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
         hit: true,
         won: false,
       }).catch(() => {})
-      return await inFlight as AlicizationMemoryConsolidationRecord[]
+      return await awaitRetrievalOwner(
+        inFlight as Promise<AlicizationMemoryConsolidationRecord[]>,
+        input.signal,
+      )
     }
     void options.recordMemoryCacheAccess?.(false).catch(() => {})
     if (plan.prewarmKey)
@@ -708,17 +858,22 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       won: false,
     }).catch(() => {})
 
-    const searchPromise = options.searchMemoryConsolidations({
-      ...tuneMemoryConsolidationSearchInput({
-        query: input.query,
-        plan,
-        recollectionIntent: input.recollectionIntent ?? null,
+    const searchPromise = readOptionalRetrievalOwner(
+      () => options.searchMemoryConsolidations({
+        ...tuneMemoryConsolidationSearchInput({
+          query: input.query,
+          plan,
+          recollectionIntent: input.recollectionIntent ?? null,
+        }),
+        limit: Math.max(input.limit ?? 0, plan.consolidationLimit),
+        signal: input.signal,
       }),
-      limit: Math.max(input.limit ?? 0, plan.consolidationLimit),
-    }).catch(() => [])
+      [],
+      input.signal,
+    )
     inFlightRecallCache.set(cacheKey, searchPromise)
     try {
-      const rows = await searchPromise
+      const rows = await awaitRetrievalOwner(searchPromise, input.signal)
       if (inFlightRecallCache.get(cacheKey) === searchPromise)
         writeTransientRecallCache(cacheKey, rows, plan.cacheTtlMs)
       return rows
@@ -763,6 +918,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
 
   return {
     getOrganicMemorySnapshot,
+    getOrganicMemoryPromptSnapshot,
     getPerformanceManifest,
     setPerformanceManifest,
     searchOrganicSubconsciousFragments,

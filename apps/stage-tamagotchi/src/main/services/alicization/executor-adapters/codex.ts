@@ -2396,7 +2396,6 @@ async function waitForCodexProviderRetry(
     }
     const onAbort = () => finish(false)
     const timer = setTimeout(() => finish(true), delayMs)
-    timer.unref?.()
     abortSignal?.addEventListener('abort', onAbort, { once: true })
   })
 }

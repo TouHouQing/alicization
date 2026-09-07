@@ -254,13 +254,15 @@ describe('memory-search-runtime invariants', () => {
       .toMatchObject({
         data: {
           owner: 'LongTermMemoryRecall',
-          selection: {
-            plan: {
-              selectedConsolidationIds: ['consolidation-runtime'],
-              selectedProceduralIds: ['runtime seam'],
-              selectedEpisodeIds: ['episode-runtime'],
-            },
-          },
+          consolidatedMemories: [{
+            id: 'consolidation-runtime',
+          }],
+          proceduralMemories: [{
+            id: 'runtime seam',
+          }],
+          recalledEpisodes: [{
+            id: 'episode-runtime',
+          }],
         },
       })
   })

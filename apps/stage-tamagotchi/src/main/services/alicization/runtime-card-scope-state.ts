@@ -7,9 +7,9 @@ interface CreateAlicizationRuntimeCardScopeStateOptions {
   userDataPath: string
   activeCardIdRef: () => string
   normalizeCardId: (raw: unknown) => string
-  getMetaValue: (key: string) => Promise<string | undefined>
-  setMetaValue: (key: string, value: string) => Promise<void>
-  getLatestConversationSessionId: () => Promise<string | undefined>
+  getMetaValue: (key: string, options?: { signal?: AbortSignal }) => Promise<string | undefined>
+  setMetaValue: (key: string, value: string, options?: { signal?: AbortSignal }) => Promise<void>
+  getLatestConversationSessionId: (cardId?: string, options?: { signal?: AbortSignal }) => Promise<string | undefined>
   migrateLegacyConversationSessionsToPrimary?: (input: {
     cardId: string
     dryRun?: boolean
@@ -27,7 +27,7 @@ interface CreateAlicizationRuntimeCardScopeStateOptions {
     action: string
     message: string
     payload: Record<string, unknown>
-  }, cardId?: string) => Promise<void>
+  }, cardId?: string, options?: { signal?: AbortSignal }) => Promise<void>
   getAlicizationKillSwitchSnapshot: () => AlicizationKillSwitchSnapshot
   getAlicizationCardKillSwitchSnapshot: (cardId: string) => AlicizationKillSwitchSnapshot
   setAlicizationCardKillSwitchState: (cardId: string, state: 'ACTIVE' | 'SUSPENDED', reason?: string) => AlicizationKillSwitchSnapshot
@@ -66,13 +66,17 @@ export function createAlicizationRuntimeCardScopeState(options: CreateAlicizatio
     return snapshot
   }
 
-  async function persistActiveSessionId(cardId: string, sessionId: string) {
+  async function persistActiveSessionId(
+    cardId: string,
+    sessionId: string,
+    signalOptions?: { signal?: AbortSignal },
+  ) {
     const normalizedCardId = options.normalizeCardId(cardId)
     void sessionId
     const normalizedSessionId = alicizationPrimaryConversationSessionId(normalizedCardId)
 
+    await options.setMetaValue(options.activeSessionMetaKey, normalizedSessionId, signalOptions)
     options.activeSessionIdByCard.set(normalizedCardId, normalizedSessionId)
-    await options.setMetaValue(options.activeSessionMetaKey, normalizedSessionId).catch(() => {})
   }
 
   async function restoreActiveSessionId(cardId: string) {
@@ -119,13 +123,18 @@ export function createAlicizationRuntimeCardScopeState(options: CreateAlicizatio
     return primarySessionId
   }
 
-  async function ensureActiveOrLatestSessionId(cardId: string) {
+  async function ensureActiveOrLatestSessionId(
+    cardId: string,
+    signalOptions?: { signal?: AbortSignal },
+  ) {
     const normalizedCardId = options.normalizeCardId(cardId)
     const primarySessionId = alicizationPrimaryConversationSessionId(normalizedCardId)
     const fromMemory = normalizeSessionId(options.activeSessionIdByCard.get(normalizedCardId))
     if (fromMemory !== primarySessionId) {
-      await persistActiveSessionId(normalizedCardId, primarySessionId)
-      await options.appendAuditLog({
+      await persistActiveSessionId(normalizedCardId, primarySessionId, signalOptions)
+      if (signalOptions?.signal?.aborted)
+        throw signalOptions.signal.reason ?? new DOMException('Session resolution aborted', 'AbortError')
+      void options.appendAuditLog({
         level: 'notice',
         category: 'alicization.session',
         action: 'canonicalized',
@@ -134,7 +143,9 @@ export function createAlicizationRuntimeCardScopeState(options: CreateAlicizatio
           previousSessionId: fromMemory || null,
           sessionId: primarySessionId,
         },
-      }, normalizedCardId)
+      }, normalizedCardId, signalOptions).catch(() => {})
+      if (signalOptions?.signal?.aborted)
+        throw signalOptions.signal.reason ?? new DOMException('Session resolution aborted', 'AbortError')
     }
     return primarySessionId
   }

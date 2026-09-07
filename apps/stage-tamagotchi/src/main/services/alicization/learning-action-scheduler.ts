@@ -65,40 +65,44 @@ interface CreateAlicizationLearningActionSchedulerOptions {
     payload: AlicizationLearningTaskPayload
     maxAttempts?: number
   }, writeOptions?: AlicizationLearningTaskWriteOptions) => Promise<AlicizationLearningTaskRecord>
-  claimDueLearningTasks: (cardId: string, nowMs: number, limit: number) => Promise<AlicizationLearningTaskRecord[]>
-  startLearningTask: (taskId: string, startedAt?: number) => Promise<void>
+  claimDueLearningTasks: (cardId: string, nowMs: number, limit: number, writeOptions?: AlicizationLearningTaskWriteOptions) => Promise<AlicizationLearningTaskRecord[]>
+  startLearningTask: (taskId: string, startedAt?: number, writeOptions?: AlicizationLearningTaskWriteOptions) => Promise<void>
   blockLearningTask: (taskId: string, input: {
     reason: string
     resultSummary?: string | null
     failureKind?: AlicizationLearningTaskFailureKind | null
     nextRetryAt?: number | null
-  }, updatedAt?: number) => Promise<void>
+  }, updatedAt?: number, writeOptions?: AlicizationLearningTaskWriteOptions) => Promise<void>
   completeLearningTask: (taskId: string, input: {
     firedTurnId?: string | null
     resultSummary?: string | null
-  }, completedAt?: number) => Promise<void>
+  }, completedAt?: number, writeOptions?: AlicizationLearningTaskWriteOptions) => Promise<void>
   failLearningTask: (taskId: string, input: {
     error: string
     failureKind: AlicizationLearningTaskFailureKind
     nextRetryAt?: number | null
-  }, updatedAt?: number) => Promise<void>
+  }, updatedAt?: number, writeOptions?: AlicizationLearningTaskWriteOptions) => Promise<void>
   reopenLearningTask: (taskId: string, input?: {
     reason?: string | null
     triggerAt?: number | null
-  }, updatedAt?: number) => Promise<void>
+  }, updatedAt?: number, writeOptions?: AlicizationLearningTaskWriteOptions) => Promise<void>
   downgradeLearningTask: (taskId: string, input?: {
     reason?: string | null
-  }, updatedAt?: number) => Promise<void>
+  }, updatedAt?: number, writeOptions?: AlicizationLearningTaskWriteOptions) => Promise<void>
   cancelLearningTask: (taskId: string, input?: {
     reason?: string | null
-  }, updatedAt?: number) => Promise<void>
+  }, updatedAt?: number, writeOptions?: AlicizationLearningTaskWriteOptions) => Promise<void>
   listLearningTasks: (input: {
     cardId: string
     limit?: number
     statuses?: Array<AlicizationLearningTaskRecord['status']>
-  }) => Promise<AlicizationLearningTaskRecord[]>
-  appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
-  executeLearningTask: (task: AlicizationLearningTaskRecord) => Promise<AlicizationLearningTaskExecutionResult>
+  }, writeOptions?: AlicizationLearningTaskWriteOptions) => Promise<AlicizationLearningTaskRecord[]>
+  appendAuditLog: (
+    input: AlicizationAuditLogInput,
+    cardId?: string,
+    writeOptions?: AlicizationLearningTaskWriteOptions,
+  ) => Promise<void>
+  executeLearningTask: (task: AlicizationLearningTaskRecord, writeOptions?: { signal?: AbortSignal }) => Promise<AlicizationLearningTaskExecutionResult>
   randomUUID: () => string
   getActiveCardId: () => string
 }
@@ -107,6 +111,17 @@ function assertLearningTaskWriteNotAborted(signal?: AbortSignal) {
   if (!signal?.aborted)
     return
   throw signal.reason ?? new DOMException('Learning task scheduling was aborted', 'AbortError')
+}
+
+async function appendLearningAuditLog(
+  options: CreateAlicizationLearningActionSchedulerOptions,
+  input: AlicizationAuditLogInput,
+  cardId: string | undefined,
+  signal?: AbortSignal,
+) {
+  if (signal)
+    return await options.appendAuditLog(input, cardId, { signal })
+  return await options.appendAuditLog(input, cardId)
 }
 
 export interface AlicizationLearningTaskRetryPlan {
@@ -377,7 +392,7 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
       signal: input.signal,
     })
     assertLearningTaskWriteNotAborted(input.signal)
-    await options.appendAuditLog({
+    await appendLearningAuditLog(options, {
       level: 'notice',
       category: 'alicization.learning',
       action: 'alicization.learning.task.scheduled',
@@ -386,13 +401,16 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
         ...auditPayload,
         message: task.message,
       },
-    }, task.cardId)
+    }, task.cardId, input.signal)
     return inserted
   }
 
-  async function processDueLearningTasks(limit = 8) {
+  async function processDueLearningTasks(limit = 8, processOptions: { signal?: AbortSignal } = {}) {
+    assertLearningTaskWriteNotAborted(processOptions.signal)
     const cardId = options.getActiveCardId()
-    const due = await options.claimDueLearningTasks(cardId, options.now(), limit)
+    const due = processOptions.signal
+      ? await options.claimDueLearningTasks(cardId, options.now(), limit, processOptions)
+      : await options.claimDueLearningTasks(cardId, options.now(), limit)
     let completed = 0
     let failed = 0
     let blocked = 0
@@ -401,10 +419,14 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
     let cancelled = 0
 
     for (const task of due) {
+      assertLearningTaskWriteNotAborted(processOptions.signal)
       try {
         const startedAt = options.now()
-        await options.startLearningTask(task.taskId, startedAt)
-        await options.appendAuditLog({
+        if (processOptions.signal)
+          await options.startLearningTask(task.taskId, startedAt, processOptions)
+        else
+          await options.startLearningTask(task.taskId, startedAt)
+        await appendLearningAuditLog(options, {
           level: 'notice',
           category: 'alicization.learning',
           action: 'alicization.learning.task.started',
@@ -415,15 +437,18 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
             triggerAt: task.triggerAt,
             sourceTurnId: task.sourceTurnId ?? null,
           },
-        }, cardId)
+        }, cardId, processOptions.signal)
 
-        const result = await options.executeLearningTask(task)
+        const result = processOptions.signal
+          ? await options.executeLearningTask(task, processOptions)
+          : await options.executeLearningTask(task)
+        assertLearningTaskWriteNotAborted(processOptions.signal)
         const finishedAt = options.now()
         if (result.status === 'completed') {
           await options.completeLearningTask(task.taskId, {
             firedTurnId: result.firedTurnId ?? `${task.taskId}:fired:${finishedAt}`,
             resultSummary: result.resultSummary ?? null,
-          }, finishedAt)
+          }, finishedAt, ...(processOptions.signal ? [processOptions] : []))
           completed += 1
         }
         else if (result.status === 'blocked') {
@@ -442,26 +467,26 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
             resultSummary: result.resultSummary ?? null,
             failureKind: retryPlan.failureKind,
             nextRetryAt: retryPlan.retryDueAt,
-          }, finishedAt)
+          }, finishedAt, ...(processOptions.signal ? [processOptions] : []))
           blocked += 1
         }
         else if (result.status === 'reopened') {
           await options.reopenLearningTask(task.taskId, {
             reason: result.error ?? result.resultSummary ?? null,
             triggerAt: result.nextRetryAt ?? finishedAt + 60_000,
-          }, finishedAt)
+          }, finishedAt, ...(processOptions.signal ? [processOptions] : []))
           reopened += 1
         }
         else if (result.status === 'downgraded') {
           await options.downgradeLearningTask(task.taskId, {
             reason: result.error ?? result.resultSummary ?? null,
-          }, finishedAt)
+          }, finishedAt, ...(processOptions.signal ? [processOptions] : []))
           downgraded += 1
         }
         else if (result.status === 'cancelled') {
           await options.cancelLearningTask(task.taskId, {
             reason: result.error ?? result.resultSummary ?? null,
-          }, finishedAt)
+          }, finishedAt, ...(processOptions.signal ? [processOptions] : []))
           cancelled += 1
         }
         else {
@@ -479,11 +504,11 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
             error: result.error ?? 'learning execution failed',
             failureKind: retryPlan.failureKind,
             nextRetryAt: retryPlan.retryDueAt,
-          }, finishedAt)
+          }, finishedAt, ...(processOptions.signal ? [processOptions] : []))
           failed += 1
         }
 
-        await options.appendAuditLog({
+        await appendLearningAuditLog(options, {
           level: result.status === 'completed' ? 'notice' : 'warning',
           category: 'alicization.learning',
           action: 'alicization.learning.task.executed',
@@ -502,9 +527,11 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
             selfRevisionStatePatch: result.selfRevisionStatePatch ?? null,
             selfRevisionPolicyConsumers: result.selfRevisionStatePatch?.lanes ?? [],
           },
-        }, cardId)
+        }, cardId, processOptions.signal)
       }
       catch (error) {
+        if (processOptions.signal?.aborted)
+          throw processOptions.signal.reason
         const reason = error instanceof Error ? error.message : String(error)
         const finishedAt = options.now()
         const retryPlan = deriveAlicizationLearningTaskRetryPlan({
@@ -519,7 +546,7 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
           error: reason,
           failureKind: retryPlan.failureKind,
           nextRetryAt: retryPlan.retryDueAt,
-        }, finishedAt).catch(() => {})
+        }, finishedAt, ...(processOptions.signal ? [processOptions] : [])).catch(() => {})
         failed += 1
       }
     }
@@ -535,19 +562,21 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
     }
   }
 
-  async function recoverRetryableLearningTasks(limit = 12) {
+  async function recoverRetryableLearningTasks(limit = 12, processOptions: { signal?: AbortSignal } = {}) {
+    assertLearningTaskWriteNotAborted(processOptions.signal)
     const cardId = options.getActiveCardId()
     const nowMs = options.now()
     const candidates = await options.listLearningTasks({
       cardId,
       statuses: ['blocked', 'failed'],
       limit,
-    }).catch(() => [])
+    }, ...(processOptions.signal ? [processOptions] : [])).catch(() => [])
     let reopened = 0
     let terminal = 0
     let waiting = 0
 
     for (const task of candidates) {
+      assertLearningTaskWriteNotAborted(processOptions.signal)
       const retryPlan = deriveAlicizationLearningTaskRetryPlan({
         task,
         status: task.status,
@@ -560,7 +589,7 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
       })
       if (!retryPlan.shouldRetry || !retryPlan.retryDueAt) {
         terminal += 1
-        await options.appendAuditLog({
+        await appendLearningAuditLog(options, {
           level: 'warning',
           category: 'alicization.learning',
           action: 'alicization.learning.task.retry.terminal',
@@ -575,7 +604,7 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
             reason: retryPlan.reason,
             lastError: task.lastError,
           },
-        }, cardId)
+        }, cardId, processOptions.signal)
         continue
       }
       if (retryPlan.retryDueAt > nowMs) {
@@ -585,9 +614,9 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
       await options.reopenLearningTask(task.taskId, {
         reason: retryPlan.reason,
         triggerAt: nowMs,
-      }, nowMs)
+      }, nowMs, ...(processOptions.signal ? [processOptions] : []))
       reopened += 1
-      await options.appendAuditLog({
+      await appendLearningAuditLog(options, {
         level: 'notice',
         category: 'alicization.learning',
         action: 'alicization.learning.task.retry.reopened',
@@ -602,7 +631,7 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
           nextRetryAt: retryPlan.retryDueAt,
           reason: retryPlan.reason,
         },
-      }, cardId)
+      }, cardId, processOptions.signal)
     }
 
     return {

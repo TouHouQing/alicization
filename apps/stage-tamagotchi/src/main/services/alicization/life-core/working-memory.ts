@@ -31,6 +31,12 @@ export interface WorkingMemoryLongTermEvidence {
   salience: number
   sensitivity: WorkingMemoryLongTermCandidate['sensitivity']
   confidence: number
+  supersedesText?: string[]
+  claim?: {
+    subject: string
+    predicate: string
+    object: string
+  }
 }
 
 export interface WorkingMemoryTurn {
@@ -219,6 +225,22 @@ export function normalizeWorkingMemoryLongTermEvidence(
     salience: clampWorkingMemoryScore(record.salience),
     sensitivity,
     confidence: clampWorkingMemoryScore(record.confidence),
+    supersedesText: Array.isArray(record.supersedesText)
+      ? uniqueWorkingMemoryTexts(record.supersedesText.map(String), 8, 120)
+      : undefined,
+    claim: record.claim
+      && typeof record.claim === 'object'
+      && !Array.isArray(record.claim)
+      ? (() => {
+          const claim = record.claim as Record<string, unknown>
+          const subject = normalizeWorkingMemoryText(claim.subject, 120)
+          const predicate = normalizeWorkingMemoryText(claim.predicate, 80)
+          const object = normalizeWorkingMemoryText(claim.object, 160)
+          return subject && predicate && object
+            ? { subject, predicate, object }
+            : undefined
+        })()
+      : undefined,
   }
 }
 

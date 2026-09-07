@@ -10,6 +10,10 @@ import { createHash } from 'node:crypto'
 import { errorMessageFrom } from '@moeru/std'
 
 const OPENAI_COMPATIBLE_EMBEDDING_BATCH_SIZE = 32
+const DEFAULT_EMBEDDING_TIMEOUT_MS = 30_000
+const DEFAULT_EMBEDDING_MAX_RETRIES = 5
+const DEFAULT_EMBEDDING_RETRY_BASE_DELAY_MS = 500
+const MAX_EMBEDDING_RETRY_DELAY_MS = 10_000
 
 export interface OpenAICompatibleLongTermMemoryEmbeddingProviderConfig {
   apiKey?: string | null
@@ -17,7 +21,9 @@ export interface OpenAICompatibleLongTermMemoryEmbeddingProviderConfig {
   dimensions: number
   fetch?: typeof fetch
   headers?: Record<string, string>
+  maxRetries?: number
   model: string
+  retryBaseDelayMs?: number
   timeoutMs?: number
 }
 
@@ -123,9 +129,75 @@ function modelsEndpoint(baseUrl: string) {
   return new URL('models', normalizeOpenAICompatibleApiBaseUrl(baseUrl)).toString()
 }
 
-function timeoutMsFrom(raw: unknown, fallback = 15_000) {
+function timeoutMsFrom(raw: unknown, fallback = DEFAULT_EMBEDDING_TIMEOUT_MS) {
   const value = Number(raw)
   return Number.isFinite(value) ? Math.max(1_000, Math.floor(value)) : fallback
+}
+
+function retryCountFrom(raw: unknown, fallback = DEFAULT_EMBEDDING_MAX_RETRIES) {
+  const value = Number(raw)
+  return Number.isFinite(value) ? Math.max(0, Math.min(10, Math.floor(value))) : fallback
+}
+
+function retryDelayFrom(raw: unknown, fallback = DEFAULT_EMBEDDING_RETRY_BASE_DELAY_MS) {
+  const value = Number(raw)
+  return Number.isFinite(value) ? Math.max(0, Math.min(MAX_EMBEDDING_RETRY_DELAY_MS, Math.floor(value))) : fallback
+}
+
+function isTransientEmbeddingStatus(status: number) {
+  return status === 408 || status === 425 || status === 429 || status >= 500
+}
+
+function isAbortError(error: unknown) {
+  return Boolean(
+    error
+    && typeof error === 'object'
+    && 'name' in error
+    && (error as { name?: unknown }).name === 'AbortError',
+  )
+}
+
+function isTransientEmbeddingError(error: unknown) {
+  if (error && typeof error === 'object' && 'status' in error) {
+    const status = Number((error as { status?: unknown }).status)
+    if (Number.isFinite(status))
+      return isTransientEmbeddingStatus(status)
+  }
+  const message = errorMessageFrom(error) ?? ''
+  return /embedding provider timeout|fetch|network|connection|socket|econnreset|eof|temporarily unavailable|service unavailable/iu.test(message)
+}
+
+function buildEmbeddingHttpError(status: number, text: string) {
+  const error = new Error(
+    `embedding provider failed with HTTP ${status}${text ? `: ${normalizeText(text, 300)}` : ''}`,
+  ) as Error & { status: number }
+  error.status = status
+  return error
+}
+
+async function waitForEmbeddingRetry(delayMs: number, signal?: AbortSignal) {
+  if (delayMs <= 0)
+    return
+  await new Promise<void>((resolve, reject) => {
+    let settled = false
+    const finish = (error?: unknown) => {
+      if (settled)
+        return
+      settled = true
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
+      if (error)
+        reject(error)
+      else
+        resolve()
+    }
+    const onAbort = () => finish(signal?.reason ?? new DOMException('embedding retry aborted', 'AbortError'))
+    const timer = setTimeout(() => finish(), delayMs)
+    if (signal?.aborted)
+      onAbort()
+    else
+      signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 async function requestOpenAICompatibleEmbeddings(input: {
@@ -133,46 +205,78 @@ async function requestOpenAICompatibleEmbeddings(input: {
   baseUrl: string
   fetch: typeof fetch
   headers?: Record<string, string>
+  maxRetries?: number
   modelId: string
+  retryBaseDelayMs?: number
   signal?: AbortSignal
   texts: string[]
   timeoutMs?: number
 }) {
-  const controller = new AbortController()
-  const abortFromCaller = () => {
-    controller.abort(input.signal?.reason ?? new Error('embedding provider request aborted'))
-  }
-  if (input.signal?.aborted)
-    abortFromCaller()
-  else
-    input.signal?.addEventListener('abort', abortFromCaller, { once: true })
-  const timeout = setTimeout(() => controller.abort(new Error('embedding provider timeout')), Math.max(1_000, input.timeoutMs ?? 15_000))
-  try {
-    const response = await input.fetch(embeddingsEndpoint(input.baseUrl), {
-      body: JSON.stringify({ input: input.texts, model: input.modelId }),
-      headers: {
-        ...(input.apiKey ? { Authorization: `Bearer ${normalizeText(input.apiKey, 1000)}` } : {}),
-        'Content-Type': 'application/json',
-        ...normalizeHeaders(input.headers),
-      },
-      method: 'POST',
-      signal: controller.signal,
-    })
-    if (!response.ok) {
-      const text = await response.text().catch(() => '')
-      throw new Error(`embedding provider failed with HTTP ${response.status}${text ? `: ${normalizeText(text, 300)}` : ''}`)
-    }
+  const maxRetries = retryCountFrom(input.maxRetries)
+  const retryBaseDelayMs = retryDelayFrom(input.retryBaseDelayMs)
+  const timeoutMs = Math.max(1_000, input.timeoutMs ?? DEFAULT_EMBEDDING_TIMEOUT_MS)
+  let retryIndex = 0
 
-    const payload = await response.json() as { data?: Array<{ embedding?: unknown, index?: unknown }> }
-    const rows = Array.isArray(payload.data) ? payload.data : []
-    return rows.map(row => ({
-      index: row.index,
-      vector: row.embedding,
-    }))
-  }
-  finally {
-    clearTimeout(timeout)
-    input.signal?.removeEventListener('abort', abortFromCaller)
+  while (true) {
+    if (input.signal?.aborted)
+      throw input.signal.reason ?? new DOMException('embedding request aborted', 'AbortError')
+
+    const controller = new AbortController()
+    let timedOut = false
+    const abortFromCaller = () => {
+      controller.abort(input.signal?.reason ?? new Error('embedding provider request aborted'))
+    }
+    input.signal?.addEventListener('abort', abortFromCaller, { once: true })
+    const timeout = setTimeout(() => {
+      timedOut = true
+      controller.abort(new Error('embedding provider timeout'))
+    }, timeoutMs)
+
+    try {
+      const response = await input.fetch(embeddingsEndpoint(input.baseUrl), {
+        body: JSON.stringify({ input: input.texts, model: input.modelId }),
+        headers: {
+          ...(input.apiKey ? { Authorization: `Bearer ${normalizeText(input.apiKey, 1000)}` } : {}),
+          'Content-Type': 'application/json',
+          ...normalizeHeaders(input.headers),
+        },
+        method: 'POST',
+        signal: controller.signal,
+      })
+      if (!response.ok) {
+        const text = await response.text().catch(() => '')
+        throw buildEmbeddingHttpError(response.status, text)
+      }
+
+      const payload = await response.json() as { data?: Array<{ embedding?: unknown, index?: unknown }> }
+      const rows = Array.isArray(payload.data) ? payload.data : []
+      return rows.map(row => ({
+        index: row.index,
+        vector: row.embedding,
+      }))
+    }
+    catch (error) {
+      const callerAborted = input.signal?.aborted === true
+      if (
+        callerAborted
+        || (isAbortError(error) && !timedOut)
+        || !isTransientEmbeddingError(error)
+        || retryIndex >= maxRetries
+      ) {
+        throw error
+      }
+
+      const retryDelayMs = Math.min(
+        MAX_EMBEDDING_RETRY_DELAY_MS,
+        retryBaseDelayMs * (2 ** retryIndex),
+      )
+      retryIndex += 1
+      await waitForEmbeddingRetry(retryDelayMs, input.signal)
+    }
+    finally {
+      clearTimeout(timeout)
+      input.signal?.removeEventListener('abort', abortFromCaller)
+    }
   }
 }
 
@@ -384,7 +488,9 @@ export function createOpenAICompatibleLongTermMemoryEmbeddingProvider(
           baseUrl,
           fetch: fetchImpl,
           headers: config.headers,
+          maxRetries: config.maxRetries,
           modelId,
+          retryBaseDelayMs: config.retryBaseDelayMs,
           signal,
           texts: batch,
           timeoutMs: config.timeoutMs,

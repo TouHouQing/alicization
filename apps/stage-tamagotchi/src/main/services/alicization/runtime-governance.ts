@@ -3499,4 +3499,5 @@ export interface AlicizationRuntimeSetupOptions {
   backgroundMaintenanceEnabled?: boolean
   userDataPathOverride?: string
   runtimeDebugLogEnabled?: boolean
+  shutdownGraceMs?: number
 }

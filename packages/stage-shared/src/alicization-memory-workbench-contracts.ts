@@ -351,6 +351,7 @@ export interface AlicizationLongTermMemoryEvidenceCandidate {
   kind: AlicizationLongTermMemoryEvidenceKind
   summary: string
   source: string
+  sourceIds?: string[] | null
   origin?: string | null
   scope?: AlicizationLongTermMemoryEvidenceScope | null
   provenance?: AlicizationMemoryProvenance | null
@@ -405,6 +406,12 @@ export interface AlicizationWorkingMemoryLongTermEvidence {
   salience: number
   sensitivity: AlicizationWorkingMemoryLongTermCandidate['sensitivity']
   confidence: number
+  supersedesText?: string[]
+  claim?: {
+    subject: string
+    predicate: string
+    object: string
+  }
 }
 
 export interface AlicizationWorkingMemoryTurn {

@@ -112,6 +112,28 @@ describe('execution runtime context', () => {
     })
   })
 
+  it('omits missing optional foreground window fields so runtime events remain JSON-safe', () => {
+    const sensorySnapshot = createSensorySnapshot()
+    sensorySnapshot.sample.foregroundWindow = {
+      appName: 'Cursor',
+      processName: 'cursor',
+    }
+
+    const runtimeContext = buildAlicizationExecutionRuntimeContext(createInput({
+      sensorySnapshot,
+    }))
+
+    expect(runtimeContext.sensory.foregroundWindow).toEqual({
+      appName: 'Cursor',
+      processName: 'cursor',
+    })
+    expect(Object.prototype.hasOwnProperty.call(
+      runtimeContext.sensory.foregroundWindow ?? {},
+      'title',
+    )).toBe(false)
+    expect(() => JSON.stringify(runtimeContext)).not.toThrow()
+  })
+
   it('preserves grounded runtime facts', () => {
     const runtimeContext = buildAlicizationExecutionRuntimeContext(createInput({
       affectiveResidue: createAffectiveResidue(),

@@ -109,6 +109,7 @@ export interface ReindexVectorCommitInput {
   item: ClaimedReindexItem
   vector: UpsertVectorInput
   now: number
+  signal?: AbortSignal
 }
 
 export interface UpsertVectorInput {
@@ -166,11 +167,17 @@ export function createMemoryEmbeddingReindexRuntime(input: {
   run: (database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<unknown>
   get: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T | undefined>
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
-  enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
+  enqueueWrite: <T>(
+    task: () => Promise<T>,
+    options?: { signal?: AbortSignal },
+  ) => Promise<T>
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
   provider?: LongTermMemoryEmbeddingProvider | null
   resolveProvider?: () => LongTermMemoryEmbeddingProvider | null
-  upsertVector: (input: UpsertVectorInput) => Promise<void>
+  upsertVector: (
+    input: UpsertVectorInput,
+    options?: { signal?: AbortSignal },
+  ) => Promise<void>
   commitVectorAndItem?: (input: ReindexVectorCommitInput) => Promise<boolean>
   maxAttempts?: number
   leaseMs?: number
@@ -1106,6 +1113,7 @@ export function createMemoryEmbeddingReindexRuntime(input: {
               item,
               vector: vectorRecord,
               now: input.now(),
+              signal: inputData.signal,
             })
             if (!committed)
               continue
@@ -1118,7 +1126,9 @@ export function createMemoryEmbeddingReindexRuntime(input: {
               await markItemSuccess(item)
               continue
             }
-            await input.upsertVector(vectorRecord)
+            await input.upsertVector(vectorRecord, {
+              signal: inputData.signal,
+            })
             await markItemSuccess(item)
           }
         }

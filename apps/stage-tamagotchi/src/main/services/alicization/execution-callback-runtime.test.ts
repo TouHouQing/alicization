@@ -89,6 +89,53 @@ function createRuntime(input: {
 }
 
 describe('execution callback runtime', () => {
+  it('passes the turn signal into task and event reads', async () => {
+    const controller = new AbortController()
+    const listTaskThreads = vi.fn(async () => [createThread()])
+    const listExecutionEvents = vi.fn(async () => [createEvent()])
+    const runtime = createAlicizationExecutionCallbackRuntime({
+      getNow: () => 10_000,
+      listTaskThreads,
+      listExecutionEvents,
+    })
+
+    await runtime.buildPendingExecutionCallbackContext({
+      sessionId: 'session-owner-signal',
+      consume: false,
+      signal: controller.signal,
+    })
+
+    expect(listTaskThreads).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-owner-signal',
+      }),
+      { signal: controller.signal },
+    )
+    expect(listExecutionEvents).toHaveBeenCalledWith(
+      {
+        threadId: 'thread-1',
+        limit: 8,
+      },
+      { signal: controller.signal },
+    )
+  })
+
+  it('does not downgrade an aborted task-thread read into empty callbacks', async () => {
+    const abortError = new DOMException('callback read cancelled', 'AbortError')
+    const runtime = createAlicizationExecutionCallbackRuntime({
+      getNow: () => 10_000,
+      listTaskThreads: vi.fn(async () => {
+        throw abortError
+      }),
+      listExecutionEvents: vi.fn(async () => []),
+    })
+
+    await expect(runtime.buildPendingExecutionCallbackContext({
+      sessionId: 'session-owner-abort',
+      signal: new AbortController().signal,
+    })).rejects.toBe(abortError)
+  })
+
   it('surfaces fresh terminal task facts once per session window', async () => {
     const runtime = createRuntime({})
 

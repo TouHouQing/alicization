@@ -6,14 +6,20 @@ export function createAlicizationRuntimeSelfEvolutionComposition(input: {
   now: () => number
   snapshotMetaKey: string
   alicizationDb: {
-    getMetaValue: (key: string) => Promise<string | undefined>
+    getMetaValue: (
+      key: string,
+      options?: { signal?: AbortSignal },
+    ) => Promise<string | undefined>
     setMetaValue: (key: string, value: string) => Promise<void>
   }
 }) {
   const selfEvolutionRuntime = createAlicizationSelfEvolutionRuntime({
     now: input.now,
-    readSnapshot: async () => {
-      const raw = await input.alicizationDb.getMetaValue(input.snapshotMetaKey)
+    readSnapshot: async (ownerOptions) => {
+      const raw = await input.alicizationDb.getMetaValue(
+        input.snapshotMetaKey,
+        ownerOptions,
+      )
       if (!raw)
         return null
       const parsed = JSON.parse(raw)

@@ -192,6 +192,132 @@ describe('alicization guardrails', () => {
     expect(JSON.stringify(result.messages)).not.toMatch(/Output contract|Response contract|strict JSON/iu)
   })
 
+  it('preserves the highest-ranked long-term evidence under token pressure', () => {
+    const memoryContext = JSON.stringify({
+      type: 'alicization-turn-memory-context',
+      data: {
+        version: 'alicization-main-chat-memory-context-v1',
+        workingMemory: {
+          version: 'working-memory-owner-context-v1',
+          owner: 'working-memory',
+          compressedTimeline: [],
+          recentDialogue: [],
+          rememberedItems: [],
+          unresolvedQuestions: [],
+          commitments: [],
+          corrections: [],
+        },
+        longTermRecall: {
+          owner: 'long-term-memory-recall',
+          status: 'recalled',
+          confidence: 0.94,
+          evidence: [{
+            id: 'memory-too-large-for-budget',
+            kind: 'fact',
+            summary: '用户明确说过最喜欢白色樱花，并希望以后还能自然记起。'.repeat(96),
+            source: 'memory_facts',
+            scope: { userId: 'user-1', cardId: 'card-1' },
+            provenance: 'remembered',
+            confidence: 0.9,
+            cues: Array.from({ length: 12 }, () => '白色樱花与长期偏好'),
+            entities: ['用户', '白色樱花'],
+          }, {
+            id: 'memory-lower-ranked',
+            kind: 'episode',
+            summary: '这条较低排名证据可以在预算不足时移除。'.repeat(48),
+            source: 'episodic_events',
+            scope: { userId: 'user-1', cardId: 'card-1' },
+            provenance: 'observed',
+            confidence: 0.72,
+          }],
+        },
+      },
+    })
+
+    const result = applyPromptBudget([
+      { role: 'system', content: '# SOUL\nAlicization' },
+      { role: 'system', content: memoryContext },
+      { role: 'user', content: '继续回答当前问题。' },
+    ], {
+      totalTokens: 512,
+      memoryRatio: 0.75,
+    })
+
+    const memoryMessage = result.messages.find(message =>
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.includes('"type":"alicization-turn-memory-context"'),
+    )
+    const parsed = JSON.parse(String(memoryMessage?.content))
+
+    expect(parsed.data.longTermRecall.status).toBe('recalled')
+    expect(parsed.data.longTermRecall.evidence).toHaveLength(1)
+    expect(parsed.data.longTermRecall.evidence[0]).toMatchObject({
+      id: 'memory-too-large-for-budget',
+      kind: 'fact',
+      confidence: 0.9,
+    })
+    expect(parsed.data.longTermRecall.evidence[0].summary).toContain('白色樱花')
+    expect(parsed.data.longTermRecall.evidence[0].summary.length).toBeLessThan(
+      '用户明确说过最喜欢白色樱花，并希望以后还能自然记起。'.repeat(96).length,
+    )
+    expect(JSON.stringify(result.messages)).not.toContain('memory-lower-ranked')
+  })
+
+  it('preserves compressed WorkingMemory timeline before redundant raw dialogue under budget pressure', () => {
+    const memoryContext = JSON.stringify({
+      type: 'alicization-turn-memory-context',
+      data: {
+        version: 'alicization-main-chat-memory-context-v1',
+        workingMemory: {
+          version: 'working-memory-owner-context-v1',
+          owner: 'working-memory',
+          recentDialogue: Array.from({ length: 14 }, (_, index) => ({
+            turnId: `turn-${index}`,
+            role: index % 2 === 0 ? 'user' : 'alice',
+            text: '这是一条已经被压缩覆盖的原始对话。'.repeat(16),
+            createdAt: index,
+          })),
+          compressedTimeline: [{
+            summary: '压缩后的长期目标和用户纠正必须进入下一轮。',
+            thread: 'memory-quality',
+            sourceTurnIds: ['turn-1', 'turn-2'],
+            commitments: ['保留当前任务'],
+            corrections: ['用户纠正优先'],
+          }],
+          rememberedItems: [],
+          unresolvedQuestions: [],
+          commitments: [],
+          corrections: [],
+        },
+        longTermRecall: null,
+      },
+    })
+
+    const result = applyPromptBudget([
+      { role: 'system', content: '# SOUL\nAlicization' },
+      { role: 'system', content: memoryContext },
+      { role: 'user', content: '继续压缩后的任务。' },
+    ], {
+      totalTokens: 512,
+      memoryRatio: 0.75,
+    })
+
+    const memoryMessage = result.messages.find(message =>
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.includes('"type":"alicization-turn-memory-context"'),
+    )
+    const parsed = JSON.parse(String(memoryMessage?.content))
+
+    expect(parsed.data.workingMemory.compressedTimeline).toEqual([
+      expect.objectContaining({
+        summary: '压缩后的长期目标和用户纠正必须进入下一轮。',
+      }),
+    ])
+    expect(parsed.data.workingMemory.recentDialogue.length).toBeLessThan(14)
+  })
+
   it('keeps system[0] soul anchor unchanged across 10k budget rounds', () => {
     const soul = [
       '---',

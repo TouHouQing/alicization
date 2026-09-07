@@ -10,8 +10,8 @@ import { registerProactiveDelivery, settleExpiredProactiveOutcomes, settleProact
 
 interface CreateAlicizationRuntimeProactiveFeedbackOptions {
   normalizeCardId: (raw: unknown) => string
-  ensureProactiveLoopState: (cardIdRaw: unknown) => Promise<AlicizationProactiveLoopState>
-  persistProactiveLoopState: (cardIdRaw: unknown, state: AlicizationProactiveLoopState) => Promise<void>
+  ensureProactiveLoopState: (cardIdRaw: unknown, options?: { signal?: AbortSignal }) => Promise<AlicizationProactiveLoopState>
+  persistProactiveLoopState: (cardIdRaw: unknown, state: AlicizationProactiveLoopState, options?: { signal?: AbortSignal }) => Promise<void>
   applyCurrentCardProactiveState?: (input: {
     cardId: string
     state: AlicizationProactiveLoopState
@@ -142,9 +142,16 @@ export function createAlicizationRuntimeProactiveFeedback(
     return settled.state
   }
 
-  const settleExpiredPendingProactiveOutcomes = async (cardIdRaw: unknown, at: number, source: string) => {
+  const settleExpiredPendingProactiveOutcomes = async (
+    cardIdRaw: unknown,
+    at: number,
+    source: string,
+    processOptions: { signal?: AbortSignal } = {},
+  ) => {
+    if (processOptions.signal?.aborted)
+      throw processOptions.signal.reason ?? new DOMException('Proactive feedback settlement aborted', 'AbortError')
     const cardId = options.normalizeCardId(cardIdRaw)
-    let current = await options.ensureProactiveLoopState(cardId)
+    let current = await options.ensureProactiveLoopState(cardId, processOptions)
     const reconstructedPendingDelivery = options.peekLatestPendingProactiveDelivery?.(cardId) ?? null
     if (current.pendingOutcomes.length === 0) {
       const latestPendingDelivery = reconstructedPendingDelivery
@@ -166,7 +173,7 @@ export function createAlicizationRuntimeProactiveFeedback(
           emotionalTransitionLedger: latestPendingDelivery.emotionalTransitionLedger ?? null,
           affectiveResidue: latestPendingDelivery.affectiveResidue ?? null,
         })
-        await options.persistProactiveLoopState(cardId, current)
+        await options.persistProactiveLoopState(cardId, current, processOptions)
         await options.applyCurrentCardProactiveState?.({
           cardId,
           state: current,
@@ -193,7 +200,7 @@ export function createAlicizationRuntimeProactiveFeedback(
     if (settled.appliedOutcomes.length === 0)
       return settled.state
 
-    await options.persistProactiveLoopState(cardId, settled.state)
+    await options.persistProactiveLoopState(cardId, settled.state, processOptions)
     await options.applyCurrentCardProactiveState?.({
       cardId,
       state: settled.state,

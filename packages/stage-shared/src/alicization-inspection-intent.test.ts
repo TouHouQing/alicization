@@ -3,6 +3,83 @@ import { describe, expect, it } from 'vitest'
 import { inferAlicizationInspectionIntent } from './alicization-inspection-intent'
 
 describe('inferAlicizationInspectionIntent', () => {
+  it('does not treat uncertainty instructions as a request to inspect the screen', () => {
+    const result = inferAlicizationInspectionIntent({
+      message: '如果你不确定某件事，不要猜，直接说不确定。',
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.signalProfile.decisive).toBe(false)
+    expect(result.reasonCodes).not.toContain('recheck-cue')
+    expect(result.reasonCodes).not.toContain('explicit-visual-ask')
+  })
+
+  it('does not treat an answer-only tool exclusion as inspection intent', () => {
+    const result = inferAlicizationInspectionIntent({
+      message: '不调用工具，只用对话回答。',
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.signalProfile.decisive).toBe(false)
+  })
+
+  it('does not treat a request to avoid executing tools as inspection intent', () => {
+    const result = inferAlicizationInspectionIntent({
+      message: '现在先不要执行任何工具，只和我聊天。',
+      recentMessages: [
+        { role: 'user', content: '帮我看看 Cursor 里面这个 diff 有什么问题' },
+        { role: 'assistant', content: '我在看着。' },
+      ],
+      contextPhrases: [
+        'Cursor',
+        'main.ts - diff',
+      ],
+      sharedAttentionActive: true,
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.signalProfile.decisive).toBe(false)
+  })
+
+  it('does not treat a generic preference question as an anchored screen continuation', () => {
+    const result = inferAlicizationInspectionIntent({
+      message: '最后再问一次：我现在喜欢什么颜色？',
+      recentMessages: [
+        { role: 'user', content: '帮我看看 Cursor 里面这个 diff 有什么问题' },
+        { role: 'assistant', content: '我在看着。' },
+      ],
+      contextPhrases: [
+        'Cursor',
+        'main.ts - diff',
+      ],
+      sharedAttentionActive: true,
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.reasonCodes).not.toContain('anchored-continuation-cue')
+    expect(result.signalProfile.decisive).toBe(false)
+  })
+
+  it('does not treat a topic pivot back to the project as a screen inspection', () => {
+    const result = inferAlicizationInspectionIntent({
+      message: '继续回到数字生命项目：短期记忆的 owner 应该是谁？',
+      recentMessages: [
+        { role: 'user', content: '帮我看看 Cursor 里面这个 diff 有什么问题' },
+        { role: 'assistant', content: '我在看着。' },
+      ],
+      contextPhrases: [
+        'Cursor',
+        'main.ts - diff',
+      ],
+      sharedAttentionActive: true,
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.reasonCodes).not.toContain('anchored-continuation-cue')
+    expect(result.signalProfile.actionable).toBe(false)
+    expect(result.signalProfile.decisive).toBe(false)
+  })
+
   it('does not treat dialogue complaints as inspection continuation under shared-attention carry', () => {
     const result = inferAlicizationInspectionIntent({
       message: '能不能说人话',

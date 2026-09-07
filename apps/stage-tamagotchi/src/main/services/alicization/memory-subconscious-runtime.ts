@@ -31,7 +31,7 @@ interface CreateAlicizationMemorySubconsciousRuntimeOptions {
   run: (database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<unknown>
   get: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T | undefined>
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
-  enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
+  enqueueWrite: <T>(task: () => Promise<T>, options?: { signal?: AbortSignal }) => Promise<T>
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
   normalizeOrganicMemoryText: (raw: unknown, maxChars: number) => string
   mapFragmentSourceKindToProvenance: (sourceKind: AlicizationSubconsciousFragmentSourceKind) => AlicizationSubconsciousFragment['provenance']
@@ -108,7 +108,12 @@ export function createAlicizationMemorySubconsciousRuntime(
     return await listActiveThoughts()
   }
 
-  async function appendSubconsciousFragments(fragments: Array<{ text: string, sourceKind: AlicizationSubconsciousFragmentSourceKind }>) {
+  async function appendSubconsciousFragments(
+    fragments: Array<{ text: string, sourceKind: AlicizationSubconsciousFragmentSourceKind }>,
+    writeOptions?: { signal?: AbortSignal },
+  ) {
+    if (writeOptions?.signal?.aborted)
+      throw writeOptions.signal.reason ?? new DOMException('Subconscious memory write aborted', 'AbortError')
     const normalized = fragments
       .filter(item => !isRawDialogueTranscriptSubconsciousSource(item.sourceKind))
       .map(item => ({
@@ -124,6 +129,8 @@ export function createAlicizationMemorySubconsciousRuntime(
     const inserted: AlicizationSubconsciousFragment[] = []
     const currentTs = options.now()
     await options.enqueueWrite(async () => {
+      if (writeOptions?.signal?.aborted)
+        throw writeOptions.signal.reason ?? new DOMException('Subconscious memory write aborted', 'AbortError')
       await options.runInTransaction(options.database, async () => {
         for (const item of normalized) {
           const existing = await options.get<{ id?: string }>(
@@ -176,7 +183,7 @@ export function createAlicizationMemorySubconsciousRuntime(
           })
         }
       })
-    })
+    }, writeOptions)
 
     return inserted
   }

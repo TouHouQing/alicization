@@ -117,6 +117,7 @@ interface RegisterAlicizationDialogueInvokeHandlersOptions {
   registerInvokeHandler: (channel: unknown, handler: (...args: any[]) => Promise<unknown>) => void
   withCardScope: <T>(nextCardIdRaw: unknown, task: () => Promise<T>, options?: {
     label?: string
+    lane?: 'foreground' | 'background'
     skipQueueWhenScopeAlreadyActive?: boolean
   }) => Promise<T>
   normalizeSessionId: (raw: unknown) => string
@@ -352,6 +353,7 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
     return replayRows
   }, {
     label: `dialogue-replay:${payload.cardId}`,
+    lane: 'foreground',
     skipQueueWhenScopeAlreadyActive: true,
   }))
 
@@ -384,6 +386,7 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
     })
   }, {
     label: `dialogue-list-turns:${payload.cardId}`,
+    lane: 'foreground',
     skipQueueWhenScopeAlreadyActive: true,
   }))
 
@@ -453,6 +456,7 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
     })
   }, {
     label: `dialogue-list-tool-projections:${payload.cardId}`,
+    lane: 'foreground',
     skipQueueWhenScopeAlreadyActive: true,
   }))
 

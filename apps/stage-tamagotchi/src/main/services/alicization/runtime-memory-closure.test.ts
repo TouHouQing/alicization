@@ -292,6 +292,7 @@ describe('runtime memory closure', () => {
   it.each([
     ['failureKind', { failureKind: 'tool-execution' }],
     ['timedOut', { timedOut: true }],
+    ['status=failed', { status: 'failed' }],
     ['status=timeout', { status: 'timeout' }],
     ['origin=failure-surface', { origin: 'failure-surface' }],
     ['artifactRole=memory-side-failure', { artifactRole: 'memory-side-failure' }],
@@ -531,5 +532,36 @@ describe('runtime memory closure', () => {
         sourceKind: 'maintenance',
       }),
     ]))
+  })
+
+  it('把 deferred shutdown signal 传入 prepared autobiographical write', async () => {
+    const fixture = createRuntimeFixture()
+    const controller = new AbortController()
+
+    await fixture.runtime.persistPreparedMirrorAutobiographicalEpisodes({
+      cardId: 'default',
+      turnId: 'turn-deferred-autobio',
+      sessionId: 'session-1',
+      previousMirror: null,
+      mirror: {
+        cardId: 'default',
+        sessionId: 'session-1',
+        decisionTraceId: 'trace-deferred-autobio',
+        updatedAt: 49_000,
+        recollection: {
+          foreground: 'A reviewed afterthought became ready for autobiographical persistence.',
+          afterthoughtState: 'ripe',
+          confidence: 0.82,
+        },
+      } as any,
+      signal: controller.signal,
+    } as any)
+
+    expect(fixture.appendEpisodicEvents).toHaveBeenCalledWith(
+      expect.any(Array),
+      {
+        signal: controller.signal,
+      },
+    )
   })
 })

@@ -21,13 +21,18 @@ interface CreateAlicizationMainChatContextRuntimeOptions {
   readTransportContentAsText: (content: unknown) => string
   emptyAlicizationExecutionCallbackContext: AlicizationExecutionCallbackContext
   emptyAlicizationExecutionLedgerContext: AlicizationExecutionLedgerContext
-  ensureActiveOrLatestSessionId: (cardId: string) => Promise<string>
+  ensureActiveOrLatestSessionId: (
+    cardId: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<string>
   buildPendingExecutionCallbackContext: (input: {
     consume?: boolean
     sessionId: string
+    signal?: AbortSignal
   }) => Promise<AlicizationExecutionCallbackContext>
   buildExecutionLedgerContext: (input: {
     sessionId: string
+    signal?: AbortSignal
   }) => Promise<AlicizationExecutionLedgerContext>
   resolveInspectionIntentFromMessageHistory: (input: AlicizationInspectionIntentFromHistoryInput) => boolean
   detectInvitedInspectionIntent: (message: string) => {
@@ -59,36 +64,58 @@ export function createAlicizationMainChatContextRuntime(options: CreateAlicizati
     return ''
   }
 
-  async function buildMainChatExecutionCallbackContext(payload: AlicizationChatStartPayload): Promise<AlicizationExecutionCallbackContext> {
+  async function resolveCurrentSessionId(signal?: AbortSignal) {
+    try {
+      return await ensureActiveOrLatestSessionId(getActiveCardId(), { signal })
+    }
+    catch (error) {
+      if (signal?.aborted || error instanceof Error && error.name === 'AbortError')
+        throw error
+      return ''
+    }
+  }
+
+  async function buildMainChatExecutionCallbackContext(
+    payload: AlicizationChatStartPayload,
+    ownerOptions?: { signal?: AbortSignal },
+  ): Promise<AlicizationExecutionCallbackContext> {
     const currentUserText = readMainChatCurrentUserText(payload)
     if (!currentUserText)
       return emptyAlicizationExecutionCallbackContext
 
-    const sessionId = await ensureActiveOrLatestSessionId(getActiveCardId()).catch(() => '')
+    const sessionId = await resolveCurrentSessionId(ownerOptions?.signal)
     if (!sessionId)
       return emptyAlicizationExecutionCallbackContext
 
     return await buildPendingExecutionCallbackContext({
       consume: false,
       sessionId,
+      signal: ownerOptions?.signal,
     })
   }
 
-  async function buildMainChatExecutionLedgerContext(payload: AlicizationChatStartPayload): Promise<AlicizationExecutionLedgerContext> {
+  async function buildMainChatExecutionLedgerContext(
+    payload: AlicizationChatStartPayload,
+    ownerOptions?: { signal?: AbortSignal },
+  ): Promise<AlicizationExecutionLedgerContext> {
     const currentUserText = readMainChatCurrentUserText(payload)
     if (!currentUserText)
       return emptyAlicizationExecutionLedgerContext
 
-    const sessionId = await ensureActiveOrLatestSessionId(getActiveCardId()).catch(() => '')
+    const sessionId = await resolveCurrentSessionId(ownerOptions?.signal)
     if (!sessionId)
       return emptyAlicizationExecutionLedgerContext
 
     return await buildExecutionLedgerContext({
       sessionId,
+      signal: ownerOptions?.signal,
     })
   }
 
-  async function buildMainChatContextualString(payload: AlicizationChatStartPayload) {
+  async function buildMainChatContextualString(
+    payload: AlicizationChatStartPayload,
+    _ownerOptions?: { signal?: AbortSignal },
+  ) {
     const currentUserText = readMainChatCurrentUserText(payload)
     if (!currentUserText)
       return ''

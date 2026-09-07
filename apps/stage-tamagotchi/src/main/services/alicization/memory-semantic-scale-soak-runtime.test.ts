@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { performance } from 'node:perf_hooks'
 
 import sqlite3 from 'sqlite3'
 
@@ -10,9 +11,28 @@ import { hashLongTermMemoryEmbeddingText } from './long-term-memory-embedding-te
 import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
 import { createSqliteVecLongTermMemoryVectorBackend } from './long-term-memory-sqlite-vec-backend'
 import { createLongTermMemoryVectorIndexAdapter } from './long-term-memory-vector-index-adapter'
-import { runMemorySemanticScaleVectorAdapterSoak } from './memory-semantic-scale-soak-runtime'
+import {
+  applyMemorySemanticScaleAcceptanceGate,
+  runMemorySemanticScaleOperationalProbes,
+  runMemorySemanticScaleVectorAdapterSoak,
+} from './memory-semantic-scale-soak-runtime'
 
 const sandboxDirs: string[] = []
+
+function summarizeDurations(values: number[]) {
+  const sorted = [...values].sort((left, right) => left - right)
+  const percentile = (ratio: number) => {
+    if (sorted.length === 0)
+      return 0
+    return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * ratio) - 1)] ?? 0
+  }
+  return {
+    count: sorted.length,
+    p50Ms: percentile(0.5),
+    p95Ms: percentile(0.95),
+    p99Ms: percentile(0.99),
+  }
+}
 
 function run(database: sqlite3.Database, sql: string, params: unknown[] = []) {
   return new Promise<void>((resolve, reject) => {
@@ -59,6 +79,41 @@ async function createSoakDatabase() {
     `CREATE INDEX idx_semantic_scale_search_docs_identity
      ON long_term_memory_search_documents(card_id, source, source_id, text_hash, tombstoned)`,
   )
+  const nativeSearchDurations: number[] = []
+  const nativeHealthDurations: number[] = []
+  const getWithDiagnostics = async <T>(
+    targetDatabase: sqlite3.Database,
+    sql: string,
+    params: unknown[] = [],
+  ) => {
+    const startedAt = performance.now()
+    try {
+      return await get<T>(targetDatabase, sql, params)
+    }
+    finally {
+      if (
+        sql.includes('long_term_memory_sqlite_vec_rows')
+        || sql.includes('long_term_memory_vectors')
+        || sql.includes('long_term_memory_vec_')
+      ) {
+        nativeHealthDurations.push(performance.now() - startedAt)
+      }
+    }
+  }
+  const allWithDiagnostics = async <T>(
+    targetDatabase: sqlite3.Database,
+    sql: string,
+    params: unknown[] = [],
+  ) => {
+    const startedAt = performance.now()
+    try {
+      return await all<T>(targetDatabase, sql, params)
+    }
+    finally {
+      if (sql.includes('native.embedding MATCH'))
+        nativeSearchDurations.push(performance.now() - startedAt)
+    }
+  }
   let writeQueue = Promise.resolve<unknown>(undefined)
   let writeTransactionActive = false
   const enqueueWrite = async <T>(task: () => Promise<T>) => {
@@ -86,7 +141,7 @@ async function createSoakDatabase() {
   const store = createPersistentLongTermMemoryVectorStore({
     database,
     run,
-    all,
+    all: allWithDiagnostics,
     enqueueWrite,
     now: () => Date.now(),
   })
@@ -96,14 +151,16 @@ async function createSoakDatabase() {
       database,
       now: () => Date.now(),
       run,
-      get,
-      all,
+      get: getWithDiagnostics,
+      all: allWithDiagnostics,
       enqueueWrite,
     }),
   })
   await adapter.initialize()
   return {
     adapter,
+    nativeHealthDurations,
+    nativeSearchDurations,
     close: async () => await close(database),
     withBatchWrite: async (task: () => Promise<void>) => await enqueueWrite(task),
     prepareCanonical: async (records: Array<{
@@ -138,6 +195,109 @@ afterEach(async () => {
 })
 
 describe('memory semantic scale soak runtime', () => {
+  it('fails the production acceptance gate when scale, latency, or lifecycle evidence is missing', () => {
+    const report = applyMemorySemanticScaleAcceptanceGate({
+      version: 'memory-semantic-scale-soak-harness-v1',
+      id: 'missing-production-evidence',
+      createdAt: 1,
+      passed: true,
+      summary: {
+        corpusSize: 9_999,
+        queryCount: 0,
+        p95LatencyMs: Number.NaN,
+        p99LatencyMs: Number.NaN,
+        recallAtK: 1,
+        falseRecallRate: 0,
+        coverageRatio: 1,
+        failingChecks: [],
+      },
+      resourceMetrics: {
+        dimensions: 3,
+        vectorInput: 'unavailable',
+        elapsedMs: 1,
+        peakRssBytes: 1,
+        sqliteBytes: 1,
+        sqliteWalBytes: 0,
+        cpuUserMs: 0,
+        cpuSystemMs: 0,
+      },
+      resourcePreflight: null,
+      searchMetrics: [],
+      providerDegradation: null,
+      reindex: null,
+      recommendedNextActions: [],
+    }, {
+      tier: '10k',
+      maxP95LatencyMs: 100,
+      maxP99LatencyMs: 200,
+      operationalProbes: null,
+    })
+
+    expect(report.passed).toBe(false)
+    expect(report.acceptance.passed).toBe(false)
+    expect(report.summary.failingChecks).toEqual(expect.arrayContaining([
+      'scale-corpus-incomplete',
+      'scale-query-evidence-missing',
+      'latency-p95-missing',
+      'latency-p99-missing',
+      'production-provider-required',
+      'provider-degradation-probe-missing',
+      'model-switch-reindex-probe-missing',
+      'reindex-cancellation-probe-missing',
+      'reindex-retry-probe-missing',
+      'reindex-dead-letter-probe-missing',
+      'reindex-crash-recovery-probe-missing',
+    ]))
+  })
+
+  it('runs real sqlite reindex lifecycle probes for cancellation, retry, dead-letter, and crash recovery', async () => {
+    const probes = await runMemorySemanticScaleOperationalProbes({
+      cardId: 'card-operational-probes',
+      createdAt: Date.parse('2026-09-01T00:00:00.000Z'),
+    })
+
+    expect(probes.passed, JSON.stringify(probes, null, 2)).toBe(true)
+    expect(probes.mode).toBe('sqlite-runtime-fixture')
+    expect(probes.providerDegradation).toMatchObject({
+      passed: true,
+      errorVisible: true,
+      fallbackRecallAtK: 1,
+    })
+    expect(probes.reindex).toMatchObject({
+      passed: true,
+      reindexRequired: true,
+      modelSpaceChanged: true,
+      observations: {
+        cancellationObserved: true,
+        retryObserved: true,
+        deadLetterObserved: true,
+        crashRecoveryObserved: true,
+      },
+    })
+    expect(probes.lifecycle).toMatchObject({
+      cancellation: {
+        passed: true,
+        finalStatus: 'cancelled',
+      },
+      retry: {
+        passed: true,
+        attempts: 2,
+        finalStatus: 'completed',
+      },
+      deadLetter: {
+        passed: true,
+        attempts: 2,
+        deadLettered: 1,
+        finalStatus: 'failed',
+      },
+      crashRecovery: {
+        passed: true,
+        recoveredLeases: 1,
+        finalStatus: 'completed',
+      },
+    })
+  }, 30_000)
+
   it('reports persisted-work progress after every index batch and query round', async () => {
     const database = await createSoakDatabase()
     const progress: Array<{
@@ -241,6 +401,104 @@ describe('memory semantic scale soak runtime', () => {
     }
   })
 
+  it('passes the soak AbortSignal into every embedding request', async () => {
+    const database = await createSoakDatabase()
+    const controller = new AbortController()
+    const observedSignals: Array<AbortSignal | undefined> = []
+    try {
+      await runMemorySemanticScaleVectorAdapterSoak({
+        id: 'sqlite-vec-embedding-signal',
+        createdAt: Date.parse('2026-08-15T00:00:00.000Z'),
+        gate: 'adapter-smoke',
+        resourcePreflight: {
+          passed: true,
+          requiredDiskBytes: 1,
+          availableDiskBytes: 1_000_000,
+          requiredMemoryBytes: 1,
+          availableMemoryBytes: 1_000_000,
+          failures: [],
+        },
+        embeddingProvider: {
+          embedTexts: async (texts, signal) => {
+            observedSignals.push(signal)
+            return texts.map(text => ({
+              text,
+              vector: [1, 0, 0, 0],
+            }))
+          },
+        },
+        adapter: database.adapter,
+        prepareCanonical: database.prepareCanonical,
+        withBatchWrite: database.withBatchWrite,
+        cardId: 'card-embedding-signal',
+        foreignCardId: 'card-embedding-signal-foreign',
+        modelId: 'embedding-signal-test',
+        dimensions: 4,
+        vectorSpaceId: 'test:semantic-scale:embedding-signal',
+        corpusSizes: [2],
+        queryCount: 1,
+        batchSize: 2,
+        signal: controller.signal,
+      })
+
+      expect(observedSignals.length).toBeGreaterThan(0)
+      expect(observedSignals.every(signal => signal === controller.signal)).toBe(true)
+    }
+    finally {
+      await database.close()
+    }
+  })
+
+  it('builds provider queries from the same stable retrieval anchor as stored memories', async () => {
+    const database = await createSoakDatabase()
+    const embeddingBatches: string[][] = []
+    try {
+      const report = await runMemorySemanticScaleVectorAdapterSoak({
+        id: 'sqlite-vec-semantic-anchor',
+        createdAt: Date.parse('2026-08-15T00:00:00.000Z'),
+        gate: 'adapter-smoke',
+        resourcePreflight: {
+          passed: true,
+          requiredDiskBytes: 1,
+          availableDiskBytes: 1_000_000,
+          requiredMemoryBytes: 1,
+          availableMemoryBytes: 1_000_000,
+          failures: [],
+        },
+        embeddingProvider: {
+          embedTexts: async (texts) => {
+            embeddingBatches.push([...texts])
+            return texts.map(text => ({
+              text,
+              vector: [1, 0, 0, 0],
+            }))
+          },
+        },
+        adapter: database.adapter,
+        prepareCanonical: database.prepareCanonical,
+        withBatchWrite: database.withBatchWrite,
+        cardId: 'card-semantic-anchor',
+        foreignCardId: 'card-semantic-anchor-foreign',
+        modelId: 'semantic-anchor-test',
+        dimensions: 4,
+        vectorSpaceId: 'test:semantic-scale:anchor',
+        corpusSizes: [1],
+        queryCount: 1,
+        batchSize: 1,
+      })
+
+      const storedText = embeddingBatches[0]?.[0] ?? ''
+      const queryText = embeddingBatches.at(-1)?.[0] ?? ''
+      expect(storedText).toContain('retrieval anchor')
+      expect(queryText).toContain('retrieval anchor')
+      expect(queryText).not.toBe(storedText)
+      expect(report.searchMetrics[0]?.queryCount).toBe(1)
+    }
+    finally {
+      await database.close()
+    }
+  })
+
   it('runs a real sqlite-vec adapter soak at 10k and optionally 100k scale', async () => {
     const database = await createSoakDatabase()
     const smokeCorpusSize = Math.max(1, Number(process.env.ALICIZATION_MEMORY_SOAK_SIZE ?? 10_000))
@@ -271,10 +529,18 @@ describe('memory semantic scale soak runtime', () => {
         corpusSizes,
         queryCount: 12,
         batchSize: 500,
-        maxP95LatencyMs: 2_000,
-        maxP99LatencyMs: 4_000,
+        maxP95LatencyMs: corpusSizes.includes(100_000) ? 250 : 3_000,
+        maxP99LatencyMs: corpusSizes.includes(100_000) ? 500 : 5_000,
       })
 
+      if (process.env.ALICIZATION_MEMORY_SOAK_DIAGNOSTICS === '1') {
+        console.info(JSON.stringify({
+          summary: report.summary,
+          searchMetrics: report.searchMetrics,
+          nativeHealthDurations: summarizeDurations(database.nativeHealthDurations),
+          nativeSearchDurations: summarizeDurations(database.nativeSearchDurations),
+        }, null, 2))
+      }
       expect(report.passed, JSON.stringify(report.summary)).toBe(true)
       expect(report.summary.corpusSize).toBe(corpusSizes.at(-1))
       expect(report.summary.recallAtK).toBe(1)

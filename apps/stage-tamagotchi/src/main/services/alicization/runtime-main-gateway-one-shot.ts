@@ -147,6 +147,7 @@ interface CreateAlicizationMainGatewayOneShotRuntimeOptions {
     cardId: string
     turnId: string
     decisionTraceId?: string | null
+    signal?: AbortSignal
   }) => Promise<AlicizationAgentTurnRuntime>
   resolveMainGatewayConfig: (input?: {
     cardId?: string
@@ -160,15 +161,16 @@ interface CreateAlicizationMainGatewayOneShotRuntimeOptions {
     providerConfig?: Record<string, unknown>
   }) => void
   appendRuntimeDebugLine: (event: string, payload?: Record<string, unknown>) => Promise<void>
-  resolveCardCustomDirectives: (cardId: string, options?: { messages?: Message[] }) => Promise<ResolvedCardCustomDirectives>
+  resolveCardCustomDirectives: (cardId: string, options?: { messages?: Message[], signal?: AbortSignal }) => Promise<ResolvedCardCustomDirectives>
   buildPendingExecutionCallbackContext: (input: {
     consume?: boolean
     sessionId: string
   }) => Promise<AlicizationExecutionCallbackContext>
   resolveAgentSessionContinuityContext: (cardId: string, options: {
     digitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
+    signal?: AbortSignal
   }) => Promise<{ digitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null, sessionContinuitySignals: AlicizationAgentSessionContinuityInput[] }>
-  getPerformanceManifest: () => Promise<CharacterPerformanceCapabilitiesManifest | null>
+  getPerformanceManifest: (options?: { signal?: AbortSignal }) => Promise<CharacterPerformanceCapabilitiesManifest | null>
   syncAgentTurnSessionMirror: (input: {
     agentTurn?: AlicizationAgentTurnRuntime | null
     cardId: string
@@ -184,7 +186,7 @@ interface CreateAlicizationMainGatewayOneShotRuntimeOptions {
   } | null) => string
   buildMainGatewayAgentTurnId: (...segments: Array<unknown>) => string
   screenSemanticCacheByCard: Map<string, ScreenSemanticCacheState>
-  ensurePerceptionState: (cardIdRaw: unknown) => Promise<AlicizationPerceptionState>
+  ensurePerceptionState: (cardIdRaw: unknown, options?: { signal?: AbortSignal }) => Promise<AlicizationPerceptionState>
   getUsablePerceptionSceneResidue: (input: {
     state: AlicizationPerceptionState
     now: number
@@ -204,6 +206,7 @@ interface CreateAlicizationMainGatewayOneShotRuntimeOptions {
     cardId: string
     now: number
     residue: AlicizationPerceptionSceneResidue
+    signal?: AbortSignal
   }) => Promise<AlicizationPerceptionState>
   providerWorkCoordinator?: Pick<AlicizationMainGatewayWorkCoordinator, 'acquireOneShot'>
 }
@@ -663,9 +666,15 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       confidence: Math.max(input.summary.workload.confidence, input.summary.content.confidence),
       focusTarget: input.focusTarget
         ? {
-            appName: input.focusTarget.appName,
-            processName: input.focusTarget.processName,
-            title: input.focusTarget.title,
+            ...(input.focusTarget.appName !== undefined
+              ? { appName: input.focusTarget.appName }
+              : {}),
+            ...(input.focusTarget.processName !== undefined
+              ? { processName: input.focusTarget.processName }
+              : {}),
+            ...(input.focusTarget.title !== undefined
+              ? { title: input.focusTarget.title }
+              : {}),
           }
         : undefined,
       focusSource: input.focusTarget?.source,
@@ -725,6 +734,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
         cardId: oneShotCardId,
         turnId: generateOptions.agentTurnInput.turnId,
         decisionTraceId: generateOptions.agentTurnInput.decisionTraceId ?? null,
+        signal: generateOptions.abortSignal,
       })
     })()
     const initialRuntimeSurface = generateOptions.digitalLifeRuntimeSurface ?? null
@@ -766,10 +776,20 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     const sessionContinuityContext = agentTurn
       ? await options.resolveAgentSessionContinuityContext(oneShotCardId, {
           digitalLifeRuntimeSurface: generateOptions.digitalLifeRuntimeSurface ?? null,
-        }).catch(() => ({
-          digitalLifeRuntimeSurface: generateOptions.digitalLifeRuntimeSurface ?? null,
-          sessionContinuitySignals: [] as AlicizationAgentSessionContinuityInput[],
-        }))
+          signal: generateOptions.abortSignal,
+        }).catch((error) => {
+          if (generateOptions.abortSignal?.aborted)
+            throw error
+          void options.appendRuntimeDebugLine('main-gateway.one-shot-continuity-degraded', {
+            cardId: oneShotCardId,
+            source: generateOptions.source ?? 'unknown',
+            reason: errorMessageFrom(error) ?? String(error),
+          })
+          return {
+            digitalLifeRuntimeSurface: generateOptions.digitalLifeRuntimeSurface ?? null,
+            sessionContinuitySignals: [] as AlicizationAgentSessionContinuityInput[],
+          }
+        })
       : {
           digitalLifeRuntimeSurface: generateOptions.digitalLifeRuntimeSurface ?? null,
           sessionContinuitySignals: [] as AlicizationAgentSessionContinuityInput[],
@@ -1292,6 +1312,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     }
     perceptionState?: AlicizationPerceptionState
     agentTurn?: AlicizationAgentTurnRuntime | null
+    signal?: AbortSignal
   }): Promise<{
     focusTarget: import('./proactive-screen-semantic').AlicizationScreenSemanticFocusTarget | null
     summary: import('./proactive-screen-semantic').AlicizationScreenSemanticSummary | null
@@ -1299,8 +1320,10 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     unavailableReason?: string
   }> {
     const cardId = normalizeCardId(input.cardId)
+    if (input.signal?.aborted)
+      throw input.signal.reason ?? createAbortError('proactive-screen-semantic')
     const cached = options.screenSemanticCacheByCard.get(cardId)
-    const perceptionState = input.perceptionState ?? await options.ensurePerceptionState(cardId)
+    const perceptionState = input.perceptionState ?? await options.ensurePerceptionState(cardId, { signal: input.signal })
     const invitedInspectionActive = Boolean(
       perceptionState.invitedInspection
       && perceptionState.invitedInspection.activeUntil > input.now,
@@ -1371,6 +1394,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     // do not keep a previous scene alive as the current live scene.
     options.clearDesktopCaptureAccessCache()
     const captureAccess = await options.resolveDesktopCaptureAccess(captureAccessRequest)
+    if (input.signal?.aborted)
+      throw input.signal.reason ?? createAbortError('proactive-screen-semantic')
     const capture = options.getDesktopCaptureAccessRuntimeSnapshot(captureAccessRequest)
     const sources = captureAccess.sources
     if (sources.length === 0) {
@@ -1472,6 +1497,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       },
       focusTarget: candidate.focusTarget,
       agentTurn: input.agentTurn,
+      abortSignal: input.signal,
     })
     const summary = semanticResult.summary
     if (!summary) {
@@ -1497,6 +1523,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
         summary,
         focusTarget: candidate.focusTarget,
       }),
+      signal: input.signal,
     })
     options.screenSemanticCacheByCard.set(cardId, {
       key: candidateKey,

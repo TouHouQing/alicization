@@ -20,8 +20,8 @@ function requiredText(value: unknown, label: string) {
 }
 
 export async function resolveAlicizationLocalRuntimeUserId(options: {
-  getMetaValue: (key: string) => Promise<string | undefined>
-  setMetaValue: (key: string, value: string) => Promise<void>
+  getMetaValue: (key: string, options?: { signal?: AbortSignal }) => Promise<string | undefined>
+  setMetaValue: (key: string, value: string, options?: { signal?: AbortSignal }) => Promise<void>
   createUserId?: () => string
 }) {
   const persisted = (await options.getMetaValue(alicizationLocalRuntimeUserIdMetaKey))?.trim()

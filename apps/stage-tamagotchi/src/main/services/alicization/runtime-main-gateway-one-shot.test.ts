@@ -98,6 +98,43 @@ beforeEach(() => {
 })
 
 describe('runtime main gateway one-shot', () => {
+  it('omits unavailable optional focus target fields from persisted scene residue', () => {
+    const { runtime } = createOneShotRuntimeHarness()
+
+    const residue = runtime.buildScreenSemanticSceneResidue({
+      now: 123,
+      summary: {
+        workload: {
+          kind: 'coding',
+          confidence: 0.9,
+          matchedLabels: ['editor'],
+        },
+        content: {
+          kind: 'diff',
+          confidence: 0.8,
+          matchedLabels: ['typescript'],
+          summary: 'A TypeScript diff',
+        },
+        analyzedAt: 123,
+        source: {
+          id: 'scene-test',
+          name: 'Visual Studio Code',
+          strategy: 'window-title',
+        },
+      },
+      focusTarget: {
+        appName: 'Visual Studio Code',
+        processName: 'Code',
+      },
+    })
+
+    expect(residue.focusTarget).toEqual({
+      appName: 'Visual Studio Code',
+      processName: 'Code',
+    })
+    expect(Object.values(residue.focusTarget ?? {})).not.toContain(undefined)
+  })
+
   it('does not maintain a retired one-shot structured-key denylist', () => {
     const source = readFileSync(new URL('./runtime-main-gateway-one-shot.ts', import.meta.url), 'utf8')
 

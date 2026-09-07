@@ -79,15 +79,29 @@ export interface AlicizationExecutionCallbackCursor {
 
 interface AlicizationExecutionCallbackRuntimeOptions {
   getNow?: () => number
-  listExecutionEvents: (input?: AlicizationListExecutionEventsInput) => Promise<AlicizationExecutionEventRecord[]>
-  listTaskThreads: (input?: AlicizationListTaskThreadsInput) => Promise<AlicizationTaskThreadRecord[]>
+  listExecutionEvents: (
+    input?: AlicizationListExecutionEventsInput,
+    options?: { signal?: AbortSignal },
+  ) => Promise<AlicizationExecutionEventRecord[]>
+  listTaskThreads: (
+    input?: AlicizationListTaskThreadsInput,
+    options?: { signal?: AbortSignal },
+  ) => Promise<AlicizationTaskThreadRecord[]>
   cursorStore?: {
-    get: (sessionId: string) => Promise<number | AlicizationExecutionCallbackCursor>
-    set: (sessionId: string, cursor: AlicizationExecutionCallbackCursor) => Promise<void>
+    get: (
+      sessionId: string,
+      options?: { signal?: AbortSignal },
+    ) => Promise<number | AlicizationExecutionCallbackCursor>
+    set: (
+      sessionId: string,
+      cursor: AlicizationExecutionCallbackCursor,
+      options?: { signal?: AbortSignal },
+    ) => Promise<void>
     compareAndSet?: (
       sessionId: string,
       expected: AlicizationExecutionCallbackCursor,
       next: AlicizationExecutionCallbackCursor,
+      options?: { signal?: AbortSignal },
     ) => Promise<boolean>
   }
   pageSize?: number
@@ -124,6 +138,78 @@ const defaultMaxPendingCallbacks = 3
 const defaultMaxThreadAgeMs = 20 * 60_000
 const defaultCallbackPageSize = 64
 const defaultCallbackMaxScanPages = 32
+
+function executionCallbackAbortError(signal?: AbortSignal) {
+  return signal?.reason ?? new DOMException('Execution callback read aborted', 'AbortError')
+}
+
+function throwIfExecutionCallbackAborted(signal?: AbortSignal) {
+  if (signal?.aborted)
+    throw executionCallbackAbortError(signal)
+}
+
+function awaitExecutionCallbackOwner<T>(
+  promise: Promise<T>,
+  signal?: AbortSignal,
+) {
+  if (!signal)
+    return promise
+  if (signal.aborted)
+    return Promise.reject(executionCallbackAbortError(signal))
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const cleanup = () => signal.removeEventListener('abort', onAbort)
+    const settle = (callback: () => void) => {
+      if (settled)
+        return
+      settled = true
+      cleanup()
+      callback()
+    }
+    const onAbort = () => settle(() => reject(executionCallbackAbortError(signal)))
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    void promise.then(
+      value => settle(() => resolve(value)),
+      error => settle(() => reject(error)),
+    )
+  })
+}
+
+function readExecutionCallbackCursorStore(
+  store: NonNullable<AlicizationExecutionCallbackRuntimeOptions['cursorStore']>,
+  sessionId: string,
+  signal?: AbortSignal,
+) {
+  return signal
+    ? store.get(sessionId, { signal })
+    : store.get(sessionId)
+}
+
+function writeExecutionCallbackCursorStore(
+  store: NonNullable<AlicizationExecutionCallbackRuntimeOptions['cursorStore']>,
+  sessionId: string,
+  cursor: AlicizationExecutionCallbackCursor,
+  signal?: AbortSignal,
+) {
+  return signal
+    ? store.set(sessionId, cursor, { signal })
+    : store.set(sessionId, cursor)
+}
+
+function listExecutionCallbackOwnerRows<TInput, TResult>(
+  read: (
+    input?: TInput,
+    options?: { signal?: AbortSignal },
+  ) => Promise<TResult>,
+  input: TInput,
+  signal?: AbortSignal,
+) {
+  return signal
+    ? read(input, { signal })
+    : read(input)
+}
 
 function compareExecutionCallbackCursor(
   left: AlicizationExecutionCallbackCursor,
@@ -494,7 +580,11 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
   const previewedItemsBySession = new Map<string, AlicizationExecutionCallbackItem[]>()
   const sessionOperationTails = new Map<string, Promise<void>>()
 
-  async function withSessionQueue<T>(sessionId: string, operation: () => Promise<T>) {
+  async function withSessionQueue<T>(
+    sessionId: string,
+    operation: () => Promise<T>,
+    signal?: AbortSignal,
+  ) {
     const previous = sessionOperationTails.get(sessionId) ?? Promise.resolve()
     let release!: () => void
     const gate = new Promise<void>((resolve) => {
@@ -503,8 +593,9 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
     const tail = previous.then(() => gate, () => gate)
     sessionOperationTails.set(sessionId, tail)
 
-    await previous
     try {
+      await awaitExecutionCallbackOwner(previous, signal)
+      throwIfExecutionCallbackAborted(signal)
       return await operation()
     }
     finally {
@@ -514,22 +605,47 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
     }
   }
 
-  async function persistCursor(sessionId: string, cursor: AlicizationExecutionCallbackCursor) {
+  async function persistCursor(
+    sessionId: string,
+    cursor: AlicizationExecutionCallbackCursor,
+    signal?: AbortSignal,
+  ) {
     if (!options.cursorStore)
       return
-    await options.cursorStore.set(sessionId, cursor)
+    await awaitExecutionCallbackOwner(
+      writeExecutionCallbackCursorStore(
+        options.cursorStore,
+        sessionId,
+        cursor,
+        signal,
+      ),
+      signal,
+    )
   }
 
   async function commitCursor(
     sessionId: string,
     expected: AlicizationExecutionCallbackCursor,
     next: AlicizationExecutionCallbackCursor,
+    signal?: AbortSignal,
   ) {
     if (options.cursorStore?.compareAndSet) {
-      const committed = await options.cursorStore.compareAndSet(sessionId, expected, next)
+      const committed = await awaitExecutionCallbackOwner(
+        signal
+          ? options.cursorStore.compareAndSet(sessionId, expected, next, { signal })
+          : options.cursorStore.compareAndSet(sessionId, expected, next),
+        signal,
+      )
       if (!committed) {
         const persistedCursor = normalizeExecutionCallbackCursor(
-          await options.cursorStore.get(sessionId),
+          await awaitExecutionCallbackOwner(
+            readExecutionCallbackCursorStore(
+              options.cursorStore,
+              sessionId,
+              signal,
+            ),
+            signal,
+          ),
         )
         surfacedCursorBySession.set(sessionId, persistedCursor)
         return false
@@ -538,7 +654,7 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
       return true
     }
 
-    await persistCursor(sessionId, next)
+    await persistCursor(sessionId, next, signal)
     surfacedCursorBySession.set(sessionId, next)
     return true
   }
@@ -546,19 +662,29 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
   async function buildPendingExecutionCallbackContext(input: {
     consume?: boolean
     sessionId: string
+    signal?: AbortSignal
   }): Promise<AlicizationExecutionCallbackContext> {
+    throwIfExecutionCallbackAborted(input.signal)
     const sessionId = sanitizeExecutionLedgerText(input.sessionId, 160)
     if (!sessionId)
       return emptyAlicizationExecutionCallbackContext
 
     return await withSessionQueue(sessionId, async () => {
+      throwIfExecutionCallbackAborted(input.signal)
       const hasInMemoryCursor = surfacedCursorBySession.has(sessionId)
       let surfacedCursor = surfacedCursorBySession.get(sessionId) ?? {
         activityAt: 0,
         threadId: null,
       }
       if (options.cursorStore && !hasInMemoryCursor) {
-        const persistedCursor = await options.cursorStore.get(sessionId)
+        const persistedCursor = await awaitExecutionCallbackOwner(
+          readExecutionCallbackCursorStore(
+            options.cursorStore,
+            sessionId,
+            input.signal,
+          ),
+          input.signal,
+        )
         const normalizedPersistedCursor = normalizeExecutionCallbackCursor(persistedCursor)
         if (compareExecutionCallbackCursor(normalizedPersistedCursor, surfacedCursor) > 0)
           surfacedCursor = normalizedPersistedCursor
@@ -570,16 +696,19 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
       const minActivityAt = Math.max(0, getNow() - maxThreadAgeMs)
       const terminalStatuses = [...alicizationTerminalTaskThreadStatuses]
       for (let pageIndex = 0; pageIndex < maxScanPages; pageIndex += 1) {
-        const page = await options.listTaskThreads({
-          sessionId,
-          status: terminalStatuses,
-          cursor: pageCursor.activityAt > 0 || pageCursor.threadId
-            ? encodeExecutionCallbackCursor(pageCursor)
-            : null,
-          order: 'asc',
-          minActivityAt,
-          limit: pageSize,
-        })
+        const page = await awaitExecutionCallbackOwner(
+          listExecutionCallbackOwnerRows(options.listTaskThreads, {
+            sessionId,
+            status: terminalStatuses,
+            cursor: pageCursor.activityAt > 0 || pageCursor.threadId
+              ? encodeExecutionCallbackCursor(pageCursor)
+              : null,
+            order: 'asc',
+            minActivityAt,
+            limit: pageSize,
+          }, input.signal),
+          input.signal,
+        )
         for (const thread of page) {
           if (thread?.id)
             candidateThreadsById.set(thread.id, thread)
@@ -612,10 +741,13 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
         return emptyAlicizationExecutionCallbackContext
 
       const items = await Promise.all(recentTerminalThreads.map(async ({ thread }) => {
-        const events = await options.listExecutionEvents({
-          threadId: thread.id,
-          limit: 8,
-        })
+        const events = await awaitExecutionCallbackOwner(
+          listExecutionCallbackOwnerRows(options.listExecutionEvents, {
+            threadId: thread.id,
+            limit: 8,
+          }, input.signal),
+          input.signal,
+        )
         return buildCallbackItem({
           thread,
           events,
@@ -649,7 +781,12 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
           activityAt: lastSurfacedItem.activityAt,
           threadId: lastSurfacedItem.digest.threadId,
         }
-        const committed = await commitCursor(sessionId, surfacedCursor, nextCursor)
+        const committed = await commitCursor(
+          sessionId,
+          surfacedCursor,
+          nextCursor,
+          input.signal,
+        )
         if (!committed)
           return emptyAlicizationExecutionCallbackContext
       }
@@ -664,7 +801,7 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
         recallText: buildExecutionCallbackRecallText(surfacedItems),
         systemBlock: buildExecutionCallbackSystemBlock(surfacedItems),
       }
-    })
+    }, input.signal)
   }
 
   function markSurfaced(input: AlicizationExecutionCallbackMarkSurfacedInput): Promise<void> {

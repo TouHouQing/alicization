@@ -495,19 +495,16 @@ export function createAlicizationRuntimeEventStore(
   async function listScopes(queryInput: AlicizationRuntimeEventScopeQuery) {
     const query = parseScopeQuery(queryInput)
     const eventTypePlaceholders = query.eventTypes.map(() => '?').join(', ')
-    const eventTypeFilter = query.eventTypes.length > 0
+    const matchingEventCount = query.eventTypes.length > 0
       ? `
-        AND EXISTS (
-          SELECT 1
-          FROM alicization_runtime_events matched_events
-          WHERE matched_events.turn_id = alicization_runtime_events.turn_id
-            AND matched_events.card_id = alicization_runtime_events.card_id
-            AND matched_events.user_id = alicization_runtime_events.user_id
-            AND matched_events.conversation_id = alicization_runtime_events.conversation_id
-            AND matched_events.event_type IN (${eventTypePlaceholders})
+        SUM(
+          CASE
+            WHEN event_type IN (${eventTypePlaceholders}) THEN 1
+            ELSE 0
+          END
         )
       `
-      : ''
+      : 'COUNT(*)'
     const rows = await options.all<AlicizationRuntimeEventScopeRow>(
       options.database,
       `
@@ -518,13 +515,14 @@ export function createAlicizationRuntimeEventStore(
           user_id,
           conversation_id,
           MIN(occurred_at) AS started_at,
-          MAX(occurred_at) AS updated_at
+          MAX(occurred_at) AS updated_at,
+          ${matchingEventCount} AS matching_event_count
         FROM alicization_runtime_events
         WHERE card_id = ?
           AND user_id = ?
           AND conversation_id = ?
-          ${eventTypeFilter}
         GROUP BY turn_id, card_id, user_id, conversation_id
+        HAVING matching_event_count > 0
       ),
       latest_turn_scopes AS (
         SELECT
@@ -549,10 +547,10 @@ export function createAlicizationRuntimeEventStore(
       ORDER BY started_at ASC, turn_id ASC
       `,
       [
+        ...query.eventTypes,
         query.cardId,
         query.userId,
         query.conversationId,
-        ...query.eventTypes,
         query.limit,
       ],
     )

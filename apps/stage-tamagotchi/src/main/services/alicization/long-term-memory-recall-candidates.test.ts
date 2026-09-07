@@ -27,6 +27,7 @@ describe('long-term memory recall candidate projection', () => {
       id: 'reflection-1',
       kind: 'reflection',
       source: 'memory_reflections',
+      sourceIds: ['reflection-1'],
       confidence: 0.9,
       sensitivity: 'personal',
       updatedAt: 20,
@@ -84,6 +85,28 @@ describe('long-term memory recall candidate projection', () => {
       confidence: 0.88,
       sensitivity: 'personal',
       updatedAt: 30,
+    })
+  })
+
+  it('carries source lineage from vector metadata into semantic candidates', () => {
+    expect(persistentVectorRecordToEvidenceCandidate({
+      id: 'vector-consolidation-1',
+      sourceId: 'consolidation-1',
+      source: 'memory_consolidations',
+      text: '这一周主要围绕长期记忆开发。',
+      vector: [1, 0, 0],
+      modelId: 'embedding-a',
+      dimensions: 3,
+      updatedAt: 30,
+      metadata: {
+        kind: 'consolidation',
+        sourceIds: ['episode-1', 'episode-2'],
+        confidence: 0.88,
+      },
+    })).toMatchObject({
+      id: 'consolidation-1',
+      kind: 'consolidation',
+      sourceIds: ['episode-1', 'episode-2'],
     })
   })
 

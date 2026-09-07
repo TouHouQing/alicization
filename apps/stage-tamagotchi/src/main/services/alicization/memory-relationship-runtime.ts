@@ -81,12 +81,16 @@ interface CreateAlicizationMemoryRelationshipRuntimeOptions {
   run: (database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<unknown>
   get: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T | undefined>
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
-  enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
+  enqueueWrite: <T>(task: () => Promise<T>, writeOptions?: { signal?: AbortSignal }) => Promise<T>
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
   clamp01: (value: number) => number
   clampRelationshipDelta: (value: number, maxAbs?: number) => number
   parseJsonStringArray: (raw: string | null) => string[]
   normalizeOrganicMemoryText: (raw: unknown, maxChars: number) => string
+}
+
+interface MemoryRelationshipWriteOptions {
+  signal?: AbortSignal
 }
 
 interface RelationshipListCursor {
@@ -196,7 +200,10 @@ export function createAlicizationMemoryRelationshipRuntime(
     }
   }
 
-  async function upsertMemoryReflections(entries: AlicizationMemoryReflectionInput[]) {
+  async function upsertMemoryReflections(
+    entries: AlicizationMemoryReflectionInput[],
+    writeOptions: MemoryRelationshipWriteOptions = {},
+  ) {
     if (entries.length === 0)
       return []
 
@@ -237,6 +244,8 @@ export function createAlicizationMemoryRelationshipRuntime(
     await options.enqueueWrite(async () => {
       await options.runInTransaction(options.database, async () => {
         for (const entry of prepared) {
+          if (writeOptions.signal?.aborted)
+            throw writeOptions.signal.reason ?? new DOMException('Memory reflection write aborted', 'AbortError')
           await options.run(
             options.database,
             `
@@ -298,7 +307,9 @@ export function createAlicizationMemoryRelationshipRuntime(
           )
         }
       })
-    })
+    }, writeOptions)
+    if (writeOptions.signal?.aborted)
+      throw writeOptions.signal.reason ?? new DOMException('Memory reflection write aborted', 'AbortError')
 
     return prepared.map(entry => mapMemoryReflectionRow({
       id: entry.id,
@@ -328,7 +339,9 @@ export function createAlicizationMemoryRelationshipRuntime(
     turnId?: string
     status?: AlicizationMemoryReflectionStatus
     cursor?: string | null
-  }) {
+  }, readOptions: MemoryRelationshipWriteOptions = {}) {
+    if (readOptions.signal?.aborted)
+      throw readOptions.signal.reason ?? new DOMException('Memory reflection read aborted', 'AbortError')
     const cardId = input.cardId.trim()
     if (!cardId) {
       return {
@@ -368,6 +381,8 @@ export function createAlicizationMemoryRelationshipRuntime(
       `SELECT * FROM memory_reflections WHERE ${where.join(' AND ')} ORDER BY updated_at DESC, id ASC LIMIT ?`,
       params,
     )
+    if (readOptions.signal?.aborted)
+      throw readOptions.signal.reason ?? new DOMException('Memory reflection read aborted', 'AbortError')
 
     const pageRows = rows.slice(0, limit)
     const lastRow = pageRows.at(-1)
@@ -388,8 +403,8 @@ export function createAlicizationMemoryRelationshipRuntime(
     query?: string
     turnId?: string
     status?: AlicizationMemoryReflectionStatus
-  }) {
-    return (await listMemoryReflectionsPage(input)).items
+  }, readOptions: MemoryRelationshipWriteOptions = {}) {
+    return (await listMemoryReflectionsPage(input, readOptions)).items
   }
 
   async function appendRelationshipOutcomes(entries: AlicizationRelationshipOutcomeInput[]) {
@@ -500,7 +515,9 @@ export function createAlicizationMemoryRelationshipRuntime(
     cardId: string
     limit?: number
     turnId?: string
-  }) {
+  }, readOptions: MemoryRelationshipWriteOptions = {}) {
+    if (readOptions.signal?.aborted)
+      throw readOptions.signal.reason ?? new DOMException('Relationship outcome read aborted', 'AbortError')
     const cardId = input.cardId.trim()
     if (!cardId)
       return []
@@ -518,10 +535,15 @@ export function createAlicizationMemoryRelationshipRuntime(
       `SELECT * FROM relationship_outcomes WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT ?`,
       params,
     )
+    if (readOptions.signal?.aborted)
+      throw readOptions.signal.reason ?? new DOMException('Relationship outcome read aborted', 'AbortError')
     return rows.map(mapRelationshipOutcomeRow)
   }
 
-  async function appendPersonaReinforcementEvents(events: AlicizationPersonaReinforcementEventInput[]) {
+  async function appendPersonaReinforcementEvents(
+    events: AlicizationPersonaReinforcementEventInput[],
+    writeOptions: MemoryRelationshipWriteOptions = {},
+  ) {
     if (events.length === 0)
       return []
 
@@ -554,6 +576,8 @@ export function createAlicizationMemoryRelationshipRuntime(
     await options.enqueueWrite(async () => {
       await options.runInTransaction(options.database, async () => {
         for (const event of prepared) {
+          if (writeOptions.signal?.aborted)
+            throw writeOptions.signal.reason ?? new DOMException('Persona reinforcement write aborted', 'AbortError')
           await options.run(
             options.database,
             `
@@ -587,7 +611,9 @@ export function createAlicizationMemoryRelationshipRuntime(
           )
         }
       })
-    })
+    }, writeOptions)
+    if (writeOptions.signal?.aborted)
+      throw writeOptions.signal.reason ?? new DOMException('Persona reinforcement write aborted', 'AbortError')
 
     return prepared.map(event => mapPersonaReinforcementEventRow({
       id: event.id,
@@ -609,7 +635,9 @@ export function createAlicizationMemoryRelationshipRuntime(
     limit?: number
     turnId?: string
     cursor?: string | null
-  }) {
+  }, readOptions: MemoryRelationshipWriteOptions = {}) {
+    if (readOptions.signal?.aborted)
+      throw readOptions.signal.reason ?? new DOMException('Persona reinforcement read aborted', 'AbortError')
     const cardId = input.cardId.trim()
     if (!cardId) {
       return {
@@ -636,6 +664,8 @@ export function createAlicizationMemoryRelationshipRuntime(
       `SELECT * FROM persona_reinforcement_events WHERE ${where.join(' AND ')} ORDER BY created_at DESC, id ASC LIMIT ?`,
       params,
     )
+    if (readOptions.signal?.aborted)
+      throw readOptions.signal.reason ?? new DOMException('Persona reinforcement read aborted', 'AbortError')
     const pageRows = rows.slice(0, limit)
     const lastRow = pageRows.at(-1)
     return {
@@ -653,8 +683,8 @@ export function createAlicizationMemoryRelationshipRuntime(
     cardId: string
     limit?: number
     turnId?: string
-  }) {
-    return (await listPersonaReinforcementEventsPage(input)).items
+  }, readOptions: MemoryRelationshipWriteOptions = {}) {
+    return (await listPersonaReinforcementEventsPage(input, readOptions)).items
   }
 
   async function appendRelationshipDynamics(input: {

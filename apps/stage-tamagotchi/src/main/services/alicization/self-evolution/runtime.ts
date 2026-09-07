@@ -8,9 +8,15 @@ import type {
 import { createAlicizationSelfEvolutionVersionRuntime } from './version-runtime'
 
 export interface AlicizationSelfEvolutionRuntime {
-  getSnapshot: () => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot>
-  getActiveCandidate: () => Promise<AlicizationSelfEvolutionVersionCandidate | null>
-  getActivePatch: () => Promise<AlicizationSelfRevisionStatePatch | null>
+  getSnapshot: (
+    options?: { signal?: AbortSignal },
+  ) => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot>
+  getActiveCandidate: (
+    options?: { signal?: AbortSignal },
+  ) => Promise<AlicizationSelfEvolutionVersionCandidate | null>
+  getActivePatch: (
+    options?: { signal?: AbortSignal },
+  ) => Promise<AlicizationSelfRevisionStatePatch | null>
   proposeVersion: (input: {
     event: AlicizationSelfRevisionEvent
     patch: AlicizationSelfRevisionStatePatch
@@ -36,7 +42,9 @@ export interface AlicizationSelfEvolutionRuntime {
 
 export function createAlicizationSelfEvolutionRuntime(options: {
   now: () => number
-  readSnapshot: () => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot | null>
+  readSnapshot: (
+    options?: { signal?: AbortSignal },
+  ) => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot | null>
   writeSnapshot: (snapshot: AlicizationSelfEvolutionVersionRuntimeSnapshot) => Promise<void>
 }): AlicizationSelfEvolutionRuntime {
   const versionRuntime = createAlicizationSelfEvolutionVersionRuntime(options)
@@ -64,9 +72,9 @@ export function createAlicizationSelfEvolutionRuntime(options: {
   }
 
   return {
-    getSnapshot: async () => await versionRuntime.getSnapshot(),
-    getActiveCandidate: async () => await versionRuntime.getActiveCandidate(),
-    getActivePatch: async () => await versionRuntime.getActivePatch(),
+    getSnapshot: async ownerOptions => await versionRuntime.getSnapshot(ownerOptions),
+    getActiveCandidate: async ownerOptions => await versionRuntime.getActiveCandidate(ownerOptions),
+    getActivePatch: async ownerOptions => await versionRuntime.getActivePatch(ownerOptions),
     proposeVersion: async input => await versionRuntime.propose(input),
     validateVersion: async input => await versionRuntime.validate(input),
     rollbackVersion: async input => await versionRuntime.rollback(input),

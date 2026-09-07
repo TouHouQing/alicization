@@ -41,6 +41,20 @@ function normalizeScore(raw: unknown, fallback = 0.5) {
   return Math.max(0, Math.min(1, value))
 }
 
+function normalizeSourceIds(raw: unknown) {
+  if (!Array.isArray(raw))
+    return []
+
+  const result: string[] = []
+  for (const value of raw) {
+    const normalized = normalizeText(value, 240)
+    if (!normalized || result.includes(normalized))
+      continue
+    result.push(normalized)
+  }
+  return result.slice(0, 24)
+}
+
 const internalMemorySourceLabelPattern = /(?:^|\s)(?:working-memory-owner|async-memory|runtime-outcome|artifact-rollback|superseded-by|reopened-by|shadow-rule-extraction|dialogue-feedback|execution-audit|trusted-tool|learning-(?:verify|revise|internalized|validated))(?:[:\s-]|$)/iu
 const factProjectionPrefixPattern = /^(?:user|assistant|host|alicization)\s+\S+\s+/iu
 const factProjectionSuffixPattern = /\s+(?:relationship|procedure|self-model|experience|episodic|autobiographical|preference|fact)\s*$/iu
@@ -103,6 +117,7 @@ export function memoryWorkbenchItemToEvidenceCandidate(item: AlicizationMemoryWo
     kind: item.kind === 'procedure'
       ? 'episode'
       : normalizeKind(item.kind),
+    sourceIds: normalizeSourceIds(item.sourceIds),
     summary: buildProviderCandidateSummary([item.summary, ...item.evidenceSnippets], item.source),
     source: normalizeText(item.source, 120),
     origin: item.source,
@@ -122,6 +137,7 @@ export function persistentVectorRecordToEvidenceCandidate(
   return {
     id: workbenchItemId || record.sourceId,
     kind: normalizeKind(metadata.kind),
+    sourceIds: normalizeSourceIds(metadata.sourceIds),
     summary: buildProviderCandidateSummary([record.text], record.source),
     source: normalizeText(record.source, 120),
     origin: normalizeText(record.source, 120),

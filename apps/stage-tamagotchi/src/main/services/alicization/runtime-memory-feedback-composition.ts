@@ -6,7 +6,10 @@ export function createAlicizationRuntimeMemoryFeedbackComposition(input: {
   activeCardId: string
   summaryMetaKey: string
   alicizationDb: {
-    getMetaValue: (key: string) => Promise<string | undefined>
+    getMetaValue: (
+      key: string,
+      options?: { signal?: AbortSignal },
+    ) => Promise<string | undefined>
     setMetaValue: (key: string, value: string) => Promise<void>
     listMemoryReflections: (input: {
       cardId: string
@@ -17,7 +20,8 @@ export function createAlicizationRuntimeMemoryFeedbackComposition(input: {
   const memoryRetrievalTelemetryRuntime = createAlicizationMemoryRetrievalTelemetryRuntime({
     now: input.now,
     key: 'memory_retrieval_telemetry_v1',
-    getMetaValue: async key => await input.alicizationDb.getMetaValue(key),
+    getMetaValue: async (key, ownerOptions) =>
+      await input.alicizationDb.getMetaValue(key, ownerOptions),
     upsertMeta: async (key, value) => await input.alicizationDb.setMetaValue(key, value),
     enqueueWrite: async task => await task(),
   })

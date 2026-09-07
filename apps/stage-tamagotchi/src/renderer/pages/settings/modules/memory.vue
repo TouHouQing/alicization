@@ -1251,7 +1251,7 @@ watch(activeCardId, () => {
                 <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
                   <span>v{{ version.version }}</span>
                   <span>{{ version.schemaVersion }}</span>
-                  <span>{{ t('settings.pages.memory.workbench.fields.dataset_active') }}: {{ formatBoolean(version.activeAt !== null) }}</span>
+                  <span>{{ t('settings.pages.memory.workbench.fields.dataset_active') }}: {{ formatBoolean(personaTrainingDataset.activeVersionId === version.id) }}</span>
                   <span>{{ t('settings.pages.memory.workbench.fields.dataset_manifest') }}: {{ formatBoolean(version.exportedAt !== null) }}</span>
                 </div>
                 <div :class="['mt-2', 'text-xs', 'text-neutral-500']">

@@ -143,6 +143,51 @@ export function projectWorkingMemoryLongTermCandidate(input: {
 
   if (candidate.kind !== 'correction')
     return emptyProjectionBundle()
+  if (candidate.claim) {
+    const oldValues = candidate.supersedesText ?? []
+    return {
+      ...emptyProjectionBundle(),
+      memoryFacts: [{
+        subject: candidate.claim.subject,
+        predicate: candidate.claim.predicate,
+        object: candidate.claim.object,
+        confidence: candidate.confidence,
+        knowledgeStage: 'working-understanding',
+        validationStatus: 'provisional',
+        memoryDomain: 'world-model',
+        sourceLabel: `working-memory-owner:${candidate.id}`,
+        conflictsWith: [],
+        supersedes: [],
+      }],
+      episodicEvents: [{
+        id: candidate.id,
+        cardId: candidate.cardId,
+        sessionId: candidate.sessionId,
+        turnId: sourceTurnId(candidate),
+        sourceKind: 'reply',
+        provenance: 'remembered',
+        occurredAt: candidate.createdAt,
+        threadAnchor: candidate.claim.subject,
+        whatHappened: summary,
+        relationshipMeaning: null,
+        sourceSummary: oldValues.length > 0
+          ? `用户纠正前值：${oldValues.join('、')}`
+          : null,
+        confidence: candidate.confidence,
+        salience: candidate.salience,
+        consolidationPriority: Math.max(candidate.salience, candidate.confidence),
+        tags: [candidate.claim.subject, candidate.claim.object, ...oldValues],
+        withWhom: ['user', 'alicization'],
+        derivedFrom: candidate.sourceTurnIds.map(turnId => ({
+          kind: 'turn',
+          id: turnId,
+          label: 'working-memory-owner',
+        })),
+        createdAt: input.now,
+        updatedAt: input.now,
+      }],
+    }
+  }
   return {
     memoryFacts: [{
       subject: 'user',

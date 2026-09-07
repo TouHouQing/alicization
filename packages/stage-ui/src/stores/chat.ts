@@ -76,7 +76,7 @@ import {
   extractChatExecutorToolReplyEvidence,
   isChatExecutionProjectionToolName,
 } from './chat-tool-projection'
-import { createDatetimeContext, createSensoryContext } from './chat/context-providers'
+import { createDatetimeContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
 import { createChatHooks } from './chat/hooks'
 import { useChatSessionStore } from './chat/session-store'
@@ -997,7 +997,7 @@ function shouldRetryStreamWithoutTools(error: unknown, options: {
     providerRequest?.message ?? '',
   ].join(' ')
   const isToolSchemaValidationFailure
-    = /\b(?:tool|function)\s+schema\b.{0,120}\b(?:invalid|malformed|keyword|additionalproperties|property|validation|not\s+supported|unsupported|incompatible)\b/iu.test(
+    = /\b(?:tool|function)\s+schema\b.{1,120}\b(?:invalid|malformed|keyword|additionalproperties|property|validation|not\s+supported|unsupported|incompatible)\b/iu.test(
       toolCompatibilityMessage,
     )
     || /\b(?:additionalproperties|\$defs|definitions|oneof|anyof|allof|unevaluatedproperties|patternproperties)\b/iu.test(
@@ -1352,23 +1352,50 @@ function isDirectInfrastructureRepairFallback(structured?: StructuredWithContrac
     && structured.nonHumanAuthoredStatus.startsWith('direct-infra-repair:')
 }
 
-async function appendAlicizationAuditLog(payload: {
+function appendAlicizationAuditLog(payload: {
   level: 'info' | 'notice' | 'warning' | 'critical'
   category: string
   action: string
   message: string
   details?: Record<string, unknown>
-}) {
+}): Promise<void> {
   if (!hasAlicizationBridge())
+    return Promise.resolve()
+
+  try {
+    void Promise.resolve(getAlicizationBridge().appendAuditLog({
+      level: payload.level,
+      category: payload.category,
+      action: payload.action,
+      message: payload.message,
+      payload: sanitizeAlicizationAuditDetails(payload.details),
+    })).catch(() => {})
+  }
+  catch {
+    // Audit persistence is diagnostic side-effect only and must never stall chat.
+  }
+
+  // Preserve the historical Promise-shaped call contract without waiting for IPC.
+  return Promise.resolve()
+}
+
+function appendAlicizationRendererChatTrace(
+  event: string,
+  details: Record<string, unknown> = {},
+) {
+  if (typeof window === 'undefined' || typeof console?.info !== 'function')
     return
 
-  await getAlicizationBridge().appendAuditLog({
-    level: payload.level,
-    category: payload.category,
-    action: payload.action,
-    message: payload.message,
-    payload: sanitizeAlicizationAuditDetails(payload.details),
-  }).catch(() => {})
+  try {
+    console.info(`[alicization-chat-trace] ${JSON.stringify({
+      event,
+      ts: Date.now(),
+      ...details,
+    })}`)
+  }
+  catch {
+    // Diagnostics must not affect the chat turn.
+  }
 }
 
 export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
@@ -1389,6 +1416,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
   const pendingQueuedSends = ref<QueuedSend[]>([])
   const externalPipelineAborters = new Set<ExternalPipelineAborter>()
   const hooks = createChatHooks()
+  const postTurnHookChains = new Map<string, Promise<void>>()
   let stopVisualPresencePulseSubscription: (() => void) | null = null
 
   function ensureVisualPresencePulseSubscription() {
@@ -1471,6 +1499,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     if (!sendingMessage && !options.attachments?.length)
       return
 
+    const sendStartedAt = Date.now()
+    appendAlicizationRendererChatTrace('performSend.started', {
+      sessionId,
+      generation,
+      origin: options.origin ?? 'ui-user',
+    })
     const isForegroundSession = () => sessionId === activeSessionId.value
     const isStaleGeneration = () => chatSession.getSessionGeneration(sessionId) !== generation
     const earlyPlaceholderCreatedAt = Date.now()
@@ -1494,84 +1528,29 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     }
 
     try {
+      appendAlicizationRendererChatTrace('ensureSessionReady.started', {
+        sessionId,
+        elapsedMs: Date.now() - sendStartedAt,
+      })
       await chatSession.ensureSessionReady(sessionId)
+      appendAlicizationRendererChatTrace('ensureSessionReady.settled', {
+        sessionId,
+        elapsedMs: Date.now() - sendStartedAt,
+      })
     }
     catch (error) {
+      appendAlicizationRendererChatTrace('ensureSessionReady.failed', {
+        sessionId,
+        elapsedMs: Date.now() - sendStartedAt,
+        reason: error instanceof Error ? error.message : String(error),
+      })
       clearEarlyPlaceholder()
       throw error
     }
 
-    // Inject current datetime context before composing the message
+    // NOTICE: Visual grounding is owned by the main runtime, which can gate
+    // capture on inspection intent without delaying ordinary renderer sends.
     chatContext.ingestContextMessage(createDatetimeContext())
-    if (hasAlicizationBridge()) {
-      try {
-        const sensorySnapshot = await getAlicizationBridge().getSensorySnapshot()
-        chatContext.ingestContextMessage(createSensoryContext(sensorySnapshot))
-
-        if (sensorySnapshot.sample.degraded?.length) {
-          await appendAlicizationAuditLog({
-            level: 'warning',
-            category: 'alicization.sensory',
-            action: 'degraded',
-            message: 'Sensory probe sample contains degraded fields.',
-            details: {
-              reasons: sensorySnapshot.sample.degraded,
-            },
-          })
-        }
-
-        if (sensorySnapshot.stale) {
-          await appendAlicizationAuditLog({
-            level: 'warning',
-            category: 'alicization.sensory',
-            action: 'stale',
-            message: 'Sensory probe snapshot is stale before prompt injection.',
-            details: {
-              ageMs: sensorySnapshot.ageMs,
-            },
-          })
-        }
-
-        if (sensorySnapshot.capture && sensorySnapshot.capture.health !== 'healthy') {
-          await appendAlicizationAuditLog({
-            level: 'warning',
-            category: 'alicization.sensory',
-            action: 'capture-degraded',
-            message: 'Screen capture diagnostics indicate degraded or unavailable visual grounding.',
-            details: {
-              health: sensorySnapshot.capture.health,
-              permission: sensorySnapshot.capture.permission,
-              reasons: sensorySnapshot.capture.degradedReasons,
-            },
-          })
-        }
-
-        await appendAlicizationAuditLog({
-          level: 'notice',
-          category: 'alicization.sensory',
-          action: 'injected',
-          message: 'Injected sensory context into runtime prompt section.',
-          details: {
-            stale: sensorySnapshot.stale,
-            ageMs: sensorySnapshot.ageMs,
-            running: sensorySnapshot.running,
-            captureHealth: sensorySnapshot.capture?.health ?? null,
-            capturePermission: sensorySnapshot.capture?.permission ?? null,
-          },
-        })
-      }
-      catch (error) {
-        await appendAlicizationAuditLog({
-          level: 'warning',
-          category: 'alicization.sensory',
-          action: 'inject-failed',
-          message: 'Failed to inject sensory context before compose.',
-          details: {
-            reason: error instanceof Error ? error.message : String(error),
-          },
-        })
-      }
-    }
 
     const sendingCreatedAt = Date.now()
     const streamingMessageContext: ChatStreamEventContext = {
@@ -1956,7 +1935,17 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
       }
 
+      appendAlicizationRendererChatTrace('beforeMessageComposed.started', {
+        sessionId,
+        turnId,
+        elapsedMs: Date.now() - sendStartedAt,
+      })
       await hooks.emitBeforeMessageComposedHooks(sendingMessage, streamingMessageContext)
+      appendAlicizationRendererChatTrace('beforeMessageComposed.settled', {
+        sessionId,
+        turnId,
+        elapsedMs: Date.now() - sendStartedAt,
+      })
 
       const contentParts: CommonContentPart[] = [{ type: 'text', text: sendingMessage }]
 
@@ -2682,13 +2671,37 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         await hooks.emitStreamEndHooks(streamingMessageContext)
         await hooks.emitAssistantResponseEndHooks(assistantOutputText, streamingMessageContext)
 
-        await hooks.emitAfterSendHooks(sendingMessage, streamingMessageContext)
-        await hooks.emitAssistantMessageHooks({ ...buildingMessage }, assistantOutputText, streamingMessageContext)
-        await hooks.emitChatTurnCompleteHooks({
-          output: { ...buildingMessage },
-          outputText: assistantOutputText,
-          toolCalls: [...turnToolCalls],
-        }, streamingMessageContext)
+        const previous = postTurnHookChains.get(sessionId) ?? Promise.resolve()
+        const current = previous
+          .catch(() => {})
+          .then(async () => {
+            await hooks.emitAfterSendHooks(sendingMessage, streamingMessageContext)
+            await hooks.emitAssistantMessageHooks({ ...buildingMessage }, assistantOutputText, streamingMessageContext)
+            await hooks.emitChatTurnCompleteHooks({
+              output: { ...buildingMessage },
+              outputText: assistantOutputText,
+              toolCalls: [...turnToolCalls],
+            }, streamingMessageContext)
+          })
+        postTurnHookChains.set(sessionId, current)
+        void current
+          .catch(async (error) => {
+            await appendAlicizationAuditLog({
+              level: 'warning',
+              category: 'alicization.chat',
+              action: 'post-turn-hooks-failed',
+              message: 'Deferred post-turn hooks failed after the visible reply was committed.',
+              details: {
+                sessionId,
+                turnId,
+                error: error instanceof Error ? error.message : String(error),
+              },
+            }).catch(() => {})
+          })
+          .finally(() => {
+            if (postTurnHookChains.get(sessionId) === current)
+              postTurnHookChains.delete(sessionId)
+          })
       }
 
       finalizeAssistantTurn = async () => {
@@ -2933,8 +2946,23 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       streamingMessageContext.composedMessage = newMessages as Message[]
 
+      appendAlicizationRendererChatTrace('beforeSend.started', {
+        sessionId,
+        turnId,
+        elapsedMs: Date.now() - sendStartedAt,
+      })
       await hooks.emitAfterMessageComposedHooks(sendingMessage, streamingMessageContext)
+      appendAlicizationRendererChatTrace('afterMessageComposed.settled', {
+        sessionId,
+        turnId,
+        elapsedMs: Date.now() - sendStartedAt,
+      })
       await hooks.emitBeforeSendHooks(sendingMessage, streamingMessageContext)
+      appendAlicizationRendererChatTrace('beforeSend.settled', {
+        sessionId,
+        turnId,
+        elapsedMs: Date.now() - sendStartedAt,
+      })
 
       if (shouldAbort())
         return
@@ -2977,6 +3005,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       let primaryStreamError: unknown
       try {
+        appendAlicizationRendererChatTrace('streamChat.started', {
+          sessionId,
+          turnId,
+          elapsedMs: Date.now() - sendStartedAt,
+          messageCount: newMessages.length,
+        })
         await streamWithRuntimeGateway(newMessages as Message[], {
           headers,
           tools: options.tools,
@@ -3205,8 +3239,19 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             }
           },
         })
+        appendAlicizationRendererChatTrace('streamChat.settled', {
+          sessionId,
+          turnId,
+          elapsedMs: Date.now() - sendStartedAt,
+        })
       }
       catch (error) {
+        appendAlicizationRendererChatTrace('streamChat.failed', {
+          sessionId,
+          turnId,
+          elapsedMs: Date.now() - sendStartedAt,
+          reason: error instanceof Error ? error.message : String(error),
+        })
         primaryStreamError = error
       }
 

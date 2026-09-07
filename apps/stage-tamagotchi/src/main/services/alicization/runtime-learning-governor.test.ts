@@ -26,6 +26,7 @@ describe('runtime learning governor', () => {
   })
 
   it('hydrates recent reflections and outcomes before scheduling organic learning', async () => {
+    const controller = new AbortController()
     const trackPhase = vi.fn(async (_phase, run) => await run())
     const scheduleOrganicLearningAction = vi.fn(async () => {})
 
@@ -35,6 +36,7 @@ describe('runtime learning governor', () => {
       } as any,
       cardId: 'default',
       turnId: 'turn-2',
+      signal: controller.signal,
       personaKernelMode: 'full',
       organicPromptContext: {
         hostAttitude: 'warm',
@@ -77,6 +79,44 @@ describe('runtime learning governor', () => {
         ]),
       }),
       turnId: 'turn-2',
+      signal: controller.signal,
     }))
+  })
+
+  it('passes the turn AbortSignal into reflection and outcome hydration', async () => {
+    const controller = new AbortController()
+    const listMemoryReflections = vi.fn(async () => [])
+    const listRelationshipOutcomes = vi.fn(async () => [])
+
+    await runOrganicLearningGovernor({
+      agentTurn: {
+        trackPhase: vi.fn(async (_phase, run) => await run()),
+      } as any,
+      cardId: 'default',
+      turnId: 'turn-signal',
+      signal: controller.signal,
+      personaKernelMode: 'full',
+      organicPromptContext: {
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      },
+      listMemoryReflections,
+      listRelationshipOutcomes,
+      scheduleOrganicLearningAction: vi.fn(async () => {}),
+    })
+
+    expect(listMemoryReflections).toHaveBeenCalledWith(
+      'default',
+      8,
+      { signal: controller.signal },
+    )
+    expect(listRelationshipOutcomes).toHaveBeenCalledWith(
+      'default',
+      8,
+      { signal: controller.signal },
+    )
   })
 })

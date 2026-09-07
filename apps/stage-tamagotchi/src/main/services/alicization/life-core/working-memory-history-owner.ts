@@ -112,14 +112,17 @@ function mapPersistedTurn(
 export function createWorkingMemoryHistoryOwner(options: {
   listConversationTurnsBySession: (
     sessionId: string,
-    options: { limit: number },
+    options: { limit: number, signal?: AbortSignal },
   ) => Promise<WorkingMemoryConversationTurnRecord[]>
 }) {
   return {
-    async loadFallback(sessionId: string) {
+    async loadFallback(sessionId: string, loadOptions?: { signal?: AbortSignal }) {
       const turns = await options.listConversationTurnsBySession(
         sessionId,
-        { limit: workingMemoryHistoryFallbackTurnBudget },
+        {
+          limit: workingMemoryHistoryFallbackTurnBudget,
+          ...(loadOptions?.signal ? { signal: loadOptions.signal } : {}),
+        },
       )
       return turns
         .slice(-workingMemoryHistoryFallbackTurnBudget)

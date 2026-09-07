@@ -21,12 +21,16 @@ function createMemoryRepository() {
   const examples: any[] = []
   const exports: any[] = []
   const active = new Map<string, string>()
+  let revokeCalls = 0
 
   return {
     datasets,
     examples,
     exports,
     active,
+    get revokeCalls() {
+      return revokeCalls
+    },
     repository: {
       listVersions: async (cardId: string) => datasets.filter(item => item.cardId === cardId),
       createVersion: async (input: any) => {
@@ -80,6 +84,7 @@ function createMemoryRepository() {
         sourceId: string
         sourceKind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
       }, at: number) => {
+        revokeCalls += 1
         let affected = 0
         for (const example of examples) {
           if (
@@ -816,6 +821,28 @@ describe('persona training dataset runtime', () => {
         allowTraining: true,
       }),
     ]))
+  })
+
+  it('does not start a dataset source revoke after cancellation', async () => {
+    const memory = createMemoryRepository()
+    const runtime = createPersonaTrainingDatasetRuntime({
+      repository: memory.repository,
+      now: () => 800,
+      randomUUID: () => 'uuid-cancelled-revoke',
+      listSources: async () => [],
+    })
+    const controller = new AbortController()
+    controller.abort(new DOMException('runtime shutdown', 'AbortError'))
+
+    await expect((runtime.revokeSource as any)({
+      cardId: 'card-a',
+      sourceId: 'reflection-cancelled',
+      sourceKind: 'cleaned-long-term-reflection',
+      signal: controller.signal,
+    })).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(memory.revokeCalls).toBe(0)
   })
 
   it('blocks runtime examples with unsupported source kinds before they reach the manifest', () => {

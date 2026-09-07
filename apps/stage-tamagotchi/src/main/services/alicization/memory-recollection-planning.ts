@@ -67,27 +67,29 @@ function resolvePlanningDeadline(input: OrganicMemoryRecollectionPlanningStageIn
   const budgetMs = Number.isFinite(input.plannerBudgetMs)
     ? Math.max(0, input.plannerBudgetMs ?? 0)
     : DEFAULT_REALTIME_RECOLLECTION_PLANNING_BUDGET_MS
-  return Date.now() + budgetMs
+  return performance.now() + budgetMs
 }
 
 function remainingPlanningBudgetMs(deadlineMs: number) {
-  return Math.max(0, deadlineMs - Date.now())
+  return Math.max(0, deadlineMs - performance.now())
 }
 
 async function runWithinPlanningBudget<T>(input: {
   deadlineMs: number
   run: () => Promise<T | null>
-}): Promise<T | null> {
+}): Promise<{ value: T | null, timedOut: boolean }> {
   const remainingMs = remainingPlanningBudgetMs(input.deadlineMs)
   if (remainingMs <= 0)
-    return null
+    return { value: null, timedOut: true }
 
   let timeout: ReturnType<typeof setTimeout> | null = null
   try {
     return await Promise.race([
-      input.run().catch(() => null),
-      new Promise<null>((resolve) => {
-        timeout = setTimeout(() => resolve(null), remainingMs)
+      input.run()
+        .then(value => ({ value, timedOut: false }))
+        .catch(() => ({ value: null, timedOut: false })),
+      new Promise<{ value: null, timedOut: true }>((resolve) => {
+        timeout = setTimeout(() => resolve({ value: null, timedOut: true }), remainingMs)
       }),
     ])
   }
@@ -100,7 +102,7 @@ async function runWithinPlanningBudget<T>(input: {
 export async function resolveOrganicMemoryRecollectionPlanningStage(input: OrganicMemoryRecollectionPlanningStageInput) {
   const planningDeadlineMs = resolvePlanningDeadline(input)
   const plannerStartedAt = Date.now()
-  const rawRecollectionPlan = input.activeRecollectionIntent && input.planMemoryRecollection && (
+  const recollectionPlanningResult = input.activeRecollectionIntent && input.planMemoryRecollection && (
     input.consolidatedMemories.length > 0
     || input.recollectedWindows.length > 0
     || input.proceduralMemories.length > 0
@@ -118,7 +120,8 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
           digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
         }),
       })
-    : null
+    : { value: null, timedOut: false }
+  const rawRecollectionPlan = recollectionPlanningResult.value
   const recollectionPlan = input.resolveRecollectionPlanSearch({
     recollectionIntent: input.activeRecollectionIntent,
     recollectionPlan: rawRecollectionPlan,
@@ -151,13 +154,16 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
   void input.recordMemoryPlannerLatency?.(Date.now() - plannerStartedAt).catch(() => {})
 
   const speechPlanStartedAt = Date.now()
-  const recollectionSpeechPlan = input.activeRecollectionIntent && input.planRecollectionSpeech && (
-    plannedConsolidatedMemories.length > 0
-    || plannedWindows.length > 0
-    || plannedProceduralMemories.length > 0
-    || plannedEpisodes.length > 0
-    || Boolean(recollectionPlan)
-  )
+  const recollectionSpeechPlanningResult = !recollectionPlanningResult.timedOut
+    && input.activeRecollectionIntent
+    && input.planRecollectionSpeech
+    && (
+      plannedConsolidatedMemories.length > 0
+      || plannedWindows.length > 0
+      || plannedProceduralMemories.length > 0
+      || plannedEpisodes.length > 0
+      || Boolean(recollectionPlan)
+    )
     ? await runWithinPlanningBudget({
         deadlineMs: planningDeadlineMs,
         run: async () => await input.planRecollectionSpeech!({
@@ -171,16 +177,21 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
           digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
         }),
       })
-    : null
+    : { value: null, timedOut: false }
+  const recollectionSpeechPlan = recollectionSpeechPlanningResult.value
   void input.recordMemorySpeechPlanLatency?.(Date.now() - speechPlanStartedAt).catch(() => {})
 
-  const rawMemoryDeliberation = input.activeRecollectionIntent && input.planMemoryDeliberation && (
-    plannedConsolidatedMemories.length > 0
-    || plannedWindows.length > 0
-    || plannedProceduralMemories.length > 0
-    || plannedEpisodes.length > 0
-    || Boolean(recollectionPlan)
-  )
+  const memoryDeliberationPlanningResult = !recollectionPlanningResult.timedOut
+    && !recollectionSpeechPlanningResult.timedOut
+    && input.activeRecollectionIntent
+    && input.planMemoryDeliberation
+    && (
+      plannedConsolidatedMemories.length > 0
+      || plannedWindows.length > 0
+      || plannedProceduralMemories.length > 0
+      || plannedEpisodes.length > 0
+      || Boolean(recollectionPlan)
+    )
     ? await runWithinPlanningBudget({
         deadlineMs: planningDeadlineMs,
         run: async () => await input.planMemoryDeliberation!({
@@ -195,7 +206,8 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
           digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
         }),
       })
-    : null
+    : { value: null, timedOut: false }
+  const rawMemoryDeliberation = memoryDeliberationPlanningResult.value
 
   const finalEraIds = new Set(
     (rawMemoryDeliberation?.selectedEraIds ?? []).map(normalizeMemoryPlanningId),

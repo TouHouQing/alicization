@@ -296,6 +296,7 @@ const memoryArchive = new Map<string, {
 const memoryIngestJournal = new Map<string, {
   id: string
   operation_kind: 'upsert-memory-facts' | 'append-episodic-events' | 'upsert-memory-consolidations'
+  card_id: string | null
   payload_json: string
   status: 'pending' | 'applied' | 'failed'
   attempt_count: number
@@ -544,11 +545,12 @@ class FakeSqliteDatabase {
     }
 
     if (sql.includes('INSERT INTO memory_ingest_journal')) {
-      const [id, operationKind, payloadJson, createdAt, updatedAt, nextAttemptAt]
-        = actualParams as [string, 'upsert-memory-facts' | 'append-episodic-events' | 'upsert-memory-consolidations', string, number, number, number]
+      const [id, operationKind, payloadJson, createdAt, updatedAt, nextAttemptAt, cardId]
+        = actualParams as [string, 'upsert-memory-facts' | 'append-episodic-events' | 'upsert-memory-consolidations', string, number, number, number, string | null]
       memoryIngestJournal.set(id, {
         id,
         operation_kind: operationKind,
+        card_id: cardId ?? null,
         payload_json: payloadJson,
         status: 'pending',
         attempt_count: 0,
@@ -2004,6 +2006,36 @@ vi.mock('./sqlite3-runtime', () => ({
 const actualSqliteModule = await vi.importActual<any>('sqlite3')
 const actualSqliteDriver = actualSqliteModule.default ?? actualSqliteModule
 
+function createBlockingMetaWriteSqliteDriver(input: {
+  blocked: { active: boolean }
+  released: Promise<void>
+}) {
+  return {
+    ...actualSqliteDriver,
+    Database: function BlockingMetaWriteDatabase(filepath: string, ...args: any[]) {
+      const database = new actualSqliteDriver.Database(filepath, ...args)
+      const originalRun = database.run.bind(database)
+      database.run = (...runArgs: any[]) => {
+        const [sql, params] = runArgs
+        if (
+          input.blocked.active
+          && typeof sql === 'string'
+          && sql.includes('INSERT INTO alicization_meta')
+          && Array.isArray(params)
+          && params[0] === 'queue-blocker'
+        ) {
+          void input.released.then(() => {
+            originalRun(...runArgs)
+          })
+          return database
+        }
+        return originalRun(...runArgs)
+      }
+      return database
+    },
+  }
+}
+
 function openActualSqlite(filepath: string) {
   return new Promise<any>((resolve, reject) => {
     const database = new actualSqliteDriver.Database(filepath, (error: Error | null) => {
@@ -2094,6 +2126,99 @@ describe('alicization sqlite dao', () => {
     expect(runCalls.some(sql => sql.includes('PRAGMA journal_mode = WAL'))).toBe(true)
     expect(runCalls.some(sql => sql.includes('PRAGMA busy_timeout = 2000'))).toBe(true)
     expect(await db.getJournalMode()).toBe('wal')
+    await db.close()
+  })
+
+  it('aborts a queued SQLite write without applying it after the queue head is released', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const blocked = { active: false }
+    let releaseBlockedWrite!: () => void
+    const released = new Promise<void>((resolve) => {
+      releaseBlockedWrite = resolve
+    })
+    const db = await setupAlicizationDb(userDataPath, {
+      sqliteDriver: createBlockingMetaWriteSqliteDriver({
+        blocked,
+        released,
+      }),
+    })
+    blocked.active = true
+
+    const blockedWrite = db.setMetaValue('queue-blocker', 'release me')
+    await new Promise<void>(resolve => setImmediate(resolve))
+
+    const controller = new AbortController()
+    const cancelledWrite = db.setMetaValue(
+      'queue-cancelled',
+      'must not be written',
+      { signal: controller.signal },
+    )
+    controller.abort(new DOMException('chat-preparation-timeout', 'AbortError'))
+
+    await expect(cancelledWrite).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+
+    releaseBlockedWrite()
+    await expect(blockedWrite).resolves.toBeUndefined()
+    await expect(db.getMetaValue('queue-cancelled')).resolves.toBeUndefined()
+    await db.close()
+  })
+
+  it('closes SQLite write admission before waiting for idle and rejects later writes', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+
+    await db.close()
+
+    await expect(db.setMetaValue('after-close', 'must not write')).rejects.toThrow(
+      'Alicization database is closing',
+    )
+  })
+
+  it('propagates cancellation into queued long-term reflection projection writes', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const blocked = { active: false }
+    let releaseBlockedWrite!: () => void
+    const released = new Promise<void>((resolve) => {
+      releaseBlockedWrite = resolve
+    })
+    const db = await setupAlicizationDb(userDataPath, {
+      sqliteDriver: createBlockingMetaWriteSqliteDriver({
+        blocked,
+        released,
+      }),
+    })
+    blocked.active = true
+
+    const blockedWrite = db.setMetaValue('queue-blocker', 'release me')
+    await new Promise<void>(resolve => setImmediate(resolve))
+
+    const controller = new AbortController()
+    const projectedWrite = (db as any).upsertMemoryReflections([{
+      cardId: 'default',
+      turnId: 'turn-aborted-projection',
+      sourceKind: 'reply',
+      targetScope: 'boundary',
+      summary: '这条反思不应在取消后写入',
+      lesson: '取消后不能继续投影',
+      status: 'confirmed',
+      confidence: 0.8,
+    }], { signal: controller.signal })
+    controller.abort(new DOMException('projection cancelled', 'AbortError'))
+
+    await expect(projectedWrite).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+
+    releaseBlockedWrite()
+    await expect(blockedWrite).resolves.toBeUndefined()
+    await expect(db.listMemoryReflections({
+      cardId: 'default',
+      limit: 8,
+      turnId: 'turn-aborted-projection',
+    })).resolves.toEqual([])
     await db.close()
   })
 
@@ -2716,6 +2841,150 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('keeps runtime tool scope lookup index-covered and bounded at single-session scale', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'runtime-scope-performance')
+    const dbPath = join(rootDir, 'alicization.db')
+    const initialDb = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      allowUnboundScope: true,
+      sqliteDriver: actualSqliteDriver,
+    })
+    await initialDb.close()
+
+    const database = await openActualSqlite(dbPath)
+    await runActualSqlite(database, `
+      WITH RECURSIVE event_rows(event_number) AS (
+        VALUES(1)
+        UNION ALL
+        SELECT event_number + 1
+        FROM event_rows
+        WHERE event_number < 5000
+      )
+      INSERT INTO alicization_runtime_events (
+        event_id,
+        event_type,
+        schema_version,
+        sequence,
+        turn_id,
+        card_id,
+        user_id,
+        conversation_id,
+        source,
+        causation_id,
+        correlation_id,
+        idempotency_key,
+        occurred_at,
+        payload_json
+      )
+      SELECT
+        printf('event-%05d', event_number),
+        CASE
+          WHEN event_number % 25 = 0 THEN 'model.tool_call.proposed'
+          ELSE 'context.assembly.completed'
+        END,
+        1,
+        ((event_number - 1) % 25) + 1,
+        printf('turn-%04d', CAST((event_number - 1) / 25 AS INTEGER)),
+        'card-runtime-scale',
+        'user-runtime-scale',
+        'conversation-runtime-scale',
+        'runtime',
+        NULL,
+        printf('turn-%04d', CAST((event_number - 1) / 25 AS INTEGER)),
+        NULL,
+        event_number,
+        '{}'
+      FROM event_rows
+    `)
+    const runtimeEventIndexes = await allActualSqlite<{ name: string }>(
+      database,
+      'PRAGMA index_list(alicization_runtime_events)',
+    )
+    const scopeIndexColumns = await allActualSqlite<{ name: string }>(
+      database,
+      'PRAGMA index_info(idx_runtime_events_scope_turn_type_occurred)',
+    )
+    const scopeQueryPlan = await allActualSqlite<{ detail: string }>(
+      database,
+      `
+      EXPLAIN QUERY PLAN
+      SELECT
+        turn_id,
+        MIN(occurred_at) AS started_at,
+        MAX(occurred_at) AS updated_at,
+        SUM(
+          CASE
+            WHEN event_type IN (?) THEN 1
+            ELSE 0
+          END
+        ) AS matching_event_count
+      FROM alicization_runtime_events
+      WHERE user_id = ?
+        AND card_id = ?
+        AND conversation_id = ?
+      GROUP BY turn_id
+      HAVING matching_event_count > 0
+      `,
+      [
+        'model.tool_call.proposed',
+        'user-runtime-scale',
+        'card-runtime-scale',
+        'conversation-runtime-scale',
+      ],
+    )
+    await closeActualSqlite(database)
+
+    expect(runtimeEventIndexes.map(index => index.name))
+      .toContain('idx_runtime_events_scope_turn_type_occurred')
+    expect(scopeIndexColumns.map(column => column.name)).toEqual([
+      'user_id',
+      'card_id',
+      'conversation_id',
+      'turn_id',
+      'event_type',
+      'occurred_at',
+    ])
+    expect(scopeQueryPlan.some(row => row.detail.includes('USING COVERING INDEX idx_runtime_events_scope_turn_type_occurred'))).toBe(true)
+    expect(scopeQueryPlan.some(row => row.detail.includes('CORRELATED SCALAR SUBQUERY'))).toBe(false)
+
+    const reopenedDb = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      allowUnboundScope: true,
+      sqliteDriver: actualSqliteDriver,
+    })
+    try {
+      const startedAt = performance.now()
+      const scopes = await reopenedDb.listRuntimeEventScopes({
+        cardId: 'card-runtime-scale',
+        userId: 'user-runtime-scale',
+        conversationId: 'conversation-runtime-scale',
+        eventTypes: ['model.tool_call.proposed'],
+        limit: 200,
+      })
+      const elapsedMs = performance.now() - startedAt
+
+      expect(scopes).toHaveLength(200)
+      expect(scopes[0]).toEqual(expect.objectContaining({
+        turnId: 'turn-0000',
+        cardId: 'card-runtime-scale',
+        userId: 'user-runtime-scale',
+        conversationId: 'conversation-runtime-scale',
+        startedAt: 1,
+        updatedAt: 25,
+      }))
+      expect(scopes.at(-1)).toEqual(expect.objectContaining({
+        turnId: 'turn-0199',
+        startedAt: 4_976,
+        updatedAt: 5_000,
+      }))
+      expect(elapsedMs).toBeLessThan(750)
+    }
+    finally {
+      await reopenedDb.close()
+    }
+  })
+
   it('rejects an unbound database outside explicit migration/test scope', async () => {
     await expect(setupAlicizationDb(await createSandboxUserDataPath(), {
       allowUnboundScope: false,
@@ -3211,6 +3480,259 @@ describe('alicization sqlite dao', () => {
       { card_id: 'card-a', source: 'long_term_memory', source_id: 'shared-source-id' },
       { card_id: 'card-b', source: 'long_term_memory', source_id: 'shared-source-id' },
     ])
+  })
+
+  it('keeps shared unbound WorkingMemory projections in their source card scope', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations')
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      allowUnboundScope: true,
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+
+    const enqueuePreference = async (input: {
+      cardId: string
+      queueItemId: string
+      summary: string
+    }) => {
+      await db.enqueueWorkingMemoryLongTermQueueItems({
+        cardId: input.cardId,
+        sessionId: `session-${input.cardId}`,
+        items: [{
+          id: input.queueItemId,
+          source: 'working-memory-owner',
+          memoryEvidence: {
+            version: 'working-memory-long-term-evidence-v1',
+            source: 'explicit-structured-memory-evidence',
+            kind: 'preference',
+            summary: input.summary,
+            reason: '用户明确表达了可持续使用的偏好。',
+            evidenceSnippets: [input.summary],
+            salience: 0.86,
+            sensitivity: 'personal',
+            confidence: 0.94,
+          },
+          kind: 'preference',
+          summary: input.summary,
+          reason: '用户明确表达了可持续使用的偏好。',
+          sourceTurnIds: [`turn-${input.cardId}:user`],
+          evidenceSnippets: [input.summary],
+          salience: 0.86,
+          confidence: 0.94,
+          sensitivity: 'personal',
+          allowTraining: false,
+          status: 'pending-cleaning',
+          rejectionReasons: [],
+          contaminationFlags: [],
+          createdAt: Date.now(),
+        }],
+      })
+    }
+
+    try {
+      await enqueuePreference({
+        cardId: 'card-a',
+        queueItemId: 'queue-card-a',
+        summary: 'card-a 用户喜欢安静的夜晚。',
+      })
+      await enqueuePreference({
+        cardId: 'card-b',
+        queueItemId: 'queue-card-b',
+        summary: 'card-b 用户喜欢明亮的早晨。',
+      })
+
+      await expect(db.drainWorkingMemoryLongTermQueue(8)).resolves.toEqual(expect.objectContaining({
+        applied: 2,
+        failed: 0,
+      }))
+
+      const database = await openActualSqlite(join(rootDir, 'alicization.db'))
+      const rows = await allActualSqlite<{
+        card_id: string
+        object: string
+      }>(
+        database,
+        `
+        SELECT card_id, object
+        FROM memory_facts
+        WHERE object IN (?, ?)
+        ORDER BY object ASC
+        `,
+        [
+          'card-a 用户喜欢安静的夜晚。',
+          'card-b 用户喜欢明亮的早晨。',
+        ],
+      )
+      await closeActualSqlite(database)
+
+      expect(rows).toEqual([
+        { card_id: 'card-a', object: 'card-a 用户喜欢安静的夜晚。' },
+        { card_id: 'card-b', object: 'card-b 用户喜欢明亮的早晨。' },
+      ])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('rejects WorkingMemory long-term queue recovery when its signal is already aborted', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations')
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      allowUnboundScope: true,
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+    const controller = new AbortController()
+    controller.abort(new DOMException('runtime shutdown', 'AbortError'))
+
+    try {
+      await expect(db.drainWorkingMemoryLongTermQueue(4, {
+        signal: controller.signal,
+      } as any)).rejects.toMatchObject({
+        name: 'AbortError',
+      })
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('requires explicit card scope for shared consolidation writes and searches', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations')
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      allowUnboundScope: true,
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+
+    const createRecord = (cardId: string) => ({
+      id: `${cardId}-consolidation`,
+      kind: 'daily' as const,
+      facet: null,
+      periodKey: `${cardId}-period`,
+      periodStartedAt: 1,
+      periodEndedAt: 2,
+      summary: `${cardId} only consolidation`,
+      lesson: `${cardId} only lesson`,
+      cues: [cardId],
+      confidence: 0.9,
+      dominantProvenance: 'remembered' as const,
+      derivedEventIds: [],
+      updatedAt: 2,
+    })
+
+    try {
+      await expect(db.upsertMemoryConsolidations([createRecord('card-a')])).rejects.toThrow('cardId')
+
+      await db.upsertMemoryConsolidations([createRecord('card-a')], 'card-a')
+      await db.upsertMemoryConsolidations([createRecord('card-b')], 'card-b')
+
+      await expect(db.listMemoryConsolidations(8)).rejects.toThrow('cardId')
+
+      const cardA = await db.listMemoryConsolidations(8, 'card-a')
+      const cardB = await db.searchMemoryConsolidations({
+        cardId: 'card-b',
+        query: 'only consolidation',
+        limit: 8,
+      })
+
+      expect(cardA.map(item => item.id)).toEqual(['card-a-consolidation'])
+      expect(cardB.map(item => item.id)).toEqual(['card-b-consolidation'])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('does not persist memory consolidations when their write signal is already aborted', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const controller = new AbortController()
+    controller.abort(new DOMException('runtime shutdown', 'AbortError'))
+
+    try {
+      await expect((db.upsertMemoryConsolidations as any)([{
+        id: 'cancelled-consolidation',
+        kind: 'daily',
+        facet: null,
+        periodKey: 'cancelled-period',
+        periodStartedAt: 1,
+        periodEndedAt: 2,
+        summary: 'This consolidation must not be written after shutdown.',
+        lesson: null,
+        cues: [],
+        confidence: 0.8,
+        dominantProvenance: 'remembered',
+        derivedEventIds: [],
+        updatedAt: 2,
+      }], 'default', {
+        signal: controller.signal,
+      })).rejects.toMatchObject({
+        name: 'AbortError',
+      })
+
+      await expect(db.searchMemoryConsolidations({
+        cardId: 'default',
+        query: 'must not be written',
+        limit: 8,
+      })).resolves.toEqual([])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('keeps bound memory stats episodic counts inside the active card', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations')
+    const sharedDb = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      allowUnboundScope: true,
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+
+    try {
+      await sharedDb.appendEpisodicEvents([
+        {
+          id: 'stats-card-a-event',
+          cardId: 'card-a',
+          sourceKind: 'reply',
+          provenance: 'observed',
+          occurredAt: 1,
+          whatHappened: 'card-a event',
+          confidence: 0.9,
+          salience: 0.8,
+        },
+        {
+          id: 'stats-card-b-event',
+          cardId: 'card-b',
+          sourceKind: 'reply',
+          provenance: 'observed',
+          occurredAt: 2,
+          whatHappened: 'card-b event',
+          confidence: 0.9,
+          salience: 0.8,
+        },
+      ])
+    }
+    finally {
+      await sharedDb.close()
+    }
+
+    const cardADb = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+    try {
+      const stats = await cardADb.getMemoryStats()
+      expect(stats.surfaceCounts?.episodic).toBe(1)
+    }
+    finally {
+      await cardADb.close()
+    }
   })
 
   it('clears only the active card conversation derivatives from a real sqlite database', async () => {
@@ -3899,7 +4421,7 @@ describe('alicization sqlite dao', () => {
       },
     ])
 
-    const before = await db.listMemoryConsolidations(8)
+    const before = await db.listMemoryConsolidations(8, 'card-1')
     expect(before[0]?.lesson).toContain('generic shell')
     expect(before[0]?.lesson).not.toContain('same thread should now be answered')
 
@@ -3924,7 +4446,7 @@ describe('alicization sqlite dao', () => {
       reconsolidationDecisionTraceId: 'mind:execution-callback:memory-refresh',
     })
 
-    const after = await db.listMemoryConsolidations(8)
+    const after = await db.listMemoryConsolidations(8, 'card-1')
     expect(after[0]?.lesson).toContain('same thread should now be answered with the richer identity-continuity')
     expect(after[0]?.summary).toContain('continuity state')
     await db.close()
@@ -4254,6 +4776,7 @@ describe('alicization sqlite dao', () => {
     ])
 
     const rows = await db.searchMemoryConsolidations({
+      cardId: 'card-1',
       query: 'what were we doing around runtime continuity',
       recollectionIntent: {
         mode: 'conversation-history',
@@ -4310,9 +4833,10 @@ describe('alicization sqlite dao', () => {
         derivedEventIds: ['event-2'],
         updatedAt: Date.now(),
       },
-    ])
+    ], 'default')
 
     const rows = await db.searchMemoryConsolidations({
+      cardId: 'default',
       query: 'how was our relationship around runtime repair',
       recollectionIntent: {
         mode: 'relationship-history',
@@ -4357,9 +4881,9 @@ describe('alicization sqlite dao', () => {
           },
         },
       },
-    ])
+    ], 'default')
 
-    const rows = await db.listMemoryConsolidations(8)
+    const rows = await db.listMemoryConsolidations(8, 'default')
     expect(rows[0]?.metadata).toEqual(expect.objectContaining({
       humanlikeCarry: expect.objectContaining({
         relationshipPrimaryIntent: 'respect-user-correction',
@@ -4558,6 +5082,7 @@ describe('alicization sqlite dao', () => {
     memoryIngestJournal.set('journal-fact-1', {
       id: 'journal-fact-1',
       operation_kind: 'upsert-memory-facts',
+      card_id: null,
       payload_json: JSON.stringify({
         kind: 'upsert-memory-facts',
         facts: [{
@@ -4598,6 +5123,7 @@ describe('alicization sqlite dao', () => {
     memoryIngestJournal.set('journal-invalid-1', {
       id: 'journal-invalid-1',
       operation_kind: 'upsert-memory-facts',
+      card_id: null,
       payload_json: '{"kind":"upsert-memory-facts","facts":"invalid"}',
       status: 'pending',
       attempt_count: 0,
@@ -4759,7 +5285,7 @@ describe('alicization sqlite dao', () => {
         modelId: 'semantic-only-embedding',
         dimensions: 3,
         vectorSpaceId: 'semantic-only-embedding:3',
-        embedTexts: async texts => texts.map(text => ({
+        embedTexts: async (texts: string[]) => texts.map((text: string) => ({
           text,
           vector: [1, 0, 0],
         })),
@@ -4948,6 +5474,216 @@ describe('alicization sqlite dao', () => {
     ]))
 
     await db.close()
+  })
+
+  it('assimilates WorkingMemory preference updates before projecting them into searchable facts', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+
+    const enqueuePreference = async (input: {
+      id: string
+      turnId: string
+      summary: string
+    }) => {
+      await db.enqueueWorkingMemoryLongTermQueueItems({
+        cardId: 'default',
+        sessionId: 'session-preference-update',
+        items: [{
+          id: input.id,
+          source: 'working-memory-owner',
+          memoryEvidence: {
+            version: 'working-memory-long-term-evidence-v1',
+            source: 'explicit-structured-memory-evidence',
+            kind: 'preference',
+            summary: input.summary,
+            reason: '用户明确表达了可持续使用的偏好。',
+            evidenceSnippets: [input.summary],
+            salience: 0.86,
+            sensitivity: 'personal',
+            confidence: 0.94,
+          },
+          kind: 'preference',
+          summary: input.summary,
+          reason: '用户明确表达了可持续使用的偏好。',
+          sourceTurnIds: [input.turnId],
+          evidenceSnippets: [input.summary],
+          salience: 0.86,
+          confidence: 0.94,
+          sensitivity: 'personal',
+          allowTraining: false,
+          status: 'pending-cleaning',
+          rejectionReasons: [],
+          contaminationFlags: [],
+          createdAt: 2_000,
+        }],
+      })
+    }
+
+    try {
+      await enqueuePreference({
+        id: 'queue-preference-evening',
+        turnId: 'turn-preference-evening:user',
+        summary: '用户喜欢在晚上安静地工作。',
+      })
+      expect(await db.drainWorkingMemoryLongTermQueue(4)).toEqual(expect.objectContaining({
+        applied: 1,
+        failed: 0,
+      }))
+
+      await enqueuePreference({
+        id: 'queue-preference-morning',
+        turnId: 'turn-preference-morning:user',
+        summary: '用户更喜欢早上工作。',
+      })
+      expect(await db.drainWorkingMemoryLongTermQueue(4)).toEqual(expect.objectContaining({
+        applied: 1,
+        failed: 0,
+      }))
+
+      const facts = await db.listMemoryFacts()
+      expect(facts).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          object: '用户更喜欢早上工作。',
+          validationStatus: 'provisional',
+        }),
+        expect.objectContaining({
+          object: '用户喜欢在晚上安静地工作。',
+          validationStatus: 'superseded',
+        }),
+      ]))
+
+      const page = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query: '工作',
+        limit: 8,
+      })
+      expect(page.items).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          summary: expect.stringContaining('用户更喜欢早上工作。'),
+        }),
+      ]))
+      expect(page.items).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          summary: expect.stringContaining('用户喜欢在晚上安静地工作。'),
+        }),
+      ]))
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('tombstones the old episodic fact when a WorkingMemory correction writes the replacement claim', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'default',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+
+    try {
+      await db.appendEpisodicEvents([{
+        id: 'episode-project-accent-blue',
+        cardId: 'default',
+        sessionId: 'session-project-memory',
+        turnId: 'turn-project-blue:user',
+        sourceKind: 'reply',
+        provenance: 'remembered',
+        occurredAt: 2_000,
+        whatHappened: '项目界面强调色是蓝色。',
+        confidence: 0.9,
+        salience: 0.86,
+        consolidationPriority: 0.82,
+      }])
+
+      const before = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query: '项目界面强调色',
+        limit: 16,
+      })
+      expect(before.items).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          source: 'episodic_events',
+          id: 'episode-project-accent-blue',
+          summary: expect.stringContaining('蓝色'),
+        }),
+      ]))
+
+      await db.enqueueWorkingMemoryLongTermQueueItems({
+        cardId: 'default',
+        sessionId: 'session-project-memory',
+        items: [{
+          id: 'queue-project-accent-green',
+          source: 'working-memory-owner',
+          kind: 'correction',
+          summary: '项目界面强调色现在是绿色。',
+          reason: '用户明确纠正了之前的长期记忆事实。',
+          sourceTurnIds: ['turn-project-green:user'],
+          evidenceSnippets: ['更正一下：项目界面强调色已经从蓝色改成绿色，蓝色是旧信息。'],
+          salience: 0.94,
+          confidence: 0.98,
+          sensitivity: 'personal',
+          allowTraining: false,
+          status: 'pending-cleaning',
+          rejectionReasons: [],
+          contaminationFlags: [],
+          createdAt: 3_000,
+          memoryEvidence: {
+            version: 'working-memory-long-term-evidence-v1',
+            source: 'explicit-structured-memory-evidence',
+            kind: 'correction',
+            summary: '项目界面强调色现在是绿色。',
+            reason: '用户明确纠正了之前的长期记忆事实。',
+            evidenceSnippets: ['更正一下：项目界面强调色已经从蓝色改成绿色，蓝色是旧信息。'],
+            salience: 0.94,
+            sensitivity: 'personal',
+            confidence: 0.98,
+            supersedesText: ['蓝色'],
+            claim: {
+              subject: '项目界面强调色',
+              predicate: 'is',
+              object: '绿色',
+            },
+          },
+        }],
+      })
+
+      await expect(db.drainWorkingMemoryLongTermQueue(4)).resolves.toEqual(expect.objectContaining({
+        applied: 1,
+        failed: 0,
+      }))
+
+      const after = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        query: '项目界面强调色',
+        limit: 16,
+      })
+      expect(after.items).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          source: 'memory_facts',
+          summary: expect.stringContaining('绿色'),
+        }),
+      ]))
+      expect(after.items).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          source: 'episodic_events',
+          id: 'episode-project-accent-blue',
+        }),
+      ]))
+
+      const tombstones = await db.listMemoryWorkbenchTombstones({
+        cardId: 'default',
+        limit: 16,
+      })
+      expect(tombstones.items).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'episode-project-accent-blue',
+          source: 'episodic_events',
+        }),
+      ]))
+    }
+    finally {
+      await db.close()
+    }
   })
 
   it('governs WorkingMemory cleaning failures through retryable and dead-letter states without exposing them as confirmed memory', async () => {
@@ -5177,6 +5913,26 @@ describe('alicization sqlite dao', () => {
     ]))
 
     await db.close()
+  })
+
+  it('rejects a scoped WorkingMemory drain when deferred memory shutdown is aborted', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const controller = new AbortController()
+    controller.abort(new DOMException('runtime shutdown', 'AbortError'))
+
+    try {
+      await expect(db.drainWorkingMemoryLongTermQueueScoped({
+        cardId: 'default',
+        sessionId: 'session-current',
+        queueItemIds: ['queue-current-session'],
+        signal: controller.signal,
+      } as any)).rejects.toMatchObject({
+        name: 'AbortError',
+      })
+    }
+    finally {
+      await db.close()
+    }
   })
 
   it('settles a canonical WorkingMemory queue id from long candidate input without reporting missing', async () => {
@@ -5706,6 +6462,119 @@ describe('alicization sqlite dao', () => {
     }
   })
 
+  it('recalls a persisted fact for an abstract recent-activity question after compression', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'default',
+      sqliteDriver: actualSqliteDriver,
+      embeddingProvider: {
+        modelId: 'abstract-recall-embedding',
+        dimensions: 3,
+        vectorSpaceId: 'abstract-recall-embedding:3',
+        embedTexts: async (texts: string[]) => texts.map((text: string) => ({
+          text,
+          vector: [1, 0, 0],
+        })),
+      },
+    } as any)
+
+    try {
+      await db.upsertMemoryFacts([{
+        subject: 'user',
+        predicate: 'works_on',
+        object: 'Alicization 本地数字生命项目',
+        confidence: 0.94,
+        memoryDomain: 'world-model',
+        validationStatus: 'provisional',
+      }], 'rule')
+
+      let embeddingHealth = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
+      const embeddingDeadline = Date.now() + 5_000
+      while (
+        Date.now() < embeddingDeadline
+        && (embeddingHealth.reindexRequired || embeddingHealth.indexedCount < 1)
+      ) {
+        await new Promise(resolve => setTimeout(resolve, 10))
+        embeddingHealth = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
+      }
+
+      const recalled = await db.retrieveLongTermMemoryEvidence({
+        cardId: 'default',
+        userId: 'local-user',
+        currentUserText: '你能回忆一下我最近在做的事吗？',
+        limit: 8,
+      })
+
+      expect(embeddingHealth.searchReady).toBe(true)
+      expect(recalled.intent.shouldRecall).toBe(true)
+      expect(recalled.evidence).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          candidate: expect.objectContaining({
+            source: 'memory_facts',
+            summary: expect.stringContaining('Alicization'),
+          }),
+        }),
+      ]))
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('aborts an in-flight semantic recall through the embedding provider', async () => {
+    const controller = new AbortController()
+    const timeoutReason = new DOMException('chat-preparation-timeout', 'AbortError')
+    let resolveEmbeddingStarted!: () => void
+    const embeddingStarted = new Promise<void>((resolve) => {
+      resolveEmbeddingStarted = resolve
+    })
+    let observedSignal: AbortSignal | undefined
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'default',
+      sqliteDriver: actualSqliteDriver,
+      embeddingProvider: {
+        modelId: 'abortable-recall-embedding',
+        dimensions: 3,
+        vectorSpaceId: 'abortable-recall-embedding:3',
+        embedTexts: async (texts: string[], signal?: AbortSignal) => {
+          if (signal) {
+            observedSignal = signal
+            resolveEmbeddingStarted()
+            await new Promise<void>((_resolve, reject) => {
+              if (signal.aborted) {
+                reject(signal.reason)
+                return
+              }
+              signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+            })
+          }
+          return texts.map(text => ({
+            text,
+            vector: [1, 0, 0],
+          }))
+        },
+      },
+    } as any)
+
+    try {
+      const recall = db.retrieveLongTermMemoryEvidence({
+        cardId: 'default',
+        userId: 'local-user',
+        currentUserText: '我刚才说我喜欢什么颜色？',
+        limit: 8,
+        signal: controller.signal,
+      })
+
+      await embeddingStarted
+      expect(observedSignal).toBe(controller.signal)
+      controller.abort(timeoutReason)
+
+      await expect(recall).rejects.toBe(timeoutReason)
+    }
+    finally {
+      await db.close()
+    }
+  })
+
   it('keeps concurrent read-only recalls isolated on one sqlite connection', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
       cardId: 'default',
@@ -5863,6 +6732,7 @@ describe('alicization sqlite dao', () => {
     memoryIngestJournal.set('journal-invalid-visible', {
       id: 'journal-invalid-visible',
       operation_kind: 'upsert-memory-facts',
+      card_id: null,
       payload_json: '{"kind":"upsert-memory-facts","facts":"invalid"}',
       status: 'failed',
       attempt_count: 1,
@@ -5972,6 +6842,7 @@ describe('alicization sqlite dao', () => {
     memoryIngestJournal.set('journal-failed-future', {
       id: 'journal-failed-future',
       operation_kind: 'upsert-memory-facts',
+      card_id: null,
       payload_json: JSON.stringify({
         kind: 'upsert-memory-facts',
         facts: [{

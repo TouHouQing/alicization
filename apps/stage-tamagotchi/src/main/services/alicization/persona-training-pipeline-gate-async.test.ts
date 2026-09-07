@@ -1,7 +1,7 @@
 import type { AlicizationPersonaTrainingArtifact } from '@proj-alicization/stage-shared'
 
 import type {
-  PersonaTrainingDatasetManifest,
+  PersonaTrainingDatasetExample,
   PersonaTrainingDatasetRuntime,
   PersonaTrainingDatasetVersion,
 } from './persona-training-dataset-runtime'
@@ -12,8 +12,11 @@ import type {
   PersonaTrainingPipelineRunRecord,
 } from './persona-training-pipeline-gate'
 
+import { createHash } from 'node:crypto'
+
 import { describe, expect, it, vi } from 'vitest'
 
+import { buildPersonaTrainingDatasetManifest } from './persona-training-dataset-runtime'
 import {
   createPersonaTrainingPipelineGate,
   PersonaTrainingExecutorArtifactError,
@@ -65,43 +68,68 @@ function createDataset(): PersonaTrainingDatasetVersion {
   }
 }
 
-function createManifest(): PersonaTrainingDatasetManifest {
-  return {
-    datasetId: 'dataset-1',
-    cardId: 'card-a',
-    version: 1,
-    schemaVersion: 'persona-training-dataset-v1',
-    exportedAt: 100,
+function personaTrainingExampleHash(
+  example: Pick<
+    PersonaTrainingDatasetExample,
+    'schemaVersion' | 'behaviorLesson' | 'positiveExample' | 'negativeExample' | 'sourceKind'
+  >,
+) {
+  return createHash('sha256')
+    .update(JSON.stringify({
+      schemaVersion: example.schemaVersion,
+      behaviorLesson: example.behaviorLesson,
+      negativeExample: example.negativeExample,
+      positiveExample: example.positiveExample,
+      sourceKind: example.sourceKind,
+    }))
+    .digest('hex')
+}
+
+function createDatasetExample(dataset: PersonaTrainingDatasetVersion): PersonaTrainingDatasetExample {
+  const example = {
+    id: 'example-1',
+    datasetId: dataset.id,
+    cardId: dataset.cardId,
+    schemaVersion: 'persona-training-example-v1',
+    sourceId: 'reflection-1',
+    sourceKind: 'cleaned-long-term-reflection' as const,
+    behaviorLesson: '失败时透明说明。',
+    positiveExample: '我会直接说明失败原因。',
+    negativeExample: null,
+    sensitivity: 'personal',
+    piiStatus: 'clear' as const,
+    piiReason: null,
     consentSnapshot: consent,
-    exampleCount: 1,
-    examples: [{
-      id: 'example-1',
-      sourceId: 'reflection-1',
-      sourceKind: 'cleaned-long-term-reflection',
-      schemaVersion: 'persona-training-example-v1',
-      contentHash: 'hash-1',
-      provenance: {
-        kind: 'working-memory-cleaning',
-        cleaningTransactionId: 'cleaning-1',
-        cleanedAt: 99,
-      },
-      behaviorLesson: '失败时透明说明。',
-      positiveExample: '我会直接说明失败原因。',
-      negativeExample: null,
-    }],
-    manifestHash: 'manifest-hash-1',
+    provenance: {
+      kind: 'working-memory-cleaning' as const,
+      cleaningTransactionId: 'cleaning-1',
+      cleanedAt: 99,
+    },
+    allowTraining: true,
+    state: 'staged' as const,
+    createdAt: 100,
+    revokedAt: null,
+  }
+  return {
+    ...example,
+    contentHash: personaTrainingExampleHash(example),
   }
 }
 
 function createDatasetRuntime(): PersonaTrainingDatasetRuntime {
   const dataset = createDataset()
-  const manifest = createManifest()
+  const examples = [createDatasetExample(dataset)]
+  const manifest = buildPersonaTrainingDatasetManifest({
+    dataset,
+    examples,
+    exportedAt: 100,
+  })
   return {
     stageVersion: async () => dataset,
     getSnapshot: async () => ({
       activeVersionId: dataset.id,
       versions: [dataset],
-      examples: [],
+      examples,
     }),
     exportVersion: async () => ({
       dataset,

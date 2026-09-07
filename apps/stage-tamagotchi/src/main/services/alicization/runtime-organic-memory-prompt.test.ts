@@ -38,6 +38,205 @@ function readOrganicMemoryProviderFact<T = Record<string, any>>(blocks: string[]
 }
 
 describe('runtime-organic-memory-prompt', () => {
+  it('passes the turn signal through retrieval policy and long-term candidate owners', async () => {
+    const controller = new AbortController()
+    const resolveTurnRetrievalPolicySnapshot = vi.fn(async () => ({
+      policy: {
+        reasonCodes: [],
+      },
+      plan: {
+        budgetClass: 'realtime-reply',
+        prewarmKey: null,
+      },
+      telemetry: null,
+    } as any))
+    const recallEpisodicEventsWithGovernor = vi.fn(async () => [])
+    const recallMemoryConsolidations = vi.fn(async () => [])
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText,
+      selectPromptActiveThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'focused',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor,
+      buildHostPersonModel: async () => null,
+      recallMemoryConsolidations,
+      resolveTurnRetrievalPolicySnapshot,
+      planRecollectionIntent: async () => null,
+      planMemoryRecollection: async () => null,
+      planRecollectionSpeech: async () => null,
+      planMemoryDeliberation: async () => null,
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '继续昨天的数据库迁移',
+      recallGovernor: {
+        recollectionIntent: {
+          mode: 'experience-pattern',
+          temporalFocus: 'recent',
+          searchEpisodes: true,
+          searchProceduralExperience: true,
+          queryHints: ['数据库迁移'],
+          rationale: '继续已有任务经验。',
+          confidence: 0.8,
+        },
+      } as any,
+      signal: controller.signal,
+    })
+
+    expect(resolveTurnRetrievalPolicySnapshot).toHaveBeenCalledWith(expect.objectContaining({
+      signal: controller.signal,
+    }))
+    expect(recallEpisodicEventsWithGovernor).toHaveBeenCalledWith(expect.objectContaining({
+      signal: controller.signal,
+    }))
+    expect(recallMemoryConsolidations).toHaveBeenCalledWith(expect.objectContaining({
+      signal: controller.signal,
+    }))
+  })
+
+  it('reuses the turn retrieval policy snapshot instead of resolving the same owner twice', async () => {
+    const retrievalPolicySnapshot = {
+      policy: {
+        reasonCodes: [],
+      },
+      plan: {
+        budgetClass: 'realtime-reply',
+        prewarmKey: 'memory-prewarm:turn-policy',
+      },
+      telemetry: null,
+    } as any
+    const resolveTurnRetrievalPolicySnapshot = vi.fn(async () => {
+      throw new Error('retrieval policy owner must not run twice')
+    })
+    const recallEpisodicEventsWithGovernor = vi.fn(async () => [])
+    const recallMemoryConsolidations = vi.fn(async () => [])
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText,
+      selectPromptActiveThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'focused',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor,
+      buildHostPersonModel: async () => null,
+      recallMemoryConsolidations,
+      resolveTurnRetrievalPolicySnapshot,
+      planRecollectionIntent: async () => null,
+      planMemoryRecollection: async () => null,
+      planRecollectionSpeech: async () => null,
+      planMemoryDeliberation: async () => null,
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '继续昨天的数据库迁移',
+      recallGovernor: {
+        recollectionIntent: {
+          mode: 'experience-pattern',
+          temporalFocus: 'recent',
+          searchEpisodes: true,
+          searchProceduralExperience: true,
+          queryHints: ['数据库迁移'],
+          rationale: '继续已有任务经验。',
+          confidence: 0.8,
+        },
+      } as any,
+      retrievalPolicySnapshot,
+    } as any)
+
+    expect(resolveTurnRetrievalPolicySnapshot).not.toHaveBeenCalled()
+    expect(recallEpisodicEventsWithGovernor).toHaveBeenCalledWith(expect.objectContaining({
+      retrievalPolicySnapshot,
+    }))
+    expect(recallMemoryConsolidations).toHaveBeenCalledWith(expect.objectContaining({
+      retrievalPolicySnapshot,
+    }))
+  })
+
+  it('uses the lightweight prompt snapshot instead of rebuilding the full organic memory snapshot', async () => {
+    const getOrganicMemorySnapshot = vi.fn(async () => {
+      throw new Error('full organic memory snapshot must stay off the realtime prompt path')
+    })
+    const getOrganicMemoryPromptSnapshot = vi.fn(async () => ({
+      hostAttitude: 'focused',
+      coreIncarnation: 'local digital life',
+      activeThoughts: [],
+      learningExecutionState: null,
+    }))
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText,
+      selectPromptActiveThoughts,
+      getOrganicMemorySnapshot,
+      getOrganicMemoryPromptSnapshot,
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [],
+      buildHostPersonModel: async () => null,
+      recallMemoryConsolidations: async () => [],
+      planRecollectionIntent: async () => null,
+      planMemoryRecollection: async () => null,
+      planRecollectionSpeech: async () => null,
+      planMemoryDeliberation: async () => null,
+      isPersonaResidueMemoryText: () => false,
+    } as any)
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '你好',
+    })
+
+    expect(getOrganicMemoryPromptSnapshot).toHaveBeenCalledOnce()
+    expect(getOrganicMemorySnapshot).not.toHaveBeenCalled()
+    expect(context.coreIncarnation).toBe('local digital life')
+  })
+
+  it('stops before candidate retrieval when the memory prelude aborts', async () => {
+    const controller = new AbortController()
+    const recallMemoryConsolidations = vi.fn(async () => [])
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText,
+      selectPromptActiveThoughts,
+      getOrganicMemorySnapshot: async () => {
+        controller.abort(new DOMException('memory prelude cancelled', 'AbortError'))
+        return {
+          hostAttitude: 'focused',
+          coreIncarnation: '',
+          activeThoughts: [],
+        }
+      },
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [],
+      buildHostPersonModel: async () => null,
+      recallMemoryConsolidations,
+      planRecollectionIntent: async () => null,
+      planMemoryRecollection: async () => null,
+      planRecollectionSpeech: async () => null,
+      planMemoryDeliberation: async () => null,
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    await expect(runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '继续昨天的数据库迁移',
+      signal: controller.signal,
+    })).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(recallMemoryConsolidations).not.toHaveBeenCalled()
+  })
+
   it('queries and carries only confirmed memory reflections into organic runtime state', async () => {
     const listMemoryReflections = vi.fn(async () => [
       {
@@ -962,14 +1161,14 @@ describe('runtime-organic-memory-prompt', () => {
       runtime.buildOrganicMemoryProviderFactBlocks(context),
       'alicization-long-term-memory-recall',
     )
-    expect(recallFact?.recollectionIntent?.agenda).toEqual(expect.objectContaining({
-      candidateTimeScopes: expect.arrayContaining([
-        expect.objectContaining({ scope: 'experience-matched', weight: 0.96 }),
-      ]),
-      candidateEraFacets: expect.arrayContaining([
-        expect.objectContaining({ facet: 'task-era', weight: 0.94 }),
+    expect(recallFact).toEqual(expect.objectContaining({
+      owner: 'LongTermMemoryRecall',
+      consolidatedMemories: expect.arrayContaining([
+        expect.objectContaining({ id: 'task-era-runtime' }),
       ]),
     }))
+    expect(recallFact).not.toHaveProperty('recollectionIntent')
+    expect(recallFact).not.toHaveProperty('selection')
   })
 
   it('lets remembered boundary and trust cues reorder task-era candidates toward the lived grounded repair style', async () => {
@@ -1512,13 +1711,13 @@ describe('runtime-organic-memory-prompt', () => {
     const blocks = runtime.buildOrganicMemoryProviderFactBlocks(context)
     const recallFact = readOrganicMemoryProviderFact(blocks, 'alicization-long-term-memory-recall')
 
-    expect(recallFact?.selection?.speech).toEqual({
-      shouldSurface: false,
-      surfaceMode: 'internal-only',
-      placement: 'internal-only',
-      certainty: 'approximate',
-      confidence: 0.84,
-    })
+    expect(recallFact).toEqual(expect.objectContaining({
+      owner: 'LongTermMemoryRecall',
+      consolidatedMemories: expect.arrayContaining([
+        expect.objectContaining({ id: 'consolidation-runtime' }),
+      ]),
+    }))
+    expect(recallFact).not.toHaveProperty('selection')
     expect(JSON.stringify(recallFact)).not.toMatch(/"opening"/u)
   })
 
@@ -1722,15 +1921,16 @@ describe('runtime-organic-memory-prompt', () => {
       runtime.buildOrganicMemoryProviderFactBlocks(context),
       'alicization-long-term-memory-recall',
     )
-    expect(recallFact?.selection?.deliberation).toEqual(expect.objectContaining({
-      shouldRecall: true,
-      surfacePolicy: 'answer-anchoring',
-      selectedPeriods: expect.arrayContaining([
-        expect.objectContaining({ id: 'consolidation-runtime', kind: 'consolidation' }),
+    expect(recallFact).toEqual(expect.objectContaining({
+      owner: 'LongTermMemoryRecall',
+      consolidatedMemories: expect.arrayContaining([
+        expect.objectContaining({ id: 'consolidation-runtime' }),
       ]),
-      selectedBundles: [],
-      selectedChains: [],
+      recalledEpisodes: expect.arrayContaining([
+        expect.objectContaining({ id: 'episode-runtime' }),
+      ]),
     }))
+    expect(recallFact).not.toHaveProperty('selection')
     expect(JSON.stringify(recallFact)).not.toMatch(/bundle-runtime|chain-runtime|currentStance|answerPosture|why_withheld|must_do|must_not_do/u)
   })
 
@@ -3462,14 +3662,7 @@ describe('runtime-organic-memory-prompt', () => {
       providerFactBlocks,
       'alicization-long-term-memory-recall',
     )
-    expect(recallFact).toEqual(expect.objectContaining({
-      owner: 'LongTermMemoryRecall',
-      surface: expect.objectContaining({
-        retrievalQuality: context.memoryResolutionLedger?.retrievalQuality,
-        visibleCarryMode: context.memoryResolutionLedger?.visibleCarryMode,
-        shouldStayInward: context.memoryResolutionLedger?.shouldStayInward,
-      }),
-    }))
+    expect(recallFact).toBeNull()
   })
 
   it('keeps host room-first repair memory available without overriding provider-authored surface policy', async () => {
@@ -3787,11 +3980,13 @@ describe('runtime-organic-memory-prompt', () => {
     }))
     expect(context.memoryDeliberation?.selectedEpisodeIds).toContain('episode-embodiment-correction')
     expect(context.memoryDeliberation?.ambiguityPosture).toBe('approximate')
-    expect(recallFact?.selection?.deliberation).toEqual(expect.objectContaining({
-      selectedEpisodeIds: ['episode-embodiment-correction'],
-      ambiguityPosture: 'approximate',
-      conflictSeverity: 'medium',
+    expect(recallFact).toEqual(expect.objectContaining({
+      owner: 'LongTermMemoryRecall',
+      recalledEpisodes: expect.arrayContaining([
+        expect.objectContaining({ id: 'episode-embodiment-correction' }),
+      ]),
     }))
+    expect(recallFact).not.toHaveProperty('selection')
   })
 
   it('lets stale self-model suppression pressure demote older self-era clusters before newer self continuity', async () => {

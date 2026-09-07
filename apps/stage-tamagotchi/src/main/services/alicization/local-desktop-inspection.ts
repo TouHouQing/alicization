@@ -207,6 +207,16 @@ function clampConfidence(raw: number) {
   return Math.max(0, Math.min(1, Number(raw.toFixed(2))))
 }
 
+function compactOptionalRecord<T extends object>(
+  value: T | null | undefined,
+): T | null {
+  if (!value)
+    return null
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => item !== undefined),
+  ) as T
+}
+
 function buildExecutionStrategyPrompt(input: {
   focusTarget?: {
     appName?: string
@@ -4229,6 +4239,8 @@ export function buildAlicizationDesktopInspectionSceneSnapshot(input: {
   url?: string | null
   workflowState?: AlicizationPerceptionBrowserWorkflowState | null
 }): AlicizationLocalDesktopInspectionSceneSnapshot {
+  const focusTarget = compactOptionalRecord(input.focusTarget)
+  const foregroundWindow = compactOptionalRecord(input.foregroundWindow)
   const interactables = Array.isArray(input.interactables)
     ? input.interactables
     : []
@@ -4236,8 +4248,8 @@ export function buildAlicizationDesktopInspectionSceneSnapshot(input: {
   const guiStructure = buildAlicizationDesktopInspectionGuiStructure(interactables)
   const browserChromeFocusShift = looksLikeBrowserChromeFocusShift({
     browserPageContext,
-    focusTarget: input.focusTarget,
-    foregroundWindow: input.foregroundWindow,
+    focusTarget,
+    foregroundWindow,
     guiStructure,
     question: input.question ?? null,
     summary: input.summary,
@@ -4249,13 +4261,13 @@ export function buildAlicizationDesktopInspectionSceneSnapshot(input: {
         summary: input.summary,
       })
   const desktopDialogVisible = isBrowserLike({
-    focusTarget: input.focusTarget,
-    foregroundWindow: input.foregroundWindow,
+    focusTarget,
+    foregroundWindow,
     summary: input.summary,
   }) && looksLikeDesktopDialogHandoff({
     browserPageContext,
-    focusTarget: input.focusTarget,
-    foregroundWindow: input.foregroundWindow,
+    focusTarget,
+    foregroundWindow,
     guiStructure,
     summary: input.summary,
   })
@@ -4284,8 +4296,8 @@ export function buildAlicizationDesktopInspectionSceneSnapshot(input: {
     browserChromeFocusShift,
     blockingSignals: normalizedBlockingSignals,
     browserPageContext,
-    focusTarget: input.focusTarget,
-    foregroundWindow: input.foregroundWindow,
+    focusTarget,
+    foregroundWindow,
     guiStructure,
     pagePhase,
     summary: input.summary,
@@ -4297,7 +4309,7 @@ export function buildAlicizationDesktopInspectionSceneSnapshot(input: {
     blockingSignals: normalizedBlockingSignals,
     browserPageContext,
     executionStrategy,
-    foregroundWindow: input.foregroundWindow,
+    foregroundWindow,
     guiStructure,
     interactables,
     nextActionIntent: resolvedNextActionIntent,
@@ -4309,8 +4321,8 @@ export function buildAlicizationDesktopInspectionSceneSnapshot(input: {
     blockingSignals: normalizedBlockingSignals,
     capture: input.capture,
     executionStrategy,
-    focusTarget: input.focusTarget,
-    foregroundWindow: input.foregroundWindow,
+    focusTarget,
+    foregroundWindow,
     guiStructure,
     interactables,
     nextActionIntent: resolvedNextActionIntent,
@@ -4321,8 +4333,8 @@ export function buildAlicizationDesktopInspectionSceneSnapshot(input: {
       blockingSignals: normalizedBlockingSignals,
       browserPageContext,
       executionStrategy,
-      focusTarget: input.focusTarget,
-      foregroundWindow: input.foregroundWindow,
+      focusTarget,
+      foregroundWindow,
       guiStructure,
       maxSuggestedActions: input.maxSuggestedActions,
       nextActionIntent: resolvedNextActionIntent,

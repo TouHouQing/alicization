@@ -49,6 +49,53 @@ function createEvent(overrides: Partial<AlicizationExecutionEventRecord> = {}): 
 }
 
 describe('memory ledger runtime', () => {
+  it('passes the turn signal into task and event reads', async () => {
+    const controller = new AbortController()
+    const listTaskThreads = vi.fn(async () => [createThread()])
+    const listExecutionEvents = vi.fn(async () => [createEvent()])
+    const runtime = createAlicizationMemoryLedgerRuntime({
+      getNow: () => 10_000,
+      listTaskThreads,
+      listExecutionEvents,
+    })
+
+    await runtime.buildExecutionLedgerContext({
+      sessionId: 'session-owner-signal',
+      signal: controller.signal,
+    })
+
+    expect(listTaskThreads).toHaveBeenCalledWith(
+      {
+        sessionId: 'session-owner-signal',
+        limit: 6,
+      },
+      { signal: controller.signal },
+    )
+    expect(listExecutionEvents).toHaveBeenCalledWith(
+      {
+        threadId: 'thread-1',
+        limit: 8,
+      },
+      { signal: controller.signal },
+    )
+  })
+
+  it('does not downgrade an aborted task-thread read into an empty ledger', async () => {
+    const abortError = new DOMException('ledger read cancelled', 'AbortError')
+    const runtime = createAlicizationMemoryLedgerRuntime({
+      getNow: () => 10_000,
+      listTaskThreads: vi.fn(async () => {
+        throw abortError
+      }),
+      listExecutionEvents: vi.fn(async () => []),
+    })
+
+    await expect(runtime.buildExecutionLedgerContext({
+      sessionId: 'session-owner-abort',
+      signal: new AbortController().signal,
+    })).rejects.toBe(abortError)
+  })
+
   it('builds active execution recall and system block for the current session', async () => {
     const listTaskThreads = vi.fn(async () => [createThread()])
     const listExecutionEvents = vi.fn(async () => [createEvent()])
