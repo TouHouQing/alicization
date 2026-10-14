@@ -2,6 +2,7 @@ import type { Message } from '@xsai/shared-chat'
 
 import { describe, expect, it } from 'vitest'
 
+import { buildLifeExpressionOutputContract } from './life-expression-output-contract'
 import {
   buildAlicizationMainChatRuntimeSurface,
   extractCustomDirectivesFromMessages,
@@ -139,6 +140,20 @@ function findFactMessage(messages: Message[], type: string) {
 }
 
 describe('main chat runtime surface', () => {
+  it('retains the owned expression output contract through provider context filtering', () => {
+    const protocol = buildLifeExpressionOutputContract()
+    expect(filterAlicizationProviderSystemMessages([{ role: 'system', content: protocol }])).toEqual([{ role: 'system', content: protocol }])
+  })
+  it('feeds the prepared scoped intent into the actual dialogue provider context', () => {
+    const surface = createRuntimeSurface()
+    surface.dialogue.currentConsciousFrame = { updatedAt: 100000, speakingIntention: '先听清楚再给出核实过的下一步', focusAnchor: '眼前的文件', subject: 'task-knot', confidence: 0.8 }
+    surface.dialogue.answerPlanner = { updatedAt: 100000, act: 'guide' }
+    const result = buildAlicizationMainChatRuntimeSurface(createBaseInput({ cardId: 'alice', turnId: 'intent-turn', now: 100000, digitalLifeRuntimeSurface: surface }))
+    const message = findFactMessage(result.messages, 'alicization-interaction-intent')!
+    expect(parseFact(message.content).data).toMatchObject({ purpose: 'guide', attention: 'shared-task', reason: result.interactionIntent?.reason })
+    expect(result.interactionIntent).toMatchObject({ cardId: 'alice', turnId: 'intent-turn' })
+  })
+
   it('keeps free-text card directives out of Provider messages', () => {
     const result = buildAlicizationMainChatRuntimeSurface(createBaseInput({
       customDirectivesResolution: {

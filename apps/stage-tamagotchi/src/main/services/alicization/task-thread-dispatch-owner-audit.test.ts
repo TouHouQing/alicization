@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
@@ -14,7 +15,7 @@ import {
 
 describe('task-thread dispatch owner audit', () => {
   it('keeps every current task-thread dispatch owner seam explicitly registered', () => {
-    const discoveredFiles = collectAlicizationExecutionDispatchOwnerFiles(new URL('.', import.meta.url).pathname)
+    const discoveredFiles = collectAlicizationExecutionDispatchOwnerFiles(fileURLToPath(new URL('.', import.meta.url)))
 
     expect(discoveredFiles).toEqual(resolveAlicizationTaskThreadDispatchOwnerAuditFiles().slice().sort())
     expect(resolveAlicizationTaskThreadDispatchOwnerAuditRegistry().map(entry => entry.relativePath).sort())
@@ -22,7 +23,7 @@ describe('task-thread dispatch owner audit', () => {
   })
 
   it('keeps the broader execution-dispatch candidate scan aligned with the independent owner registry', () => {
-    const rootDir = new URL('.', import.meta.url).pathname
+    const rootDir = fileURLToPath(new URL('.', import.meta.url))
     const registeredFiles = new Set<string>(resolveAlicizationTaskThreadDispatchOwnerAuditFiles())
     const uncoveredCandidates = collectAlicizationExecutionDispatchCandidateFiles(rootDir)
       .filter(relativePath => !registeredFiles.has(relativePath))

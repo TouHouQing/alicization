@@ -21,7 +21,11 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import { buildAlicizationExecutionEnv } from '../execution-command-env'
+import { hasOnlyConsoleNodeEffect } from './console-script-policy'
+import { executeOwnedNote } from './owned-note'
+import { requiresPrivateReadConfirmation } from './private-read-policy'
 import { resolveThreadPermissionMode } from './thread-permission'
+import { resolveWindowsReadCommand } from './windows-read-command'
 
 const cliDefaultTimeoutMs = 300_000
 const cliMaxTimeoutMs = 1_800_000
@@ -150,6 +154,7 @@ interface AlicizationCliExecutionRuntimeResult {
 }
 
 export interface AlicizationCliAdapterInput {
+  ownedNoteRoot?: string
   thread: AlicizationTaskThreadRecord
   command: AlicizationCliCommandInput
   abortSignal?: AbortSignal
@@ -157,6 +162,8 @@ export interface AlicizationCliAdapterInput {
   workspaceRoot?: string
   now?: () => number
 }
+
+type CliCommandInspectionInput = Pick<AlicizationCliAdapterInput, 'command' | 'workspaceRoot'> & { thread: Pick<AlicizationTaskThreadRecord, 'metadata' | 'origin' | 'turnId'> }
 
 export interface AlicizationCliAdapterResult {
   ok: boolean
@@ -389,8 +396,56 @@ function splitCompoundCommandSegments(commandText: string) {
   return segments
 }
 
+function scanShellEffects(commandText: string) {
+  let quote: '\'' | '"' | null = null
+  let redirect = false
+  let substitution = false
+  for (let index = 0; index < commandText.length; index += 1) {
+    const char = commandText[index]
+    if (char === '\\' && quote !== '\'') {
+      index += 1
+      continue
+    }
+    if (char === '\'' || char === '"') {
+      if (quote === char)
+        quote = null
+      else if (!quote)
+        quote = char
+      continue
+    }
+    if (quote === '\'')
+      continue
+    if (char === '`' || char === '$' && commandText[index + 1] === '(')
+      substitution = true
+    if (!quote && (char === '>' || char === '<'))
+      redirect = true
+  }
+  return { redirect, substitution }
+}
+
 function requiresShellExecution(commandText: string) {
-  return /&&|\|\||[|;\n`<>]|\$\(/.test(commandText)
+  let quote: '\'' | '"' | null = null
+  for (let index = 0; index < commandText.length; index += 1) {
+    const char = commandText[index]
+    if (char === '\\' && quote !== '\'') {
+      index += 1
+      continue
+    }
+    if (char === '\'' || char === '"') {
+      if (quote === char)
+        quote = null
+      else if (!quote)
+        quote = char
+      continue
+    }
+    if (quote === '\'')
+      continue
+    if (char === '`' || (char === '$' && commandText[index + 1] === '('))
+      return true
+    if (!quote && /[|;&\n<>]/u.test(char))
+      return true
+  }
+  return false
 }
 
 function isShellControlToken(token: string) {
@@ -402,11 +457,15 @@ function requiresShellExecutionFromArgs(args: string[]) {
     const normalized = arg.trim()
     if (!normalized)
       return false
-    return isShellControlToken(normalized) || requiresShellExecution(normalized)
+    // Explicit arguments are data, including code, newlines and dollar signs.
+    // Only a standalone operator asks this API to compose a shell expression.
+    return isShellControlToken(normalized)
   })
 }
 
 function quoteShellToken(token: string) {
+  if (process.platform === 'win32')
+    return `"${token.replace(/(\\*)"/gu, '$1$1\\"').replace(/(\\+)$/u, '$1$1')}"`
   if (!token)
     return '\'\''
   if (/^[\w./:@%+=,-]+$/.test(token))
@@ -540,9 +599,16 @@ function classifyPackageManagerAction(baseCommand: string, args: string[]) {
   return { riskLevel: 'sensitive' as const, actionCategory: 'execute' as const }
 }
 
-function classifyCliCommand(command: string, args: string[]) {
-  const baseCommand = basename(command).toLowerCase()
+function classifyCliCommand(command: string, args: string[], cwd = processCwd()) {
+  const baseCommand = basename(command).toLowerCase().replace(/\.(?:exe|cmd|bat)$/u, '')
 
+  if (requiresPrivateReadConfirmation(baseCommand, args, cwd))
+    return { riskLevel: 'danger' as const, actionCategory: 'read' as const }
+
+  if (baseCommand === 'node')
+    return hasOnlyConsoleNodeEffect(args) ? { riskLevel: 'safe' as const, actionCategory: 'read' as const } : { riskLevel: 'danger' as const, actionCategory: 'write' as const }
+  if (['python', 'python3', 'py', 'powershell', 'pwsh', 'cmd', 'bash', 'sh', 'wscript', 'cscript', 'del', 'erase', 'rmdir', 'rd', 'format', 'bcdedit'].includes(baseCommand))
+    return { riskLevel: 'danger' as const, actionCategory: 'write' as const }
   if (safeReadCommands.has(baseCommand))
     return { riskLevel: 'safe' as const, actionCategory: 'read' as const }
   if (networkCommands.has(baseCommand))
@@ -602,7 +668,7 @@ function aggregateClassifications(classifications: Array<{
   })
 }
 
-function resolveThreadEffect(thread: AlicizationTaskThreadRecord) {
+function resolveThreadEffect(thread: Pick<AlicizationTaskThreadRecord, 'metadata'>) {
   const metadataTask = thread.metadata?.task
   if (metadataTask && typeof metadataTask === 'object' && 'effect' in metadataTask) {
     const effect = (metadataTask as { effect?: unknown }).effect
@@ -655,7 +721,7 @@ function resolveCliSafetyGateClassification(input: AlicizationCliAdapterInput) {
           const words = parseCommandWords(segment) ?? segment.split(/\s+/).filter(Boolean)
           if (words.length === 0)
             return null
-          return classifyCliCommand(words[0], words.slice(1))
+          return classifyCliCommand(words[0], words.slice(1), resolve(workspaceRoot, input.command.cwd ?? '.'))
         })
         .filter((item): item is ReturnType<typeof classifyCliCommand> => Boolean(item)),
     )
@@ -677,6 +743,7 @@ function resolveCliSafetyGateClassification(input: AlicizationCliAdapterInput) {
   return classifyCliCommand(
     normalizedPath.ok ? normalizedPath.command : executableCommand,
     executableArgs,
+    resolve(workspaceRoot, input.command.cwd ?? '.'),
   )
 }
 
@@ -710,7 +777,7 @@ function buildBlockedDispatchSafetyGate(
   }
 }
 
-function buildCliCommandSpec(input: AlicizationCliAdapterInput) {
+function buildCliCommandSpec(input: CliCommandInspectionInput, inspectOnly = false) {
   const workspaceRoot = resolve(input.workspaceRoot ?? processCwd())
   const homeDirectory = resolveCliHomeDirectory()
   const rawCommand = typeof input.command.command === 'string'
@@ -795,17 +862,30 @@ function buildCliCommandSpec(input: AlicizationCliAdapterInput) {
             const words = parseCommandWords(segment) ?? segment.split(/\s+/).filter(Boolean)
             if (words.length === 0)
               return null
-            return classifyCliCommand(words[0], words.slice(1))
+            return classifyCliCommand(words[0], words.slice(1), normalizedCwd.cwd)
           })
           .filter((item): item is ReturnType<typeof classifyCliCommand> => Boolean(item)),
       )
-    : classifyCliCommand(normalizedPath?.command ?? executableCommand, executableArgs)
+    : classifyCliCommand(normalizedPath?.command ?? executableCommand, executableArgs, normalizedCwd.cwd)
 
+  if (mode === 'shell') {
+    // Redirection and command substitution add effects beyond the leading verb.
+    // Console-looking text cannot turn a file write or nested program into a read.
+    const shellHazards = scanShellEffects(shellCommandExpression)
+    if (shellHazards.substitution) {
+      classification.riskLevel = 'danger'
+      classification.actionCategory = 'write'
+    }
+    else if (shellHazards.redirect) {
+      classification.riskLevel = 'danger'
+      classification.actionCategory = 'write'
+    }
+  }
   const permissionMode = resolveThreadPermissionMode(input.thread)
   const effect = resolveThreadEffect(input.thread)
   const runtimeContext = normalizeAlicizationExecutionRuntimeContext(input.command.runtimeContext)
 
-  if (classification.riskLevel === 'danger' && permissionMode !== 'explicit') {
+  if (!inspectOnly && classification.riskLevel === 'danger' && permissionMode !== 'explicit') {
     return {
       ok: false as const,
       errorCode: 'CLI_PERMISSION_REQUIRED',
@@ -813,7 +893,7 @@ function buildCliCommandSpec(input: AlicizationCliAdapterInput) {
     }
   }
 
-  if (classification.riskLevel === 'sensitive' && permissionMode === 'none') {
+  if (!inspectOnly && classification.riskLevel === 'sensitive' && permissionMode === 'none') {
     return {
       ok: false as const,
       errorCode: 'CLI_PERMISSION_REQUIRED',
@@ -822,7 +902,7 @@ function buildCliCommandSpec(input: AlicizationCliAdapterInput) {
   }
 
   if (
-    effect === 'observe'
+    !inspectOnly && effect === 'observe'
     && (classification.actionCategory === 'write' || classification.actionCategory === 'delete' || classification.actionCategory === 'network')
   ) {
     return {
@@ -867,6 +947,11 @@ function buildCliRuntimeEnv(runtimeContext: AlicizationExecutionRuntimeContext |
       runtimeContext.sensory.foregroundWindow?.title,
     ].filter(Boolean).join(' | '),
   })
+}
+
+export function inspectCliTaskCommand(input: CliCommandInspectionInput) {
+  const result = buildCliCommandSpec(input, true)
+  return result.ok ? { riskLevel: result.spec.riskLevel, actionCategory: result.spec.actionCategory, command: result.spec.commandLabel, cwd: result.spec.cwd } : result
 }
 
 function createCliTruncatedNotice(input: {
@@ -972,6 +1057,7 @@ async function runCliCommand(
     const stdoutChunks: Buffer[] = []
     const stderrChunks: Buffer[] = []
     const runtimeEnv = buildCliRuntimeEnv(spec.runtimeContext)
+    const windowsRead = process.platform === 'win32' && spec.mode === 'exec-file' ? resolveWindowsReadCommand(spec) : null
 
     const child = spec.mode === 'shell'
       ? spawn(spec.command, {
@@ -982,7 +1068,7 @@ async function runCliCommand(
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
         })
-      : spawn(spec.command, spec.args, {
+      : spawn(windowsRead?.command ?? spec.command, windowsRead?.args ?? spec.args, {
           cwd: spec.cwd,
           env: runtimeEnv,
           shell: false,
@@ -1272,8 +1358,13 @@ function buildFailureSummary(thread: AlicizationTaskThreadRecord, errorMessage: 
 }
 
 export async function executeCliTaskThread(input: AlicizationCliAdapterInput): Promise<AlicizationCliAdapterResult> {
+  if (input.command.ownedNote)
+    return executeOwnedNote(input)
   const now = input.now ?? Date.now
   const thread = input.thread
+  if (input.abortSignal?.aborted) {
+    return { ok: false, finalStatus: 'cancelled', summary: 'CLI execution was cancelled before dispatch.', output: null, errorCode: 'CLI_ABORTED', errorMessage: 'The originating operation was cancelled.', events: [{ threadId: thread.id, channel: 'cli', kind: 'cancel', threadStatus: 'cancelled', turnId: thread.turnId, sessionId: thread.sessionId, origin: thread.origin, decisionTraceId: thread.decisionTraceId, createdAt: now(), payload: { adapter: 'cli', phase: 'before-dispatch', sideEffectState: 'none' } }] }
+  }
   const normalized = buildCliCommandSpec(input)
   if (!normalized.ok) {
     const createdAt = now()
@@ -1329,6 +1420,7 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
     threadStatus: 'running',
     payload: {
       adapter: 'cli',
+      executionMode: spec.mode,
       command: spec.commandLabel,
       args: spec.args,
       cwd: spec.cwd,

@@ -25,6 +25,7 @@ import type {
 } from 'three'
 import type { Ref, WatchStopHandle } from 'vue'
 
+import type { VrmPostureFramingBounds } from '../../composables/vrm/daily-posture-framing'
 import type { SceneBootstrap, Vec3 } from '../../stores/model-store'
 import type { VrmLifecycleReason } from '../../trace'
 import type {
@@ -40,6 +41,7 @@ import { createIdleStageEmbodimentPerformanceState } from '@proj-alicization/sta
 import { useLoop, useTresContext } from '@tresjs/core'
 import { until, useMouse } from '@vueuse/core'
 import {
+  AdditiveAnimationBlendMode,
   AnimationMixer,
   Box3,
   LoopOnce,
@@ -67,6 +69,7 @@ import {
 
 } from 'vue'
 
+import { dailyPostureAnimations } from '../../assets/vrm/neko-motion'
 import {
   createIblProbeController,
   injectDiffuseIBL,
@@ -90,6 +93,8 @@ import {
   useBlink,
   useIdleEyeSaccades,
 } from '../../composables/vrm/animation'
+import { createVrmAnimationPlaybackState, stepVrmAnimationPlayback } from '../../composables/vrm/animation-playback-state'
+import { createVrmAnimationReleaseQueue } from '../../composables/vrm/animation-release-queue'
 import {
   buildVrmRuntimeCapabilitySnapshot,
   normalizeVrmExpressionName,
@@ -98,12 +103,15 @@ import {
   vrmStandardExpressionNames,
 } from '../../composables/vrm/capabilities'
 import { loadVrm } from '../../composables/vrm/core'
+import { createVrmDailyPostureDriver } from '../../composables/vrm/daily-posture-driver'
+import { readVrmPostureFramingBounds } from '../../composables/vrm/daily-posture-framing'
 import {
   buildVrmExecutionDiagnosticsSnapshot,
 } from '../../composables/vrm/execution-diagnostics'
 import { useVRMEmote } from '../../composables/vrm/expression'
 import { useVRMLipSync } from '../../composables/vrm/lip-sync'
 import {
+  hasStaleVrmDialogueActionCue,
   resolveVrmDialogueExpressionWatchKey,
   resolveVrmDialoguePerformanceFromState,
   resolveVrmPreferredActionBinding,
@@ -113,6 +121,10 @@ import {
   applyStageEmbodimentVrmPosture,
   createIdleVrmBodyExecutionState,
 } from '../../composables/vrm/posture'
+import { createVrmPosturePlayback } from '../../composables/vrm/posture-playback'
+import { createVrmProceduralGestureClip } from '../../composables/vrm/procedural-gestures'
+import { createVrmSpeechBodyDriver } from '../../composables/vrm/speech-body-driver'
+import { allowsVrmMotionOwner, reconcileVrmSpeechMotionOwnership } from '../../composables/vrm/speech-motion-ownership'
 import {
   createThreeRendererMemorySnapshot,
   createVrmEmbodimentFrameSnapshot,
@@ -170,6 +182,8 @@ const props = withDefaults(defineProps<{
   performanceState?: StageEmbodimentPerformanceState | null
   presencePosture?: StageEmbodimentPresencePostureState | null
   speechRenderState?: StageEmbodimentSpeechRenderState | null
+  dailyPosture?: import('../../composables/vrm/daily-posture-driver').VrmDailyPosture
+  dailyAction?: { id: string, sequence: number, cue: 'stretch' | 'rest_settle' } | null
 }>(), {
   paused: false,
 })
@@ -190,6 +204,8 @@ const emit = defineEmits<{
 
   (e: 'error', value: unknown): void
   (e: 'loaded', value: string): void
+  (e: 'dailyPoseFraming', value: VrmPostureFramingBounds | null): void
+  (e: 'bodyFramingBounds', value: VrmPostureFramingBounds | null): void
 }>()
 
 const {
@@ -235,14 +251,14 @@ let stopMouseWatch: WatchStopHandle | undefined
 let stopCameraWatch: WatchStopHandle | undefined
 
 // Animation related ref
-const vrmAnimationMixer = ref<AnimationMixer>()
-const idleClipAction = ref<AnimationAction>()
-const transientClipAction = ref<AnimationAction>()
+const { mixer: vrmAnimationMixer, idleAction: idleClipAction, transientAction: transientClipAction } = createVrmAnimationPlaybackState()
+const animationReleaseQueue = createVrmAnimationReleaseQueue()
 const transientCleanup = ref<(() => void) | undefined>()
 let transientActionRequestId = 0
 let lastTransientActionKey = ''
 let lastTransientActionIssuedAt = 0
 const transientActionDedupWindowMs = 220
+let lastTransientActionOwner: string | null = null
 const customExpressionNames = ref<string[]>([])
 const { onBeforeRender, stop, start } = useLoop()
 const lastAppliedIdleActionKey = ref('')
@@ -316,6 +332,10 @@ function createSyntheticPerformanceStateForDialogueInput(
 }
 
 function resolveCurrentMotionAuthoritySegmentId(state?: StageEmbodimentPerformanceState | null) {
+  if (state?.actionPulse.reason === 'presence-pulse')
+    return state.actionPulse.segmentId
+  if (hasStaleVrmDialogueActionCue(state))
+    return state?.actionPulse.segmentId ?? null
   const segmentId = state?.activeSegment?.segmentId
     ?? state?.driverAuthority?.segmentId
     ?? state?.activeCue?.id
@@ -327,17 +347,22 @@ function resolveCurrentMotionAuthoritySegmentId(state?: StageEmbodimentPerforman
 }
 
 function resolveCurrentMotionAuthorityCue() {
+  if (performanceState.value?.actionPulse.reason === 'presence-pulse' || hasStaleVrmDialogueActionCue(performanceState.value))
+    return null
   return resolveCurrentVrmMotionAuthorityCueSnapshot(performanceState.value)
 }
 
 // Expressions
 const blink = useBlink()
 const idleEyeSaccades = useIdleEyeSaccades()
-const vrmEmote = ref<ReturnType<typeof useVRMEmote>>()
+// The controller owns nested refs; deep wrapping unwraps them and breaks diagnostics.
+const vrmEmote = shallowRef<ReturnType<typeof useVRMEmote>>()
 const vrmBodyExecutionState = shallowRef(createIdleVrmBodyExecutionState())
 const vrmMotionExecutionState = shallowRef(createIdleVrmMotionExecutionState())
 const vrmLipSync = useVRMLipSync(speechRenderState)
 const speechDynamics = computed(() => speechRenderState.value?.active === true ? speechRenderState.value.dynamics : null)
+const speechBodyDriver = createVrmSpeechBodyDriver()
+const vrmFrameObserver = shallowRef<VrmFrameHook>()
 
 // For sky box update
 const nprProgramVersion = ref(0)
@@ -440,6 +465,7 @@ function getActiveManagedVrmInstance() {
 }
 
 function clearActiveManagedVrmRefs() {
+  speechBodyDriver.restore()
   idleClipAction.value = undefined
   transientClipAction.value = undefined
   transientCleanup.value = undefined
@@ -489,15 +515,45 @@ function shouldStashVrmResources(reason: VrmLifecycleReason) {
   return reason === 'component-unmount'
 }
 
+const dailyPostureDriver = createVrmDailyPostureDriver()
+const posturePlayback = createVrmPosturePlayback({ mixer: () => vrmAnimationMixer.value, neutral: () => idleClipAction.value, load: async (mode) => {
+  const active = vrm.value
+  if (!active)
+    return null
+  const animation = await loadVRMAnimation(dailyPostureAnimations[mode].toString())
+  if (!animation || vrm.value !== active)
+    return null
+  const clip = await clipFromVRMAnimation(active, animation)
+  if (!clip)
+    return null
+  reAnchorRootPositionTrack(clip, active)
+  return clip
+} })
+function playDailyPosture(mode: import('../../composables/vrm/daily-posture-driver').VrmDailyPosture) {
+  return posturePlayback.request(mode)
+}
+let bodyFrame: import('@proj-alicization/stage-shared').AlicizationBodyFrame | null = null
+let completedBodyMotion: { id: string, cue: string } | undefined
+let framingActive = false
+let lastFramingAt = 0
+
 function bindManagedVrmInstanceRenderLoop() {
   disposeBeforeRenderLoop?.()
 
   disposeBeforeRenderLoop = onBeforeRender(({ delta }) => {
+    dailyPostureDriver.restore()
+    speechBodyDriver.restore()
+    reconcileVrmSpeechMotionOwnership({ speech: speechRenderState.value, motion: vrmMotionExecutionState.value, cancelRetiringOthers: animationReleaseQueue.cancelOtherOwners, interrupt: () => {
+      completedBodyMotion = undefined
+      replayIdleAnimation(0.08)
+    } })
+    animationReleaseQueue.update(delta)
+    posturePlayback.update(delta)
     const traceStart = isStageThreeRuntimeTraceEnabled() ? performance.now() : 0
     const tracingEnabled = traceStart > 0
 
     const animationMixerMs = measureFrameStep(tracingEnabled, () => {
-      vrmAnimationMixer.value?.update(delta)
+      stepVrmAnimationPlayback(vrmAnimationMixer.value, delta)
     })
     const activeVrm = vrm.value
     const vrmFrameHookMs = measureFrameStep(tracingEnabled, () => {
@@ -511,6 +567,18 @@ function bindManagedVrmInstanceRenderLoop() {
         }
       }
     })
+    // Apply the body layer before normalized bones are copied to the rendered
+    // skeleton. An idle track can overwrite it at the next mixer update.
+    const postureMs = measureFrameStep(tracingEnabled, () => {
+      vrmBodyExecutionState.value = applyStageEmbodimentVrmPosture({
+        delta,
+        motor: performanceState.value?.motor,
+        posture: presencePosture.value,
+        vrm: activeVrm,
+      })
+      speechBodyDriver.apply({ rig: activeVrm?.humanoid, speech: speechRenderState.value, performance: performanceState.value, delta })
+      dailyPostureDriver.apply(activeVrm, posturePlayback.snapshot().failed ? props.dailyPosture ?? 'stand' : 'stand', delta)
+    })
     const humanoidMs = measureFrameStep(tracingEnabled, () => {
       activeVrm?.humanoid.update()
     })
@@ -519,7 +587,8 @@ function bindManagedVrmInstanceRenderLoop() {
     })
     const blinkAndSaccadeMs = measureFrameStep(tracingEnabled, () => {
       const blinkResult = blink.update(delta, speechDynamics.value, performanceState.value?.activeCue?.rendererHints ?? null)
-      vrmEmote.value?.setBlinkWeights(blinkResult.weights)
+      const sleeping = (posturePlayback.snapshot().mode === 'sleep' || (posturePlayback.snapshot().failed && props.dailyPosture === 'sleep')) && !speechRenderState.value?.active
+      vrmEmote.value?.setBlinkWeights(sleeping ? { blink: 1 } : blinkResult.weights)
       idleEyeSaccades.update(
         activeVrm,
         lookAtTarget,
@@ -529,14 +598,6 @@ function bindManagedVrmInstanceRenderLoop() {
         presencePosture.value,
         performanceState.value?.activeCue?.rendererHints ?? null,
       )
-    })
-    const postureMs = measureFrameStep(tracingEnabled, () => {
-      vrmBodyExecutionState.value = applyStageEmbodimentVrmPosture({
-        delta,
-        motor: performanceState.value?.motor,
-        posture: presencePosture.value,
-        vrm: activeVrm,
-      })
     })
     const lipSyncMs = measureFrameStep(tracingEnabled, () => {
       const result = vrmLipSync.update(delta)
@@ -551,6 +612,33 @@ function bindManagedVrmInstanceRenderLoop() {
     const springBoneMs = measureFrameStep(tracingEnabled, () => {
       activeVrm?.springBoneManager?.update(delta)
     })
+    if (activeVrm) {
+      bodyFrame = { serial: (bodyFrame?.serial ?? 0) + 1, renderedAt: Date.now(), elapsedMs: (bodyFrame?.elapsedMs ?? 0) + Math.min(100, Math.max(0, delta * 1000)), modelId: props.modelId ?? props.modelSrc ?? '', cue: vrmMotionExecutionState.value?.cue ?? null, motionOwnerId: vrmMotionExecutionState.value?.segmentId ?? null, ...(completedBodyMotion ? { completedMotion: completedBodyMotion } : {}), rotations: (['head', 'spine', 'leftUpperArm', 'rightUpperArm'] as const).map(name => activeVrm.humanoid.getNormalizedBoneNode(name)?.quaternion.toArray() ?? []) }
+    }
+    const posture = posturePlayback.snapshot()
+    const lowPose = (posture.failed ? props.dailyPosture ?? 'stand' : posture.mode) !== 'stand'
+    const legGesture = ['turn_attentive', 'shift_weight', 'small_step'].includes(vrmMotionExecutionState.value?.cue ?? '')
+    if (activeVrm && performance.now() - lastFramingAt >= 100) {
+      lastFramingAt = performance.now()
+      const bounds = readVrmPostureFramingBounds(activeVrm)
+      emit('bodyFramingBounds', bounds)
+      if (lowPose || legGesture) {
+        framingActive = true
+        emit('dailyPoseFraming', bounds)
+      }
+    }
+    if (!lowPose && !legGesture && framingActive) {
+      framingActive = false
+      emit('dailyPoseFraming', null)
+    }
+    if (activeVrm && vrmFrameObserver.value) {
+      try {
+        vrmFrameObserver.value(activeVrm, delta)
+      }
+      catch (error) {
+        console.error(error)
+      }
+    }
 
     if (traceStart > 0) {
       const embodimentFrame = createVrmEmbodimentFrameSnapshot({
@@ -593,6 +681,13 @@ function componentCleanUp(
   options: { invalidate?: boolean } = {},
 ) {
   const { invalidate = true } = options
+  dailyPostureDriver.restore()
+  posturePlayback.clear()
+  bodyFrame = null
+  completedBodyMotion = undefined
+  framingActive = false
+  emit('dailyPoseFraming', null)
+  emit('bodyFramingBounds', null)
   if (invalidate)
     invalidatePendingLoads()
 
@@ -617,6 +712,7 @@ function componentCleanUp(
   disposeBeforeRenderLoop?.()
   disposeBeforeRenderLoop = undefined
   clearTransientAnimation()
+  animationReleaseQueue.clear()
 
   if (activeInstance)
     detachVrmGroup(activeInstance.group)
@@ -680,6 +776,7 @@ function buildRuntimeCapabilitySnapshot(activeVrm?: VRM): VrmRuntimeCapabilitySn
   return buildVrmRuntimeCapabilitySnapshot({
     expressionNames: supportedExpressionNames,
     supportsLookAt: Boolean(activeVrm?.lookAt),
+    rig: activeVrm?.humanoid ?? null,
   })
 }
 
@@ -799,9 +896,10 @@ function clearTransientAnimation() {
 
 function replayIdleAnimation(fadeDuration: number = 0.18) {
   clearTransientAnimation()
-  idleClipAction.value?.reset()
-  idleClipAction.value?.fadeIn(fadeDuration)
-  idleClipAction.value?.play()
+  const base = posturePlayback.base()
+  if (base === idleClipAction.value)
+    base?.reset()
+  base?.fadeIn(fadeDuration).play()
   vrmMotionExecutionState.value = createSettledVrmMotionExecutionState()
 }
 
@@ -836,12 +934,15 @@ async function playActionBinding(
     fadeInput: options?.fadeInput,
   })
   const now = performance.now()
-  if (actionKey && actionKey === lastTransientActionKey && now - lastTransientActionIssuedAt < transientActionDedupWindowMs)
+  const motionSegmentId = options && 'motionSegmentId' in options ? options.motionSegmentId ?? null : resolveCurrentMotionAuthoritySegmentId(performanceState.value)
+  if (!allowsVrmMotionOwner(speechRenderState.value, motionSegmentId))
+    return
+  if (actionKey && motionSegmentId === lastTransientActionOwner && actionKey === lastTransientActionKey && now - lastTransientActionIssuedAt < transientActionDedupWindowMs)
     return
   lastTransientActionKey = actionKey
   lastTransientActionIssuedAt = now
+  lastTransientActionOwner = motionSegmentId
   const fadeDuration = clampActionFadeSeconds(options?.fadeDuration)
-  const motionSegmentId = options?.motionSegmentId ?? resolveCurrentMotionAuthoritySegmentId(performanceState.value)
 
   const requestId = transientActionRequestId + 1
   transientActionRequestId = requestId
@@ -856,7 +957,7 @@ async function playActionBinding(
     return
   }
 
-  if (!binding.file)
+  if (!binding.file && binding.source !== 'builtin')
     return
 
   transientCleanup.value?.()
@@ -864,12 +965,14 @@ async function playActionBinding(
   transientClipAction.value?.stop()
   transientClipAction.value = undefined
 
-  const animation = await loadVRMAnimation(binding.file)
+  const animation = binding.file ? await loadVRMAnimation(binding.file) : undefined
   if (requestId !== transientActionRequestId)
     return
 
-  const clip = await clipFromVRMAnimation(activeVrm, animation)
-  if (requestId !== transientActionRequestId) {
+  const clip = binding.source === 'builtin'
+    ? createVrmProceduralGestureClip(activeVrm.humanoid, binding.actionKey)
+    : await clipFromVRMAnimation(activeVrm, animation)
+  if (requestId !== transientActionRequestId || !allowsVrmMotionOwner(speechRenderState.value, motionSegmentId)) {
     if (clip)
       mixer.uncacheClip(clip)
     return
@@ -877,7 +980,8 @@ async function playActionBinding(
   if (!clip)
     return
 
-  reAnchorRootPositionTrack(clip, activeVrm)
+  if (clip.blendMode !== AdditiveAnimationBlendMode)
+    reAnchorRootPositionTrack(clip, activeVrm)
   const action = mixer.clipAction(clip)
   if (requestId !== transientActionRequestId) {
     try {
@@ -888,6 +992,7 @@ async function playActionBinding(
     return
   }
 
+  completedBodyMotion = undefined
   transientClipAction.value = action
   vrmMotionExecutionState.value = resolveVrmMotionExecutionStateFromBinding(
     binding,
@@ -896,9 +1001,12 @@ async function playActionBinding(
   )
   action.reset()
   action.setLoop(LoopOnce, 1)
-  action.clampWhenFinished = false
+  action.clampWhenFinished = true
   action.play()
-  idleClipAction.value?.crossFadeTo(action, fadeDuration, false)
+  if (clip.blendMode === AdditiveAnimationBlendMode)
+    action.fadeIn(fadeDuration)
+  else
+    posturePlayback.base()?.crossFadeTo(action, fadeDuration, false)
   let cleanup: (() => void) | undefined
 
   const handleFinished = (event: { action: AnimationAction, direction: number }) => {
@@ -908,13 +1016,12 @@ async function playActionBinding(
       return
 
     mixer.removeEventListener('finished', handleFinished)
-    action.fadeOut(fadeDuration)
-    idleClipAction.value?.reset()
-    idleClipAction.value?.fadeIn(fadeDuration)
-    idleClipAction.value?.play()
+    completedBodyMotion = motionSegmentId ? { id: motionSegmentId, cue: binding.actionKey } : undefined
+    animationReleaseQueue.retire(action, mixer, clip, fadeDuration, motionSegmentId)
+    if (clip.blendMode !== AdditiveAnimationBlendMode) {
+      posturePlayback.base()?.fadeIn(fadeDuration).play()
+    }
     vrmMotionExecutionState.value = createSettledVrmMotionExecutionState()
-    action.stop()
-    mixer.uncacheClip(clip)
     if (transientClipAction.value === action)
       transientClipAction.value = undefined
     if (transientCleanup.value === cleanup)
@@ -946,6 +1053,9 @@ async function applyIdleActionPreference(
   } = {},
 ) {
   if (speechRenderState.value?.active)
+    return
+  // Ordinary resident refresh must not cut a transient gesture halfway through.
+  if (transientClipAction.value?.isRunning())
     return
 
   const key = buildIdleActionPreferenceKey(preference)
@@ -999,6 +1109,7 @@ function applyDialogueExpression(
     resolveVrmBaseExpressionName(
       input.baseEmotion,
       baseExpressionOverrides.value?.[input.baseEmotion],
+      Object.keys(vrm.value?.expressionManager?.expressionMap ?? {}),
     ),
     emotionIntensity,
     { blendDuration },
@@ -1411,6 +1522,7 @@ onMounted(async () => {
   // watch if the animation should be paused
   watch(paused, (isPaused) => {
     if (isPaused) {
+      clearTransientAnimation()
       stop()
     }
     else {
@@ -1526,12 +1638,19 @@ onMounted(async () => {
   watch(
     () => performanceState.value?.actionPulse.revision ?? 0,
     async (revision) => {
+      if (props.dailyAction)
+        return
       if (!revision || revision === lastAppliedActionPulseRevision.value)
         return
 
       lastAppliedActionPulseRevision.value = revision
       const actionCue = performanceState.value?.actionPulse.cue?.trim()
       if (!actionCue)
+        return
+      const issuedAt = performanceState.value?.actionPulse.issuedAt
+      // A settled frame retains the last command for asynchronous consumers.
+      // A newly mounted body must not replay an old command.
+      if (issuedAt == null || performance.now() - issuedAt > 1000)
         return
 
       const actionBinding = resolveVrmPreferredActionBinding(
@@ -1582,6 +1701,31 @@ onMounted(async () => {
     applyDialogueExpressionFromState(performanceState.value)
     await applyIdleActionPreference(idleActionPreference.value, { force: true })
   }, { immediate: true })
+  watch([() => props.dailyPosture ?? 'stand', modelLoaded], ([mode, loaded]) => {
+    if (loaded)
+      void playDailyPosture(mode)
+  }, { immediate: true })
+  let dailyRequest: number | null = null
+  let dailyKey = ''
+  watch([() => props.dailyAction, modelLoaded, paused], async ([activity, loaded, isPaused]) => {
+    if (!activity || !loaded || isPaused) {
+      if (dailyRequest === transientActionRequestId)
+        clearTransientAnimation()
+      dailyRequest = null
+      dailyKey = ''
+      return
+    }
+    const key = `${activity.id}:${activity.sequence}`
+    if (key === dailyKey)
+      return
+    dailyKey = key
+    const binding = (actionBindings.value ?? []).find(item => item.actionKey === activity.cue && item.source === 'builtin')
+    if (!binding)
+      return
+    await playActionBinding(binding, { motionSegmentId: activity.id })
+    if (props.dailyAction?.id === activity.id && vrmMotionExecutionState.value?.segmentId === activity.id)
+      dailyRequest = transientActionRequestId
+  }, { immediate: true })
 })
 
 onUnmounted(() => {
@@ -1596,20 +1740,24 @@ if (import.meta.hot) {
 }
 
 defineExpose({
+  postureDiagnostics: () => posturePlayback.snapshot(),
+  playDailyPosture,
+  bodyFrame: () => bodyFrame,
   setExpression(expression: string, intensity = 1) {
     vrmEmote.value?.setEmotionWithResetAfter(expression, 3000, intensity)
   },
   async applyPerformance(performance: DialoguePerformanceInput) {
     await applyDialoguePerformance(performance)
   },
-  async playActionBinding(binding: VrmActionBinding) {
-    await playActionBinding(binding)
-  },
+  playActionBinding,
   listCustomExpressionNames() {
     return [...customExpressionNames.value]
   },
   getRuntimeCapabilities() {
     return buildRuntimeCapabilitySnapshot(vrm.value)
+  },
+  speechBodyDiagnostics() {
+    return speechBodyDriver.snapshot()
   },
   executionDiagnostics() {
     return buildVrmExecutionDiagnosticsSnapshot({
@@ -1631,6 +1779,9 @@ defineExpose({
   },
   setVrmFrameHook(hook?: VrmFrameHook) {
     vrmFrameHook.value = hook
+  },
+  setVrmFrameObserver(observer?: VrmFrameHook) {
+    vrmFrameObserver.value = observer
   },
   scene: computed(() => vrm.value?.scene),
   lookAtUpdate(target: Vec3) {

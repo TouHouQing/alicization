@@ -357,6 +357,7 @@ export interface AlicizationLongTermMemoryEvidenceCandidate {
   provenance?: AlicizationMemoryProvenance | null
   evidenceVersion?: string | null
   version?: string | null
+  lifeFact?: { version?: number, perspective?: 'current' | 'historical', provenance: string, recordedFrom: number, recordedTo: number | null, validFrom: number | null, validTo: number | null }
   confidence: number
   reviewStatus?: string | null
   salience?: number | null

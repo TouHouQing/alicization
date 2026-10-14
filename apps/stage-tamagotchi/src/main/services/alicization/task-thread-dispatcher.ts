@@ -38,6 +38,7 @@ type TaskThreadDispatchPort = Pick<{
 export type AlicizationTaskThreadDispatchPort = TaskThreadDispatchPort
 
 export interface AlicizationDispatchTaskThreadRuntimeInput extends AlicizationDispatchTaskThreadInput {
+  ownedNoteRoot?: string
   killSwitchSuspended?: boolean
   abortSignal?: AbortSignal
   onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
@@ -950,6 +951,10 @@ export async function dispatchTaskThread(
     })
   }
   catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'TASK_SOURCE_INVALIDATED') {
+      const blocked = await port.upsertTaskThread({ ...thread, status: 'blocked', summary: 'Task source was withdrawn; create a new task with current evidence.', expectedUpdatedAt: thread.updatedAt })
+      return { thread: blocked, createdEventKinds: [], ok: false, finalStatus: 'blocked', summary: blocked.summary ?? 'Task source was withdrawn.', errorCode: 'TASK_SOURCE_INVALIDATED', errorMessage: errorMessageFrom(error) }
+    }
     if (!isTaskThreadVersionConflict(error))
       throw error
     const latestThread = await port.getTaskThread(thread.id) ?? thread
@@ -1181,6 +1186,7 @@ export async function dispatchTaskThread(
   let result: Awaited<ReturnType<typeof preparedDispatch.run>>
   try {
     result = await preparedDispatch.run({
+      ownedNoteRoot: input.ownedNoteRoot,
       abortSignal: input.abortSignal,
       onExecutionEvent: persistAndPublishLiveEvent,
       workspaceRoot: input.workspaceRoot,

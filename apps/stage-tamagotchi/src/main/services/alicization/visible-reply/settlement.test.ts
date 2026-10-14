@@ -344,6 +344,14 @@ describe('visible-reply settlement', () => {
     expect(validation.payload?.reply).toBe(fullText)
   })
 
+  it('rejects application metadata appended after natural language instead of reading it aloud', () => {
+    const fullText = `我在这里陪着你。\n${createProviderPayload({ reply: '我在这里陪着你。' })}`
+    const validation = validateAlicizationProviderSettlementPayload({ fullText, prepared: createPrepared(), allowPlainTextProviderReply: true })
+    expect(validation.valid).toBe(false)
+    expect(validation.payload).toBeNull()
+    expect(validation.issues).toContain('provider-payload-json-invalid')
+  })
+
   it('accepts a structured reply when optional metadata fields are absent', () => {
     const fullText = JSON.stringify({
       format: 'mind-turn-v1',

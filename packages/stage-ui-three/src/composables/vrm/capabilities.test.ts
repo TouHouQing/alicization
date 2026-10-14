@@ -10,6 +10,12 @@ import {
 } from './capabilities'
 
 describe('vrm capability helpers', () => {
+  it('skips unbound model aliases and selects a supported semantic expression', () => {
+    expect(resolveVrmBaseExpressionName('thinking', ['CalmInspect'], ['neutral', 'relaxed'])).toBe('relaxed')
+    expect(resolveVrmBaseExpressionName('concerned', ['RecoverSoft'], ['neutral', 'sad'])).toBe('sad')
+    expect(resolveVrmBaseExpressionName('happy', ['Unknown'], ['default', 'joy'])).toBe('joy')
+    expect(resolveVrmBaseExpressionName('happy', ['Unknown'], ['default'])).toBe('default')
+  })
   it('only exposes preset facial capabilities backed by runtime expressions', () => {
     expect(listVrmPresetFacialCapabilities(['happy', 'relaxed'])).toEqual([
       expect.objectContaining({ key: 'smile', expressionName: 'happy' }),

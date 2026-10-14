@@ -1,10 +1,12 @@
 import type { AlicizationDialogueEmbodimentRendererHints } from './alicization-dialogue-embodiment'
 import type { AlicizationDigitalLifeEnvelope } from './alicization-digital-life'
+import type { AlicizationInteractionIntent } from './alicization-interaction-intent'
 import type { AlicizationEmbodimentLipSyncPlan } from './alicization-lipsync-contracts'
 import type { AlicizationEmotion, AlicizationPerformanceDelivery } from './alicization-performance-contracts'
 import type { AlicizationEmbodimentSpeechPlan } from './alicization-speech-plan'
 
 import { normalizeAlicizationDigitalLifeEnvelope } from './alicization-digital-life'
+import { normalizeAlicizationInteractionIntent } from './alicization-interaction-intent'
 import { normalizeAlicizationEmbodimentLipSyncPlan } from './alicization-lipsync-contracts'
 import {
   normalizeAlicizationEmotion,
@@ -29,6 +31,7 @@ export type AlicizationEmbodimentExecutionCueSource
     | 'cue-bridge'
 
 export interface AlicizationEmbodimentScriptState {
+  interactionIntent?: AlicizationInteractionIntent | null
   baseEmotion: AlicizationEmotion
   delivery: AlicizationPerformanceDelivery
   emphasis: 0 | 1 | 2
@@ -371,6 +374,7 @@ export function normalizeAlicizationEmbodimentScript(raw: unknown): AlicizationE
 
   const baseEmotion = normalizeAlicizationEmotion(stateCandidate.baseEmotion).emotion
   const digitalLife = normalizeAlicizationDigitalLifeEnvelope(candidate.digitalLife, baseEmotion)
+  const interactionIntent = normalizeAlicizationInteractionIntent(stateCandidate.interactionIntent)
 
   return {
     version,
@@ -379,6 +383,7 @@ export function normalizeAlicizationEmbodimentScript(raw: unknown): AlicizationE
     rendererTarget,
     replyText,
     state: {
+      ...(interactionIntent?.turnId === turnId ? { interactionIntent } : {}),
       baseEmotion,
       delivery: normalizeAlicizationPerformanceDelivery(stateCandidate.delivery),
       emphasis: normalizeEmphasis(stateCandidate.emphasis),

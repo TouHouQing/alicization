@@ -250,7 +250,7 @@ export async function executeAlicizationLearningTaskOrchestrator(
     const selfEvolutionVersionCandidate = await options.proposeSelfEvolutionVersion?.({
       event: selfRevisionEvent,
       patch: selfRevisionStatePatch,
-    }).catch(() => null) ?? null
+    }) ?? null
     const finalized = {
       ...result,
       verifiedArtifact,

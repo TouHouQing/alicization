@@ -1,3 +1,4 @@
+import type { AlicizationInteractionIntent } from '@proj-alicization/stage-shared'
 import type { Message } from '@xsai/shared-chat'
 
 import type {
@@ -16,6 +17,7 @@ import type {
 } from './visible-reply/facade'
 
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
+import { buildAlicizationInteractionIntent, buildAlicizationInteractionIntentFact } from './interaction-intent'
 import {
   normalizeCustomDirectives,
   parseSoul,
@@ -55,6 +57,7 @@ export interface AlicizationMainChatTraceSurface {
 }
 
 export interface AlicizationMainChatRuntimeSurface {
+  interactionIntent?: AlicizationInteractionIntent | null
   action: AlicizationMainChatActionSurface | null
   capture: AlicizationMainChatCaptureSurface
   customDirectivesResolution: ResolvedCardCustomDirectives
@@ -71,6 +74,8 @@ export interface AlicizationMainChatRuntimeSurface {
 }
 
 const alicizationProviderFactTypes = new Set([
+  'alicization-expression-output-contract',
+  'alicization-interaction-intent',
   'alicization-execution-callbacks',
   'alicization-execution-capabilities',
   'alicization-execution-ledger',
@@ -219,6 +224,9 @@ interface MainChatRuntimeSurfaceToolDescriptor {
 }
 
 export interface BuildAlicizationMainChatRuntimeSurfaceInput {
+  cardId?: string
+  turnId?: string
+  now?: number
   actionObligation?: AlicizationMainChatActionObligation | null
   allowTools: boolean
   baseMessages: Message[]
@@ -361,6 +369,7 @@ export function buildAlicizationMainChatRuntimeSurface(
         },
       }
     : null
+  const interactionIntent = buildAlicizationInteractionIntent({ cardId: input.cardId, turnId: input.turnId, now: input.now ?? Date.now(), surface: digitalLifeRuntimeSurface, governance: input.governance })
   const promptBlocks = normalizeSystemBlocks([
     ...input.runtimeCorePromptBlocks,
     ...input.perceptionPromptSystemBlocks,
@@ -368,6 +377,7 @@ export function buildAlicizationMainChatRuntimeSurface(
     ...input.executionCapabilitySystemBlocks,
     ...(input.executionCallbackSystemBlocks ?? []),
     ...(input.executionLedgerSystemBlocks ?? []),
+    buildAlicizationInteractionIntentFact(interactionIntent),
   ])
 
   const messages = filterAlicizationProviderSystemMessages(
@@ -387,6 +397,7 @@ export function buildAlicizationMainChatRuntimeSurface(
   }
 
   return {
+    interactionIntent,
     action: input.actionObligation
       ? {
           kind: input.actionObligation.kind,

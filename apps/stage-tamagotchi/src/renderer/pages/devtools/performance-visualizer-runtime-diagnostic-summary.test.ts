@@ -607,7 +607,7 @@ describe('performance visualizer runtime diagnostic summary', () => {
     ])
   })
 
-  it('derives structured identity-continuity', () => {
+  it('derives playback cue authority and identity continuity', () => {
     expect(buildPlaybackCueAuthoritySummaryEntries({
       cueId: 'segment-playback-closure-fallback-1',
       authoritySegmentId: 'segment-playback-closure-fallback-1',

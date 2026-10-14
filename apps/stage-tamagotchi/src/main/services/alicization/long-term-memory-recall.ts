@@ -78,6 +78,7 @@ export interface LongTermMemoryEvidenceCandidate {
   provenance?: AlicizationMemoryProvenance | null
   evidenceVersion?: string | null
   version?: string | null
+  lifeFact?: { version?: number, perspective?: 'current' | 'historical', provenance: string, recordedFrom: number, recordedTo: number | null, validFrom: number | null, validTo: number | null }
   confidence: number
   reviewStatus?: 'confirmed' | 'candidate' | 'review-needed' | 'rejected' | 'pending' | string | null
   salience?: number | null
@@ -233,12 +234,13 @@ export function deriveLongTermMemoryRecallIntent(input: {
   let rationale = 'recall:none'
 
   const recollectionCue = containsAny(normalized, [
-    /记得|记不记得|还记得|想起|回想|回忆|回顾|上次|之前|以前|那次/u,
+    /记得|记不记得|还记得|想起|回想|回忆|回顾|上次|之前|以前|那次|上个月|上月|上周|昨天/u,
     /说过|提到|告诉过|刚才.*(?:说|提|告诉|表达|喜欢|偏好)/u,
+    /remember|recall|previously|used to|last month|last week|yesterday/iu,
   ])
   const gameCue = containsAny(normalized, [/游戏|打游戏|开黑|联机|steam|minecraft|mc\b|原神|崩铁|lol|瓦|valorant/iu])
   const correctionCue = containsAny(normalized, [/你[搞弄说记]错|不是(?:这个|这样|那样)|我纠正过|别再/u])
-  const preferenceCue = containsAny(normalized, [/喜欢|偏好|习惯|以后.*(别|不要|要)|记住我/u])
+  const preferenceCue = containsAny(normalized, [/喜欢|偏好|习惯|以后.*(别|不要|要)|记住我/u, /prefer|favou?rite|habits?|\blikes?\b/iu])
   const procedureCue = containsAny(normalized, [/怎么做|按上次|照之前|流程|步骤|方案|继续.*做|接着.*做/u])
   const taskCue = containsAny(normalized, [/继续|接着|上次.*任务|刚才.*任务|开发|commit|编译|测试|计划|文档/u])
 
@@ -320,6 +322,7 @@ export function buildLongTermMemoryQueryPlan(input: {
     workingMemoryQueryHints: input.workingMemoryQueryHints,
   })
   const normalizedQuery = expansion.normalizedQuery
+  const singleChoices = [...normalizedQuery.matchAll(/(?:还是|或者|或|、)(\p{Script=Han})(?=[？?。，！!吗呢]|$)/gu)].map(match => match[1]).slice(0, 4)
   const hints = uniqueTexts(input.workingMemoryQueryHints ?? [], 8, 120)
   const temporalHints = uniqueTexts([
     ...expansion.temporalHints,
@@ -349,6 +352,7 @@ export function buildLongTermMemoryQueryPlan(input: {
     normalizedQuery,
     keywordQueries: uniqueTexts([
       normalizedQuery,
+      ...singleChoices,
       ...hints,
       ...expansion.phraseQueries,
       ...expansion.charGramQueries,
@@ -356,7 +360,7 @@ export function buildLongTermMemoryQueryPlan(input: {
       ...temporalHints,
     ], 10, 160),
     phraseQueries: expansion.phraseQueries,
-    charGramQueries: expansion.charGramQueries,
+    charGramQueries: [...singleChoices, ...expansion.charGramQueries],
     semanticQueries: uniqueTexts([
       input.intent.mode === 'episodic' ? `${normalizedQuery} 共同经历 上次发生的事情` : '',
       input.intent.mode === 'relationship' ? normalizedQuery : '',
@@ -461,6 +465,7 @@ export function buildLongTermMemoryRecallBlock(input: {
         rankReasons: item.rankReasons,
         evidenceVersion: item.evidenceVersion,
         version: item.version,
+        ...(item.candidate.lifeFact ? { lifeFact: item.candidate.lifeFact } : {}),
       }
     })
     .filter(item => item !== null)

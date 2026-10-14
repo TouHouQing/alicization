@@ -22,13 +22,15 @@ import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat
 import { useChatSessionStore } from '@proj-alicization/stage-ui/stores/chat/session-store'
 import { useDisplayModelsStore } from '@proj-alicization/stage-ui/stores/display-models'
 import { useLive2d } from '@proj-alicization/stage-ui/stores/live2d'
+import { useAiriCardStore } from '@proj-alicization/stage-ui/stores/modules/airi-card'
 import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
 import { useHearingSpeechInputPipeline } from '@proj-alicization/stage-ui/stores/modules/hearing'
 import { useOnboardingStore } from '@proj-alicization/stage-ui/stores/onboarding'
 import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
 import { useSettings, useSettingsAudioDevice } from '@proj-alicization/stage-ui/stores/settings'
+import { useSpeechRuntimeStore } from '@proj-alicization/stage-ui/stores/speech-runtime'
 import { useStageDialogueStore } from '@proj-alicization/stage-ui/stores/stage-dialogue'
-import { refDebounced, useFocusWithin } from '@vueuse/core'
+import { refDebounced, useFocusWithin, useIntervalFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 
@@ -36,6 +38,10 @@ import ControlsIsland from '../components/stage-islands/controls-island/index.vu
 import ResourceStatusIsland from '../components/stage-islands/resource-status-island/index.vue'
 
 import { electronMainStageStartupStatusChannel, electronOpenOnboarding, electronSystemLockStateChannel } from '../../shared/eventa'
+import { interruptLifeVoiceForHost } from '../composables/life-resident-behavior'
+import { readLive2dCanvasPixel, readStagePixelWitness } from '../composables/stage-pixel-witness'
+import { useLifeExpressionReporter } from '../composables/use-life-expression-reporter'
+import { useLifeResidentBehavior } from '../composables/use-life-resident-behavior'
 import { useControlsIslandStore } from '../stores/controls-island'
 import { useStageThreeRuntimeDiagnosticsStore } from '../stores/stage-three-runtime-diagnostics'
 import { useStageWindowLifecycleStore } from '../stores/stage-window-lifecycle'
@@ -57,15 +63,14 @@ import {
 
 const controlsIslandRef = ref<InstanceType<typeof ControlsIsland>>()
 const widgetStageRef = ref<InstanceType<typeof WidgetStage>>()
+const { activeCardId } = storeToRefs(useAiriCardStore())
+const lifeExpressionReporter = useLifeExpressionReporter(() => activeCardId.value)
 const controlsIslandElement = computed(() => controlsIslandRef.value?.$el as HTMLElement | undefined)
 const stageCanvas = toRef(() => widgetStageRef.value?.canvasElement())
 const stageDialogueOverlay = toRef(() => widgetStageRef.value?.dialogueOverlayElement())
 const componentStateStage = ref<'pending' | 'loading' | 'mounted'>('pending')
 
 const isLoading = ref(true)
-const startupInteractionActive = ref(true)
-let startupInteractionTimer: ReturnType<typeof setTimeout> | undefined
-const startupInteractionGraceMs = 2500
 
 // NOTICE: Keep the stage surface visible by default.
 // The previous fade-on-hover path can make the entire transparent desktop window
@@ -178,14 +183,25 @@ function resetDesktopLayout() {
 }
 watch(componentStateStage, () => isLoading.value = componentStateStage.value !== 'mounted', { immediate: true })
 
+function reportStageBodyHealth() {
+  const canvas = stageCanvas.value
+  const renderer = stageModelRenderer.value
+  const state = componentStateStage.value
+  const model = stageModelSelectedUrl.value
+  const visiblePixels = readStagePixelWitness({ mounted: state === 'mounted', bounds: canvas?.getBoundingClientRect() ?? null, readRegion: (x, y) => renderer === 'vrm' ? widgetStageRef.value?.readRenderTargetRegionAtClientPoint(x, y, 1) ?? null : canvas && renderer === 'live2d' ? readLive2dCanvasPixel(canvas, x, y) : null })
+  const errorCode = !model ? 'MODEL_NOT_SELECTED' : state !== 'mounted' ? 'MODEL_OR_RENDERER_LOADING' : visiblePixels === 'unknown' ? 'NO_VISIBLE_PIXEL_WITNESS' : null
+  void lifeExpressionReporter.health(activeCardId.value || 'default', { rendererState: state, renderer: renderer || 'unselected', modelSelected: !!model, canvasPresent: !!canvas, visiblePixels, errorCode })
+}
+watch([componentStateStage, stageModelRenderer, stageModelSelectedUrl, activeCardId, stageCanvas], reportStageBodyHealth, { flush: 'post', immediate: true })
+useIntervalFn(reportStageBodyHealth, 10_000)
+
 const hearingDialogOpen = computed(() => controlsIslandRef.value?.hearingDialogOpen ?? false)
 
 function resolveDesktopCaptureStateNow() {
-  const insideControls = !isOutsideFor250Ms.value
-  const insideDialogueOverlay = !isOutsideDialogueOverlayFor250Ms.value || isDialogueOverlayFocused.value
+  const insideControls = !!controlsIslandElement.value && !isOutsideFor250Ms.value
+  const insideDialogueOverlay = !!stageDialogueOverlay.value && (!isOutsideDialogueOverlayFor250Ms.value || isDialogueOverlayFocused.value)
   return resolveDesktopMouseCaptureState({
     desktopInputReady: desktopInputReady.value,
-    startupInteractionActive: startupInteractionActive.value,
     fadeOnHoverEnabled: fadeOnHoverEnabled.value,
     hearingDialogOpen: hearingDialogOpen.value,
     insideControls,
@@ -298,27 +314,9 @@ async function syncRecentDrivingEventFromMindTrace(
   })
 }
 
-watch([desktopInputReady, startupInteractionActive, isOutsideFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, stageCharacterHovered, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
+watch([desktopInputReady, isOutsideFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, stageCharacterHovered, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
   syncDesktopMouseCaptureState()
 }, { immediate: true })
-
-function releaseStartupInteraction() {
-  if (startupInteractionTimer) {
-    clearTimeout(startupInteractionTimer)
-    startupInteractionTimer = undefined
-  }
-
-  if (!startupInteractionActive.value)
-    return
-
-  startupInteractionActive.value = false
-  syncDesktopMouseCaptureState()
-}
-
-watch(componentStateStage, (state) => {
-  if (state === 'mounted')
-    releaseStartupInteraction()
-})
 
 function emitStageStartupStatus(state: 'stage-page-mounted' | 'stage-mounted' | 'stage-unmounted') {
   if (typeof window === 'undefined' || typeof document === 'undefined')
@@ -372,6 +370,12 @@ const providersStore = useProvidersStore()
 const consciousnessStore = useConsciousnessStore()
 const { activeProvider: activeChatProvider, activeModel: activeChatModel } = storeToRefs(consciousnessStore)
 const chatStore = useChatOrchestratorStore()
+const voiceListening = ref(false)
+const speechRuntime = useSpeechRuntimeStore()
+const residentBehavior = useLifeResidentBehavior({ paused: stagePaused, listening: voiceListening, composerFocused: isDialogueOverlayFocused, speaking: computed(() => Boolean(widgetStageRef.value?.speechActivity?.speaking)) })
+watch([activeCardId, () => enabled.value, stagePaused], () => {
+  voiceListening.value = false
+})
 const chatSession = useChatSessionStore()
 const shouldUseStreamInput = computed(() => supportsStreamInput.value && !!stream.value)
 
@@ -409,6 +413,9 @@ function surfaceVoiceSendFailure(error: unknown) {
 }
 
 async function handleSpeechStart() {
+  interruptLifeVoiceForHost({ cardId: activeCardId.value, microphoneEnabled: enabled.value, speaking: Boolean(widgetStageRef.value?.speechActivity?.speaking), cancelSpeech: speechRuntime.cancelOwner })
+  if (enabled.value && !stagePaused.value)
+    voiceListening.value = true
   if (shouldUseStreamInput.value) {
     console.info('Speech detected - transcription session should already be active')
     return
@@ -418,6 +425,7 @@ async function handleSpeechStart() {
 }
 
 async function handleSpeechEnd() {
+  voiceListening.value = false
   if (shouldUseStreamInput.value) {
     // Keep streaming session alive; idle timer in pipeline will handle teardown.
     return
@@ -693,7 +701,6 @@ watch([componentStateStage, stageModelRenderer, stageModelSelectedUrl], ([state,
 }, { immediate: true })
 
 onMounted(() => {
-  startupInteractionTimer = setTimeout(releaseStartupInteraction, startupInteractionGraceMs)
   emitStageStartupStatus('stage-page-mounted')
   syncDesktopMouseCaptureState()
   void recoverStageLoading('init')
@@ -708,9 +715,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   emitStageStartupStatus('stage-unmounted')
-  if (startupInteractionTimer)
-    clearTimeout(startupInteractionTimer)
-  startupInteractionTimer = undefined
   captionPoster.close()
   clearStageLoadRecoveryTimer()
   stopAudioInteraction()
@@ -749,6 +753,7 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
         h-full w-full
         flex-1
         :paused="stagePaused"
+        :resident-behavior="residentBehavior"
         :quick-reply-enabled="true"
         :focus-at="{ x: live2dLookAtX, y: live2dLookAtY }"
         live2d-position-mode="pixel"
@@ -757,6 +762,9 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
         :y-offset="position.y"
         :character-hovered-override="stageCharacterHovered"
         @desktop-interaction-change="stageInteractionActive = $event"
+        @dialogue-rendered="lifeExpressionReporter.rendered($event)"
+        @speech-receipt="lifeExpressionReporter.audio($event)"
+        @body-activity-receipt="lifeExpressionReporter.bodyActivity($event)"
       />
       <ControlsIsland
         ref="controlsIslandRef"

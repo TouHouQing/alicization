@@ -1,3 +1,5 @@
+import { platform } from 'node:process'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -5,6 +7,7 @@ import {
   ensureStageWindowVisible,
   promoteStageWindowAboveDesktop,
   promoteUtilityWindowAboveStage,
+  setDesktopWindowAlwaysOnTop,
   transparentWindowBackgroundColor,
 } from './window-layer'
 
@@ -18,7 +21,10 @@ describe('promoteStageWindowAboveDesktop', () => {
 
     promoteStageWindowAboveDesktop(window)
 
-    expect(window.setAlwaysOnTop).toHaveBeenCalledWith(true, 'floating', 1)
+    if (platform === 'win32')
+      expect(window.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
+    else
+      expect(window.setAlwaysOnTop).toHaveBeenCalledWith(true, 'floating', 1)
     expect(window.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, {
       visibleOnFullScreen: true,
     })
@@ -36,9 +42,20 @@ describe('promoteUtilityWindowAboveStage', () => {
 
     promoteUtilityWindowAboveStage(window)
 
-    expect(window.setAlwaysOnTop).toHaveBeenCalledWith(true, 'floating', 2)
+    if (platform === 'win32')
+      expect(window.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
+    else
+      expect(window.setAlwaysOnTop).toHaveBeenCalledWith(true, 'floating', 2)
     expect(window.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true)
     expect(window.moveTop).toHaveBeenCalledOnce()
+  })
+})
+
+describe('setDesktopWindowAlwaysOnTop', () => {
+  it('respects an explicit unpin request', () => {
+    const window = { setAlwaysOnTop: vi.fn() }
+    setDesktopWindowAlwaysOnTop(window, false)
+    expect(window.setAlwaysOnTop).toHaveBeenCalledExactlyOnceWith(false)
   })
 })
 
@@ -77,7 +94,10 @@ describe('ensureStageWindowVisible', () => {
 
     ensureStageWindowVisible(window, app)
 
-    expect(app.show).toHaveBeenCalledOnce()
+    if (platform === 'darwin')
+      expect(app.show).toHaveBeenCalledOnce()
+    else
+      expect(app.show).not.toHaveBeenCalled()
     expect(app.focus).toHaveBeenCalledWith({ steal: true })
     expect(window.show).toHaveBeenCalledOnce()
     expect(window.moveTop).toHaveBeenCalledOnce()
@@ -98,7 +118,10 @@ describe('ensureStageWindowVisible', () => {
 
     ensureStageWindowVisible(window, app)
 
-    expect(app.show).toHaveBeenCalledOnce()
+    if (platform === 'darwin')
+      expect(app.show).toHaveBeenCalledOnce()
+    else
+      expect(app.show).not.toHaveBeenCalled()
     expect(app.focus).toHaveBeenCalledWith({ steal: true })
     expect(window.show).not.toHaveBeenCalled()
     expect(window.moveTop).toHaveBeenCalledOnce()

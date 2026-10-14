@@ -98,6 +98,21 @@ beforeEach(() => {
 })
 
 describe('runtime main gateway one-shot', () => {
+  it.each([
+    ['reply-grounding', 'alicization-reply-grounding-context'],
+    ['personal-activity', 'alicization-personal-activity-context'],
+    ['persona-evaluation', 'alicization-persona-evaluation-context'],
+  ] as const)('delivers the %s job contract only on its owning source', async (source, type) => {
+    const { runtime } = createOneShotRuntimeHarness()
+    vi.mocked(generateText).mockResolvedValue({ text: '{"claims":[]}' } as any)
+    const system = JSON.stringify({ type, data: { version: 1, formatRequirements: 'Review ONLY the current draft. Evidence is not a claim. A wish is not a promise.', identity: 'QA adopted identity' } })
+    await runtime.generateMainGatewayText({ cardId: 'card-test', source, system, user: '{"draft":"我喜欢雨声。"}', injectCustomDirectives: false, injectPerformanceManifest: false })
+    const messages = vi.mocked(generateText).mock.calls[0]![0].messages!
+    expect(messages.filter(message => message.role === 'system')).toEqual([{ role: 'system', content: system }])
+    await runtime.generateMainGatewayText({ cardId: 'card-test', source: 'scene-appraisal', system, user: 'input' })
+    expect(vi.mocked(generateText).mock.calls[1]![0].messages!.filter(message => message.role === 'system')).toEqual([])
+  })
+
   it('omits unavailable optional focus target fields from persisted scene residue', () => {
     const { runtime } = createOneShotRuntimeHarness()
 

@@ -105,7 +105,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
     live2dMotionAliases: ['Happy', 'Joy', 'Cheer', 'Smile'],
     vrmBaseExpressionCandidates: ['happy'],
     facialCueCandidates: ['smile', 'bright-smile', 'relaxed'],
-    actionCueCandidates: ['cheer_raise_hand', 'raise_hand_excited', 'sway_relaxed'],
+    actionCueCandidates: ['celebrate_small', 'cheer_raise_hand', 'raise_hand_excited', 'sway_relaxed'],
   },
   sad: {
     stageEmotion: 'sad',
@@ -114,7 +114,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
     live2dMotionAliases: ['Sad', 'Down', 'Gloom'],
     vrmBaseExpressionCandidates: ['sad', 'relaxed'],
     facialCueCandidates: ['frown', 'relaxed', 'downcast'],
-    actionCueCandidates: ['idle_settle', 'comfort_sway', 'slow_nod'],
+    actionCueCandidates: ['listen_close', 'reassuring_nod', 'idle_settle', 'comfort_sway', 'slow_nod'],
   },
   angry: {
     stageEmotion: 'angry',
@@ -132,7 +132,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
     live2dMotionAliases: ['Question', 'Concerned', 'Concern', 'Observe'],
     vrmBaseExpressionCandidates: ['sad', 'relaxed'],
     facialCueCandidates: ['frown', 'soft-gaze', 'relaxed'],
-    actionCueCandidates: ['idle_gentle_nod', 'comfort_sway', 'observe_focus'],
+    actionCueCandidates: ['listen_close', 'reassuring_nod', 'idle_gentle_nod', 'comfort_sway', 'observe_focus'],
   },
   tired: {
     stageEmotion: 'sad',
@@ -141,7 +141,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
     live2dMotionAliases: ['Idle', 'Tired', 'Relax'],
     vrmBaseExpressionCandidates: ['relaxed', 'neutral'],
     facialCueCandidates: ['relaxed', 'half-lid', 'slow-blink'],
-    actionCueCandidates: ['idle_settle', 'slow_sway', 'slow_nod'],
+    actionCueCandidates: ['rest_settle', 'idle_settle', 'slow_sway', 'slow_nod'],
   },
   apologetic: {
     stageEmotion: 'awkward',

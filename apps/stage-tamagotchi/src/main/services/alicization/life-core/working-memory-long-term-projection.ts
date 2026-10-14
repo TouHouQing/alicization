@@ -6,6 +6,7 @@ import type {
 } from '../../../../shared/eventa'
 import type { WorkingMemoryLongTermCleanedCandidate } from './working-memory-long-term-cleaning'
 
+import { extractLifeFactValidity } from '../life-fact-validity'
 import { normalizeWorkingMemoryText } from './working-memory'
 
 export interface WorkingMemoryLongTermTypedProjectionBundle {
@@ -46,9 +47,10 @@ export function projectWorkingMemoryLongTermCandidate(input: {
     return {
       ...emptyProjectionBundle(),
       memoryFacts: [{
-        subject: 'user',
-        predicate: 'prefers',
-        object: summary,
+        subject: candidate.claim?.subject ?? 'user',
+        predicate: candidate.claim?.predicate ?? 'prefers',
+        object: candidate.claim?.object ?? summary,
+        validity: extractLifeFactValidity(candidate.evidenceSnippets, candidate.createdAt),
         confidence: candidate.confidence,
         knowledgeStage: 'working-understanding',
         validationStatus: 'provisional',
@@ -151,6 +153,7 @@ export function projectWorkingMemoryLongTermCandidate(input: {
         subject: candidate.claim.subject,
         predicate: candidate.claim.predicate,
         object: candidate.claim.object,
+        validity: extractLifeFactValidity(candidate.evidenceSnippets, candidate.createdAt),
         confidence: candidate.confidence,
         knowledgeStage: 'working-understanding',
         validationStatus: 'provisional',

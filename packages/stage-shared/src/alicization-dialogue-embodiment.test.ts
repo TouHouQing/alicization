@@ -42,8 +42,8 @@ describe('alicization dialogue embodiment', () => {
     })
 
     expect(governed).toEqual(ungoverned)
-    expect(governed.emotion).toBe('neutral')
-    expect(governed.performance.delivery).toBe('calm')
+    expect(governed.emotion).toBe('concerned')
+    expect(governed.performance.delivery).toBe('gentle')
   })
 
   it('preserves an explicit supported VRM action from structured continuity state', () => {

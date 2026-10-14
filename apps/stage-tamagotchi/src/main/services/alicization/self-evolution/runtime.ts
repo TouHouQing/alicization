@@ -33,6 +33,7 @@ export interface AlicizationSelfEvolutionRuntime {
     reason: string
   }) => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot>
   validateAllShadowVersions: (input: {
+    evaluatedCandidateIds: string[]
     replayPassed: boolean
     finalReplayGatePassed?: boolean | null
     productionGoldSampleCount?: number | null
@@ -45,11 +46,12 @@ export function createAlicizationSelfEvolutionRuntime(options: {
   readSnapshot: (
     options?: { signal?: AbortSignal },
   ) => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot | null>
-  writeSnapshot: (snapshot: AlicizationSelfEvolutionVersionRuntimeSnapshot) => Promise<void>
+  writeSnapshot: (snapshot: AlicizationSelfEvolutionVersionRuntimeSnapshot, previous: AlicizationSelfEvolutionVersionRuntimeSnapshot) => Promise<void>
 }): AlicizationSelfEvolutionRuntime {
   const versionRuntime = createAlicizationSelfEvolutionVersionRuntime(options)
 
   async function validateAllShadowVersions(input: {
+    evaluatedCandidateIds: string[]
     replayPassed: boolean
     finalReplayGatePassed?: boolean | null
     productionGoldSampleCount?: number | null
@@ -58,7 +60,7 @@ export function createAlicizationSelfEvolutionRuntime(options: {
     const snapshot = await versionRuntime.getSnapshot()
     let next = snapshot
     for (const candidate of snapshot.candidates) {
-      if (candidate.status !== 'shadow')
+      if (candidate.status !== 'shadow' || !input.evaluatedCandidateIds.includes(candidate.id))
         continue
       next = await versionRuntime.validate({
         candidateId: candidate.id,

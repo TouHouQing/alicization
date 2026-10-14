@@ -21,6 +21,7 @@ import {
   buildAlicizationExecutionEnv,
   resolveAlicizationExecutionBinary,
 } from '../execution-command-env'
+import { requiresDelegatedPermissionApproval } from './delegated-risk-policy'
 import {
   isLowRiskAutonomousCodeAgentSelfStartThread,
   resolveThreadPermissionMode,
@@ -217,6 +218,9 @@ function buildClaudeCodeCommandSpec(input: AlicizationClaudeCodeAdapterInput) {
   const permissionMode = resolveThreadPermissionMode(input.thread)
   const effect = resolveThreadEffect(input.thread)
   const allowTools = input.command.allowTools === true
+  if (requiresDelegatedPermissionApproval(input.command) && permissionMode !== 'explicit') {
+    return { ok: false as const, errorCode: 'CLAUDE_CODE_PERMISSION_REQUIRED', errorMessage: 'Delegated permission overrides require explicit approval before dispatch.' }
+  }
   if (allowTools && effect === 'observe') {
     return {
       ok: false as const,

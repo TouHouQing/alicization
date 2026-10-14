@@ -44,6 +44,7 @@ import type { ToolRegistry } from './turn-os/tool-registry'
 
 import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
+import { cwd as processCwd } from 'node:process'
 
 import * as nodePath from 'node:path'
 
@@ -61,12 +62,15 @@ import {
   normalizeAlicizationCodingAgentTask,
   validateAlicizationCodingAgentInvocation,
 } from './coding-agent-task-contract'
+import { assertExecutionCaptureAllowed } from './execution-capture-policy'
 import { normalizeLocalVisualCrossLayerValue } from './executor-adapters/local-visual'
+import { requiresPrivateReadConfirmation } from './executor-adapters/private-read-policy'
 import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import { sanitizeBriefText } from './runtime-realtime'
 import { sanitizeText } from './runtime-soul'
 
 export interface MainGatewayExecutionToolContext {
+  authorizationSource?: 'human-ui'
   abortSignal?: AbortSignal
   cardId: string
   decisionTraceId?: string | null
@@ -158,6 +162,7 @@ export interface BuildMainGatewayToolsOptions {
   desktopPressKeys?: (input: AlicizationLocalDesktopPressKeysInput) => Promise<unknown>
   desktopTypeText?: (input: AlicizationLocalDesktopTypeTextInput) => Promise<unknown>
   desktopWait?: (input: AlicizationLocalDesktopWaitInput) => Promise<unknown>
+  createPersonalPiece?: (input: { cardId: string, turnId: string, abortSignal?: AbortSignal }) => Promise<unknown>
   abortSignal?: AbortSignal
   executeTaskThread: (input: {
     context: MainGatewayExecutionToolContext
@@ -1332,7 +1337,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
             goal: sanitizeText(goal) || `Run CLI command: ${sanitizeBriefText(commandLabel, 220)}`,
             origin: 'user',
             effect: effect ?? 'mutate',
-            permissionMode: permissionMode ?? 'implicit',
+            permissionMode: permissionMode === 'none' ? 'none' : 'implicit',
             justification: 'grounded',
             riskBudget: 'medium',
             requestedChannel: 'cli',
@@ -1398,7 +1403,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
             goal: sanitizeText(goal) || `Run Codex task: ${sanitizeBriefText(resolvedPrompt, 220)}`,
             origin: 'user',
             effect: normalizedTask.effect,
-            permissionMode: permissionMode ?? 'implicit',
+            permissionMode: permissionMode === 'none' ? 'none' : 'implicit',
             justification: 'grounded',
             riskBudget: 'medium',
             requestedChannel: 'codex',
@@ -1466,7 +1471,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
             goal: sanitizeText(goal) || `Run Claude Code task: ${sanitizeBriefText(resolvedPrompt, 220)}`,
             origin: 'user',
             effect: normalizedTask.effect,
-            permissionMode: permissionMode ?? 'implicit',
+            permissionMode: permissionMode === 'none' ? 'none' : 'implicit',
             justification: 'grounded',
             riskBudget: 'medium',
             requestedChannel: 'claude-code',
@@ -1490,7 +1495,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     }),
     defineMainGatewayExecutorToolSpec({
       name: 'executor_run_local_visual',
-      description: 'Plan and execute a governed local visual task thread through Alicization executor governance for browser, software, desktop, or mixed GUI actions. This always uses the host-local GUI chain and never forces OpenClaw transport.',
+      description: 'Plan and execute a governed local visual task thread for browser, software, desktop, or mixed GUI actions. This inspects screen captures. For known Windows controls, prefer desktop_list_interactables, desktop_type_text and desktop_click_element, which need no screenshot. A host request excluding capture must use semantic tools rather than this visual adapter.',
       parameters: z.object({
         threadId: z.string().optional(),
         instruction: z.string().min(1).optional(),
@@ -1524,6 +1529,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         requiresVisualGrounding: z.boolean().optional(),
       }).strict(),
       execute: async ({ threadId, instruction, channel, kind, senderId, roleName, channelId, conversationId, contentParts, images, audios, files, meta, sessionAffinityKey, goal, effect, permissionMode, justification, riskBudget, requiresVisualGrounding }, toolContext, onExecutionEvent) => {
+        assertExecutionCaptureAllowed(options.userText)
         const resumedThreadId = sanitizeText(threadId) || ''
         if (resumedThreadId && options.resumeTaskThread) {
           return await resumeTaskThread({
@@ -1566,7 +1572,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
             goal: sanitizeText(goal) || `Run local visual task: ${sanitizeBriefText(resolvedInstruction, 220)}`,
             origin: 'user',
             effect: effect ?? 'mutate',
-            permissionMode: permissionMode ?? 'implicit',
+            permissionMode: permissionMode === 'none' ? 'none' : 'implicit',
             justification: justification ?? 'grounded',
             riskBudget: riskBudget ?? 'medium',
             requestedChannel: channel,
@@ -1665,7 +1671,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
             goal: sanitizeText(goal) || `Run OpenClaw task: ${sanitizeBriefText(resolvedInstruction, 220)}`,
             origin: 'user',
             effect: effect ?? 'mutate',
-            permissionMode: permissionMode ?? 'implicit',
+            permissionMode: permissionMode === 'none' ? 'none' : 'implicit',
             justification: justification ?? 'grounded',
             riskBudget: riskBudget ?? 'medium',
             requestedChannel: 'openclaw',
@@ -3108,6 +3114,10 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     for (const toolName of toolNames) {
       const seenArguments = new Set<string>()
       for (const argumentsObject of argumentCandidates) {
+        const readPath = sanitizeText(argumentsObject.path ?? argumentsObject.filePath)
+        if (toolName === 'filesystem::read_file' && readPath && requiresPrivateReadConfirmation('cat', [readPath], processCwd())) {
+          return { attempts, toolName, arguments: argumentsObject, result: { isError: true, ok: false, errorCode: 'PRIVATE_READ_CONFIRMATION_REQUIRED', errorMessage: 'Reading this credential path requires a separately confirmed file inspection.' } }
+        }
         const signature = JSON.stringify(argumentsObject)
         if (seenArguments.has(signature))
           continue
@@ -3189,6 +3199,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
 
         if (
           manifest.idempotency === 'none'
+          || manifest.effects?.retryClass !== 'read-only'
           || !isRecoverableMcpCandidateError(normalizedResult)
         ) {
           return {
@@ -3253,7 +3264,11 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       } as const
     }
 
-    const fullContent = extractTextFromMcpResult(invocation.result)
+    // A verified local read carries exact bytes. Generic MCP text extraction
+    // trims display text and cannot provide a byte-exact file witness.
+    const metadata = invocation.result.structuredContent
+    const exactText = metadata?.readVerified === true && invocation.result.content?.length === 1 && typeof invocation.result.content[0].text === 'string' ? invocation.result.content[0].text : null
+    const fullContent = exactText ?? extractTextFromMcpResult(invocation.result)
     const contentHash = hashTextContent(fullContent)
     const maxReturnBytes = normalizeFilesystemReturnLimit(input.maxReturnBytes)
     const truncatedPayload = truncateTextByByteLimit({
@@ -3274,6 +3289,9 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       operation: 'read_file',
       path,
       content: truncatedPayload.content,
+      ok: true,
+      finalStatus: 'completed',
+      ...(exactText !== null && metadata?.contentHash === contentHash && metadata.byteLength === Buffer.byteLength(fullContent, 'utf8') && typeof metadata.path === 'string' ? { verifiedPath: metadata.path } : {}),
       contentHash,
       byteLength: truncatedPayload.byteLength,
       truncated: truncatedPayload.truncated,
@@ -3363,6 +3381,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       path,
       byteLength,
       contentHash,
+      ...(invocation.result.structuredContent?.verified === true ? { ok: true, finalStatus: 'completed', verifiedPath: invocation.result.structuredContent.path } : {}),
       mcpToolName: invocation.toolName,
       attempts: invocation.attempts,
     } as const
@@ -3586,6 +3605,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     return {
       status: 'completed',
       operation: 'patch_file',
+      ...(writeResult.ok === true ? { ok: true, finalStatus: 'completed', verifiedPath: writeResult.verifiedPath, contentHash: writeResult.contentHash } : {}),
       dryRun: false,
       writeApplied: true,
       path: normalizedPath,
@@ -3725,13 +3745,14 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     }),
     tool({
       name: 'browser_read_page',
-      description: 'Read the current local browser page directly, without escalating to a broader OpenClaw task thread.',
+      description: 'Read the current browser page. After an action, declare expectedText for the required visible confirmation before reading; a read alone does not prove submission or external persistence.',
       parameters: z.object({
         browser: z.enum(['default', 'chrome', 'safari']).optional(),
+        expectedText: z.string().min(1).max(2048).optional(),
         format: z.enum(['html', 'interactables', 'text']).optional(),
         maxChars: z.coerce.number().optional(),
       }).strict(),
-      execute: async ({ browser, format, maxChars }, executeOptions) => await runOptionalLocalTool({
+      execute: async ({ browser, expectedText, format, maxChars }, executeOptions) => await runOptionalLocalTool({
         abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.browserReadPage,
         operation: 'browser_read_page',
@@ -3739,6 +3760,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         missingErrorMessage: 'Local browser_read_page handler is not configured for this runtime.',
         payload: {
           browser,
+          expectedText,
           format,
           maxChars: normalizeFinitePositiveInteger(maxChars),
         },
@@ -3746,7 +3768,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     }),
     tool({
       name: 'browser_click_element',
-      description: 'Click an element in a local browser directly, without escalating to a broader OpenClaw task thread.',
+      description: 'Click an observed local browser element. Read the current page first and read again after every mutation; old observations are invalidated. Observe the result to establish completion.',
       parameters: z.object({
         autoContinueSuggestedActions: z.boolean().optional(),
         browser: z.enum(['default', 'chrome', 'safari']).optional(),
@@ -3793,7 +3815,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     }),
     tool({
       name: 'browser_type_text',
-      description: 'Type text into the current local browser page directly, optionally matching or reusing a focused input first, without escalating to a broader OpenClaw task thread.',
+      description: 'Type into an observed browser input. Read the current page first, select its exact target, then read back the new state before another mutation. Successful typing does not prove submission.',
       parameters: z.object({
         autoContinueSuggestedActions: z.boolean().optional(),
         text: z.string().min(1),
@@ -4036,12 +4058,13 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     }),
     tool({
       name: 'desktop_list_interactables',
-      description: 'List interactable elements from the current local desktop window directly, without escalating to a broader OpenClaw task thread.',
+      description: 'Observe native semantic controls in one local Windows window. Supply an exact windowTitle when known. This uses UI Automation without screenshots or global input. Observe owned popups separately by their title, and re-observe after every mutation before the next click or input.',
       parameters: z.object({
+        windowTitle: z.string().min(1).max(180).optional(),
         role: z.enum(['button', 'checkbox', 'element', 'input', 'link', 'list-item', 'menu-item', 'radio', 'select', 'tab']).optional(),
         maxItems: z.coerce.number().int().min(1).max(40).optional(),
       }).strict(),
-      execute: async ({ role, maxItems }, executeOptions) => await runOptionalLocalTool({
+      execute: async ({ role, maxItems, windowTitle }, executeOptions) => await runOptionalLocalTool({
         abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.desktopListInteractables,
         operation: 'desktop_list_interactables',
@@ -4049,14 +4072,16 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         missingErrorMessage: 'Local desktop_list_interactables handler is not configured for this runtime.',
         payload: {
           role,
+          windowTitle,
           maxItems: normalizeFinitePositiveInteger(maxItems),
         },
       }),
     }),
     tool({
       name: 'desktop_click_element',
-      description: 'Click an interactable element in the current local desktop window directly, without escalating to a broader OpenClaw task thread.',
+      description: 'Activate an observed native control. List the current window controls first and reobserve after every mutation. Only the observed window is eligible; verify the result before reporting completion.',
       parameters: z.object({
+        windowTitle: z.string().min(1).max(180).optional(),
         autoContinueSuggestedActions: z.boolean().optional(),
         expectedPhase: z.enum(['unknown', 'login', 'search-results', 'social-feed', 'browser-desktop-handoff', 'content-detail', 'form-entry', 'upload-flow']).optional(),
         inspectionMaxSuggestedActions: z.coerce.number().int().min(1).max(5).optional(),
@@ -4070,13 +4095,14 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       }).strict().refine(input => Boolean(sanitizeText(input.text) || input.ordinal), {
         message: 'text or ordinal is required',
       }),
-      execute: async ({ autoContinueSuggestedActions, ordinal, role, text, exactText, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }, executeOptions) => await runOptionalLocalTool({
+      execute: async ({ windowTitle, autoContinueSuggestedActions, ordinal, role, text, exactText, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }, executeOptions) => await runOptionalLocalTool({
         abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.desktopClickElement,
         operation: 'desktop_click_element',
         missingErrorCode: 'DESKTOP_CLICK_ELEMENT_UNAVAILABLE',
         missingErrorMessage: 'Local desktop_click_element handler is not configured for this runtime.',
         payload: {
+          windowTitle,
           autoContinueSuggestedActions,
           ordinal: typeof ordinal === 'number' && Number.isFinite(ordinal)
             ? Math.max(1, Math.floor(ordinal))
@@ -4098,8 +4124,9 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     }),
     tool({
       name: 'desktop_type_text',
-      description: 'Type text into the current local desktop window directly, optionally focusing a matching input first, without escalating to a broader OpenClaw task thread.',
+      description: 'Type into an observed native input. List current controls first, then read back after typing before another mutation. Explicitly click a submit control; input success alone does not prove the goal.',
       parameters: z.object({
+        windowTitle: z.string().min(1).max(180).optional(),
         autoContinueSuggestedActions: z.boolean().optional(),
         text: z.string().min(1),
         expectedPhase: z.enum(['unknown', 'login', 'search-results', 'social-feed', 'browser-desktop-handoff', 'content-detail', 'form-entry', 'upload-flow']).optional(),
@@ -4114,13 +4141,14 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         reinspectAfterAction: z.boolean().optional(),
         submit: z.boolean().optional(),
       }).strict(),
-      execute: async ({ autoContinueSuggestedActions, text, targetText, ordinal, role, exactText, clearExisting, submit, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }, executeOptions) => await runOptionalLocalTool({
+      execute: async ({ windowTitle, autoContinueSuggestedActions, text, targetText, ordinal, role, exactText, clearExisting, submit, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }, executeOptions) => await runOptionalLocalTool({
         abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.desktopTypeText,
         operation: 'desktop_type_text',
         missingErrorCode: 'DESKTOP_TYPE_TEXT_UNAVAILABLE',
         missingErrorMessage: 'Local desktop_type_text handler is not configured for this runtime.',
         payload: {
+          windowTitle,
           autoContinueSuggestedActions,
           text,
           targetText,
@@ -4240,6 +4268,14 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         },
       }),
     }),
+    ...(options.createPersonalPiece
+      ? [tool({
+          name: 'life_create_personal_piece',
+          description: 'Choose and actually create one small original fictional piece from current grounded interests in your private local workspace. Use when your own small creative activity is welcome. This has a daily budget, real file proof, persistent project continuity and feedback. A wish alone is not completion. No arbitrary paths or external actions are accepted.',
+          parameters: z.object({}).strict(),
+          execute: async (_parameters, executeOptions) => options.createPersonalPiece!({ cardId: options.context.cardId, turnId: options.context.turnId, abortSignal: resolveDirectLocalAbortSignal(executeOptions) }),
+        })]
+      : []),
     tool({
       name: 'filesystem_read_file',
       description: 'Read local file content through MCP filesystem bridge and return normalized text/hash/truncation metadata.',
@@ -4396,6 +4432,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         return {
           status: 'completed',
           operation: 'edit_file',
+          writeApplied: true,
+          ...(writeResult.ok === true ? { ok: true, finalStatus: 'completed', verifiedPath: writeResult.verifiedPath, contentHash: writeResult.contentHash } : {}),
           path: normalizedPath,
           replacedCount: replaceEveryMatch ? occurrences : 1,
           previousHash: readState.contentHash,
@@ -4709,9 +4747,22 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
 
   const builtTools = await Promise.all(tools)
   const projectedTools: Tool[] = []
+  const directoryTools = new Set<string>()
+  if (options.toolSurface === 'main-chat') {
+    const catalog = asRecord(await options.invokeMcpListTools().catch(() => null))
+    for (const raw of Array.isArray(catalog?.tools) ? catalog.tools : []) {
+      const descriptor = asRecord(raw)
+      if (descriptor?.serverName === 'filesystem' && typeof descriptor.toolName === 'string')
+        directoryTools.add(descriptor.toolName)
+    }
+  }
 
   for (const builtTool of builtTools) {
     const providerToolName = builtTool.function.name
+    // Read/write also implement edit/patch. Directory operations need a real
+    // registered backend; never offer them solely because a schema exists.
+    if (options.toolSurface === 'main-chat' && ((providerToolName === 'filesystem_list_directory' && !directoryTools.has('list_directory')) || (providerToolName === 'filesystem_search_files' && !directoryTools.has('search_files'))))
+      continue
     const manifest = toolRegistry.list().find(candidate =>
       candidate.providerToolName === providerToolName,
     )

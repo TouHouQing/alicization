@@ -43,10 +43,19 @@ function all<T>(database: sqlite3.Database, sql: string, params: unknown[] = [])
   })
 }
 
+const openDatabases = new Set<sqlite3.Database>()
+async function closeDatabase(database: sqlite3.Database) {
+  if (!openDatabases.has(database))
+    return
+  await new Promise<void>((resolve, reject) => database.close(error => error ? reject(error) : resolve()))
+  openDatabases.delete(database)
+}
+
 async function createSandboxDatabase() {
   const dir = await mkdtemp(join(tmpdir(), 'alicization-persistent-vector-'))
   sandboxDirs.push(dir)
   const database = new sqlite3.Database(join(dir, 'vectors.sqlite'))
+  openDatabases.add(database)
   await run(database, `
     CREATE TABLE long_term_memory_search_documents (
       id TEXT PRIMARY KEY,
@@ -84,6 +93,8 @@ async function upsertCanonicalDocument(database: sqlite3.Database, input: {
 }
 
 afterEach(async () => {
+  for (const database of openDatabases)
+    await closeDatabase(database)
   while (sandboxDirs.length > 0) {
     const dir = sandboxDirs.pop()
     if (!dir)
@@ -123,9 +134,10 @@ describe('persistent long-term memory vector store', () => {
       metadata: {},
     }])
 
-    database.close()
+    await closeDatabase(database)
 
     const restarted = new sqlite3.Database(join(sandboxDirs[0]!, 'vectors.sqlite'))
+    openDatabases.add(restarted)
     const restartedStore = createPersistentLongTermMemoryVectorStore({
       database: restarted,
       run,
@@ -150,7 +162,7 @@ describe('persistent long-term memory vector store', () => {
       limit: 4,
     })).toHaveLength(0)
 
-    restarted.close()
+    await closeDatabase(restarted)
   })
 
   it('supports canonical vector writes inside an existing transaction without re-entering the write queue', async () => {
@@ -198,7 +210,7 @@ describe('persistent long-term memory vector store', () => {
       vectorSpaceId: modelTransactionVectorSpaceId,
       limit: 1,
     })).resolves.toHaveLength(1)
-    database.close()
+    await closeDatabase(database)
   })
 
   it('persists canonical embedding text longer than the vector store normalization limit', async () => {
@@ -248,7 +260,7 @@ describe('persistent long-term memory vector store', () => {
       searchReady: true,
     })
 
-    database.close()
+    await closeDatabase(database)
   })
 
   it('prunes vectors whose canonical search documents were removed', async () => {
@@ -333,7 +345,7 @@ describe('persistent long-term memory vector store', () => {
       searchReady: true,
     })
 
-    database.close()
+    await closeDatabase(database)
   })
 
   it('requires reindex when stored vectors do not match the active model space', async () => {
@@ -378,7 +390,7 @@ describe('persistent long-term memory vector store', () => {
       reindexRequired: true,
     })
 
-    database.close()
+    await closeDatabase(database)
   })
 
   it('keeps vectors from different dimensions in separate persistent spaces', async () => {

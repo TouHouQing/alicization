@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 const repositoryRoot = resolve(import.meta.dirname, '../../../../../..')
 
 function readRepositoryFile(path: string) {
-  return readFileSync(resolve(repositoryRoot, path), 'utf8')
+  return readFileSync(resolve(repositoryRoot, path), 'utf8').replace(/\r\n/g, '\n')
 }
 
 describe('chat-start legacy governance removal', () => {

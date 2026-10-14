@@ -1,117 +1,39 @@
 <script setup lang="ts">
 import type { OnboardingStepNextHandler, OnboardingStepPrevHandler } from './types'
 
-import { Button, Input, Textarea } from '@proj-alicization/ui'
+import { Textarea } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import PersonaStepShell from './persona-step-shell.vue'
+import PersonaTraitControl from './persona-trait-control.vue'
+
 import { useAlicizationGenesisWorkshopStore } from '../../../../stores/alicization-genesis-workshop'
 
-const props = defineProps<{
-  onNext: OnboardingStepNextHandler
-  onPrevious: OnboardingStepPrevHandler
-}>()
-
+const props = defineProps<{ onNext: OnboardingStepNextHandler, onPrevious: OnboardingStepPrevHandler }>()
 const { t } = useI18n()
-const workshopStore = useAlicizationGenesisWorkshopStore()
-const { draft } = storeToRefs(workshopStore)
-
-const obedienceInput = computed({
-  get: () => draft.value.presetTemperament?.obedience,
-  set: (value: number | undefined) => {
-    if (!draft.value.presetTemperament)
-      return
-    draft.value.presetTemperament.obedience = value ?? 0.5
-  },
-})
-
-const livelinessInput = computed({
-  get: () => draft.value.presetTemperament?.liveliness,
-  set: (value: number | undefined) => {
-    if (!draft.value.presetTemperament)
-      return
-    draft.value.presetTemperament.liveliness = value ?? 0.5
-  },
-})
-
-const sensibilityInput = computed({
-  get: () => draft.value.presetTemperament?.sensibility,
-  set: (value: number | undefined) => {
-    if (!draft.value.presetTemperament)
-      return
-    draft.value.presetTemperament.sensibility = value ?? 0.5
-  },
-})
-
-const freeDescriptionInput = computed({
+const { draft } = storeToRefs(useAlicizationGenesisWorkshopStore())
+const traits = ['obedience', 'liveliness', 'sensibility'] as const
+const freeDescription = computed({
   get: () => draft.value.freeDescription ?? '',
-  set: (value: string) => {
-    draft.value.freeDescription = value
-  },
-})
-
-const temperamentSummary = computed(() => {
-  const values = draft.value.presetTemperament
-  return [values?.obedience, values?.liveliness, values?.sensibility]
-    .map(value => `${Math.round((value ?? 0.5) * 100)}%`)
-    .join(' / ')
+  set: (value: string) => { draft.value.freeDescription = value },
 })
 </script>
 
 <template>
-  <div h-full flex flex-col gap-4>
-    <div sticky top-0 z-100 flex flex-shrink-0 items-center gap-2>
-      <button outline-none @click="props.onPrevious">
-        <div class="i-solar:alt-arrow-left-line-duotone h-5 w-5" />
-      </button>
-      <h2 class="flex-1 text-center text-xl text-neutral-800 font-semibold md:text-left md:text-2xl dark:text-neutral-100">
-        {{ t('settings.dialogs.onboarding.personaWorkshop.core.title') }}
-      </h2>
-      <div class="h-5 w-5" />
-    </div>
-    <div class="flex-1 overflow-y-auto space-y-4">
-      <div class="border border-neutral-200 rounded-2xl bg-neutral-50/80 p-4 text-sm text-neutral-700 leading-6 dark:border-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
-        {{ t('settings.dialogs.onboarding.personaWorkshop.core.description') }}
-      </div>
-      <div class="grid gap-3 md:grid-cols-3">
-        <label class="space-y-2">
-          <div class="text-xs text-neutral-500">
-            {{ t('settings.dialogs.onboarding.personaWorkshop.core.obedience') }}
-          </div>
-          <Input v-model="obedienceInput" type="number" :min="0" :max="1" :step="0.1" />
-        </label>
-        <label class="space-y-2">
-          <div class="text-xs text-neutral-500">
-            {{ t('settings.dialogs.onboarding.personaWorkshop.core.liveliness') }}
-          </div>
-          <Input v-model="livelinessInput" type="number" :min="0" :max="1" :step="0.1" />
-        </label>
-        <label class="space-y-2">
-          <div class="text-xs text-neutral-500">
-            {{ t('settings.dialogs.onboarding.personaWorkshop.core.sensibility') }}
-          </div>
-          <Input v-model="sensibilityInput" type="number" :min="0" :max="1" :step="0.1" />
-        </label>
-      </div>
-      <div class="border border-primary-200 rounded-2xl border-dashed bg-primary-50/70 p-4 text-sm text-primary-700 dark:border-primary-700/60 dark:bg-primary-900/10 dark:text-primary-200">
-        {{ t('settings.dialogs.onboarding.personaWorkshop.core.summary', { summary: temperamentSummary }) }}
+  <PersonaStepShell :step="2" :title="t('settings.dialogs.onboarding.personaWorkshop.core.title')" :description="t('settings.dialogs.onboarding.personaWorkshop.core.description')" :action="t('settings.dialogs.onboarding.next')" @previous="props.onPrevious()" @next="props.onNext()">
+    <div class="py-2 space-y-6">
+      <div v-if="draft.presetTemperament" class="grid gap-6 sm:grid-cols-3">
+        <PersonaTraitControl v-for="trait in traits" :key="trait" v-model="draft.presetTemperament[trait]" :label="t(`settings.dialogs.onboarding.personaWorkshop.core.${trait}`)" :low="t(`settings.dialogs.onboarding.personaWorkshop.core.traits.${trait}.low`)" :balanced="t(`settings.dialogs.onboarding.personaWorkshop.core.traits.${trait}.balanced`)" :high="t(`settings.dialogs.onboarding.personaWorkshop.core.traits.${trait}.high`)" />
       </div>
       <label class="block space-y-2">
-        <div class="text-xs text-neutral-500">
-          {{ t('settings.dialogs.onboarding.personaWorkshop.core.freeDescription') }}
-        </div>
-        <Textarea v-model="freeDescriptionInput" rows="5" />
+        <span class="text-sm font-medium">{{ t('settings.dialogs.onboarding.personaWorkshop.core.freeDescription') }}</span>
+        <Textarea v-model="freeDescription" :rows="3" :placeholder="t('settings.dialogs.onboarding.personaWorkshop.core.descriptionPlaceholder')" class="!resize-none !whitespace-pre-wrap !rounded-xl !p-3 !leading-6 !shadow-none" />
       </label>
-      <div class="space-y-2">
-        <div class="text-xs text-neutral-500">
-          {{ t('settings.dialogs.onboarding.personaWorkshop.core.examplesTitle') }}
-        </div>
-        <div class="rounded-xl bg-white/70 p-3 text-sm text-neutral-600 dark:bg-neutral-950/60 dark:text-neutral-300">
-          {{ t('settings.dialogs.onboarding.personaWorkshop.core.examplesBody') }}
-        </div>
-      </div>
+      <p class="text-xs text-neutral-500 leading-5">
+        {{ t('settings.dialogs.onboarding.personaWorkshop.core.examplesBody') }}
+      </p>
     </div>
-    <Button :label="t('settings.dialogs.onboarding.next')" @click="props.onNext()" />
-  </div>
+  </PersonaStepShell>
 </template>

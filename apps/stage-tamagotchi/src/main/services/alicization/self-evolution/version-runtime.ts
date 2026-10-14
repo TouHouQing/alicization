@@ -1,5 +1,6 @@
 import type { AlicizationSelfEvolutionBaselineAdoptionRecordSnapshot } from '@proj-alicization/stage-shared'
 
+import type { LifeEvidenceRef } from '../../../../shared/life-contracts'
 import type { AlicizationSelfRevisionEvent } from './self-revision-ledger'
 import type { AlicizationSelfRevisionStatePatch } from './state-revision-bus'
 
@@ -29,6 +30,9 @@ export interface AlicizationSelfEvolutionVersionCandidate {
   activatedAt: number | null
   rolledBackAt: number | null
   createdAt: number
+  sourceFactIds?: string[]
+  sourceEvidence?: LifeEvidenceRef[]
+  pairedEvaluation?: { id: string, contentHash: string }
 }
 
 export interface AlicizationSelfEvolutionVersionRuntimeSnapshot {
@@ -109,6 +113,7 @@ export function buildAlicizationSelfEvolutionVersionCandidate(input: {
     activatedAt: null,
     rolledBackAt: null,
     createdAt: input.now,
+    sourceFactIds: uniqueList(input.event.evidence.supportingFactIds ?? [], 32),
   }
 }
 
@@ -230,26 +235,18 @@ export function createAlicizationSelfEvolutionVersionRuntime(options: {
   readSnapshot: (
     options?: { signal?: AbortSignal },
   ) => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot | null>
-  writeSnapshot: (snapshot: AlicizationSelfEvolutionVersionRuntimeSnapshot) => Promise<void>
+  writeSnapshot: (snapshot: AlicizationSelfEvolutionVersionRuntimeSnapshot, previous: AlicizationSelfEvolutionVersionRuntimeSnapshot) => Promise<void>
 }) {
   async function getSnapshot(ownerOptions?: { signal?: AbortSignal }) {
     if (ownerOptions?.signal?.aborted)
       throw ownerOptions.signal.reason ?? new DOMException('Self-evolution read aborted', 'AbortError')
-    try {
-      return await options.readSnapshot(ownerOptions)
-        ?? buildAlicizationSelfEvolutionVersionRuntimeSnapshot({ candidates: [] })
-    }
-    catch (error) {
-      if (ownerOptions?.signal?.aborted || error instanceof Error && error.name === 'AbortError')
-        throw error
-      return buildAlicizationSelfEvolutionVersionRuntimeSnapshot({ candidates: [] })
-    }
+    return await options.readSnapshot(ownerOptions)
+      ?? buildAlicizationSelfEvolutionVersionRuntimeSnapshot({ candidates: [] })
   }
 
   async function getActiveCandidate(ownerOptions?: { signal?: AbortSignal }) {
     const snapshot = await getSnapshot(ownerOptions)
-    return snapshot.candidates.find(candidate => candidate.id === snapshot.activeCandidateId)
-      ?? [...snapshot.candidates].reverse().find(candidate => candidate.status === 'active')
+    return snapshot.candidates.find(candidate => candidate.id === snapshot.activeCandidateId && candidate.status === 'active')
       ?? null
   }
 
@@ -266,12 +263,15 @@ export function createAlicizationSelfEvolutionVersionRuntime(options: {
       ...input,
       now: options.now(),
     })
+    const existing = previous.candidates.find(item => item.id === candidate.id)
+    if (existing)
+      return existing
     const next = buildAlicizationSelfEvolutionVersionRuntimeSnapshot({
       candidates: [...previous.candidates, candidate],
       activeCandidateId: candidate.status === 'active' ? candidate.id : previous.activeCandidateId,
       baselineAdoptionHistory: previous.baselineAdoptionHistory,
     })
-    await options.writeSnapshot(next)
+    await options.writeSnapshot(next, previous)
     return candidate
   }
 
@@ -282,8 +282,11 @@ export function createAlicizationSelfEvolutionVersionRuntime(options: {
     productionGoldSampleCount?: number | null
     productionGoldCoverage?: number | null
   }) {
+    const previous = await getSnapshot()
+    if (!previous.candidates.some(candidate => candidate.id === input.candidateId && candidate.status === 'shadow'))
+      throw new Error('Replay validation requires an existing shadow candidate')
     const next = applyAlicizationSelfEvolutionReplayValidation({
-      snapshot: await getSnapshot(),
+      snapshot: previous,
       candidateId: input.candidateId,
       replayPassed: input.replayPassed,
       finalReplayGatePassed: input.finalReplayGatePassed,
@@ -291,7 +294,7 @@ export function createAlicizationSelfEvolutionVersionRuntime(options: {
       productionGoldCoverage: input.productionGoldCoverage,
       now: options.now(),
     })
-    await options.writeSnapshot(next)
+    await options.writeSnapshot(next, previous)
     return next
   }
 
@@ -299,22 +302,31 @@ export function createAlicizationSelfEvolutionVersionRuntime(options: {
     candidateId: string
     reason: string
   }) {
+    const previous = await getSnapshot()
+    if (!previous.candidates.some(candidate => candidate.id === input.candidateId))
+      throw new Error('Rollback candidate does not exist')
     const next = rollbackAlicizationSelfEvolutionCandidate({
-      snapshot: await getSnapshot(),
+      snapshot: previous,
       candidateId: input.candidateId,
       reason: input.reason,
       now: options.now(),
     })
-    await options.writeSnapshot(next)
+    await options.writeSnapshot(next, previous)
     return next
   }
 
+  let writes: Promise<unknown> = Promise.resolve()
+  const serialize = <T>(task: () => Promise<T>) => {
+    const pending = writes.then(task)
+    writes = pending.catch(() => {})
+    return pending
+  }
   return {
     getActiveCandidate,
     getActivePatch,
     getSnapshot,
-    propose,
-    validate,
-    rollback,
+    propose: (input: Parameters<typeof propose>[0]) => serialize(() => propose(input)),
+    validate: (input: Parameters<typeof validate>[0]) => serialize(() => validate(input)),
+    rollback: (input: Parameters<typeof rollback>[0]) => serialize(() => rollback(input)),
   }
 }

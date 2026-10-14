@@ -224,7 +224,9 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
     ].join('\u0000')
   }
 
+  let healthGeneration = 0
   function clearHealthCache() {
+    healthGeneration += 1
     healthCache.clear()
   }
 
@@ -823,6 +825,7 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
     const timestamp = Date.now()
     if (cached && cached.expiresAt > timestamp)
       return cached.health
+    const generation = healthGeneration
     const table = await input.get<{ name: string }>(
       input.database,
       'SELECT name FROM sqlite_master WHERE type = ? AND name = ?',
@@ -863,10 +866,8 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
             reindexRequired: true,
             lastError: 'sqlite-vec index is not synchronized with canonical vectors',
           }
-      healthCache.set(cacheKey, {
-        health,
-        expiresAt: timestamp + sqliteVecHealthCacheTtlMs,
-      })
+      if (generation === healthGeneration)
+        healthCache.set(cacheKey, { health, expiresAt: timestamp + (health.ready ? sqliteVecHealthCacheTtlMs : 250) })
       return health
     }
     const native = await input.get<{ count: number }>(
@@ -936,10 +937,8 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
       reindexRequired: !synchronized,
       lastError: ready ? null : 'sqlite-vec index is not synchronized with canonical vectors',
     }
-    healthCache.set(cacheKey, {
-      health,
-      expiresAt: timestamp + sqliteVecHealthCacheTtlMs,
-    })
+    if (generation === healthGeneration)
+      healthCache.set(cacheKey, { health, expiresAt: timestamp + (health.ready ? sqliteVecHealthCacheTtlMs : 250) })
     return health
   }
 

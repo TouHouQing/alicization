@@ -74,6 +74,7 @@ interface WaitForEventOptions<T extends Event> {
   callback?: (event: T) => void
   timeout?: number
   timeoutError?: Error
+  onTimeout?: (error: Error) => void
 }
 
 function waitForEvent<T extends Event>(
@@ -91,13 +92,21 @@ function waitForEvent<T extends Event>(
   return new Promise((resolve, reject) => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined
 
-    const listener = (event: Event) => {
+    function cleanup() {
+      if (timeoutId !== undefined)
+        clearTimeout(timeoutId)
+      element.removeEventListener(eventName, listener)
+      element.removeEventListener('error', errorListener)
+      element.removeEventListener('messageerror', errorListener)
+    }
+    function errorListener(event: Event) {
+      cleanup()
+      reject(new Error('message' in event ? String(event.message) : 'Worker communication failed'))
+    }
+    function listener(event: Event) {
       const typedEvent = event as T
       if (predicate(typedEvent)) {
-        if (timeoutId !== undefined) {
-          clearTimeout(timeoutId)
-        }
-        element.removeEventListener(eventName, listener)
+        cleanup()
         resolve(typedEvent)
       }
       else {
@@ -106,10 +115,13 @@ function waitForEvent<T extends Event>(
     }
 
     element.addEventListener(eventName, listener)
+    element.addEventListener('error', errorListener)
+    element.addEventListener('messageerror', errorListener)
 
     if (timeout !== undefined) {
       timeoutId = setTimeout(() => {
-        element.removeEventListener(eventName, listener)
+        cleanup()
+        options.onTimeout?.(timeoutError)
         reject(timeoutError)
       }, timeout)
     }
@@ -196,8 +208,9 @@ export class KokoroWorkerManager {
         this.worker!,
         'message',
         {
-          predicate: event => event.data.type === 'loaded',
+          predicate: event => event.data.type === 'loaded' || (event.data.type === 'result' && event.data.status === 'error'),
           timeout: LOAD_MODEL_TIMEOUT,
+          onTimeout: error => this.handleWorkerError(error),
           callback: (event) => {
             if (event.data.type === 'progress' && options?.onProgress) {
               options.onProgress(event.data.progress)
@@ -211,13 +224,12 @@ export class KokoroWorkerManager {
       }
       this.worker!.postMessage(message)
       const event = await voicePromise
+      if (event.data.type === 'result' && event.data.status === 'error')
+        throw new Error(event.data.message)
       const loadedData = event.data as LoadedMessage
       this.voices = loadedData.voices
       this.onSuccessfulOperation()
       return this.voices
-    }).catch((error) => {
-      this.handleWorkerError(error)
-      return Promise.reject(error)
     })
   }
 
@@ -233,6 +245,7 @@ export class KokoroWorkerManager {
         {
           predicate: event => event.data.type === 'result',
           timeout: GENERATE_TIMEOUT,
+          onTimeout: error => this.handleWorkerError(error),
         },
       )
       const message: WorkerRequest = {
@@ -254,9 +267,6 @@ export class KokoroWorkerManager {
       }
 
       throw new Error('Unexpected response from worker')
-    }).catch((error) => {
-      this.handleWorkerError(error)
-      return Promise.reject(error)
     })
   }
 

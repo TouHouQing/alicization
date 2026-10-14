@@ -1599,6 +1599,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     const sessionMessagesForSend = chatSession.getSessionMessages(sessionId)
     let userTurnMessageId: string | null = null
     let assistantOutputCommitted = false
+    let mainConversationCommitted = false
     let runtimeAuthoritativeVisibleReplyBlocked = false
     let runtimeAuthoritativeModelTextObserved = false
     let finalizeAssistantTurn: (() => Promise<string>) | null = null
@@ -1887,7 +1888,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       const categorization = staged.categorization
       const finalizedCategorization = {
         ...categorization,
-        speech: finalReply,
+        speech: staged.origin === 'provider' ? finalReply : '',
       }
       const finalizedSlices = finalReply
         ? retainTerminalExecutionStatusSlices(replaceAssistantTextSlices(buildingMessage.slices, finalReply))
@@ -1901,7 +1902,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       assistantTextCommitted = true
 
       // NOTICE: Provider output becomes visible only after structural settlement.
-      await hooks.emitTokenLiteralHooks(finalReply, streamingMessageContext)
+      // Infrastructure diagnostics remain visible, but are not her speech.
+      if (staged.origin === 'provider')
+        await hooks.emitTokenLiteralHooks(finalReply, streamingMessageContext)
       updateUI()
 
       return finalReply
@@ -2662,7 +2665,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           return
 
         if (!isStaleGeneration() && buildingMessage.slices.length > 0) {
-          sessionMessagesForSend.push(toRaw(buildingMessage))
+          const canonicalId = (id: unknown) => typeof id === 'string' ? id.replace(/:gw\d+(?=:user$|$)/u, '') : ''
+          const existingIndex = sessionMessagesForSend.findIndex(message => message.role === 'assistant' && canonicalId(message.id) === canonicalId(buildingMessage.id))
+          if (existingIndex >= 0)
+            sessionMessagesForSend.splice(existingIndex, 1, toRaw(buildingMessage))
+          else
+            sessionMessagesForSend.push(toRaw(buildingMessage))
           chatSession.persistSessionMessages(sessionId)
         }
       }
@@ -2744,7 +2752,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
         persistBuiltAssistantMessage()
         assistantOutputCommitted = true
-        if (hasAlicizationBridge()) {
+        if (hasAlicizationBridge() && !mainConversationCommitted) {
           await getAlicizationBridge().appendConversationTurn({
             turnId,
             sessionId,
@@ -3201,9 +3209,20 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   break
                 case 'finish':
                   ingestTransportVisibleArtifactMetadata(event)
+                  mainConversationCommitted = event.conversationCommitted === true
                   turnMemoryFailures = normalizeTransportMemoryFailures(event.memoryFailures)
+                  // A tool failure is an observed operation outcome. Once main
+                  // durably accepts her valid reply about it, that reply owns
+                  // presentation and speech; the tool card retains its failure.
+                  if (mainConversationCommitted && event.origin === 'provider' && event.acceptedProviderReply && isCompleteRuntimeProviderArtifact(JSON.stringify(event.acceptedProviderReply))) {
+                    turnTransportFailureSurface = null
+                    stagedAssistantResolution = null
+                    finalAssistantDisplayText = ''
+                  }
                   if (event.origin === 'provider' && typeof event.fullText === 'string' && event.fullText.trim()) {
-                    turnTransportProviderFullText = event.fullText
+                    turnTransportProviderFullText = event.acceptedProviderReply
+                      ? JSON.stringify(event.acceptedProviderReply)
+                      : event.fullText
                     runtimeAuthoritativeModelTextObserved = true
                   }
                   break
@@ -3320,7 +3339,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       await finalizeAssistantTurn()
     }
     catch (error) {
-      if (abortSignal.aborted || shouldAbort()) {
+      // A main-owned interruption can reach the transport before its state
+      // notification reaches this renderer. It must not become a failure reply.
+      const mainInterrupted = Boolean(error && typeof error === 'object' && 'alicizationAbort' in error && error.alicizationAbort === true)
+      if (abortSignal.aborted || shouldAbort() || mainInterrupted) {
         const abortReason = resolveAbortReason(error, isStaleGeneration())
         const beforeLength = sessionMessagesForSend.length
         if (userTurnMessageId) {

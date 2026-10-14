@@ -5,6 +5,7 @@
 
 import type { ErrorMessage, LoadedMessage, ProgressMessage, SuccessMessage, VoiceKey, WorkerRequest } from './types'
 
+import { errorMessageFrom } from '@moeru/std'
 import { KokoroTTS } from 'kokoro-js'
 
 let ttsModel: KokoroTTS | null = null
@@ -92,16 +93,24 @@ async function generate(request: GenerateRequest) {
 globalThis.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
   const message = event.data
 
-  switch (message.type) {
-    case 'load':
-      await loadModel(message.data.quantization, message.data.device)
-      break
+  try {
+    switch (message.type) {
+      case 'load':
+        await loadModel(message.data.quantization, message.data.device)
+        break
 
-    case 'generate':
-      await generate(message.data)
-      break
+      case 'generate':
+        await generate(message.data)
+        break
 
-    default:
-      console.warn('[Kokoro Worker] Unknown message type:', (message as any).type)
+      default:
+        console.warn('[Kokoro Worker] Unknown message type:', (message as any).type)
+    }
+  }
+  catch (error) {
+    // Return failures through the same operation channel, so the caller can
+    // leave its loading state and retry instead of waiting for a timeout.
+    const response: ErrorMessage = { type: 'result', status: 'error', message: errorMessageFrom(error) ?? 'Kokoro operation failed' }
+    globalThis.postMessage(response)
   }
 })

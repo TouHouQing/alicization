@@ -6,12 +6,16 @@ import type {
 
 import {
   buildAlicizationDialogueSpeechTimeline,
+  normalizeAlicizationEmbodimentScript,
   normalizeAlicizationEmbodimentSpeechPlan,
 } from '@proj-alicization/stage-shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { computed, effectScope, nextTick, ref } from 'vue'
 
+import { builtinActionBindings } from '../../../../stage-ui-three/src/assets/vrm/animations'
+import { resolveVrmPreferredActionBinding } from '../../../../stage-ui-three/src/composables/vrm/performance-selection'
 import { clearAlicizationBridge, setAlicizationBridge } from '../../stores/alicization-bridge'
+import { resolveStagePresencePulsePerformance } from './stage-presence-pulse-performance'
 import { useStageEmbodimentRuntime } from './use-stage-embodiment-runtime'
 
 vi.mock('@proj-alicization/model-driver-lipsync', () => ({
@@ -192,6 +196,7 @@ describe('useStageEmbodimentRuntime', () => {
     const harness = createDispatcherHarness()
     const scope = effectScope()
     const runtime = scope.run(() => useStageEmbodimentRuntime({
+      activeCardId: ref('default'),
       audioContext: {
         createAnalyser: () => ({
           fftSize: 2048,
@@ -452,6 +457,7 @@ describe('useStageEmbodimentRuntime', () => {
       },
       onEnd() {},
       onInterrupt() {},
+      onFailure() {},
     })
 
     startListener?.({
@@ -605,10 +611,54 @@ describe('useStageEmbodimentRuntime', () => {
     scope.stop()
   })
 
+  it('foreground execution takes the body from an unplayed dialogue preview without manufacturing speech', async () => {
+    const harness = createDispatcherHarness()
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentRuntime({
+      activeCardId: ref('default'),
+      audioContext: { createAnalyser: () => ({ fftSize: 2048, getByteTimeDomainData() {} }), resume: async () => {}, state: 'running' } as unknown as AudioContext,
+      clampPerformance: performance => performance,
+      currentMotion: ref({ group: 'Idle' }),
+      dispatcher: harness.dispatcher as any,
+      enqueueEmotion: () => {},
+      focusAt: ref({ x: 640, y: 360 }),
+      live2dActionCapabilities: computed(() => []),
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      performanceManifest: computed(() => ({ ...createManifest(), supportedActions: [...createManifest().supportedActions, { key: 'steady_focus', label: 'Working', description: 'Committed working posture', source: 'builtin' as const }] })),
+      pitch: ref(0),
+      rate: ref(1),
+      resolveClampedPresencePulsePerformance: payload => resolveStagePresencePulsePerformance(payload, 'neutral'),
+      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
+      speakFallback: async () => {},
+      stageBounds: ref({ width: 1280, height: 720 }),
+      stageModelRenderer: ref('vrm'),
+      vrmActionBindings: ref(builtinActionBindings),
+    }))!
+    const waitingPerformance = { baseEmotion: 'thinking' as const, emotion: 'thinking' as const, actionCue: 'observe_focus', facialCue: null, delivery: 'gentle' as const, emphasis: 0 as const }
+    const timeline = buildAlicizationDialogueSpeechTimeline({ reply: '第一句等待声音。第二句也在等待声音。', candidateEmotion: 'thinking', candidatePerformance: waitingPerformance, performanceManifest: createManifest() })!
+    const script = normalizeAlicizationEmbodimentScript({ version: 'embodiment-script-v1', turnId: 'waiting-dialogue', rendererTarget: 'vrm', replyText: timeline.reply, state: { baseEmotion: 'thinking', delivery: 'gentle', emphasis: 0, residentMode: 'dialogue' }, speechPlan: { interruptPolicy: 'soft-settle', preRollMs: 40, settleMs: 200, segments: timeline.segments.map(segment => ({ id: segment.id, index: segment.index, text: segment.text, interruptPolicy: 'soft-settle', preRollMs: 40, settleMs: 200, rendererHints: { preferredMotionAliases: ['observe_focus'] } })) }, facePlan: { speakingCues: [] }, motionPlan: { idleBase: 'idle_settle', actionBursts: timeline.segments.map(segment => ({ segmentId: segment.id, actionCue: 'observe_focus', intensity: 0.6, holdMs: 400, source: 'cue-bridge' })), attentionMode: 'attentive' }, lipsyncPlan: { mode: 'energy-only' } })!
+    await harness.getController('vrm').applyPerformance(waitingPerformance, { cardId: 'default', turnId: 'waiting-dialogue', sessionId: 'session', structured: { reply: timeline.reply, thought: '等待回应', emotion: 'thinking', performance: waitingPerformance, speechTimeline: timeline, embodimentScript: script }, createdAt: Date.now() })
+    for (const segment of timeline.segments) {
+      runtime.previewSpeechSegment({ segmentId: segment.id, text: segment.text, metadata: { embodimentScript: script }, cue: { ...segment, rendererHints: { preferredMotionAliases: ['observe_focus'] } } } as any)
+    }
+    await flushTasks()
+    expect(runtime.performanceState.value.activeCue).not.toBeNull()
+    const timestamp = Date.now()
+    await harness.getController('vrm').applyPresencePulse({ watchMode: 'mnemonic-passive', embodiedPresence: 'attentive', scenario: 'coding', stance: 'accompany', confidence: 1, reasonTags: ['committed-execution'], expiresAt: timestamp + 6000, activity: { id: 'task', attemptId: 'attempt', kind: 'execution', phase: 'working', phaseStartedAt: timestamp, observedAt: timestamp, sequence: 1 } })
+    await flushTasks()
+    expect(resolveVrmPreferredActionBinding(runtime.performanceState.value, builtinActionBindings)?.actionKey).toBe('steady_focus')
+    expect(runtime.performanceState.value.activeCueSource).toBe('none')
+    expect(runtime.nowSpeaking.value).toBe(false)
+    expect(runtime.performanceState.value.performance.baseEmotion).toBe('neutral')
+    scope.stop()
+  })
+
   it('surfaces vrm renderer authority through runtime playback telemetry and diagnostics', async () => {
     const harness = createDispatcherHarness()
     const scope = effectScope()
     const runtime = scope.run(() => useStageEmbodimentRuntime({
+      activeCardId: ref('default'),
       audioContext: {
         createAnalyser: () => ({
           fftSize: 2048,
@@ -650,6 +700,7 @@ describe('useStageEmbodimentRuntime', () => {
       },
       onEnd() {},
       onInterrupt() {},
+      onFailure() {},
     })
 
     const script = {
@@ -833,6 +884,7 @@ describe('useStageEmbodimentRuntime', () => {
     const harness = createDispatcherHarness()
     const scope = effectScope()
     const runtime = scope.run(() => useStageEmbodimentRuntime({
+      activeCardId: ref('default'),
       audioContext: {
         createAnalyser: () => ({
           fftSize: 2048,
@@ -874,6 +926,7 @@ describe('useStageEmbodimentRuntime', () => {
       },
       onEnd() {},
       onInterrupt() {},
+      onFailure() {},
     })
 
     const script = {
@@ -1002,6 +1055,7 @@ describe('useStageEmbodimentRuntime', () => {
     const harness = createDispatcherHarness()
     const scope = effectScope()
     const runtime = scope.run(() => useStageEmbodimentRuntime({
+      activeCardId: ref('default'),
       audioContext: {
         createAnalyser: () => ({
           fftSize: 2048,
@@ -1046,6 +1100,7 @@ describe('useStageEmbodimentRuntime', () => {
       },
       onEnd() {},
       onInterrupt() {},
+      onFailure() {},
     })
 
     const script = {
@@ -1197,6 +1252,7 @@ describe('useStageEmbodimentRuntime', () => {
     const harness = createDispatcherHarness()
     const scope = effectScope()
     const runtime = scope.run(() => useStageEmbodimentRuntime({
+      activeCardId: ref('default'),
       audioContext: {
         createAnalyser: () => ({
           fftSize: 2048,
@@ -1241,6 +1297,7 @@ describe('useStageEmbodimentRuntime', () => {
       },
       onEnd() {},
       onInterrupt() {},
+      onFailure() {},
     })
 
     const script = {
@@ -1362,6 +1419,7 @@ describe('useStageEmbodimentRuntime', () => {
     const harness = createDispatcherHarness()
     const scope = effectScope()
     const runtime = scope.run(() => useStageEmbodimentRuntime({
+      activeCardId: ref('default'),
       audioContext: {
         createAnalyser: () => ({
           fftSize: 2048,
@@ -1403,6 +1461,7 @@ describe('useStageEmbodimentRuntime', () => {
       },
       onEnd() {},
       onInterrupt() {},
+      onFailure() {},
     })
 
     const script = {
@@ -1565,6 +1624,7 @@ describe('useStageEmbodimentRuntime', () => {
     const harness = createDispatcherHarness()
     const scope = effectScope()
     const runtime = scope.run(() => useStageEmbodimentRuntime({
+      activeCardId: ref('default'),
       audioContext: {
         createAnalyser: () => ({
           fftSize: 2048,
@@ -1659,6 +1719,7 @@ describe('useStageEmbodimentRuntime', () => {
     const harness = createDispatcherHarness()
     const scope = effectScope()
     const runtime = scope.run(() => useStageEmbodimentRuntime({
+      activeCardId: ref('default'),
       audioContext: {
         createAnalyser: () => ({
           fftSize: 2048,

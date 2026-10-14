@@ -16,6 +16,7 @@ import {
 } from '../../../shared/eventa'
 import { onAppBeforeQuit, onAppWindowAllClosed } from '../../libs/bootkit/lifecycle'
 import { resizeWindowByDelta } from '../../windows/shared/window'
+import { setDesktopWindowAlwaysOnTop } from '../../windows/shared/window-layer'
 
 export function createWindowService(params: { context: ReturnType<typeof createContext>['context'], window: BrowserWindow }) {
   function getWindowLifecycleState(reason: ElectronWindowLifecycleState['reason']): ElectronWindowLifecycleState {
@@ -82,12 +83,7 @@ export function createWindowService(params: { context: ReturnType<typeof createC
 
   defineInvokeHandler(params.context, electronWindowSetAlwaysOnTop, (flag, options) => {
     if (params.window.webContents.id === options?.raw.ipcMainEvent.sender.id) {
-      if (flag) {
-        params.window.setAlwaysOnTop(true, 'floating', 1)
-      }
-      else {
-        params.window.setAlwaysOnTop(false)
-      }
+      setDesktopWindowAlwaysOnTop(params.window, flag)
     }
   })
 

@@ -16,6 +16,7 @@ import { baseUrl, getElectronMainDirname, load, withHashRoute } from '../../libs
 import { createReusableWindow } from '../../libs/electron/window-manager'
 import { toggleWindowShow } from '../shared'
 import { setupBaseWindowElectronInvokes } from '../shared/window'
+import { promoteUtilityWindowAboveStage } from '../shared/window-layer'
 
 export interface OnboardingWindowManager {
   getWindow: () => Promise<BrowserWindow>
@@ -25,6 +26,7 @@ export interface OnboardingWindowManager {
 export function setupOnboardingWindowManager(params: {
   serverChannel: ServerChannel
   i18n: I18n
+  onWindowCreated?: (window: BrowserWindow) => void
 }): OnboardingWindowManager {
   async function getOnboardingWindow(getWindow: () => Promise<BrowserWindow>) {
     const window = await getWindow()
@@ -53,6 +55,8 @@ export function setupOnboardingWindowManager(params: {
       },
     })
 
+    params.onWindowCreated?.(newWindow)
+    promoteUtilityWindowAboveStage(newWindow)
     newWindow.on('ready-to-show', () => newWindow.show())
     newWindow.webContents.setWindowOpenHandler((details) => {
       shell.openExternal(details.url)

@@ -23,6 +23,21 @@ import {
 } from './use-stage-embodiment-performance-runtime'
 import { useStageEmbodimentSpeech } from './use-stage-embodiment-speech'
 
+it('keeps action commands monotonic across settlement so the actual model can admit the next turn', () => {
+  const scope = effectScope()
+  const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({ speechRenderState: ref(createIdleStageEmbodimentSpeechRenderState()) }))!
+  runtime.armPerformance(createPerformance({ actionCue: 'open_palm' }))
+  const first = runtime.state.value.actionPulse.revision
+  const command = { ...runtime.state.value.actionPulse }
+  expect(first).toBeGreaterThan(0)
+  runtime.clear()
+  expect(runtime.state.value.actionPulse.revision).toBe(first)
+  expect(runtime.state.value.actionPulse).toEqual(command)
+  runtime.armPerformance(createPerformance({ actionCue: 'reassuring_nod' }))
+  expect(runtime.state.value.actionPulse.revision).toBeGreaterThan(first)
+  scope.stop()
+})
+
 vi.mock('@proj-alicization/model-driver-lipsync', () => ({
   createLive2DLipSync: vi.fn(),
 }))
@@ -4558,6 +4573,7 @@ describe('stage embodiment performance runtime', () => {
         },
         onEnd() {},
         onInterrupt() {},
+        onFailure() {},
       } as never)
       return runtime
     })!
@@ -5014,6 +5030,7 @@ describe('stage embodiment performance runtime', () => {
           endListener = listener
         },
         onInterrupt() {},
+        onFailure() {},
       } as never)
       return {
         performanceRuntime,
@@ -5355,6 +5372,7 @@ describe('stage embodiment performance runtime', () => {
         },
         onEnd() {},
         onInterrupt() {},
+        onFailure() {},
       } as never)
 
       const performanceRuntime = useStageEmbodimentPerformanceRuntime({
@@ -5488,6 +5506,7 @@ describe('stage embodiment performance runtime', () => {
           endListener = listener
         },
         onInterrupt() {},
+        onFailure() {},
       } as never)
       return {
         performanceRuntime,

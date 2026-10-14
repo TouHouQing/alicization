@@ -1,5 +1,7 @@
 import type { MemoryProductionTrialReport } from './memory-production-trial-runner'
 
+import { dirname, join, resolve } from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -115,7 +117,7 @@ function report(overrides: Partial<MemoryProductionTrialReport> = {}) {
 describe('memory quality trial CLI', () => {
   it('loads the persisted production embedding provider from the app config for a direct DB trial', async () => {
     const readText = vi.fn(async (path: string) => {
-      expect(path).toBe('/tmp/alicization/alicizations/llm-config.json')
+      expect(path).toBe(join(resolve('/tmp/alicization'), 'alicizations', 'llm-config.json'))
       return JSON.stringify({
         activeProviderId: 'openai-compatible',
         providerCredentials: {
@@ -130,7 +132,7 @@ describe('memory quality trial CLI', () => {
     })
 
     const provider = await resolvePersistedMemoryEmbeddingProvider({
-      userDataPath: '/tmp/alicization/alicizations/cards/default',
+      userDataPath: join(resolve('/tmp/alicization'), 'alicizations', 'cards', 'default'),
       readText,
       fetch: vi.fn(),
     })
@@ -223,7 +225,7 @@ describe('memory quality trial CLI', () => {
       '--db=/tmp/alicization/cards/card-a/alicization.db',
       '--card-id=card-a',
     ])).toMatchObject({
-      userDataPath: '/tmp/alicization/cards/card-a',
+      userDataPath: dirname(resolve('/tmp/alicization/cards/card-a/alicization.db')),
       databasePath: '/tmp/alicization/cards/card-a/alicization.db',
       cardId: 'card-a',
     })
@@ -390,7 +392,7 @@ describe('memory quality trial CLI', () => {
     })
 
     expect(result.reportPath).toBe(
-      '/tmp/alicization/alicizations/quality-reports/memory-quality-trial-1786800000000.json',
+      join(resolve('/tmp/alicization'), 'alicizations', 'quality-reports', 'memory-quality-trial-1786800000000.json'),
     )
     expect(writeReport).toHaveBeenCalledWith(
       result.reportPath,

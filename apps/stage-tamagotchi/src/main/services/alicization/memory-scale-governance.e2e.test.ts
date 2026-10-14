@@ -36,8 +36,9 @@ function createDelayedSqliteDriver(
   onDelayStarted?: () => void,
 ) {
   return {
-    Database: function DelayedDatabase(filepath: string, callback: (error: Error | null) => void) {
-      const database = new sqlite3.Database(filepath, callback)
+    OPEN_READONLY: sqlite3.OPEN_READONLY,
+    Database: function DelayedDatabase(filepath: string, flagsOrCallback: number | ((error: Error | null) => void), callback?: (error: Error | null) => void) {
+      const database = typeof flagsOrCallback === 'number' ? new sqlite3.Database(filepath, flagsOrCallback, callback) : new sqlite3.Database(filepath, flagsOrCallback)
       const run = database.run.bind(database)
       database.run = ((sql: string, params: unknown[], runCallback: (error?: Error | null) => void) => {
         if (!sql.includes(sqlFragment))

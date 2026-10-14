@@ -9,6 +9,7 @@ import type { AlicizationProactiveLoopState } from './proactive-feedback'
 import { registerProactiveDelivery, settleExpiredProactiveOutcomes, settleProactiveOutcomesOnUserTurnStart } from './proactive-feedback'
 
 interface CreateAlicizationRuntimeProactiveFeedbackOptions {
+  listPresentedTurnIds: (cardId: string, turnIds: string[]) => Promise<ReadonlySet<string>>
   normalizeCardId: (raw: unknown) => string
   ensureProactiveLoopState: (cardIdRaw: unknown, options?: { signal?: AbortSignal }) => Promise<AlicizationProactiveLoopState>
   persistProactiveLoopState: (cardIdRaw: unknown, state: AlicizationProactiveLoopState, options?: { signal?: AbortSignal }) => Promise<void>
@@ -88,7 +89,8 @@ export function createAlicizationRuntimeProactiveFeedback(
         })
       }
     }
-    const settled = settleProactiveOutcomesOnUserTurnStart(current, at, carry?.userText ?? null)
+    const presented = await options.listPresentedTurnIds(cardId, current.pendingOutcomes.map(item => item.turnId))
+    const settled = settleProactiveOutcomesOnUserTurnStart(current, at, carry?.userText ?? null, presented)
     await options.appendAuditLog({
       level: 'notice',
       category: 'alicization.subconscious',
@@ -181,7 +183,8 @@ export function createAlicizationRuntimeProactiveFeedback(
         })
       }
     }
-    const settled = settleExpiredProactiveOutcomes(current, at)
+    const presentedTurnIds = await options.listPresentedTurnIds(cardId, current.pendingOutcomes.map(outcome => outcome.turnId))
+    const settled = settleExpiredProactiveOutcomes(current, at, presentedTurnIds)
     await options.appendAuditLog({
       level: 'notice',
       category: 'alicization.subconscious',
@@ -197,8 +200,11 @@ export function createAlicizationRuntimeProactiveFeedback(
         appliedOutcomeCount: settled.appliedOutcomes.length,
       },
     }, cardId)
-    if (settled.appliedOutcomes.length === 0)
+    if (settled.appliedOutcomes.length === 0) {
+      if (settled.state.pendingOutcomes.length !== current.pendingOutcomes.length)
+        await options.persistProactiveLoopState(cardId, settled.state, processOptions)
       return settled.state
+    }
 
     await options.persistProactiveLoopState(cardId, settled.state, processOptions)
     await options.applyCurrentCardProactiveState?.({

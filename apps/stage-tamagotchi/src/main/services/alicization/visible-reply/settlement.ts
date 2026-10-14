@@ -111,6 +111,8 @@ function isValidNullableString(value: unknown, maxLength: number) {
 
 function looksLikeEmbeddedStructuredProviderPayload(text: string) {
   return looksLikeAlicizationStructuredPayloadText(text)
+    || /"format"\s*:\s*"mind-turn-v1"/u.test(text)
+    || /"performance"\s*:\s*\{[\s\S]*"baseEmotion"\s*:/u.test(text)
 }
 
 function normalizeProviderEmotion(value: unknown): AlicizationProviderResponsePayload['emotion'] {

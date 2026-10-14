@@ -13,6 +13,28 @@ interface StageChatIntentBridgeOptions {
   openIntent: (options?: IntentOptions) => IntentHandle
 }
 
+/** Gateway attempts retain the logical utterance owned by the chat pipeline. */
+export function isCurrentStageChatDelivery(deliveryTurnId: string | null | undefined, currentTurnId: string | null | undefined) {
+  if (!deliveryTurnId || !currentTurnId)
+    return false
+  return deliveryTurnId.replace(/:gw\d+$/u, '') === currentTurnId.replace(/:gw\d+$/u, '')
+}
+
+/** UI message IDs may merge attempts; presentation must retain the committed delivery identity. */
+export function resolveStageRenderedDeliveryTurn(message: { id?: string, structured?: unknown }, cardId: string): string | null {
+  if (!message.id)
+    return null
+  const structured = message.structured as { artifactOrigin?: string, failureSurface?: unknown, embodimentScript?: { turnId?: string, state?: { interactionIntent?: { cardId?: string } } } } | undefined
+  if (structured?.failureSurface || ['infra-authority', 'infra-fallback'].includes(structured?.artifactOrigin ?? ''))
+    return null
+  const script = structured?.embodimentScript
+  if (!script?.turnId)
+    return message.id
+  if (!isCurrentStageChatDelivery(script.turnId, message.id) || (script.state?.interactionIntent?.cardId && script.state.interactionIntent.cardId !== cardId))
+    return null
+  return script.turnId
+}
+
 interface StageChatIntentBridge {
   readonly current: IntentHandle | null
   prepare: (intentOptions: IntentOptions) => IntentHandle
@@ -151,9 +173,16 @@ export function attachEmbodimentScriptToSpeechMetadata(
   const normalizedEmbodimentScript = sanitizeSpeechMetadataValue(
     embodimentScript,
   )
+  const normalizedMetadata = normalizeSpeechMetadataRecord(metadata)
+  const script = normalizedEmbodimentScript as { turnId?: unknown, state?: { interactionIntent?: { cardId?: unknown } } } | undefined
+  const delivery = normalizedMetadata?.lifeDelivery as { cardId?: unknown, turnId?: unknown } | undefined
+  const adoptedTurn = typeof script?.turnId === 'string' && typeof delivery?.turnId === 'string'
+    && isCurrentStageChatDelivery(script.turnId, delivery.turnId)
+    && (!script.state?.interactionIntent?.cardId || script.state.interactionIntent.cardId === delivery.cardId)
 
   return {
-    ...normalizeSpeechMetadataRecord(metadata),
+    ...normalizedMetadata,
+    ...(adoptedTurn ? { lifeDelivery: { ...delivery, turnId: script!.turnId } } : {}),
     ...(normalizedEmbodimentScript
       ? { embodimentScript: normalizedEmbodimentScript }
       : {}),

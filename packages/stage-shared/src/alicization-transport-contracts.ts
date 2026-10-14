@@ -256,6 +256,7 @@ export interface AlicizationMemoryArchiveRecord extends AlicizationMemoryFact {
 }
 
 export interface AlicizationMemoryFactInput {
+  validity?: { validFrom: number | null, validTo: number | null, precision: 'day', sourceText: string }
   subject: string
   predicate: string
   object: string
@@ -1204,6 +1205,7 @@ export interface AlicizationPlanTaskThreadResult {
 
 export interface AlicizationCliCommandInput {
   command: string
+  ownedNote?: { name: string, content: string, contentHash: string }
   args?: string[]
   cwd?: string | null
   timeoutMs?: number | null
@@ -1362,6 +1364,16 @@ export interface AlicizationVisualPresenceStateSnapshot extends AlicizationPersi
   watchMode: AlicizationVisualWatchMode
   updatedAt: number
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
+  emotionalTemporalState?: AlicizationEmotionalTemporalState | null
+}
+
+export interface AlicizationEmotionalTemporalState {
+  version: 'emotion-temporal-v1'
+  eventKey: string
+  anchoredAt: number
+  evaluatedAt: number
+  beforeEvent: { valence: number, arousal: number, initiativePressure: number }
+  eventDelta: { valence: number, arousal: number, initiativePressure: number }
 }
 
 export type AlicizationMindTurnMode = 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer'
@@ -5797,6 +5809,8 @@ export type AlicizationBridgeChatStreamEvent
   }
   | {
     type: 'finish'
+    conversationCommitted?: boolean
+    acceptedProviderReply?: import('./alicization-provider-response').AlicizationProviderResponsePayload | null
     origin?: AlicizationVisibleArtifactOrigin
     learningPolicy?: AlicizationVisibleArtifactLearningPolicy
     failureSurface?: AlicizationChatFailureSurface | null

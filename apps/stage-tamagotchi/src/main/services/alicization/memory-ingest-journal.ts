@@ -28,7 +28,7 @@ interface CreateAlicizationMemoryIngestJournalRuntimeOptions<Payload> {
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
   parsePayload: (raw: string) => Payload | null
-  applyPayload: (payload: Payload, writeOptions?: { signal?: AbortSignal }) => Promise<void>
+  applyPayload: (payload: Payload, writeOptions: { signal?: AbortSignal }, source: { id: string, cardId: string | null }) => Promise<void>
   buildBackoffMs: (attemptCount: number) => number
 }
 
@@ -252,7 +252,7 @@ export function createAlicizationMemoryIngestJournalRuntime<OperationKind extend
       }
       try {
         await input.runInTransaction(input.database, async () => {
-          await input.applyPayload(payload, writeOptions)
+          await input.applyPayload(payload, writeOptions, { id: row.id, cardId: row.card_id })
           await markApplied(row.id, attemptAt, writeOptions)
         })
         applied += 1

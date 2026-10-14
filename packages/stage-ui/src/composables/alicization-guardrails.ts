@@ -6,6 +6,7 @@ import {
 
 interface PromptBudgetOptions {
   totalTokens?: number
+  preserveCurrentRequest?: boolean
   soulRatio?: number
   memoryRatio?: number
   currentTurnRatio?: number
@@ -94,6 +95,7 @@ export interface AssistantOutputSanitizeOptions {
 
 const defaultPromptBudget: Required<PromptBudgetOptions> = {
   totalTokens: 3200,
+  preserveCurrentRequest: false,
   soulRatio: 0.25,
   memoryRatio: 0.25,
   currentTurnRatio: 0.5,
@@ -730,7 +732,7 @@ export function applyPromptBudget(messages: Message[], options?: PromptBudgetOpt
 
     if (currentTurnIndex >= 0 && result[currentTurnIndex]) {
       const currentText = readMessageText(result[currentTurnIndex]!)
-      const nextCurrentText = trimTextToTokenBudget(currentText, currentTurnBudget, 'tail')
+      const nextCurrentText = cfg.preserveCurrentRequest ? currentText : trimTextToTokenBudget(currentText, currentTurnBudget, 'tail')
       minimalMessages.push(writeMessageText(result[currentTurnIndex]!, nextCurrentText))
     }
 
@@ -788,7 +790,7 @@ export function applyPromptBudget(messages: Message[], options?: PromptBudgetOpt
 
   if (currentTurnIndex >= 0) {
     const currentText = readMessageText(result[currentTurnIndex]!)
-    const nextCurrentText = trimTextToTokenBudget(currentText, currentTurnBudget, 'tail')
+    const nextCurrentText = cfg.preserveCurrentRequest ? currentText : trimTextToTokenBudget(currentText, currentTurnBudget, 'tail')
     result[currentTurnIndex] = writeMessageText(result[currentTurnIndex]!, nextCurrentText)
   }
 

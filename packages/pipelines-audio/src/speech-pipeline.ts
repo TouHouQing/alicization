@@ -5,6 +5,9 @@ import type {
   IntentHandle,
   IntentOptions,
   LoggerLike,
+  PlaybackEndEvent,
+  PlaybackFailureEvent,
+  PlaybackInterruptEvent,
   PlaybackItem,
   SpeechIntentMetadata,
   SpeechPipelineEvents,
@@ -17,6 +20,7 @@ import type {
 import { createContext } from '@moeru/eventa'
 
 import { speechPipelineEventMap } from './eventa'
+import { createUtterancePlaybackTracker } from './managers/utterance-playback-tracker'
 import { createPriorityResolver } from './priority'
 import { createTtsSegmentStream } from './processors/tts-chunker'
 import { createPushStream } from './stream'
@@ -30,8 +34,9 @@ export interface SpeechPipelineOptions<TAudio> {
     stopByIntent: (intentId: string, reason: string) => void
     stopByOwner: (ownerId: string, reason: string) => void
     onStart: (listener: (event: { item: PlaybackItem<TAudio>, startedAt: number }) => void) => void
-    onEnd: (listener: (event: { item: PlaybackItem<TAudio>, endedAt: number }) => void) => void
-    onInterrupt: (listener: (event: { item: PlaybackItem<TAudio>, reason: string, interruptedAt: number }) => void) => void
+    onEnd: (listener: (event: PlaybackEndEvent<TAudio>) => void) => void
+    onInterrupt: (listener: (event: PlaybackInterruptEvent<TAudio>) => void) => void
+    onFailure: (listener: (event: PlaybackFailureEvent<TAudio>) => void) => void
     onReject: (listener: (event: { item: PlaybackItem<TAudio>, reason: string }) => void) => void
   }
   logger?: LoggerLike
@@ -174,13 +179,27 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
   const context = createContext()
 
   const intents = new Map<string, IntentState>()
+  const utterancePlayback = createUtterancePlaybackTracker(event => context.emit(speechPipelineEventMap.onUtterancePlaybackResult, event))
   const pending: IntentState[] = []
   let activeIntent: IntentState | null = null
 
   options.playback.onStart(event => context.emit(speechPipelineEventMap.onPlaybackStart, event))
-  options.playback.onEnd(event => context.emit(speechPipelineEventMap.onPlaybackEnd, event))
-  options.playback.onInterrupt(event => context.emit(speechPipelineEventMap.onPlaybackInterrupt, event))
-  options.playback.onReject(event => context.emit(speechPipelineEventMap.onPlaybackReject, event))
+  options.playback.onEnd((event) => {
+    context.emit(speechPipelineEventMap.onPlaybackEnd, event)
+    utterancePlayback.observe(event.item.intentId, event.item.segmentId, event.result)
+  })
+  options.playback.onFailure((event) => {
+    context.emit(speechPipelineEventMap.onPlaybackFailure, event)
+    utterancePlayback.observe(event.item.intentId, event.item.segmentId, event.result)
+  })
+  options.playback.onInterrupt((event) => {
+    context.emit(speechPipelineEventMap.onPlaybackInterrupt, event)
+    utterancePlayback.observe(event.item.intentId, event.item.segmentId, event.result)
+  })
+  options.playback.onReject((event) => {
+    context.emit(speechPipelineEventMap.onPlaybackReject, event)
+    utterancePlayback.observe(event.item.intentId, event.item.segmentId, { status: event.reason.startsWith('cancelled:') ? 'interrupted' : 'failed', playedMs: 0, errorCode: event.reason })
+  })
 
   function enqueueIntent(intent: IntentState) {
     pending.push(intent)
@@ -206,6 +225,7 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
     let cancelReader: (() => void) | undefined
     let releaseReader: (() => void) | undefined
     let removeAbortListener: (() => void) | undefined
+    let generationFailed = false
 
     try {
       const reader = segmentStream.getReader()
@@ -276,6 +296,7 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
             continue
 
           if (completed.audio == null) {
+            utterancePlayback.observe(intent.intentId, completed.request.segmentId, { status: 'failed', playedMs: 0, errorCode: completed.skipReason ?? 'empty-audio' })
             context.emit(speechPipelineEventMap.onTtsSkipped, {
               request: completed.request,
               reason: completed.skipReason ?? 'empty-audio',
@@ -298,6 +319,7 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
 
           context.emit(speechPipelineEventMap.onTtsResult, ttsResult)
 
+          utterancePlayback.scheduled(intent.intentId, ttsResult.segmentId)
           options.playback.schedule({
             id: createId('playback'),
             streamId: ttsResult.streamId,
@@ -408,6 +430,7 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
         }
 
         context.emit(speechPipelineEventMap.onTtsRequest, request)
+        utterancePlayback.plan(intent.intentId, intent.streamId, request.segmentId, request.metadata ?? null)
         queuedRequests.push({
           sequence: nextSequence++,
           request,
@@ -430,6 +453,7 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
       flushCompletedRequests()
     }
     catch (err) {
+      generationFailed = !intent.controller.signal.aborted
       if (!intent.controller.signal.aborted)
         logger.warn('Speech pipeline intent failed:', err)
     }
@@ -437,6 +461,7 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
       removeAbortListener?.()
       cancelReader?.()
       releaseReader?.()
+      utterancePlayback.seal(intent.intentId, intent.streamId, intent.metadata ?? null, intent.canceled ? 'interrupted' : generationFailed ? 'failed' : null)
 
       if (intent.canceled) {
         context.emit(speechPipelineEventMap.onIntentCancel, { intentId: intent.intentId, reason: intent.controller.signal.reason as string | undefined })

@@ -72,6 +72,9 @@ const panelRootRef = useTemplateRef<HTMLDivElement>('panelRoot')
 const hostSize = ref({ width: 0, height: 0 })
 const activeInteraction = ref<ActiveInteraction | null>(null)
 const liveRect = ref<StageDialoguePanelRect | null>(null)
+const engagedRect = ref<StageDialoguePanelRect | null>(null)
+const panelFocused = ref(false)
+const panelHovered = ref(false)
 
 const boundsInput = computed(() => ({
   containerWidth: hostSize.value.width,
@@ -123,6 +126,9 @@ function resolveExpandedRect() {
   if (liveRect.value && activeInteraction.value?.source !== 'orb')
     return clampExpandedRect(liveRect.value)
 
+  if (engagedRect.value && !minimized.value)
+    return clampExpandedRect(engagedRect.value)
+
   return resolveStoredPanelRect()
 }
 
@@ -138,6 +144,9 @@ function resolveOrbRect() {
 
   if (liveRect.value && activeInteraction.value?.source === 'orb')
     return clampOrbRect(liveRect.value)
+
+  if (engagedRect.value && minimized.value)
+    return clampOrbRect(engagedRect.value)
 
   const defaultOrbRect = resolveDefaultOrbRect()
   if (!stageDialogueStore.hasCustomizedOrbOffset())
@@ -180,6 +189,8 @@ function commitExpandedRect(rect: StageDialoguePanelRect, options: { markCustomi
 
   const nextRect = clampExpandedRect(rect)
   liveRect.value = null
+  if (engagedRect.value)
+    engagedRect.value = { ...nextRect }
   stageDialogueStore.setPanelLayout(props.placement, nextRect, resolvePanelOffset(nextRect), options)
 }
 
@@ -189,6 +200,8 @@ function commitOrbRect(rect: StageDialoguePanelRect, options: { markCustomized?:
 
   const nextRect = clampOrbRect(rect)
   liveRect.value = null
+  if (engagedRect.value)
+    engagedRect.value = { ...nextRect }
   stageDialogueStore.setOrbLayout(resolveOrbOffset(nextRect), options)
 }
 
@@ -270,6 +283,11 @@ watch(activeInteraction, (interaction) => {
 const expandedRect = computed(() => resolveExpandedRect())
 const orbRect = computed(() => resolveOrbRect())
 const panelRect = computed(() => minimized.value ? orbRect.value : expandedRect.value)
+watch(minimized, () => {
+  engagedRect.value = null
+  if (panelHovered.value || panelFocused.value)
+    engagedRect.value = { ...panelRect.value }
+}, { flush: 'sync' })
 const bubbleBodyHeight = computed(() => {
   const reservedHeight = props.quickReplyEnabled ? 122 : 18
   return Math.max(108, expandedRect.value.height - reservedHeight)
@@ -402,17 +420,26 @@ function handlePointerUp(event: PointerEvent) {
 
   if (interaction.source === 'orb' && !interaction.moved)
     stageDialogueStore.expand()
+  if (!panelFocused.value && !panelHovered.value)
+    engagedRect.value = null
 }
 
 function handlePanelPointerEnter() {
+  panelHovered.value = true
+  engagedRect.value ??= { ...panelRect.value }
   emit('hoverChange', true)
 }
 
 function handlePanelPointerLeave() {
+  panelHovered.value = false
+  if (!panelFocused.value && !activeInteraction.value)
+    engagedRect.value = null
   emit('hoverChange', false)
 }
 
 function handlePanelFocusIn() {
+  panelFocused.value = true
+  engagedRect.value ??= { ...panelRect.value }
   emit('focusChange', true)
 }
 
@@ -421,6 +448,9 @@ function handlePanelFocusOut(event: FocusEvent) {
   if (nextFocused instanceof Node && panelRootRef.value?.contains(nextFocused))
     return
 
+  panelFocused.value = false
+  if (!panelHovered.value && !activeInteraction.value)
+    engagedRect.value = null
   emit('focusChange', false)
 }
 
@@ -510,6 +540,16 @@ defineExpose({
             <div class="stage-dialogue-panel__toolbar-hint">
               {{ t('stage.dialogue.move-panel') }}
             </div>
+            <button
+              type="button"
+              class="ml-auto size-7 flex items-center justify-center rounded-md hover:bg-neutral-200/60 dark:hover:bg-neutral-700/60"
+              :aria-label="t('stage.dialogue.minimize-panel')"
+              :title="t('stage.dialogue.minimize-panel')"
+              @pointerdown.stop
+              @click="stageDialogueStore.minimize()"
+            >
+              <span class="i-solar:minus-circle-outline" aria-hidden="true" />
+            </button>
           </div>
 
           <StageDialogueOverlay

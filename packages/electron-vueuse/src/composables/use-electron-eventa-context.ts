@@ -38,7 +38,7 @@ export function getElectronEventaContext(ipcRenderer?: IpcRendererLike): EventaC
           : 'unknown'
 
         try {
-          const result = originalEmit(event, ...args)
+          const result: unknown = originalEmit(event, ...args)
           if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
             return (result as Promise<unknown>).catch((error) => {
               console.warn(`[electron-vueuse] context.emit failed: ${eventId}`, error)
@@ -67,9 +67,15 @@ export function useElectronEventaInvoke<Res, Req = undefined, ResErr = Error, Re
     ? String((invoke as { id?: unknown }).id ?? 'unknown')
     : 'unknown'
 
-  return (async (payload: Req) => {
+  return (async (payload: Req, options?: Parameters<typeof handler>[1]) => {
     try {
-      return await handler(payload)
+      // Eventa's asynchronous emission does not reject the invoke when Electron
+      // cannot clone a request. Fail before installing response listeners.
+      const streaming = payload != null && typeof payload === 'object'
+        && (Symbol.asyncIterator in payload || (typeof ReadableStream !== 'undefined' && payload instanceof ReadableStream))
+      if (!streaming)
+        structuredClone(payload)
+      return await handler(payload, options)
     }
     catch (error) {
       if (isElectronVueuseDev())

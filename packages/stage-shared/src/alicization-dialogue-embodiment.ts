@@ -8,6 +8,8 @@ import type { StageEmbodimentPresencePostureMode } from './stage-embodiment-pres
 import type { StageEmbodimentSpeechStyleProfile } from './stage-embodiment-profile'
 
 import {
+  alicizationEmotionWhitelist,
+  alicizationPerformanceDeliveryWhitelist,
   normalizeAlicizationEmotion,
   normalizeAlicizationPerformancePayload,
 } from './alicization-performance-contracts'
@@ -166,26 +168,9 @@ function normalizeRendererHintAliases(raw: unknown) {
   return dedupeCues(raw)
 }
 
-function shouldPreserveExplicitRendererActionCue(input: {
-  candidatePerformance?: AlicizationDialoguePerformancePayload | null
-  performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
-  previous?: AlicizationDialogueEmbodimentPreviousState | null
-}) {
-  const explicitCue = normalizeCue(input.candidatePerformance?.actionCue)
-  if (!explicitCue)
-    return false
-
-  if (input.performanceManifest?.renderer !== 'vrm')
-    return false
-
-  const supportedActionKeys = new Set((input.performanceManifest?.supportedActions ?? []).map(item => item.key))
-  if (!supportedActionKeys.has(explicitCue))
-    return false
-
-  if (normalizeCue(input.previous?.actionCue) === explicitCue)
-    return true
-
-  return false
+function resolveExplicitRendererCue(raw: unknown, supported: readonly { key: string }[] | undefined) {
+  const cue = normalizeCue(raw)
+  return cue && supported?.some(item => item.key === cue) ? cue : null
 }
 
 function normalizeEmbodimentRendererHints(raw: unknown): AlicizationDialogueEmbodimentRendererHints | null {
@@ -296,84 +281,35 @@ function inferEncounter(input: {
 
 function resolveBaseEmotion(input: {
   candidateEmotion?: string
-  encounter: DialogueEncounterSnapshot
+  candidatePerformance?: AlicizationDialoguePerformancePayload | null
   previousEmotion?: string | null
 }): AlicizationEmotion {
-  const candidateEmotion = normalizeAlicizationEmotion(input.candidateEmotion).emotion
-  const previousEmotion = normalizeAlicizationEmotion(input.previousEmotion ?? 'neutral').emotion
-  const encounter = input.encounter
-  let resolved = candidateEmotion
-
-  if (encounter.apologySignal)
-    resolved = 'apologetic'
-  else if (encounter.firmSignal)
-    resolved = 'angry'
-  else if (encounter.careSignal)
-    resolved = 'concerned'
-  else if (encounter.uncertaintySignal || encounter.questionSignal)
-    resolved = 'thinking'
-  else if (encounter.energeticSignal)
-    resolved = 'happy'
-
-  if (
-    candidateEmotion === 'concerned'
-    && resolved === 'thinking'
-    && !encounter.apologySignal
-    && !encounter.firmSignal
-    && !encounter.energeticSignal
-  ) {
-    resolved = 'concerned'
+  // Committed affect stays stable until a valid new emotional state replaces it.
+  // Reply wording and repeated presentation are not emotional evidence.
+  for (const raw of [input.candidateEmotion, input.candidatePerformance?.baseEmotion, input.candidatePerformance?.emotion, input.previousEmotion]) {
+    const candidate = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+    if ((alicizationEmotionWhitelist as readonly string[]).includes(candidate))
+      return normalizeAlicizationEmotion(candidate).emotion
   }
-
-  const strongSignal
-    = encounter.apologySignal
-      || encounter.firmSignal
-      || encounter.careSignal
-      || encounter.energeticSignal
-      || encounter.questionSignal
-
-  if (!strongSignal && resolved === previousEmotion) {
-    if (resolved === 'neutral')
-      resolved = 'thinking'
-    else if (resolved === 'thinking')
-      resolved = 'concerned'
-    else if (resolved === 'concerned')
-      resolved = 'neutral'
-  }
-
-  return normalizeAlicizationEmotion(resolved).emotion
+  return 'neutral'
 }
 
 function resolveDelivery(input: {
-  encounter: DialogueEncounterSnapshot
   emotion: AlicizationEmotion
-  previousDelivery?: string | null
+  candidateDelivery?: string | null
 }): AlicizationPerformanceDelivery {
-  const previousDelivery = input.previousDelivery?.trim().toLowerCase() ?? ''
-  const encounter = input.encounter
-  let resolved: AlicizationPerformanceDelivery = 'calm'
-
-  if (encounter.teasingSignal)
-    resolved = 'teasing'
-  else if (encounter.firmSignal)
-    resolved = 'firm'
-  else if (encounter.careSignal || input.emotion === 'concerned' || input.emotion === 'apologetic')
-    resolved = 'gentle'
-  else if (encounter.energeticSignal || input.emotion === 'happy' || input.emotion === 'surprised')
-    resolved = 'energetic'
-  else if (encounter.uncertaintySignal || input.emotion === 'thinking')
-    resolved = 'hesitant'
-
-  if (previousDelivery === resolved) {
-    if (resolved === 'calm')
-      resolved = input.emotion === 'thinking' ? 'hesitant' : 'gentle'
-    else if (resolved === 'hesitant')
-      resolved = 'calm'
-    else if (resolved === 'gentle')
-      resolved = 'calm'
-  }
-
-  return resolved
+  const candidate = input.candidateDelivery?.trim().toLowerCase() ?? ''
+  if ((alicizationPerformanceDeliveryWhitelist as readonly string[]).includes(candidate))
+    return candidate as AlicizationPerformanceDelivery
+  if (input.emotion === 'angry')
+    return 'firm'
+  if (['concerned', 'apologetic', 'sad', 'tired'].includes(input.emotion))
+    return 'gentle'
+  if (input.emotion === 'happy' || input.emotion === 'surprised')
+    return 'energetic'
+  if (input.emotion === 'thinking')
+    return 'hesitant'
+  return 'calm'
 }
 
 function resolveEmphasis(input: {
@@ -573,19 +509,21 @@ export function resolveAlicizationDialogueEmbodiment(
 
   const emotion = resolveBaseEmotion({
     candidateEmotion: input.candidateEmotion,
-    encounter,
+    candidatePerformance: input.candidatePerformance,
     previousEmotion: input.previous?.emotion,
   })
   const delivery = resolveDelivery({
-    encounter,
     emotion,
-    previousDelivery: input.previous?.delivery,
+    candidateDelivery: input.candidatePerformance?.delivery,
   })
-  const emphasis = resolveEmphasis({
-    delivery,
-    encounter,
-    reply,
-  })
+  const requestedEmphasis = input.candidatePerformance?.emphasis
+  const emphasis = requestedEmphasis === 0 || requestedEmphasis === 1 || requestedEmphasis === 2
+    ? requestedEmphasis
+    : resolveEmphasis({
+        delivery,
+        encounter,
+        reply,
+      })
 
   const cueCandidates = resolveStageEmbodimentCueCandidates({
     delivery,
@@ -594,22 +532,17 @@ export function resolveAlicizationDialogueEmbodiment(
   const facialCueCandidates = dedupeCues(cueCandidates.facialCueCandidates)
   const actionCueCandidates = dedupeCues(cueCandidates.actionCueCandidates)
 
-  const facialCue = selectCueWithVariation({
+  const facialCue = resolveExplicitRendererCue(input.candidatePerformance?.facialCue, input.performanceManifest?.supportedFacialCues) ?? selectCueWithVariation({
     candidates: facialCueCandidates,
     previousCue: input.previous?.facialCue,
     variationToken: `${variationToken}:facial`,
   })
-  const actionCue = shouldPreserveExplicitRendererActionCue({
-    candidatePerformance: input.candidatePerformance,
-    performanceManifest: input.performanceManifest,
-    previous: input.previous,
-  })
-    ? normalizeCue(input.candidatePerformance?.actionCue)
-    : selectCueWithVariation({
-        candidates: actionCueCandidates,
-        previousCue: input.previous?.actionCue,
-        variationToken: `${variationToken}:action`,
-      })
+  const actionCue = resolveExplicitRendererCue(input.candidatePerformance?.actionCue, input.performanceManifest?.supportedActions)
+    ?? selectCueWithVariation({
+      candidates: actionCueCandidates,
+      previousCue: input.previous?.actionCue,
+      variationToken: `${variationToken}:action`,
+    })
 
   const performance = normalizeAlicizationPerformancePayload({
     ...input.candidatePerformance,

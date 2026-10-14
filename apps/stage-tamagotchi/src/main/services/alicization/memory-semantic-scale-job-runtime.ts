@@ -26,6 +26,7 @@ import { createSqliteVecLongTermMemoryVectorBackend } from './long-term-memory-s
 import { createLongTermMemoryVectorIndexAdapter } from './long-term-memory-vector-index-adapter'
 import { runMemorySemanticScaleSoakHarness } from './memory-semantic-scale-soak-harness'
 import { runMemorySemanticScaleVectorAdapterSoak } from './memory-semantic-scale-soak-runtime'
+import { withRecoveryJournalQueue } from './recovery-journal-queue'
 import {
 
   renameAlicizationAtomicPath,
@@ -1267,7 +1268,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
     })
   }
 
-  async function replayStopRecoveryJournal() {
+  async function replayStopRecoveryJournalInside() {
     try {
       await secureDirectory(recoveryJournalDir, false, recoveryPlatform)
     }
@@ -1300,6 +1301,10 @@ export function createMemorySemanticScaleJobRuntime(input: {
         throw error
       }
     }
+  }
+
+  async function replayStopRecoveryJournal() {
+    await withRecoveryJournalQueue(recoveryJournalDir, replayStopRecoveryJournalInside)
   }
 
   async function initializeSchema() {

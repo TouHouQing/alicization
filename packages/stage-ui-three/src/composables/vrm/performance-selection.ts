@@ -144,11 +144,19 @@ export function resolveVrmPreferredCustomExpressionBinding(
   return undefined
 }
 
+export function hasStaleVrmDialogueActionCue(state: StageEmbodimentPerformanceState | null | undefined) {
+  return state?.actionPulse.reason === 'dialogue'
+    && Boolean(state.actionPulse.segmentId)
+    && state.activeCue?.id !== state.actionPulse.segmentId
+}
+
 export function resolveVrmPreferredActionBinding(
   state: StageEmbodimentPerformanceState | null | undefined,
   bindings: VrmActionBinding[] | null | undefined,
 ) {
   const candidates = uniqueCandidateOrder([
+    // A committed activity action cannot inherit a pending reply's pose.
+    ...(state && (state.actionPulse.reason === 'presence-pulse' || hasStaleVrmDialogueActionCue(state)) ? [state.actionPulse.cue] : []),
     ...(state?.activeCue?.rendererHints?.preferredMotionAliases ?? []),
     state?.actionPulse.cue ?? null,
     state?.activeActionCue ?? null,

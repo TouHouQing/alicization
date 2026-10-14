@@ -1,197 +1,100 @@
 <script setup lang="ts">
-import type { AlicizationGenesisInput } from '../../../../stores/alicization-bridge'
 import type { OnboardingStepNextHandler, OnboardingStepPrevHandler } from './types'
 
-import { defaultAlicizationPersonality, defaultAlicizationProfile } from '@proj-alicization/stage-shared'
-import { Button, Textarea } from '@proj-alicization/ui'
+import { Textarea } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import PersonaStepShell from './persona-step-shell.vue'
+
+import { useAlicizationGenesisSubmit } from '../../../../composables/use-alicization-genesis-submit'
 import { useAlicizationEpoch1Store } from '../../../../stores/alicization-epoch1'
 import { useAlicizationGenesisWorkshopStore } from '../../../../stores/alicization-genesis-workshop'
 
-const props = defineProps<{
-  onNext: OnboardingStepNextHandler
-  onPrevious: OnboardingStepPrevHandler
-}>()
-
+const props = defineProps<{ onNext: OnboardingStepNextHandler, onPrevious: OnboardingStepPrevHandler }>()
 const { t } = useI18n()
 const workshopStore = useAlicizationGenesisWorkshopStore()
 const epoch1Store = useAlicizationEpoch1Store()
-const { draft } = storeToRefs(workshopStore)
-const submitting = ref(false)
-const correctionText = ref('')
-
-function localizedCalibrationLabel(kind: 'relationshipPosture' | 'initiativeStyle' | 'silenceReconnect', value: string) {
-  const map = {
-    relationshipPosture: {
-      companion: t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureLabels.companion'),
-      guardian: t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureLabels.guardian'),
-      lover: t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureLabels.lover'),
-      partner: t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureLabels.partner'),
-      observer: t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureLabels.observer'),
-    },
-    initiativeStyle: {
-      'observant': t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleLabels.observant'),
-      'measured-approach': t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleLabels.measuredApproach'),
-      'direct-approach': t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleLabels.directApproach'),
-      'high-participation': t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleLabels.highParticipation'),
-    },
-    silenceReconnect: {
-      'hold': t('settings.dialogs.onboarding.personaWorkshop.preview.silenceReconnectLabels.hold'),
-      'light-probe': t('settings.dialogs.onboarding.personaWorkshop.preview.silenceReconnectLabels.lightProbe'),
-      'direct-approach': t('settings.dialogs.onboarding.personaWorkshop.preview.silenceReconnectLabels.directApproach'),
-    },
-  } as const
-
-  return map[kind][value as keyof typeof map[typeof kind]] ?? value
-}
-
-const previewLines = computed(() => [
-  draft.value.freeDescription || t('settings.dialogs.onboarding.personaWorkshop.preview.emptyDescription'),
-  ...(draft.value.antiPersonaConstraints ?? []),
-])
-
-const previewInterpretation = computed(() => {
-  const temperament = draft.value.presetTemperament ?? {}
-  const summary = [
-    `${t('settings.dialogs.onboarding.personaWorkshop.core.obedience')}: ${Math.round((temperament.obedience ?? 0.5) * 100)}%`,
-    `${t('settings.dialogs.onboarding.personaWorkshop.core.liveliness')}: ${Math.round((temperament.liveliness ?? 0.5) * 100)}%`,
-    `${t('settings.dialogs.onboarding.personaWorkshop.core.sensibility')}: ${Math.round((temperament.sensibility ?? 0.5) * 100)}%`,
-  ].join(' / ')
-
-  const notes = [
-    draft.value.relationshipPosture
-      ? t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPosture', { value: localizedCalibrationLabel('relationshipPosture', draft.value.relationshipPosture) })
-      : t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureDefault'),
-    draft.value.initiativeStyle
-      ? t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyle', { value: localizedCalibrationLabel('initiativeStyle', draft.value.initiativeStyle) })
-      : t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleDefault'),
-    draft.value.calibration?.silenceReconnect
-      ? t('settings.dialogs.onboarding.personaWorkshop.preview.reconnectAfterSilence', { value: localizedCalibrationLabel('silenceReconnect', draft.value.calibration.silenceReconnect) })
-      : t('settings.dialogs.onboarding.personaWorkshop.preview.reconnectAfterSilenceDefault'),
-  ]
-
-  return { summary, notes }
-})
-
+const { draft, identity, hasValidIdentity } = storeToRefs(workshopStore)
+const correctionText = ref((draft.value.previewCorrections ?? []).join('\n'))
 watch(correctionText, (value) => {
-  const corrections = value
-    .split('\n')
-    .map(item => item.trim())
-    .filter(Boolean)
-
-  draft.value.previewCorrections = corrections
-}, { immediate: true })
-
-watch(
-  () => draft.value.previewCorrections,
-  (value) => {
-    correctionText.value = (value ?? []).join('\n')
-  },
-  { immediate: true },
-)
-
-function buildGenesisPayload() {
-  const personaWorkshop = workshopStore.snapshotDraft()
-  return {
-    ownerName: defaultAlicizationProfile.ownerName,
-    hostName: defaultAlicizationProfile.hostName,
-    alicizationName: defaultAlicizationProfile.alicizationName,
-    gender: defaultAlicizationProfile.gender,
-    genderCustom: defaultAlicizationProfile.genderCustom,
-    relationship: defaultAlicizationProfile.relationship,
-    mindAge: defaultAlicizationProfile.mindAge,
-    personality: {
-      ...defaultAlicizationPersonality,
-      identityKernel: {
-        ...defaultAlicizationPersonality.identityKernel,
-        valueBias: [...defaultAlicizationPersonality.identityKernel.valueBias],
-      },
-      expressionProfile: {
-        ...defaultAlicizationPersonality.expressionProfile,
-      },
-      initiativeBaseline: {
-        ...defaultAlicizationPersonality.initiativeBaseline,
-      },
-      evolutionSeed: {
-        ...defaultAlicizationPersonality.evolutionSeed,
-        fastLayers: [...defaultAlicizationPersonality.evolutionSeed.fastLayers],
-        slowLayers: [...defaultAlicizationPersonality.evolutionSeed.slowLayers],
-        unlockTracks: [...defaultAlicizationPersonality.evolutionSeed.unlockTracks],
-      },
-      identityAnchors: [...(defaultAlicizationPersonality.identityAnchors ?? [])],
-      antiPersonaConstraints: [...(draft.value.antiPersonaConstraints ?? [])],
-    },
-    personaWorkshop,
-  } satisfies AlicizationGenesisInput
-}
-
-async function completePreview() {
-  if (submitting.value)
-    return
-
-  submitting.value = true
-  try {
-    const payload = buildGenesisPayload()
-    const result = await epoch1Store.initializeGenesis(payload)
-    if (result && !epoch1Store.needsGenesis) {
-      await props.onNext()
-    }
+  draft.value.previewCorrections = value.split('\n').map(item => item.trim()).filter(Boolean)
+})
+const traitDescriptions = computed(() => (['obedience', 'liveliness', 'sensibility'] as const).map((trait) => {
+  const value = draft.value.presetTemperament?.[trait] ?? 0.5
+  const level = value < 0.35 ? 'low' : value > 0.65 ? 'high' : 'balanced'
+  return t(`settings.dialogs.onboarding.personaWorkshop.core.traits.${trait}.${level}`)
+}))
+const styleDescriptions = computed(() => {
+  const labels: Record<string, string> = {
+    'hold': 'hold',
+    'light-probe': 'lightProbe',
+    'direct-approach': 'directApproach',
+    'quiet-presence': 'quietPresence',
+    'gentle-care': 'gentleCare',
+    'take-charge': 'takeCharge',
+    'mask-it': 'maskIt',
+    'soft-ache': 'softAche',
+    'say-it': 'sayIt',
   }
-  finally {
-    submitting.value = false
-  }
-}
+  return (['silenceReconnect', 'comfortStyle', 'jealousyStyle'] as const).map(kind => ({
+    label: t(`settings.dialogs.onboarding.personaWorkshop.calibration.${kind}`),
+    value: t(`settings.dialogs.onboarding.personaWorkshop.calibration.options.${labels[draft.value.calibration?.[kind] ?? '']}`),
+  }))
+})
+const { submitting, error, submit } = useAlicizationGenesisSubmit({
+  buildPayload: () => workshopStore.buildGenesisPayload(),
+  initialize: payload => epoch1Store.initializeGenesis(payload),
+  onCreated: () => props.onNext(),
+  failureMessage: reason => t('settings.dialogs.onboarding.personaWorkshop.preview.saveError', { reason }),
+  conflictMessage: () => t('settings.dialogs.onboarding.personaWorkshop.preview.conflictError'),
+  unavailableMessage: () => t('settings.dialogs.onboarding.personaWorkshop.preview.unavailableError'),
+})
 </script>
 
 <template>
-  <div h-full flex flex-col gap-4>
-    <div sticky top-0 z-100 flex flex-shrink-0 items-center gap-2>
-      <button outline-none @click="props.onPrevious">
-        <div class="i-solar:alt-arrow-left-line-duotone h-5 w-5" />
-      </button>
-      <h2 class="flex-1 text-center text-xl text-neutral-800 font-semibold md:text-left md:text-2xl dark:text-neutral-100">
-        {{ t('settings.dialogs.onboarding.personaWorkshop.preview.title') }}
-      </h2>
-      <div class="h-5 w-5" />
-    </div>
-    <div class="flex-1 overflow-y-auto space-y-4">
-      <div class="border border-neutral-200 rounded-2xl bg-neutral-50/80 p-4 text-sm text-neutral-700 leading-6 dark:border-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
-        {{ t('settings.dialogs.onboarding.personaWorkshop.preview.description') }}
-      </div>
-      <div class="border border-primary-200 rounded-2xl border-dashed bg-primary-50/70 p-4 text-sm text-primary-700 dark:border-primary-700/60 dark:bg-primary-900/10 dark:text-primary-200">
-        {{ previewInterpretation.summary }}
-      </div>
+  <PersonaStepShell :step="4" :title="t('settings.dialogs.onboarding.personaWorkshop.preview.title')" :description="t('settings.dialogs.onboarding.personaWorkshop.preview.description')" :action="t(`settings.dialogs.onboarding.personaWorkshop.preview.${submitting ? 'saving' : error ? 'retry' : 'complete'}`)" :hint="t(`settings.dialogs.onboarding.personaWorkshop.preview.${submitting ? 'savingHint' : 'nextHint'}`)" :loading="submitting" :disabled="!hasValidIdentity" :error="error" @previous="props.onPrevious()" @next="submit">
+    <div class="py-2 space-y-4">
+      <section class="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+        <div class="mb-3 flex flex-wrap items-center gap-3">
+          <div class="h-9 w-9 flex items-center justify-center rounded-full bg-primary-100 text-primary-600 dark:bg-primary-950 dark:text-primary-300">
+            <span class="i-solar:heart-linear h-5 w-5" aria-hidden="true" />
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold">
+              {{ identity.alicizationName }}
+            </h3>
+            <p class="text-xs text-neutral-500">
+              {{ t('settings.dialogs.onboarding.personaWorkshop.preview.addressAs', { name: identity.hostName }) }}
+            </p>
+          </div>
+          <div class="w-full flex flex-wrap gap-2 sm:ml-auto sm:w-auto">
+            <span v-for="trait in traitDescriptions" :key="trait" class="rounded-full bg-white px-3 py-1 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">{{ trait }}</span>
+          </div>
+        </div>
+        <p class="whitespace-pre-wrap text-sm leading-6">
+          {{ draft.freeDescription || t('settings.dialogs.onboarding.personaWorkshop.preview.emptyDescription') }}
+        </p>
+        <dl class="grid mt-3 gap-2 border-t border-neutral-200 pt-3 text-xs sm:grid-cols-3 dark:border-neutral-800">
+          <div v-for="style in styleDescriptions" :key="style.label">
+            <dt class="text-neutral-500">
+              {{ style.label }}
+            </dt><dd class="mt-1 text-sm">
+              {{ style.value }}
+            </dd>
+          </div>
+        </dl>
+        <ul v-if="draft.antiPersonaConstraints?.length" class="mt-3 list-disc list-inside text-sm text-neutral-500">
+          <li v-for="constraint in draft.antiPersonaConstraints" :key="constraint">
+            {{ constraint }}
+          </li>
+        </ul>
+      </section>
       <label class="block space-y-2">
-        <div class="text-xs text-neutral-500">
-          {{ t('settings.dialogs.onboarding.personaWorkshop.preview.correctionsTitle') }}
-        </div>
-        <Textarea
-          v-model="correctionText"
-          :rows="4"
-        />
+        <span class="text-sm font-medium">{{ t('settings.dialogs.onboarding.personaWorkshop.preview.correctionsTitle') }}</span>
+        <Textarea v-model="correctionText" :disabled="submitting" :rows="2" :placeholder="t('settings.dialogs.onboarding.personaWorkshop.preview.correctionsPlaceholder')" class="!resize-none !whitespace-pre-wrap !rounded-xl !px-3 !py-2 !leading-6 !shadow-none" />
       </label>
-      <div class="rounded-2xl bg-white/70 p-3 text-sm text-neutral-600 dark:bg-neutral-950/60 dark:text-neutral-300">
-        <div v-for="line in previewLines" :key="line" class="mb-2 last:mb-0">
-          {{ line }}
-        </div>
-      </div>
-      <div class="space-y-2">
-        <div class="text-xs text-neutral-500">
-          {{ t('settings.dialogs.onboarding.personaWorkshop.preview.notesTitle') }}
-        </div>
-        <div class="rounded-xl bg-white/70 p-3 text-sm text-neutral-600 dark:bg-neutral-950/60 dark:text-neutral-300">
-          <div v-for="note in previewInterpretation.notes" :key="note">
-            {{ note }}
-          </div>
-          <div v-if="previewInterpretation.notes.length === 0">
-            {{ t('settings.dialogs.onboarding.personaWorkshop.preview.notesEmpty') }}
-          </div>
-        </div>
-      </div>
     </div>
-    <Button :label="t('settings.dialogs.onboarding.personaWorkshop.preview.complete')" :loading="submitting" @click="completePreview" />
-  </div>
+  </PersonaStepShell>
 </template>

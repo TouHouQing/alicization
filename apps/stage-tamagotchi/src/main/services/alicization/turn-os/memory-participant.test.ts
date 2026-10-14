@@ -44,6 +44,26 @@ function createMemoryEvidence(): AlicizationLongTermMemoryRecallProviderEvidence
 }
 
 describe('memoryOS Turn participant', () => {
+  it('deduplicates the same recall while retaining changed evidence after replanning', async () => {
+    const saved = new Map<string, string>()
+    const failure = vi.fn()
+    const participant = createAlicizationMemoryParticipant({ scope: createScope(), appendEvent: async (event) => {
+      const payload = JSON.stringify(event.payload)
+      const prior = saved.get(event.idempotencyKey)
+      if (prior && prior !== payload)
+        throw new Error('idempotency conflict')
+      saved.set(event.idempotencyKey, payload)
+    }, onPersistenceFailure: failure, enqueue: async () => ({ ownerSettlements: [] }) })
+    const request = { sessionId: 'session-1', status: 'recalled' as const, evidence: createMemoryEvidence(), confidence: 0.92 }
+    await participant.recordLongTermRecall(request)
+    const count = saved.size
+    await participant.recordLongTermRecall(request)
+    expect(saved.size).toBe(count)
+    await participant.recordLongTermRecall({ ...request, evidence: [{ ...request.evidence[0], summary: '用户现在喜欢更完整的解释。', updatedAt: 30 }] })
+    expect(saved.size).toBe(count * 2)
+    expect(failure).not.toHaveBeenCalled()
+  })
+
   it('records compression, scoped recall evidence, and a pending write proposal', async () => {
     const events: Array<{
       eventType: string

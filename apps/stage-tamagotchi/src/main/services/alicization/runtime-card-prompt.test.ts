@@ -82,8 +82,9 @@ describe('runtime card prompt persona kernel', () => {
         name: '主人',
       },
     })
-    expect(JSON.stringify(blocks)).not.toMatch(
-      /Response contract|Output contract|Return (?:exactly )?one (?:strict )?JSON/iu,
-    )
+    const outputContract = blocks.map(block => JSON.parse(block)).find(block => block.type === 'alicization-expression-output-contract')
+    expect(outputContract.data.formatRequirements).toContain('metadata is never spoken')
+    expect(outputContract.data.formatRequirements).toContain('current intention')
+    expect(outputContract.data.formatRequirements).toContain('cannot emit JSON')
   })
 })

@@ -566,6 +566,18 @@ describe('long-term memory vector index adapter', () => {
     expect(fallbackSearch).toHaveBeenCalled()
     expect(nativeSearch).not.toHaveBeenCalled()
 
+    // A transient health observation must recover after a fresh successful
+    // observation, without requiring another mutation or a manual rebuild.
+    ready = true
+    const realTimestamp = Date.now()
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(realTimestamp + 31_000)
+    try {
+      await expect(adapter.getHealth({ cardId: 'card-a', modelId: 'model-a', dimensions: 3, vectorSpaceId: modelAVectorSpaceId })).resolves.toMatchObject({ nativeIndexReady: true, lastError: null, degraded: false })
+      await adapter.search({ queryVector: [1, 0, 0], cardId: 'card-a', modelId: 'model-a', dimensions: 3, vectorSpaceId: modelAVectorSpaceId, limit: 4 })
+      expect(nativeSearch).toHaveBeenCalledTimes(1)
+    }
+    finally { clock.mockRestore() }
+    ready = false
     await adapter.rebuild({
       cardId: 'card-a',
       modelId: 'model-a',

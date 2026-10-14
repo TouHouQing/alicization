@@ -313,7 +313,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         assertNotAborted()
         if (!llmStructured) {
           const nextTriggerAt = Date.now() + options.reminderLlmRetryDelayMs
-          await options.getAlicizationDb().requeueScheduledTask(task.taskId, 'llm-unavailable', nextTriggerAt, processOptions)
+          await options.getAlicizationDb().requeueScheduledTask(task.taskId, 'llm-unavailable', nextTriggerAt, { ...processOptions, expectedGeneration: task.obligationGeneration })
           requeued += 1
           await options.appendRuntimeDebugLine('reminder.task-requeued', {
             cardId: options.getActiveCardId(),
@@ -361,7 +361,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         })
         if (!reminderVisibleUtterance.shouldPersistVisibleUtterance) {
           const nextTriggerAt = Date.now() + options.reminderLlmRetryDelayMs
-          await options.getAlicizationDb().requeueScheduledTask(task.taskId, reminderVisibleUtterance.decision.reason, nextTriggerAt, processOptions)
+          await options.getAlicizationDb().requeueScheduledTask(task.taskId, reminderVisibleUtterance.decision.reason, nextTriggerAt, { ...processOptions, expectedGeneration: task.obligationGeneration })
           requeued += 1
           await options.appendAuditLog({
             level: 'warning',
@@ -397,6 +397,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         const persisted = await options.appendConversationTurnWithGuards({
           turnId: firedTurnId,
           sessionId: deliveredSessionId,
+          reminder: { taskId: task.taskId, generation: task.obligationGeneration },
           assistantText: reminderVisibleUtterance.assistantText,
           structured: reminderVisibleUtterance.structuredForPersistence,
           origin: resolveAlicizationAutonomousDialogueOrigin('proactive'),
@@ -468,7 +469,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           })
         }
 
-        await options.getAlicizationDb().completeScheduledTask(task.taskId, firedTurnId, Date.now(), processOptions)
+        await options.getAlicizationDb().completeScheduledTask(task.taskId, firedTurnId, Date.now(), { ...processOptions, expectedGeneration: task.obligationGeneration })
         completed += 1
         await options.appendRuntimeDebugLine('reminder.task-completed', {
           cardId: options.getActiveCardId(),
@@ -480,7 +481,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           level: 'notice',
           category: 'alicization.reminder',
           action: 'alicization.reminder.task.completed',
-          message: 'Reminder task completed and delivered through subconscious proactive turn.',
+          message: 'Reminder generated and archived; visible delivery proof is still required.',
           payload: {
             trigger,
             taskId: task.taskId,
@@ -497,7 +498,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           throw processOptions.signal.reason
         failed += 1
         const reason = options.sanitizeBriefText(error instanceof Error ? error.message : String(error), 300) || 'unknown reminder execution failure'
-        await options.getAlicizationDb().failScheduledTask?.(task.taskId, reason, Date.now(), processOptions).catch(() => {})
+        await options.getAlicizationDb().failScheduledTask?.(task.taskId, reason, Date.now(), { ...processOptions, expectedGeneration: task.obligationGeneration }).catch(() => {})
         await options.appendRuntimeDebugLine('reminder.task-failed', {
           cardId: options.getActiveCardId(),
           trigger,

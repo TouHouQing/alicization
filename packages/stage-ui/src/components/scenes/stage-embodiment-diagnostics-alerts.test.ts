@@ -488,7 +488,7 @@ describe('stage embodiment diagnostics alerts', () => {
         voiceDriverSegmentId: 'segment-vrm-pending-body-voice-1',
       },
     })).toBe(
-      'resident calm is waiting for renderer application | body+voice recovery@segment-vrm-pending-body-voice-1 | pending-rejoin=face+motion+lipsync',
+      'resident calm is waiting for renderer application | body+voice recovery@segment-vrm-pending-body-voice-1 | partial=face+motion+lipsync',
     )
   })
 
@@ -517,7 +517,7 @@ describe('stage embodiment diagnostics alerts', () => {
         signature: 'embodiment:audible-continuity-line',
       },
     } as any)).toBe(
-      'resident calm is waiting for renderer application | continuity=embodiment:audible-continuity-line+embodiment:body+voice-only | signature=embodiment:audible-continuity-line | body+voice recovery@segment-vrm-pending-body-voice-structured-1 | pending-rejoin=face+motion+lipsync',
+      'resident calm is waiting for renderer application | continuity=embodiment:audible-continuity-line+embodiment:body+voice-only | signature=embodiment:audible-continuity-line | body+voice recovery@segment-vrm-pending-body-voice-structured-1 | partial=face+motion+lipsync',
     )
   })
 
@@ -545,7 +545,7 @@ describe('stage embodiment diagnostics alerts', () => {
         voiceDriverSegmentId: 'segment-vrm-pending-audible-body-1',
       },
     })).toBe(
-      'resident calm is waiting for renderer application | body+lipsync+voice recovery@segment-vrm-pending-audible-body-1 | audible-body rejoin@segment-vrm-pending-audible-body-1 | audible-living-line leads while face+motion lag@segment-vrm-pending-audible-body-1 | pending-rejoin=face+motion',
+      'resident calm is waiting for renderer application | body+lipsync+voice recovery@segment-vrm-pending-audible-body-1 | audible-body rejoin@segment-vrm-pending-audible-body-1 | audible-living-line leads while face+motion lag@segment-vrm-pending-audible-body-1 | partial=face+motion',
     )
   })
 
@@ -695,7 +695,7 @@ describe('stage embodiment diagnostics alerts', () => {
       } as any,
       vrm: null,
     })).toBe(
-      'runtime surfaced Resident Hold before resident prediction | body-only recovery@segment-live2d-runtime-body-only-1 | pending-rejoin=face+motion+lipsync+voice',
+      'runtime surfaced Resident Hold before resident prediction | body-only recovery@segment-live2d-runtime-body-only-1 | partial=face+motion+lipsync+voice',
     )
   })
 
@@ -722,7 +722,7 @@ describe('stage embodiment diagnostics alerts', () => {
       },
       vrm: null,
     })).toBe(
-      'runtime surfaced Resident Hold before resident prediction | body+voice recovery@segment-live2d-runtime-body-voice-1 | pending-rejoin=face+motion+lipsync',
+      'runtime surfaced Resident Hold before resident prediction | body+voice recovery@segment-live2d-runtime-body-voice-1 | partial=face+motion+lipsync',
     )
   })
 
@@ -750,7 +750,7 @@ describe('stage embodiment diagnostics alerts', () => {
       },
       vrm: null,
     })).toBe(
-      'runtime surfaced Resident Hold before resident prediction | body+lipsync+voice recovery@segment-live2d-runtime-audible-body-1 | audible-body rejoin@segment-live2d-runtime-audible-body-1 | audible-living-line leads while face+motion lag@segment-live2d-runtime-audible-body-1 | pending-rejoin=face+motion',
+      'runtime surfaced Resident Hold before resident prediction | body+lipsync+voice recovery@segment-live2d-runtime-audible-body-1 | audible-body rejoin@segment-live2d-runtime-audible-body-1 | audible-living-line leads while face+motion lag@segment-live2d-runtime-audible-body-1 | partial=face+motion',
     )
   })
 
@@ -779,7 +779,7 @@ describe('stage embodiment diagnostics alerts', () => {
       } as any,
       vrm: null,
     })).toBe(
-      'runtime surfaced Resident Hold before resident prediction | face soft-gaze@prosody-authority | continuity=embodiment:still-voiced-face-line | face+voice recovery@segment-live2d-runtime-still-voiced-face-1 | pending-rejoin=body+motion+lipsync',
+      'runtime surfaced Resident Hold before resident prediction | face soft-gaze@prosody-authority | continuity=embodiment:still-voiced-face-line | face+voice recovery@segment-live2d-runtime-still-voiced-face-1 | partial=body+motion+lipsync',
     )
   })
 
@@ -808,7 +808,7 @@ describe('stage embodiment diagnostics alerts', () => {
       } as any,
       vrm: null,
     })).toBe(
-      'runtime surfaced Resident Hold before resident prediction | motion observe_focus@timeline-projection | continuity=embodiment:still-voiced-motion-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line | motion+voice recovery@segment-live2d-runtime-still-voiced-motion-1 | pending-rejoin=body+face+lipsync',
+      'runtime surfaced Resident Hold before resident prediction | motion observe_focus@timeline-projection | continuity=embodiment:still-voiced-motion-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line | motion+voice recovery@segment-live2d-runtime-still-voiced-motion-1 | partial=body+face+lipsync',
     )
   })
 
@@ -840,7 +840,7 @@ describe('stage embodiment diagnostics alerts', () => {
       } as any,
       vrm: null,
     })).toBe(
-      'runtime surfaced Resident Hold before resident prediction | face soft-gaze@prosody-authority | continuity=embodiment:still-voiced-face-lipsync-line+embodiment:still-voiced-face-line | face+lipsync+voice recovery@segment-live2d-runtime-still-voiced-face-mouth-1 | pending-rejoin=body+motion',
+      'runtime surfaced Resident Hold before resident prediction | face soft-gaze@prosody-authority | continuity=embodiment:still-voiced-face-lipsync-line+embodiment:still-voiced-face-line | face+lipsync+voice recovery@segment-live2d-runtime-still-voiced-face-mouth-1 | partial=body+motion',
     )
   })
 
@@ -872,7 +872,7 @@ describe('stage embodiment diagnostics alerts', () => {
       } as any,
       vrm: null,
     })).toBe(
-      'runtime surfaced Resident Hold before resident prediction | motion observe_focus@timeline-projection | continuity=embodiment:still-voiced-motion-lipsync-line+embodiment:still-voiced-motion-line | motion+lipsync+voice recovery@segment-live2d-runtime-still-voiced-motion-mouth-1 | pending-rejoin=body+face',
+      'runtime surfaced Resident Hold before resident prediction | motion observe_focus@timeline-projection | continuity=embodiment:still-voiced-motion-lipsync-line+embodiment:still-voiced-motion-line | motion+lipsync+voice recovery@segment-live2d-runtime-still-voiced-motion-mouth-1 | partial=body+face',
     )
   })
 
@@ -901,7 +901,7 @@ describe('stage embodiment diagnostics alerts', () => {
       } as any,
       vrm: null,
     })).toBe(
-      'runtime surfaced Resident Hold before resident prediction | face soft-gaze@prosody-authority | motion observe_focus@timeline-projection | continuity=embodiment:still-voiced-face-motion-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-motion-line | same-segment face+motion recovery@segment-live2d-runtime-still-voiced-face-motion-1 | pending-rejoin=body+lipsync',
+      'runtime surfaced Resident Hold before resident prediction | face soft-gaze@prosody-authority | motion observe_focus@timeline-projection | continuity=embodiment:still-voiced-face-motion-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-motion-line | same-segment face+motion recovery@segment-live2d-runtime-still-voiced-face-motion-1 | partial=body+lipsync',
     )
   })
 
@@ -999,7 +999,7 @@ describe('stage embodiment diagnostics alerts', () => {
         bodyDriverSegmentId: 'segment-vrm-body-only-recovery-1',
       } as any,
     })).toBe(
-      'resident calm -> actual focus | body-only recovery@segment-vrm-body-only-recovery-1 | pending-rejoin=face+motion+lipsync+voice',
+      'resident calm -> actual focus | body-only recovery@segment-vrm-body-only-recovery-1 | partial=face+motion+lipsync+voice',
     )
   })
 
@@ -1026,7 +1026,7 @@ describe('stage embodiment diagnostics alerts', () => {
         voiceDriverSegmentId: 'segment-vrm-body-voice-recovery-1',
       },
     })).toBe(
-      'resident calm -> actual focus | body+voice recovery@segment-vrm-body-voice-recovery-1 | pending-rejoin=face+motion+lipsync',
+      'resident calm -> actual focus | body+voice recovery@segment-vrm-body-voice-recovery-1 | partial=face+motion+lipsync',
     )
   })
 
@@ -1054,7 +1054,7 @@ describe('stage embodiment diagnostics alerts', () => {
         voiceDriverSegmentId: 'segment-vrm-audible-body-recovery-1',
       },
     })).toBe(
-      'resident calm -> actual focus | body+lipsync+voice recovery@segment-vrm-audible-body-recovery-1 | audible-body rejoin@segment-vrm-audible-body-recovery-1 | audible-living-line leads while face+motion lag@segment-vrm-audible-body-recovery-1 | pending-rejoin=face+motion',
+      'resident calm -> actual focus | body+lipsync+voice recovery@segment-vrm-audible-body-recovery-1 | audible-body rejoin@segment-vrm-audible-body-recovery-1 | audible-living-line leads while face+motion lag@segment-vrm-audible-body-recovery-1 | partial=face+motion',
     )
   })
 
@@ -1082,7 +1082,7 @@ describe('stage embodiment diagnostics alerts', () => {
         voiceDriverSegmentId: 'segment-vrm-audible-voice-recovery-1',
       },
     })).toBe(
-      'resident calm -> actual focus | lipsync+voice recovery@segment-vrm-audible-voice-recovery-1 | pending-rejoin=body+face+motion',
+      'resident calm -> actual focus | lipsync+voice recovery@segment-vrm-audible-voice-recovery-1 | partial=body+face+motion',
     )
   })
 
@@ -1331,7 +1331,7 @@ describe('stage embodiment diagnostics alerts', () => {
         voiceDriverSegmentId: 'segment-vrm-audible-body-recovery-2',
       },
     })).toBe(
-      'resident calm -> actual focus | body+lipsync+voice recovery@segment-vrm-audible-body-recovery-2 | audible-body rejoin@segment-vrm-audible-body-recovery-2 | audible-living-line leads while face+motion lag@segment-vrm-audible-body-recovery-2 | pending-rejoin=face+motion',
+      'resident calm -> actual focus | body+lipsync+voice recovery@segment-vrm-audible-body-recovery-2 | audible-body rejoin@segment-vrm-audible-body-recovery-2 | audible-living-line leads while face+motion lag@segment-vrm-audible-body-recovery-2 | partial=face+motion',
     )
   })
 
@@ -1359,7 +1359,7 @@ describe('stage embodiment diagnostics alerts', () => {
         voiceDriverSegmentId: 'segment-vrm-audible-body-recovery-3',
       },
     }, 'continuity=embodiment:audible-continuity-line+embodiment:body-lipsync-voice-rejoin | signature=embodiment:audible-continuity-line | face and motion still need to rejoin the continuity line.')).toBe(
-      'resident calm -> actual focus | face soft-gaze@cue-bridge | motion observe_focus@cue-bridge | body+lipsync+voice recovery@segment-vrm-audible-body-recovery-3 | audible-body rejoin@segment-vrm-audible-body-recovery-3 | audible-living-line leads while face+motion lag@segment-vrm-audible-body-recovery-3 | pending-rejoin=face+motion | same-segment face+motion recovery@segment-vrm-reformed-face-motion-1',
+      'resident calm -> actual focus | face soft-gaze@cue-bridge | motion observe_focus@cue-bridge | body+lipsync+voice recovery@segment-vrm-audible-body-recovery-3 | audible-body rejoin@segment-vrm-audible-body-recovery-3 | audible-living-line leads while face+motion lag@segment-vrm-audible-body-recovery-3 | partial=face+motion | same-segment face+motion recovery@segment-vrm-reformed-face-motion-1',
     )
   })
 })

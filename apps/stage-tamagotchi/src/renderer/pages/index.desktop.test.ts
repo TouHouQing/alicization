@@ -20,9 +20,9 @@ function createMockChatProvider(): ChatProvider {
 
 describe('stage desktop page helpers', () => {
   describe('resolveDesktopMouseCaptureState', () => {
-    it('captures the window during startup so controls remain usable before hit testing settles', () => {
+    it('keeps an empty startup surface click-through', () => {
       expect(resolveDesktopMouseCaptureState({
-        startupInteractionActive: true,
+        desktopInputReady: false,
         fadeOnHoverEnabled: true,
         hearingDialogOpen: false,
         insideControls: false,
@@ -35,7 +35,7 @@ describe('stage desktop page helpers', () => {
         stageCapturePixel: false,
         stagePaused: false,
       })).toEqual({
-        shouldCaptureMouse: true,
+        shouldCaptureMouse: false,
         shouldFadeOnCursorWithin: false,
       })
     })
@@ -79,24 +79,41 @@ describe('stage desktop page helpers', () => {
       })
     })
 
-    it('keeps the window interactive until desktop hit testing is ready', () => {
+    it('keeps the desktop click-through when cursor tracking is unavailable', () => {
       expect(resolveDesktopMouseCaptureState({
         desktopInputReady: false,
         fadeOnHoverEnabled: true,
         hearingDialogOpen: false,
-        insideControls: false,
-        insideDialogueOverlay: false,
+        insideControls: true,
+        insideDialogueOverlay: true,
         insideStageRecoveryPanel: false,
         emergencyPanelHovered: false,
         isOutsideWindow: true,
         stageCharacterHovered: false,
         stageInteractionActive: false,
-        stageCapturePixel: false,
+        stageCapturePixel: true,
         stagePaused: false,
       })).toEqual({
-        shouldCaptureMouse: true,
+        shouldCaptureMouse: false,
         shouldFadeOnCursorWithin: false,
       })
+    })
+
+    it('does not capture blank desktop pixels just because the stage is paused', () => {
+      expect(resolveDesktopMouseCaptureState({
+        desktopInputReady: true,
+        fadeOnHoverEnabled: false,
+        hearingDialogOpen: false,
+        insideControls: false,
+        insideDialogueOverlay: false,
+        insideStageRecoveryPanel: false,
+        emergencyPanelHovered: false,
+        isOutsideWindow: false,
+        stageCharacterHovered: false,
+        stageInteractionActive: false,
+        stageCapturePixel: true,
+        stagePaused: true,
+      })).toEqual({ shouldCaptureMouse: false, shouldFadeOnCursorWithin: false })
     })
 
     it('only fades on hover when the cursor is actually over the rendered character', () => {

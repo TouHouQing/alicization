@@ -35,6 +35,7 @@ export interface UseStageEmbodimentPerformanceRuntimeOptions {
 }
 
 export interface StageEmbodimentPerformanceArmOptions {
+  segmentId?: string | null
   source?: 'dialogue' | 'presence-pulse'
   preserveResidentReasonTags?: boolean
   residentReasonTags?: string[] | null
@@ -2013,6 +2014,9 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     state.value = {
       ...createIdleStageEmbodimentPerformanceState(),
       revision: state.value.revision + 1,
+      // Model consumers retain their last command revision across idle frames.
+      // Reusing 1 after every reset makes every later gesture look duplicated.
+      actionPulse: state.value.actionPulse,
       updatedAt: now,
     }
   }
@@ -2063,7 +2067,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       cue,
       issuedAt: now,
       reason,
-      segmentId: normalizeDriverSegmentId(segmentIdOverride) ?? state.value.activeSegment?.segmentId ?? null,
+      segmentId: normalizeDriverSegmentId(segmentIdOverride) ?? (reason === 'presence-pulse' ? null : state.value.activeSegment?.segmentId ?? null),
     }
     state.value.motionPulse = 1
   }
@@ -3063,7 +3067,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       updatedAt: now,
     }
 
-    issueActionPulse(armOptions.source ?? 'dialogue', now, dialogueActionPulseGapMs)
+    issueActionPulse(armOptions.source ?? 'dialogue', now, dialogueActionPulseGapMs, null, armOptions.segmentId)
     updateFromSpeech(now)
     logPerformanceEmbodimentDebug('arm-performance', {
       source: armOptions.source ?? 'dialogue',

@@ -4,6 +4,8 @@ import type { UpdateInfo } from 'electron-updater'
 
 import type { AutoUpdaterState } from '../../../shared/eventa'
 
+import nodeProcess from 'node:process'
+
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -62,10 +64,10 @@ export function setupAutoUpdater(): AutoUpdater {
   const autoUpdaterEnabled = shouldEnableAutoUpdater({
     isDev: is.dev,
     isPackaged: app.isPackaged,
-    hasUpdateConfig: existsSync(join(process.resourcesPath, 'app-update.yml')),
+    hasUpdateConfig: existsSync(join(nodeProcess.resourcesPath, 'app-update.yml')),
   })
 
-  let state: AutoUpdaterState = { status: 'idle' }
+  let state: AutoUpdaterState = { status: autoUpdaterEnabled ? 'idle' : 'disabled' }
   const hooks = new Set<(state: AutoUpdaterState) => void>()
 
   function broadcast(next: AutoUpdaterState) {

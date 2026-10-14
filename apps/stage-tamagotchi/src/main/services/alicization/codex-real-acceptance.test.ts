@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
@@ -26,11 +27,9 @@ describe('codex real acceptance runner', () => {
   it('verifies five provider retries through real fixture process lifecycles', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'alicization-codex-runner-test-'))
     const reportPath = resolve(root, 'retry-report.json')
-    const scriptPath = resolve(
-      process.cwd(),
-      'apps/stage-tamagotchi/scripts/codex-real-acceptance.ts',
-    )
-    const tsxCliPath = resolve(process.cwd(), 'node_modules/tsx/dist/cli.mjs')
+    const scriptPath = fileURLToPath(new URL('../../../../scripts/codex-real-acceptance.ts', import.meta.url))
+    const projectRoot = resolve(dirname(scriptPath), '../../..')
+    const tsxCliPath = resolve(projectRoot, 'node_modules/tsx/dist/cli.mjs')
 
     try {
       const child = spawn(
@@ -44,7 +43,7 @@ describe('codex real acceptance runner', () => {
           reportPath,
         ],
         {
-          cwd: process.cwd(),
+          cwd: projectRoot,
           env: process.env,
           stdio: ['ignore', 'pipe', 'pipe'],
         },

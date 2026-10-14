@@ -14,6 +14,18 @@ phrases.
 - `MemoryWorkbench` is the visible memory governance entry and does not own memory semantics.
 - Failure surfaces must stay transparent: timeout, provider failure, tool failure, and invalid structured output must be reported as failures.
 
+## Verified Desktop Life Loops (2026-10-14)
+
+- Sourced personal wishes reach verified local artifacts and episodic outcomes.
+- Visible owned body completion settles needs and experience exactly once.
+- Face, motion, voice and speech body retain the same presented-turn owner.
+- Actual authored content and completion chronology govern retrospective replies.
+- Pure historical turns retain complete identity/evidence without unrelated tool schemas; mixed requests retain execution tools.
+- Relationship requirements retain their original sources and expiry across restart under `life:relationship`.
+- Actual pending-confirmation pause and fresh observation/approval/readback after resume passed.
+- Six exact-package private-desktop trials passed; provenance and final evidence are recorded in the release and research worklog.
+- These observations use two preset rigs, software GL and muted SAPI. They do not establish hardware microphone quality, arbitrary rigs, real multiweek companionship or subjective consciousness.
+
 ## Current Open Work
 
 - Real semantic recall quality needs scale testing.

@@ -1,0 +1,163 @@
+{
+  "date": "2026-10-04",
+  "projectCommit": "7880afc29ab33a4cf4de89f7a6610664278494c3",
+  "existingUncommittedFixesPreserved": true,
+  "currentImplementationsInspected": 7,
+  "commercialInternals": "Unknown unless documented publicly",
+  "repositories": [
+    {
+      "name": "Open-LLM-VTuber",
+      "repository": "https://github.com/Open-LLM-VTuber/Open-LLM-VTuber",
+      "commit": "992309c0aa19845960228f880013d4685fde93b5",
+      "commitDate": "2026-05-15",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\Open-LLM-VTuber",
+      "inspection": "Static source reading only",
+      "license": "MIT backend; frontend and assets separate",
+      "files": [
+        {
+          "path": "src/open_llm_vtuber/agent/agents/basic_memory_agent.py",
+          "sha256": "5E05DB42741B20439DDB53D42A5DEE54F68101C7A64CD4E985CD7E3CEEB83393"
+        },
+        {
+          "path": "src/open_llm_vtuber/agent/agents/letta_agent.py",
+          "sha256": "EE482486575D35713133CEFBA3D999F5FFC53F838481CC9CD74EE68024A4CA01"
+        },
+        {
+          "path": "src/open_llm_vtuber/conversations/single_conversation.py",
+          "sha256": "11F7751BA4D641B0C19D7D20706474C4BFCB7F9AB644072D86AC6AE1E21FF65F"
+        }
+      ]
+    },
+    {
+      "name": "graphiti",
+      "repository": "https://github.com/getzep/graphiti",
+      "commit": "3c427640abf909f12f71f963fce15eb514a3c493",
+      "commitDate": "2026-09-30",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\graphiti",
+      "inspection": "Static source reading only",
+      "license": "Apache-2.0",
+      "files": [
+        {
+          "path": "graphiti_core/edges.py",
+          "sha256": "6715BBE5763D30AA58134FC601AD21C761AAF4A7B5785809F507146B5F821AF2"
+        },
+        {
+          "path": "graphiti_core/utils/maintenance/edge_operations.py",
+          "sha256": "5F9FF2A5CC3CE5CC0BAC4AEE202AD6FADB7172464AA7AF33E26BC2BCD6CB5D6E"
+        },
+        {
+          "path": "graphiti_core/graphiti.py",
+          "sha256": "664655BB7B36114E95D77C7265DCA7E1754AB286365159F8FB0362085D4BE6C1"
+        }
+      ]
+    },
+    {
+      "name": "generative_agents",
+      "repository": "https://github.com/joonspk-research/generative_agents",
+      "commit": "fe05a71d3e4ed7d10bf68aa4eda6dd995ec070f4",
+      "commitDate": "2023-08-11",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\generative_agents",
+      "inspection": "Static source reading only",
+      "license": "Apache-2.0",
+      "files": [
+        {
+          "path": "reverie/backend_server/persona/cognitive_modules/retrieve.py",
+          "sha256": "EDBA706B9381D33B75C82F18DEEEFEC2EF20C80880D214878A78F44CE6B50F4A"
+        },
+        {
+          "path": "reverie/backend_server/persona/cognitive_modules/reflect.py",
+          "sha256": "46EB3BDB33D05438A4A98601B318D77438E2E297B74454FC09915031B754FBD5"
+        }
+      ]
+    },
+    {
+      "name": "letta-code",
+      "repository": "https://github.com/letta-ai/letta-code",
+      "commit": "bc4b97c3185302890cfb511c6d1e49f49fc5300c",
+      "commitDate": "2026-10-03",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\letta-code",
+      "inspection": "Static source reading only",
+      "license": "Apache-2.0",
+      "files": [
+        {
+          "path": "src/agent/subagents/memory-worker.ts",
+          "sha256": "F6D3F588399C01AFA6D39407DF6CD0C8A467A034CB387BDAF4AB856C189FBAB8"
+        },
+        {
+          "path": "src/agent/memory-filesystem.ts",
+          "sha256": "A2884FD2E467AF615A7A56584CCF9DF520E470C6EEF39930A98EC7DC10BFE628"
+        },
+        {
+          "path": "src/agent/memory-git.ts",
+          "sha256": "3E83D9CE002A963A93EFFF1F2A376186796D2B383B920CF12D7E30ED46489D0C"
+        },
+        {
+          "path": "src/agent/memory-constraints.ts",
+          "sha256": "590958B1FB1EF18938BFE4F81D17850CF309ECAB5A4F65C7F4BA79D7205E6692"
+        },
+        {
+          "path": "src/memory-confinement.ts",
+          "sha256": "86EE70DF3A9B8F6C4BC0E8BD03E0F5A8BA37A6AAD40A0710F7BD64DE7D1AE780"
+        },
+        {
+          "path": "src/agent/reflection-runs.ts",
+          "sha256": "49FF921D4DE7920BE2B398942D88D314DB4D3FF7A85935BABA58E7D36C94E720"
+        }
+      ]
+    },
+    {
+      "name": "software-agent-sdk",
+      "repository": "https://github.com/OpenHands/software-agent-sdk",
+      "commit": "1b2b5c850b6a99d8b742bfe20d198d6167165ca2",
+      "commitDate": "2026-10-03",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\software-agent-sdk",
+      "inspection": "Static source reading only",
+      "license": "MIT",
+      "files": [
+        {
+          "path": "openhands-sdk/openhands/sdk/conversation/event_store.py",
+          "sha256": "CC02699B6D27C54172E97B3203641F17D817BF5FE6D1C05567203D1308A20862"
+        },
+        {
+          "path": "openhands-sdk/openhands/sdk/conversation/state.py",
+          "sha256": "B71C400F326AD73BFE3B49C05AB0E0A88C9FDA68AEEDF5007D450BC6AF8D05D3"
+        }
+      ]
+    },
+    {
+      "name": "langgraphjs",
+      "repository": "https://github.com/langchain-ai/langgraphjs",
+      "commit": "1cee82d0c48fbaeb2d71433211b03113992cc114",
+      "commitDate": "2026-10-03",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\langgraphjs",
+      "inspection": "Static source reading only",
+      "license": "MIT",
+      "files": [
+        {
+          "path": "libs/checkpoint-sqlite/src/index.ts",
+          "sha256": "E7B80570689B3517BF722A6450C4C6548282E412E4FBF366812BA3921A7C61B5"
+        },
+        {
+          "path": "libs/langgraph-core/src/pregel/runner.ts",
+          "sha256": "BBCF7A5BB28790D23783E038FE1204AE832A94E9D4A5A6E80B3669384298A93A"
+        }
+      ]
+    },
+    {
+      "name": "SillyTavern",
+      "repository": "https://github.com/SillyTavern/SillyTavern",
+      "commit": "06bde939fb1e9c4c8d8641d810f0a916b5bce127",
+      "commitDate": "2026-09-14",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\SillyTavern",
+      "inspection": "Static source reading only",
+      "license": "AGPL-3.0; algorithm inspection, no source copying",
+      "files": {
+        "path": "public/scripts/world-info.js",
+        "sha256": "C42D11F113B53B93BF03786AC5C1190BE3CAD5152F23805906FCE5EBD12FB416"
+      }
+    }
+  ],
+  "runtimeChangesImplemented": false,
+  "schemaApplied": false,
+  "validationPerformed": "Document consistency and source/file reference checks only"
+}

@@ -5,10 +5,13 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  attachEmbodimentScriptToSpeechMetadata,
   attachFallbackDialogueMetadataToSpeechMetadata,
   attachRuntimeDigestToSpeechMetadata,
   attachSpeechSynthesisToSpeechMetadata,
   createStageChatIntentBridge,
+  isCurrentStageChatDelivery,
+  resolveStageRenderedDeliveryTurn,
 } from './stage-chat-intent-bridge'
 
 function createIntentHandle(label: string) {
@@ -25,6 +28,34 @@ function createIntentHandle(label: string) {
     stream: new ReadableStream(),
   } satisfies IntentHandle
 }
+
+it('keeps gateway publication in the current chat speech owner while independent proactive delivery stays available', () => {
+  const current = 'chat:session:alice:one'
+  expect(isCurrentStageChatDelivery(`${current}:gw1`, current)).toBe(true)
+  expect(isCurrentStageChatDelivery(`${current}:gw2`, current)).toBe(true)
+  expect(isCurrentStageChatDelivery('chat:session:bob:one:gw1', current)).toBe(false)
+  expect(isCurrentStageChatDelivery('proactive:alice:one', current)).toBe(false)
+  expect(isCurrentStageChatDelivery(`${current}:gw1`, null)).toBe(false)
+})
+
+it('binds actual speech receipts to the committed gateway turn and rejects cross-turn or cross-card adoption', () => {
+  const base = 'chat:session:alice:one'
+  const metadata = { lifeDelivery: { cardId: 'alice', turnId: base } }
+  const script = { version: 'embodiment-script-v1', turnId: `${base}:gw1`, state: { interactionIntent: { cardId: 'alice' } } }
+  expect(attachEmbodimentScriptToSpeechMetadata(metadata, script)?.lifeDelivery).toEqual({ cardId: 'alice', turnId: `${base}:gw1` })
+  expect(attachEmbodimentScriptToSpeechMetadata(metadata, { ...script, turnId: 'another-turn' })?.lifeDelivery).toEqual(metadata.lifeDelivery)
+  expect(attachEmbodimentScriptToSpeechMetadata(metadata, { ...script, state: { interactionIntent: { cardId: 'bob' } } })?.lifeDelivery).toEqual(metadata.lifeDelivery)
+})
+
+it('reports the committed gateway turn after the UI merges logical message identities', () => {
+  const id = 'chat:session:primary:default:E4ANsaJItSAoWra8WZwrI'
+  const structured = { embodimentScript: { turnId: `${id}:gw1`, state: { interactionIntent: { cardId: 'default' } } } }
+  expect(resolveStageRenderedDeliveryTurn({ id, structured }, 'default')).toBe(`${id}:gw1`)
+  expect(resolveStageRenderedDeliveryTurn({ id, structured }, 'different')).toBeNull()
+  expect(resolveStageRenderedDeliveryTurn({ id, structured: { embodimentScript: { turnId: 'other' } } }, 'default')).toBeNull()
+  expect(resolveStageRenderedDeliveryTurn({ id, structured: { artifactOrigin: 'infra-authority' } }, 'default')).toBeNull()
+  expect(resolveStageRenderedDeliveryTurn({ id, structured: { failureSurface: { kind: 'provider' } } }, 'default')).toBeNull()
+})
 
 function buildRuntimeDigest() {
   return {

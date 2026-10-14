@@ -72,6 +72,7 @@ import {
 } from './embodiment-continuity-ledger'
 import { buildAlicizationEmotionalKernel } from './emotional-kernel'
 import { buildAlicizationEmotionalTransitionLedger } from './emotional-ledger'
+import { continueTemporalEmotion } from './emotional-temporal-continuity'
 import { buildEntityWorldModel } from './entity-world-model'
 import { buildExecutiveCycle } from './executive-cycle'
 import { buildGoalStack } from './goal-stack'
@@ -1925,6 +1926,8 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       personStateProjection: preferredResidentPersonStateProjection,
       longHorizonMemory,
     })
+    const temporalEmotion = continueTemporalEmotion({ proposed: emotionalKernel, previous: input.previousVisualPresenceState.emotionalTemporalState ?? null, now: input.now, turnId: input.turnId })
+    emotionalKernel = temporalEmotion.kernel
     // Once the current-turn thought exists, let initiative/autonomy rehydrate on the
     // same emotional beat instead of exporting the bootstrap projection one turn late.
     const finalizedInitiativeBase = buildInitiativeSnapshot({
@@ -2856,6 +2859,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       mindDynamics,
       mindKernel,
       emotionalKernel,
+      emotionalTemporalState: temporalEmotion.state,
       conversationState,
       dialogueWorldThread,
       replyDeliberation,

@@ -35,6 +35,7 @@ export type AlicizationDispatchAdapterResult
     | AlicizationOpenClawAdapterResult
 
 interface AlicizationDispatchRuntimeInput {
+  ownedNoteRoot?: string
   abortSignal?: AbortSignal
   onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
   workspaceRoot?: string
@@ -51,6 +52,7 @@ interface AlicizationDispatchAdapter<Channel extends AlicizationDispatchExecutab
   validateCommand: (command: unknown) => boolean
   pickCommand: (input: AlicizationDispatchCommandInput) => unknown
   execute: (input: {
+    ownedNoteRoot?: string
     thread: AlicizationTaskThreadRecord
     command: unknown
     abortSignal?: AbortSignal
@@ -75,6 +77,7 @@ const dispatchAdapterRegistry = {
     validateCommand: command => hasNonEmptyStringField(command, 'command'),
     pickCommand: input => input.cli,
     execute: async input => await executeCliTaskThread({
+      ownedNoteRoot: input.ownedNoteRoot,
       thread: input.thread,
       command: input.command as NonNullable<AlicizationDispatchTaskThreadInput['cli']>,
       abortSignal: input.abortSignal,
@@ -324,6 +327,7 @@ export function prepareTaskThreadDispatch(input: {
     channel: adapter.channel,
     sessionTrackingChannel: adapter.channel,
     run: async runtime => await adapter.execute({
+      ownedNoteRoot: runtime.ownedNoteRoot,
       thread: input.thread,
       command,
       abortSignal: runtime.abortSignal,

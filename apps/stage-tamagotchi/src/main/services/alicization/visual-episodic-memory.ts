@@ -79,6 +79,7 @@ import {
 import { normalizeClaimEvidenceLedger } from './claim-evidence-ledger'
 import { normalizeDialogueActKernel } from './dialogue-act-kernel'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
+import { normalizeEmotionalTemporalState } from './emotional-temporal-continuity'
 import { normalizeMindTurnFrame } from './mind-turn-frame'
 import { resolveAlicizationRecallFragmentBudget } from './recall-governor-budget'
 import {
@@ -2277,6 +2278,7 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
 
   const candidate = raw as Record<string, unknown>
   const base = createDefaultVisualPresenceState(now)
+  base.emotionalTemporalState = normalizeEmotionalTemporalState(candidate.emotionalTemporalState)
   const rawCandidate = candidate.raw && typeof candidate.raw === 'object' && !Array.isArray(candidate.raw)
     ? candidate.raw as Record<string, unknown>
     : null
@@ -2495,6 +2497,7 @@ function buildEpisode(input: {
 }
 
 export function updateVisualPresenceState(input: {
+  emotionalTemporalState?: AlicizationVisualPresenceStateSnapshot['emotionalTemporalState']
   now: number
   previousState?: AlicizationVisualPresenceStateSnapshot | null
   watchMode: AlicizationVisualPresenceStateSnapshot['watchMode']
@@ -2647,6 +2650,7 @@ export function updateVisualPresenceState(input: {
     executiveCycle: input.executiveCycle ?? previousState.executiveCycle ?? null,
     mindDynamics: input.mindDynamics ?? previousState.mindDynamics ?? null,
     mindKernel: input.mindKernel ?? previousState.mindKernel ?? null,
+    emotionalTemporalState: input.emotionalTemporalState ?? previousState.emotionalTemporalState ?? null,
     thoughtThreads: input.thoughtThreads ?? previousState.thoughtThreads ?? null,
     counterfactualDeliberation: input.counterfactualDeliberation ?? previousState.counterfactualDeliberation ?? null,
     actionEcology: input.actionEcology ?? previousState.actionEcology ?? null,

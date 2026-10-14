@@ -1178,6 +1178,8 @@ emit({
   },
 })
 emit({ type: 'turn.completed' })
+await new Promise(resolve => process.stdout.write('', resolve))
+process.exit(0)
 `
 }
 
@@ -1209,7 +1211,8 @@ async function setupFixtureEnvironment(
     fixtureRoot,
     environment: {
       CODEX_HOME: codexHome,
-      CODEX_CLI_PATH: fixtureCli,
+      CODEX_CLI_PATH: process.platform === 'win32' ? process.execPath : fixtureCli,
+      ...(process.platform === 'win32' ? { NODE_OPTIONS: `--import=${pathToFileURL(fixtureCli).href}` } : {}),
       ALICIZATION_CODEX_ACCEPTANCE_FIXTURE_SCENARIO: scenario,
       ALICIZATION_CODEX_ACCEPTANCE_FIXTURE_STATE: statePath,
     },

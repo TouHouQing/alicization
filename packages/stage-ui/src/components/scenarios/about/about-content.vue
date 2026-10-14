@@ -33,7 +33,7 @@ const hasBuildInfo = computed(() => {
 <template>
   <div :class="['max-w-[min(960px,calc(100%-2rem))]', 'mx-auto', 'h-full', 'flex', 'flex-col', 'pt-14']">
     <div class="mb-14 text-center font-sans-rounded">
-      <div class="text-5xl">
+      <div class="break-words text-3xl sm:text-5xl">
         <span class="text-neutral-400 dark:text-neutral-100/65">{{ title }}</span>
         <span class="text-pink-400 dark:text-pink-300/90">&nbsp;{{ highlight }}</span>
       </div>
@@ -90,7 +90,7 @@ const hasBuildInfo = computed(() => {
       </div>
     </div>
 
-    <div :class="['my-10']">
+    <div v-if="links.length" :class="['my-10']">
       <div :class="['text-neutral-500 dark:text-neutral-400']">
         About
       </div>

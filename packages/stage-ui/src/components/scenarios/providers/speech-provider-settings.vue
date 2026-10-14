@@ -24,6 +24,8 @@ const props = defineProps<{
   // Additional provider-specific settings
   additionalSettings?: Record<string, any>
   placeholder?: string
+  autoLoadVoices?: boolean
+  showApiKey?: boolean
 }>()
 
 // Expose slots and emit events to allow customization
@@ -94,7 +96,7 @@ onMounted(() => {
   initializeVoiceSettings()
 
   // Load voices if provider is configured
-  if (providersStore.configuredProviders[props.providerId]) {
+  if (props.autoLoadVoices !== false && providersStore.configuredProviders[props.providerId]) {
     speechStore.loadVoicesForProvider(props.providerId)
   }
 })
@@ -135,7 +137,7 @@ function handleResetVoiceSettings() {
           :description="t('settings.pages.providers.common.section.basic.description')"
           :on-reset="handleResetVoiceSettings"
         >
-          <ProviderApiKeyInput v-model="apiKey" :provider-name="providerMetadata?.localizedName" :placeholder="props.placeholder || 'API Key'" />
+          <ProviderApiKeyInput v-if="props.showApiKey !== false" v-model="apiKey" :provider-name="providerMetadata?.localizedName" :placeholder="props.placeholder || 'API Key'" />
           <!-- Slot for provider-specific basic settings -->
           <slot name="basic-settings" />
         </ProviderBasicSettings>

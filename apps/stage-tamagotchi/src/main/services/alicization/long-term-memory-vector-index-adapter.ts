@@ -177,7 +177,9 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
     ].join('\u0000')
   }
 
+  let nativeHealthGeneration = 0
   function clearNativeHealthCache(key?: string) {
+    nativeHealthGeneration += 1
     if (key) {
       nativeHealthCache.delete(key)
       return
@@ -230,11 +232,15 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
     const timestamp = Date.now()
     if (cached && cached.expiresAt > timestamp)
       return cached.health
+    const generation = nativeHealthGeneration
     const health = await input.native.getHealth(healthInput)
-    nativeHealthCache.set(key, {
-      health,
-      expiresAt: timestamp + nativeHealthCacheTtlMs,
-    })
+    // A read started before a mutation cannot repopulate its invalidated cache.
+    if (generation === nativeHealthGeneration) {
+      nativeHealthCache.set(key, {
+        health,
+        expiresAt: timestamp + (health.ready ? nativeHealthCacheTtlMs : 250),
+      })
+    }
     return health
   }
 
@@ -427,8 +433,6 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
           dimensions: resolvedFilters.dimensions,
           vectorSpaceId,
         })
-        if (!nativeErrorFor(key) && health.lastError)
-          setNativeError(key, health.lastError)
         if (health.ready && !nativeErrorFor(key)) {
           const results = await input.native.search(queryVector, resolvedFilters)
           assertNotAborted(searchInput.signal)
@@ -525,18 +529,12 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
         else {
           nativeReady = nativeHealth.ready
           lastError = nativeHealth.lastError
-          if (healthKey && nativeHealth.lastError)
-            setNativeError(healthKey, nativeHealth.lastError)
-          else if (healthKey)
-            clearNativeError(healthKey)
+          // Health describes this observation; it is not a failed write.
+          // Actual mutation failures remain sticky until a successful repair.
         }
       }
       catch (error) {
         lastError = error instanceof Error ? error.message : String(error)
-        if (healthKey)
-          setNativeError(healthKey, error)
-        else
-          nativeUnscopedLastError = lastError
       }
     }
     const nativeActive = Boolean(input.native && nativeReady && !lastError)

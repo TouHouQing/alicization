@@ -23,27 +23,27 @@ const {
 } = useElectronAutoUpdater()
 
 const isDisabled = computed(() => updateState.value.status === 'disabled')
-const isLatestVersion = computed(() => updateState.value.status === 'idle' && !updateState.value.info && !isDisabled.value)
+const isLatestVersion = computed(() => updateState.value.status === 'not-available')
 const isError = computed(() => updateState.value.status === 'error')
 
 const links = computed(() => [
-  { label: t('about.links.home'), href: 'https://github.com/TouHouQing/alicization', icon: 'i-solar:home-smile-outline' },
-  { label: t('about.links.documentation'), href: 'https://github.com/TouHouQing/alicization/tree/main/docs', icon: 'i-solar:document-add-outline' },
-  { label: t('about.links.github'), href: 'https://github.com/TouHouQing/alicization', icon: 'i-simple-icons:github' },
+  { label: t('tamagotchi.settings.about.links.home'), href: 'https://github.com/TouHouQing/alicization', icon: 'i-solar:home-smile-outline' },
+  { label: t('tamagotchi.settings.about.links.documentation'), href: 'https://github.com/TouHouQing/alicization/tree/main/docs', icon: 'i-solar:document-add-outline' },
+  { label: t('tamagotchi.settings.about.links.github'), href: 'https://github.com/TouHouQing/alicization', icon: 'i-simple-icons:github' },
 ])
 
 const showChangelog = ref(false)
 const isDesktop = useMediaQuery('(min-width: 768px)')
 const updateActionLabel = computed(() => {
   if (isBusy.value)
-    return t('about.update.actions.checking')
+    return t('tamagotchi.settings.about.update.actions.checking')
   if (isLatestVersion.value)
-    return t('about.update.actions.latest')
+    return t('tamagotchi.settings.about.update.actions.latest')
   if (isDisabled.value)
-    return t('about.update.actions.disabled')
+    return t('tamagotchi.settings.about.update.actions.disabled')
   if (isError.value)
-    return t('about.update.actions.retry')
-  return t('about.update.actions.check')
+    return t('tamagotchi.settings.about.update.actions.retry')
+  return t('tamagotchi.settings.about.update.actions.check')
 })
 
 function handleDownloadClick() {
@@ -72,7 +72,7 @@ const releaseNotesContent = computed(() => {
   <div
     :class="[
       'min-h-100dvh',
-      'min-w-100dvw',
+      'min-w-0 w-full',
       'bg-neutral-50/80',
       'text-neutral-800',
       'dark:bg-neutral-900',
@@ -81,9 +81,10 @@ const releaseNotesContent = computed(() => {
   >
     <div :class="['mx-auto max-w-[min(960px,calc(100%-2rem))]', 'px-6 py-20']">
       <AboutContent
-        :title="t('about.page.title')"
-        :highlight="t('about.page.highlight')"
-        :subtitle="t('about.page.subtitle')"
+        :title="t('tamagotchi.settings.about.page.title')"
+        :highlight="t('tamagotchi.settings.about.page.highlight')"
+        :subtitle="t('tamagotchi.settings.about.page.subtitle')"
+        :links="[]"
       />
 
       <!-- Main Content Card -->
@@ -92,7 +93,7 @@ const releaseNotesContent = computed(() => {
         <div :class="['flex flex-wrap items-center justify-between gap-4', 'mb-6', 'border-b border-neutral-200/50 dark:border-neutral-800/50', 'pb-6']">
           <div :class="['flex flex-col gap-2']">
             <div :class="['text-sm text-neutral-500 dark:text-neutral-400']">
-              {{ t('about.page.current_version') }}
+              {{ t('tamagotchi.settings.about.page.current_version') }}
             </div>
             <div :class="['text-xl font-medium font-mono']">
               {{ buildInfo.version }}
@@ -124,7 +125,7 @@ const releaseNotesContent = computed(() => {
                 variant="primary"
                 :loading="isBusy"
                 icon="i-solar:download-minimalistic-outline"
-                :label="t('about.update.actions.download')"
+                :label="t('tamagotchi.settings.about.update.actions.download')"
                 @click="handleDownloadClick()"
               />
             </div>
@@ -133,7 +134,7 @@ const releaseNotesContent = computed(() => {
           <!-- State: Downloading -->
           <div v-else-if="updateState.status === 'downloading'" :class="['flex flex-col gap-2']">
             <div :class="['flex justify-between text-sm']">
-              <span>{{ t('about.update.status.downloading') }}</span>
+              <span>{{ t('tamagotchi.settings.about.update.status.downloading') }}</span>
               <span :class="['font-mono']">{{ updateState.progress?.percent.toFixed(1) }}%</span>
             </div>
             <Progress :progress="updateState.progress?.percent ?? 0" />
@@ -145,19 +146,19 @@ const releaseNotesContent = computed(() => {
           <!-- State: Downloaded -->
           <div v-else-if="updateState.status === 'downloaded'" :class="['flex flex-col gap-4']">
             <div :class="['text-sm text-emerald-600 dark:text-emerald-400']">
-              {{ t('about.update.status.ready', { version: updateState.info?.version }) }}
+              {{ t('tamagotchi.settings.about.update.status.ready', { version: updateState.info?.version }) }}
             </div>
             <div>
               <DoubleCheckButton
                 variant="primary"
                 @confirm="quitAndInstall()"
               >
-                {{ t('about.update.actions.restart') }}
+                {{ t('tamagotchi.settings.about.update.actions.restart') }}
                 <template #confirm>
-                  {{ t('about.update.actions.confirm_restart') }}
+                  {{ t('tamagotchi.settings.about.update.actions.confirm_restart') }}
                 </template>
                 <template #cancel>
-                  {{ t('about.update.actions.cancel') }}
+                  {{ t('tamagotchi.settings.about.update.actions.cancel') }}
                 </template>
               </DoubleCheckButton>
             </div>
@@ -166,14 +167,14 @@ const releaseNotesContent = computed(() => {
           <!-- State: Idle, Checking, Error, Disabled, Not Available -->
           <div v-else :class="['flex flex-col gap-4']">
             <div v-if="isError" :class="['text-sm text-red-600 dark:text-red-400']">
-              {{ t('about.update.status.error', { error: updateState.error?.message }) }}
+              {{ t('tamagotchi.settings.about.update.status.error', { error: updateState.error?.message }) }}
             </div>
 
             <div :class="['flex flex-wrap gap-2']">
               <Button
                 :variant="isError ? 'caution' : 'secondary'"
                 :loading="isBusy"
-                :disabled="isDisabled || (isLatestVersion && !isError)"
+                :disabled="isDisabled || isBusy"
                 :icon="isLatestVersion ? 'i-solar:check-circle-outline' : isDisabled ? 'i-solar:forbidden-circle-outline' : 'i-solar:refresh-outline'"
                 :label="updateActionLabel"
                 @click="checkForUpdates()"
@@ -186,7 +187,7 @@ const releaseNotesContent = computed(() => {
       <!-- Links -->
       <div>
         <div :class="['text-neutral-500 dark:text-neutral-400 mb-4']">
-          {{ t('about.page.links') }}
+          {{ t('tamagotchi.settings.about.page.links') }}
         </div>
         <div :class="['flex flex-wrap gap-2']">
           <a
@@ -213,22 +214,22 @@ const releaseNotesContent = computed(() => {
         <DialogOverlay class="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm data-[state=closed]:animate-fadeOut data-[state=open]:animate-fadeIn" />
         <DialogContent class="fixed left-1/2 top-1/2 z-[9999] max-h-[85vh] max-w-2xl w-[90vw] flex flex-col rounded-2xl bg-white p-6 shadow-xl outline-none backdrop-blur-md -translate-x-1/2 -translate-y-1/2 data-[state=closed]:animate-contentHide data-[state=open]:animate-contentShow dark:bg-neutral-900">
           <DialogTitle class="mb-2 text-lg font-medium">
-            {{ t('about.update.status.available_title') }}
+            {{ t('tamagotchi.settings.about.update.status.available_title') }}
           </DialogTitle>
           <DialogDescription class="mb-4 text-sm text-neutral-500 dark:text-neutral-400">
-            {{ t('about.update.status.available_description', { version: updateState.info?.version }) }}
+            {{ t('tamagotchi.settings.about.update.status.available_description', { version: updateState.info?.version }) }}
           </DialogDescription>
 
           <div class="min-h-0 flex-1 overflow-y-auto border border-neutral-200 rounded-lg bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
-            <MarkdownRenderer :content="releaseNotesContent || t('about.update.status.no_release_notes')" class="text-sm" />
+            <MarkdownRenderer :content="releaseNotesContent || t('tamagotchi.settings.about.update.status.no_release_notes')" class="text-sm" />
           </div>
 
           <div class="mt-6 flex justify-end gap-3">
             <Button variant="secondary" @click="showChangelog = false">
-              {{ t('about.update.actions.cancel') }}
+              {{ t('tamagotchi.settings.about.update.actions.cancel') }}
             </Button>
             <Button variant="primary" icon="i-solar:download-minimalistic-outline" @click="confirmDownload">
-              {{ t('about.update.actions.confirm_download') }}
+              {{ t('tamagotchi.settings.about.update.actions.confirm_download') }}
             </Button>
           </div>
         </DialogContent>
@@ -243,22 +244,22 @@ const releaseNotesContent = computed(() => {
           <div class="flex flex-1 flex-col rounded-t-2xl bg-white p-4 dark:bg-neutral-900">
             <DrawerHandle class="mx-auto mb-4 h-1.5 w-12 rounded-full bg-neutral-300 dark:bg-neutral-700" />
             <DrawerTitle class="mb-2 text-lg font-medium">
-              {{ t('about.update.status.available_title') }}
+              {{ t('tamagotchi.settings.about.update.status.available_title') }}
             </DrawerTitle>
             <DrawerDescription class="mb-4 text-sm text-neutral-500 dark:text-neutral-400">
-              {{ t('about.update.status.available_description', { version: updateState.info?.version }) }}
+              {{ t('tamagotchi.settings.about.update.status.available_description', { version: updateState.info?.version }) }}
             </DrawerDescription>
 
             <div class="min-h-0 flex-1 overflow-y-auto border border-neutral-200 rounded-lg bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
-              <MarkdownRenderer :content="releaseNotesContent || t('about.update.status.no_release_notes')" class="text-sm" />
+              <MarkdownRenderer :content="releaseNotesContent || t('tamagotchi.settings.about.update.status.no_release_notes')" class="text-sm" />
             </div>
 
             <div class="mt-4 flex gap-3">
               <Button variant="secondary" block @click="showChangelog = false">
-                {{ t('about.update.actions.cancel') }}
+                {{ t('tamagotchi.settings.about.update.actions.cancel') }}
               </Button>
               <Button variant="primary" block icon="i-solar:download-minimalistic-outline" @click="confirmDownload">
-                {{ t('about.update.actions.download_short') }}
+                {{ t('tamagotchi.settings.about.update.actions.download_short') }}
               </Button>
             </div>
           </div>

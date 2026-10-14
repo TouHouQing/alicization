@@ -1,3 +1,4 @@
+import { Vector3 } from 'three'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
@@ -8,17 +9,7 @@ vi.mock('./utils/eye-motions', () => ({
 }))
 
 function createLookAtTargetNode() {
-  return {
-    x: 0,
-    y: 0,
-    z: 1,
-    lerp(target: { x: number, y: number, z: number }, _alpha: number) {
-      this.x = target.x
-      this.y = target.y
-      this.z = target.z
-      return this
-    },
-  }
+  return new Vector3(0, 0, 1)
 }
 
 function createMockVrm() {
@@ -61,6 +52,23 @@ function createIdlePosture() {
 }
 
 describe('vrm gaze mode bias', () => {
+  it('moves actual gaze continuously toward a changed target and holds invalid delta', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const vrm = createMockVrm()
+    const target = createIdleLookAtTarget()
+    const gaze = useIdleEyeSaccades()
+    gaze.update(vrm, target, 1 / 60)
+    target.value.x = 1
+    gaze.update(vrm, target, 1 / 60)
+    expect(vrm.lookAt.target.position.x).toBeGreaterThan(0)
+    expect(vrm.lookAt.target.position.x).toBeLessThan(1)
+    const held = vrm.lookAt.target.position.x
+    gaze.update(vrm, target, Number.NaN)
+    expect(vrm.lookAt.target.position.x).toBe(held)
+    for (let frame = 0; frame < 20; frame++)
+      gaze.update(vrm, target, 1 / 60)
+    expect(vrm.lookAt.target.position.x).toBeGreaterThan(0.99)
+  })
   afterEach(() => {
     vi.restoreAllMocks()
   })

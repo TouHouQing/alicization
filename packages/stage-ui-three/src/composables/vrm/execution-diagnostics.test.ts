@@ -9,6 +9,12 @@ import {
 } from './execution-diagnostics'
 
 describe('vrm execution diagnostics', () => {
+  it('does not assign an explicitly unscoped task motion to the previous dialogue', () => {
+    const performanceState = createIdleStageEmbodimentPerformanceState()
+    performanceState.activeCue = { id: 'old-dialogue' } as any
+    const result = buildVrmExecutionDiagnosticsSnapshot({ performanceState, currentMotion: { cue: 'steady_focus', segmentId: null } })
+    expect(result.activeMotion).toEqual({ cue: 'steady_focus', segmentId: null })
+  })
   it('creates an idle diagnostics snapshot', () => {
     expect(createIdleVrmExecutionDiagnosticsSnapshot()).toEqual({
       activeEmotion: null,

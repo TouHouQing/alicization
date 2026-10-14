@@ -428,6 +428,7 @@ export function settleProactiveOutcomesOnUserTurnStart(
   state: AlicizationProactiveLoopState,
   at = Date.now(),
   userText?: string | null,
+  presentedTurnIds: ReadonlySet<string> = new Set(),
 ): AlicizationProactiveLoopMutationResult {
   let nextState = {
     ...state,
@@ -436,6 +437,8 @@ export function settleProactiveOutcomesOnUserTurnStart(
   const appliedOutcomes: AlicizationRecentProactiveOutcome[] = []
 
   for (const entry of state.pendingOutcomes) {
+    if (!presentedTurnIds.has(entry.turnId))
+      continue
     if (entry.deliveredAt > at)
       continue
     if (at - entry.deliveredAt > proactiveReplyWindowMs)
@@ -455,6 +458,7 @@ export function settleProactiveOutcomesOnUserTurnStart(
 export function settleExpiredProactiveOutcomes(
   state: AlicizationProactiveLoopState,
   at = Date.now(),
+  presentedTurnIds: ReadonlySet<string> = new Set(),
 ): AlicizationProactiveLoopMutationResult {
   let nextState = {
     ...state,
@@ -466,6 +470,8 @@ export function settleExpiredProactiveOutcomes(
     if (at - entry.deliveredAt < proactiveImplicitIgnoredAfterMs)
       continue
     nextState.pendingOutcomes = nextState.pendingOutcomes.filter(candidate => candidate.turnId !== entry.turnId)
+    if (!presentedTurnIds.has(entry.turnId))
+      continue
     const applied = applyOutcome(nextState, entry, 'ignored', at)
     nextState = applied.state
     appliedOutcomes.push(applied.outcome)

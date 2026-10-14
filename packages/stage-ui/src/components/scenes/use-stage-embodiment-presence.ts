@@ -30,6 +30,7 @@ import {
   resolveResidentSnapshot,
   resolveStageEmbodimentResidentPerformance,
 } from './stage-embodiment-resident-performance'
+import { useStageActivityPresence } from './use-stage-activity-presence'
 
 interface Live2DActionCapability {
   actionKey: string
@@ -38,12 +39,14 @@ interface Live2DActionCapability {
 }
 
 export interface UseStageEmbodimentPresenceOptions {
+  beforeDialogue?: (payload: AlicizationDialogueRespondedPayload) => void
+  acceptInteractionScript?: (script: unknown) => void
   applyAttentionPerformance?: (performance: AlicizationDialoguePerformancePayload, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
   applyAttentionPresencePulse?: (payload: AlicizationPresencePulsePayload) => Promise<void> | void
   applyRuntimeEmbodimentEnvelope?: (embodiment: AlicizationDialogueEmbodimentEnvelope | null | undefined) => void
   armPerformance?: (
     performance: AlicizationDialoguePerformancePayload,
-    options?: { source?: 'dialogue' | 'presence-pulse', variationToken?: string | null },
+    options?: { source?: 'dialogue' | 'presence-pulse', variationToken?: string | null, segmentId?: string | null },
   ) => Promise<void> | void
   primeDigitalLifeEnvelope?: (digitalLife: AlicizationDigitalLifeEnvelope | null | undefined) => Promise<void> | void
   primeSpeechTimeline?: (timeline: AlicizationDialogueSpeechTimeline | null | undefined) => Promise<void> | void
@@ -65,6 +68,7 @@ export interface UseStageEmbodimentPresenceOptions {
     reply: string,
     performance: AlicizationDialoguePerformancePayload,
     metadata?: {
+      lifeDelivery?: { cardId: string, turnId: string }
       embodimentScript?: AlicizationEmbodimentScriptV1 | null
       runtimeDigest?: AlicizationDialogueRespondedPayload['structured']['runtimeDigest'] | null
     } | null,
@@ -75,6 +79,7 @@ export interface UseStageEmbodimentPresenceOptions {
 
 export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOptions) {
   const cleanups: Array<() => void> = []
+  const activityPresence = useStageActivityPresence()
   const plannedPerformanceCache = new Map<string, AlicizationDialoguePerformancePayload>()
   const plannedPerformanceCacheOrder: string[] = []
   const continuityState = {
@@ -572,6 +577,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
   }
 
   function buildPulseVariationToken(payload: AlicizationPresencePulsePayload) {
+    if (payload.activity)
+      return `activity:${payload.activity.id}:${payload.activity.attemptId}:${payload.activity.sequence}:${payload.activity.phase}`
     return [
       payload.watchMode,
       payload.scenario,
@@ -621,6 +628,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
         await options.applyAttentionPerformance?.(plannedPerformance, payload)
       },
       applyPresencePulse: async (payload) => {
+        if (!activityPresence.accept(payload))
+          return
         await options.applyAttentionPresencePulse?.(payload)
       },
     }))
@@ -630,6 +639,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     channel: 'live2d',
     isActive: () => options.stageModelRenderer.value === 'live2d',
     applyPerformance: async (performance, payload) => {
+      options.beforeDialogue?.(payload)
+      options.acceptInteractionScript?.(payload.structured.embodimentScript)
       const variationToken = buildDialogueVariationToken(payload)
       const plannedPerformance = resolvePlannedPerformance(
         performance,
@@ -650,6 +661,7 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       await options.armPerformance?.(plannedPerformance, {
         source: 'dialogue',
         variationToken,
+        segmentId: payload.structured.embodimentScript?.speechPlan.segments[0]?.id ?? null,
       })
 
       const preferredMotion = resolvePreferredLive2dMotionFromEmbodimentScript(payload, plannedPerformance)
@@ -667,6 +679,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       }
     },
     applyPresencePulse: async (payload) => {
+      if (!activityPresence.accept(payload) || !activityPresence.shouldAnimate('live2d', payload))
+        return
       const variationToken = buildPulseVariationToken(payload)
       const plannedPerformance = resolvePlannedPerformance(
         options.resolveClampedPresencePulsePerformance(payload),
@@ -694,6 +708,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     channel: 'vrm',
     isActive: () => options.stageModelRenderer.value === 'vrm',
     applyPerformance: async (performance, payload) => {
+      options.beforeDialogue?.(payload)
+      options.acceptInteractionScript?.(payload.structured.embodimentScript)
       const variationToken = buildDialogueVariationToken(payload)
       const plannedPerformance = resolvePlannedPerformance(
         performance,
@@ -713,6 +729,7 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       await options.armPerformance?.(plannedPerformance, {
         source: 'dialogue',
         variationToken,
+        segmentId: payload.structured.embodimentScript?.speechPlan.segments[0]?.id ?? null,
       })
 
       if (rendererHints?.preferredMotionAliases?.length) {
@@ -722,6 +739,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       }
     },
     applyPresencePulse: async (payload) => {
+      if (!activityPresence.accept(payload) || !activityPresence.shouldAnimate('vrm', payload))
+        return
       const variationToken = buildPulseVariationToken(payload)
       const plannedPerformance = resolvePlannedPerformance(
         options.resolveClampedPresencePulsePerformance(payload),
@@ -740,6 +759,7 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
   cleanups.push(options.dispatcher.registerEmbodimentController({
     channel: 'tts',
     speak: async (reply, performance, payload) => {
+      options.beforeDialogue?.(payload)
       const variationToken = buildDialogueVariationToken(payload)
       const plannedPerformance = resolvePlannedPerformance(
         performance,
@@ -765,6 +785,7 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       const embodimentScript = resolveEmbodimentScriptMetadata(payload, plannedPerformance)
       const runtimeDigest = payload.structured.runtimeDigest ?? null
       await options.speakFallback(reply, plannedPerformance, {
+        lifeDelivery: { cardId: payload.cardId, turnId: payload.turnId },
         ...(runtimeDigest ? { runtimeDigest } : {}),
         ...(embodimentScript ? { embodimentScript } : {}),
       })
@@ -772,6 +793,7 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
   }))
 
   function dispose() {
+    activityPresence.clear()
     plannedPerformanceCache.clear()
     plannedPerformanceCacheOrder.length = 0
     while (cleanups.length > 0) {
@@ -781,6 +803,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
   }
 
   return {
+    activityPresence: activityPresence.activity,
+    clearActivityPresence: activityPresence.clear,
     dispose,
   }
 }

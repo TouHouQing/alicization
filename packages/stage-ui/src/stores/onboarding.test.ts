@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   activeProvider: '',
   activeModel: '',
   needsGenesis: false,
+  bridge: false,
+  soul: null as object | null,
   configuredProviders: {} as Record<string, boolean>,
   providers: {} as Record<string, Record<string, unknown>>,
   addedProviders: {} as Record<string, boolean>,
@@ -43,9 +45,11 @@ vi.mock('./alicization-epoch1', async () => {
   return {
     useAlicizationEpoch1Store: () => ({
       needsGenesis: mocks.needsGenesis,
+      soul: mocks.soul,
     }),
   }
 })
+vi.mock('./alicization-bridge', () => ({ hasAlicizationBridge: () => mocks.bridge }))
 
 describe('onboarding store', () => {
   beforeEach(() => {
@@ -53,6 +57,8 @@ describe('onboarding store', () => {
     mocks.activeProvider = ''
     mocks.activeModel = ''
     mocks.needsGenesis = false
+    mocks.bridge = false
+    mocks.soul = null
     Object.keys(mocks.configuredProviders).forEach(key => delete mocks.configuredProviders[key])
     Object.keys(mocks.providers).forEach(key => delete mocks.providers[key])
     Object.keys(mocks.addedProviders).forEach(key => delete mocks.addedProviders[key])
@@ -148,6 +154,13 @@ describe('onboarding store', () => {
     const store = useOnboardingStore()
     await store.initializeSetupCheck()
 
+    expect(store.preferredEntryStepId).toBe('welcome')
+  })
+  it('does not treat a pending desktop identity as initialized', async () => {
+    mocks.bridge = true
+    const { useOnboardingStore } = await import('./onboarding')
+    const store = useOnboardingStore()
+    expect(store.hasGenesisReady).toBe(false)
     expect(store.preferredEntryStepId).toBe('welcome')
   })
 

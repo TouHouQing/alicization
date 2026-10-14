@@ -22,6 +22,15 @@ import { setupAlicizationDb } from './db'
 import { buildPersonaTrainingDatasetManifest } from './persona-training-dataset-runtime'
 import { createPersonaTrainingProcessExecutor } from './persona-training-process-executor'
 
+vi.mock('node:child_process', async () => {
+  const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process')
+  const { portableFixtureInvocation } = await import('./test-support/portable-fixture-process')
+  return { ...actual, spawn: (command: string, args: readonly string[] = [], options?: Parameters<typeof actual.spawn>[2]) => {
+    const invocation = portableFixtureInvocation(command, args)
+    return actual.spawn(invocation.command, invocation.args, options ?? {})
+  } }
+})
+
 const sandboxDirs: string[] = []
 
 function createPersonaTrainingArtifact(
@@ -5074,7 +5083,10 @@ setInterval(() => {}, 1000)
           artifact: null,
         })
       })
-      await expect(readFile(termMarker, 'utf8')).resolves.toBe('SIGTERM')
+      if (process.platform === 'win32')
+        await expect(readFile(termMarker, 'utf8')).rejects.toThrow()
+      else
+        await expect(readFile(termMarker, 'utf8')).resolves.toBe('SIGTERM')
       const childPid = Number(await readFile(pidMarker, 'utf8'))
       expect(() => process.kill(childPid, 0)).toThrow()
       expect(executor.activeProcessCount()).toBe(0)

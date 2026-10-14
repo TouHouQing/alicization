@@ -28,6 +28,7 @@ import {
   inferScenarioFromContext,
   isLateNightWindow,
 } from './proactive-layered-context'
+import { isFileActionWithoutVisualInspection } from './runtime-file-inspection-scope'
 import { sanitizeBriefText } from './runtime-realtime'
 import { clamp01 } from './runtime-soul'
 import { buildWorldModel } from './world-model'
@@ -304,7 +305,8 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
     visualPresenceState: AlicizationVisualPresenceStateSnapshot
     currentForeground?: AlicizationSystemProbeSample['foregroundWindow'] | null
   }) {
-    const baseIntent = detectInvitedInspectionIntent(input.userText)
+    const fileActionPivot = isFileActionWithoutVisualInspection(input.userText)
+    const baseIntent = detectInvitedInspectionIntent(fileActionPivot ? '' : input.userText)
     const normalized = normalizeOrganicRecallText(input.userText).toLowerCase()
     const stableSharedAttention = hasStableSharedAttention({
       now: input.now,
@@ -328,10 +330,10 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
       || input.perceptionState.recentSceneResidue?.source === 'invited-inspection',
     )
     const semanticIntent = inferAlicizationInspectionIntent({
-      message: normalized,
-      recentMessages: input.messages.slice(0, -1),
-      contextPhrases: buildInspectionIntentContextPhrases(input),
-      sharedAttentionActive: stableSharedAttention || inspectionContinuityActive,
+      message: fileActionPivot ? '' : normalized,
+      recentMessages: fileActionPivot ? [] : input.messages.slice(0, -1),
+      contextPhrases: fileActionPivot ? [] : buildInspectionIntentContextPhrases(input),
+      sharedAttentionActive: !fileActionPivot && (stableSharedAttention || inspectionContinuityActive),
     })
     const semanticIntentProfile = deriveAlicizationInspectionSignalProfile({
       reasonCodes: semanticIntent.reasonCodes,
@@ -353,7 +355,7 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
       && !baseIntent.active
       && !semanticPremarkEligible,
     )
-    const premarkInspectionOwnedTurn = !forceDialogueIdentityPivot
+    const premarkInspectionOwnedTurn = !fileActionPivot && !forceDialogueIdentityPivot
       && (baseIntent.active || (semanticIntent.active && semanticPremarkEligible))
     const ingressContext = buildDialogueIngressContext({
       now: input.now,
@@ -470,7 +472,7 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
         }),
       }
     }
-    if (forceDialogueIdentityPivot) {
+    if (forceDialogueIdentityPivot || fileActionPivot) {
       const stateDecision = resolveInspectionTurnState({
         candidateInspectionActive: false,
         explicitInspectionIntent,
@@ -479,7 +481,7 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
         sharedAttentionContinuation: false,
         repairSignal: false,
         dialoguePivot: true,
-        identityPivot: true,
+        identityPivot: forceDialogueIdentityPivot,
         ingressInspectionEligible: ingressGovernor.inspectionEligible,
       })
       const gateDecision = resolveInspectionGroundingGate({
@@ -493,7 +495,7 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
         ingressSceneBoundSignal,
       })
       const reasonCodes = [
-        'identity-dialogue-pivot',
+        fileActionPivot ? 'bounded-file-action' : 'identity-dialogue-pivot',
         'dialogue-pivot-away-from-inspection',
         ...stateDecision.reasonTags,
         ...gateDecision.reasonTags,

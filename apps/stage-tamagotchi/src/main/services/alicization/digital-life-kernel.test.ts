@@ -12,6 +12,7 @@ import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 describe('digital life kernel', () => {
   it('commits a composed mind state through one shared visual presence path', () => {
     const previousState = createDefaultVisualPresenceState(1_000)
+    const temporalState = { version: 'emotion-temporal-v1' as const, eventKey: 'turn:one', anchoredAt: 1000, evaluatedAt: 2000, beforeEvent: { valence: 0.5, arousal: 0.2, initiativePressure: 0 }, eventDelta: { valence: 0.2, arousal: 0.3, initiativePressure: 0.1 } }
     const scene = {
       workloadKind: 'coding',
       contentKind: 'error',
@@ -94,6 +95,7 @@ describe('digital life kernel', () => {
       scene,
       attention,
       mindState: {
+        emotionalTemporalState: temporalState,
         mindTurnFrame,
         worldModel,
         initiative,
@@ -111,6 +113,7 @@ describe('digital life kernel', () => {
     })
 
     expect(next.mindTurnFrame).toEqual(mindTurnFrame)
+    expect(next.emotionalTemporalState).toEqual(temporalState)
     expect(next.worldModel).toEqual(worldModel)
     expect(next.initiative).toEqual(initiative)
     expect(next.answerPlanner).toEqual(answerPlanner)

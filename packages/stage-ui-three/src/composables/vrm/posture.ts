@@ -22,6 +22,8 @@ function clampSignedUnit(value: number | null | undefined, fallback: number = 0)
 
 const reusableEuler = new Euler()
 const reusableQuaternion = new Quaternion()
+const inverseOffset = new Quaternion()
+const postureLayers = new WeakMap<object, { offset: Quaternion, lastOutput: Quaternion }>()
 
 export interface VrmBodyExecutionState {
   openness: number | null
@@ -47,12 +49,22 @@ function applyBonePosture(
   if (!bone)
     return
 
-  const targetQuaternion = bone.quaternion.clone()
-  const blend = 1 - Math.exp(-Math.max(0.001, input.delta) * 10)
+  const delta = Math.min(0.1, Math.max(0, Number.isFinite(input.delta) ? input.delta : 0))
+  const blend = 1 - Math.exp(-delta * 10)
+  let layer = postureLayers.get(bone)
+  if (!layer) {
+    layer = { offset: new Quaternion(), lastOutput: bone.quaternion.clone() }
+    postureLayers.set(bone, layer)
+  }
+  // Some idle clips omit head/neck tracks. Remove our previous offset only
+  // when no mixer or other layer has replaced the bone since the last frame.
+  if (Math.abs(bone.quaternion.dot(layer.lastOutput)) > 1 - 1e-10)
+    bone.quaternion.multiply(inverseOffset.copy(layer.offset).invert())
   reusableEuler.set(input.pitch, input.yaw, input.roll)
   reusableQuaternion.setFromEuler(reusableEuler)
-  targetQuaternion.multiply(reusableQuaternion)
-  bone.quaternion.slerp(targetQuaternion, blend)
+  layer.offset.slerp(reusableQuaternion, blend)
+  bone.quaternion.multiply(layer.offset)
+  layer.lastOutput.copy(bone.quaternion)
 }
 
 export function applyStageEmbodimentVrmPosture(input: {

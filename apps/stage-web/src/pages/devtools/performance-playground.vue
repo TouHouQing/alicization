@@ -135,7 +135,7 @@ function log(line: string) {
 const playbackManager = createPlaybackManager<BrowserSpeechAudioSource>({
   play: async (item, signal) => {
     let boundNode: AudioNode | undefined
-    await playBrowserSpeechAudio({
+    return playBrowserSpeechAudio({
       audio: item.audio,
       audioContext,
       signal,

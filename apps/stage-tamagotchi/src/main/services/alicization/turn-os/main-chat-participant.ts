@@ -86,6 +86,7 @@ export function createAlicizationMainChatParticipant<TPrepared extends {
     runtime: AlicizationEventLoopRuntimeView,
   ) => Promise<AlicizationModelObservation>
   publishReply: (input: {
+    artifact: AlicizationRuntimeReplyArtifact
     cardId: string
     conversationId: string
     text: string
@@ -176,6 +177,7 @@ export function createAlicizationMainChatParticipant<TPrepared extends {
 
     settleReply: async (reply, runtime) => {
       await options.publishReply({
+        artifact: reply.artifact,
         cardId: runtime.cardId,
         conversationId: runtime.conversationId,
         text: reply.artifact.visibleText,

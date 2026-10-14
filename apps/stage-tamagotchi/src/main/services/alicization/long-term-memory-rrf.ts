@@ -1,9 +1,9 @@
-export type LongTermMemoryRetrievalChannel =
-  | 'lexical'
-  | 'structured'
-  | 'semantic'
-  | 'episodic'
-  | 'consolidation'
+export type LongTermMemoryRetrievalChannel
+  = | 'lexical'
+    | 'structured'
+    | 'semantic'
+    | 'episodic'
+    | 'consolidation'
 
 export interface LongTermMemoryChannelRank {
   candidateId: string

@@ -1076,7 +1076,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const result = await runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: dbState.getCurrentThread().id,
     } as any)
 
@@ -1096,7 +1096,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const result = await runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: dbState.getCurrentThread().id,
       expectedChannel: 'cli',
     } as any)
@@ -1129,7 +1129,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const result = await runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: pausedThread.id,
       expectedChannel: 'codex',
     })
@@ -1214,7 +1214,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const result = await runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: failedThread.id,
       expectedChannel: 'codex',
     })
@@ -1309,7 +1309,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const result = await runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: failedThread.id,
       expectedChannel: 'codex',
     })
@@ -1346,7 +1346,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const result = await runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: failedThread.id,
       expectedChannel: 'codex',
     })
@@ -1376,7 +1376,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const dispatchTaskThread = vi.fn(() => deferredDispatch.promise)
     const runtime = createRuntime({ dbState, dispatchTaskThread })
     const input = {
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: failedThread.id,
       expectedChannel: 'codex' as const,
     }
@@ -1434,7 +1434,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
       const runtime = createRuntime({ dbState, dispatchTaskThread })
 
       const result = await runtime.resumeMainGatewayTaskThread({
-        context: { cardId: 'default' } as any,
+        context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
         threadId: terminalThread.id,
         expectedChannel: 'codex',
         dispatchMode: 'background',
@@ -1466,7 +1466,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const result = await runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: unsupportedThread.id,
       expectedChannel: 'openfang',
     })
@@ -1495,7 +1495,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const resultPromise = runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: originalThread.id,
       expectedChannel: 'codex',
       abortSignal: abortController.signal,
@@ -1532,7 +1532,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const resultPromise = runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: dbState.getCurrentThread().id,
       expectedChannel: 'codex',
       onExecutionEvent,
@@ -1573,7 +1573,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const resultPromise = runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: dbState.getCurrentThread().id,
       expectedChannel: 'codex',
       abortSignal: providerController.signal,
@@ -1639,7 +1639,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const accepted = await runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: dbState.getCurrentThread().id,
       expectedChannel: 'codex',
       dispatchMode: 'background',
@@ -1682,7 +1682,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const dispatchTaskThread = vi.fn(() => deferredDispatch.promise)
     const runtime = createRuntime({ dbState, dispatchTaskThread })
     const input = {
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: dbState.getCurrentThread().id,
       expectedChannel: 'codex' as const,
     }
@@ -1728,7 +1728,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const codexResume = runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: dbState.getCurrentThread().id,
       expectedChannel: 'codex',
     })
@@ -1737,7 +1737,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
       await new Promise<void>(resolve => setTimeout(resolve, 0))
 
     const cliResume = runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: dbState.getCurrentThread().id,
       expectedChannel: 'cli',
     })
@@ -1778,7 +1778,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const codexResume = runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: dbState.getCurrentThread().id,
       expectedChannel: 'codex',
     })
@@ -1788,7 +1788,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const getTaskThreadCallsBeforeMissingChannel = dbState.db.getTaskThread.mock.calls.length
 
     const missingChannelResume = runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: dbState.getCurrentThread().id,
     } as any)
     const missingChannelResult = await Promise.race([
@@ -1822,6 +1822,16 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     })
   })
 
+  it('does not let a provider resume tool impersonate approval for a pending task', async () => {
+    const dbState = createDbState(createNeedsAffirmationThread())
+    const dispatchTaskThread = vi.fn()
+    const runtime = createRuntime({ dbState, dispatchTaskThread })
+    const result = await runtime.resumeMainGatewayTaskThread({ context: { cardId: 'default', turnId: 'model-turn' } as any, threadId: dbState.getCurrentThread().id, expectedChannel: 'codex' })
+    expect(result).toMatchObject({ ok: false, errorCode: 'TASK_THREAD_HUMAN_APPROVAL_REQUIRED' })
+    expect(dispatchTaskThread).not.toHaveBeenCalled()
+    expect(dbState.getCurrentThread().metadata?.task).toMatchObject({ permissionMode: 'none' })
+  })
+
   it('promotes permission and redispatches a clean Codex task prompt', async () => {
     const dbState = createDbState(createNeedsAffirmationThread())
     let dispatchedPrompt = ''
@@ -1843,7 +1853,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const result = await runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: dbState.getCurrentThread().id,
       expectedChannel: 'codex',
     })
@@ -1878,7 +1888,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     await runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: dbState.getCurrentThread().id,
       expectedChannel: 'codex',
     })
@@ -1941,7 +1951,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const result = await runtime.resumeMainGatewayTaskThread({
-      context: { cardId: 'default' } as any,
+      context: { cardId: 'default', authorizationSource: 'human-ui' } as any,
       threadId: browserThread.id,
       expectedChannel: 'browser',
     })

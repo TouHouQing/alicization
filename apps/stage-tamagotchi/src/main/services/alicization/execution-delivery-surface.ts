@@ -132,6 +132,7 @@ export function selectAlicizationExecutionDeliveryReply(input: {
 }
 
 export function buildAlicizationExecutionPayoffPrompt(input: {
+  goalVerification?: import('./life-task-outcome').LifeTaskOutcome
   mode: AlicizationExecutionPayoffMode
   channel: string
   goal: string
@@ -152,6 +153,7 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
     status: normalizeExecutionFactStatus(input.status),
     summary: sanitizeText(input.summary, 1_200),
     result: {
+      goalVerification: input.goalVerification ?? null,
       goal: sanitizeText(input.goal, 1_200),
       outcome: sanitizeText(input.outcome, 12_000),
     },

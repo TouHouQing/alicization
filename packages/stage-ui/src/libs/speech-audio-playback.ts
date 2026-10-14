@@ -1,13 +1,6 @@
-import type {
-  BufferedSpeechAudioSource,
-  SpeechAudioSource,
-  StreamingSpeechAudioSource,
-} from '@proj-alicization/pipelines-audio'
+import type { PlaybackResult, SpeechAudioSource } from '@proj-alicization/pipelines-audio'
 
-import {
-  isBufferedSpeechAudioSource,
-  isStreamingSpeechAudioSource,
-} from '@proj-alicization/pipelines-audio'
+import { isBufferedSpeechAudioSource, isStreamingSpeechAudioSource } from '@proj-alicization/pipelines-audio'
 
 export type BrowserSpeechAudioSource = SpeechAudioSource<AudioBuffer>
 
@@ -19,219 +12,205 @@ export interface PlayBrowserSpeechAudioOptions {
   destinationNode?: AudioNode | null
   observerNodes?: Array<AudioNode | null | undefined>
   onAudioNodeBound?: (node: AudioNode) => void
+  onAudioStarted?: () => void
+  onAudioProgress?: (playedMs: number) => void
 }
 
-function disconnectAudioNode(node: AudioNode, target?: AudioNode | null) {
+function disconnect(node: AudioNode) {
   try {
-    if (target) {
-      node.disconnect(target)
-      return
-    }
-
     node.disconnect()
   }
   catch {}
 }
 
-function connectAudioNode(node: AudioNode, target?: AudioNode | null | undefined) {
-  if (!target)
-    return
-
-  node.connect(target)
-}
-
-// A stable bridge node keeps analysers and lip-sync consumers attached while
-// the underlying playback switches between one-shot buffers and streamed chunks.
-function createSpeechOutputNode(options: PlayBrowserSpeechAudioOptions) {
-  const outputNode = options.audioContext.createGain()
-  connectAudioNode(outputNode, options.destinationNode ?? options.audioContext.destination)
-  connectAudioNode(outputNode, options.analyserNode)
-  for (const observerNode of options.observerNodes ?? [])
-    connectAudioNode(outputNode, observerNode)
-  options.onAudioNodeBound?.(outputNode)
-  return outputNode
-}
-
-function stopBufferSource(source: AudioBufferSourceNode) {
-  source.onended = null
-
-  try {
-    source.stop()
-  }
-  catch {}
-
-  disconnectAudioNode(source)
-}
-
-async function playBufferedSpeechAudio(
-  options: Omit<PlayBrowserSpeechAudioOptions, 'audio'> & { audio: BufferedSpeechAudioSource<AudioBuffer> },
-  outputNode: GainNode,
-) {
-  const source = options.audioContext.createBufferSource()
-  source.buffer = options.audio.audio
-  source.connect(outputNode)
-
-  return new Promise<void>((resolve) => {
+// Browser autoplay can leave resume() pending until a user gesture. Cancellation
+// must still release the utterance and a missing device must have a terminal result.
+function resumeAudioContext(audioContext: AudioContext, signal: AbortSignal) {
+  return new Promise<'resumed' | 'aborted' | 'timeout' | 'failed'>((resolve) => {
     let settled = false
-
-    const resolveOnce = () => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    function abort() {
+      finish('aborted')
+    }
+    function finish(outcome: 'resumed' | 'aborted' | 'timeout' | 'failed') {
       if (settled)
         return
-
       settled = true
-      disconnectAudioNode(outputNode)
-      resolve()
+      clearTimeout(timer)
+      signal.removeEventListener('abort', abort)
+      resolve(outcome)
     }
-
-    const stopPlayback = () => {
-      options.signal.removeEventListener('abort', stopPlayback)
-      stopBufferSource(source)
-      resolveOnce()
-    }
-
-    if (options.signal.aborted) {
-      stopPlayback()
+    timer = setTimeout(() => finish('timeout'), 5000)
+    signal.addEventListener('abort', abort, { once: true })
+    if (signal.aborted) {
+      abort()
       return
     }
-
-    options.signal.addEventListener('abort', stopPlayback, { once: true })
-    source.onended = () => {
-      stopPlayback()
-    }
-
     try {
-      source.start(0)
+      void audioContext.resume().then(() => finish('resumed'), () => finish('failed'))
     }
     catch {
-      stopPlayback()
+      finish('failed')
     }
   })
 }
 
-async function playStreamingSpeechAudio(
-  options: Omit<PlayBrowserSpeechAudioOptions, 'audio'> & { audio: StreamingSpeechAudioSource<AudioBuffer> },
-  outputNode: GainNode,
-) {
-  const reader = options.audio.stream.getReader()
-  const activeSources = new Set<AudioBufferSourceNode>()
-  let nextChunkStartAt = options.audioContext.currentTime
-  let settled = false
-  let readerReleased = false
-  let readingDone = false
-
-  const releaseReader = () => {
-    if (readerReleased)
-      return
-
-    try {
-      reader.releaseLock()
-      readerReleased = true
+export async function playBrowserSpeechAudio(options: PlayBrowserSpeechAudioOptions): Promise<PlaybackResult> {
+  const { audioContext, signal, audio } = options
+  const result = (status: PlaybackResult['status'], playedMs = 0, errorCode: string | null = null): PlaybackResult => ({ status, playedMs: Math.max(0, Math.round(playedMs)), errorCode })
+  if (signal.aborted)
+    return result('interrupted', 0, 'aborted')
+  try {
+    if (audioContext.state === 'suspended') {
+      const outcome = await resumeAudioContext(audioContext, signal)
+      if (outcome === 'aborted')
+        return result('interrupted', 0, 'aborted')
+      if (outcome !== 'resumed')
+        return result('failed', 0, outcome === 'timeout' ? 'audio-context-resume-timeout' : 'audio-context-resume-failed')
     }
-    catch {}
+    if (audioContext.state !== 'running')
+      return result('failed', 0, 'audio-context-unavailable')
+  }
+  catch { return result('failed', 0, 'audio-context-resume-failed') }
+  if (signal.aborted)
+    return result('interrupted', 0, 'aborted')
+
+  // A stable output node serves both the speaker and lip-sync observers.
+  let output: GainNode | undefined
+  try {
+    output = audioContext.createGain()
+    output.connect(options.destinationNode ?? audioContext.destination)
+    for (const node of [options.analyserNode, ...options.observerNodes ?? []]) {
+      if (node)
+        output.connect(node)
+    }
+    options.onAudioNodeBound?.(output)
+  }
+  catch {
+    if (output)
+      disconnect(output)
+    return result('failed', 0, 'audio-output-bind-failed')
   }
 
-  return new Promise<void>((resolve) => {
-    const resolveOnce = () => {
-      disconnectAudioNode(outputNode)
-      resolve()
-    }
+  return new Promise<PlaybackResult>((resolve) => {
+    const sources = new Map<AudioBufferSourceNode, { start: number, duration: number }>()
+    let reader: ReadableStreamDefaultReader<{ audio: AudioBuffer }> | undefined
+    let settled = false
+    let readDone = false
+    let completedSeconds = 0
+    let scheduledSeconds = 0
+    let nextStart = audioContext.currentTime
+    let started = false
+    let progressTimer: ReturnType<typeof setInterval> | undefined
 
-    const stopAllSources = () => {
-      for (const source of activeSources) {
-        stopBufferSource(source)
-      }
-      activeSources.clear()
-    }
-
-    async function finalizePlayback(optionsInput?: { cancelReader?: boolean, stopSources?: boolean }) {
+    const playedMs = () => (completedSeconds + [...sources.values()].reduce((sum, entry) => sum + Math.max(0, Math.min(entry.duration, audioContext.currentTime - entry.start)), 0)) * 1000
+    const finish = (status: PlaybackResult['status'], errorCode: string | null = null) => {
       if (settled)
         return
-
+      const actualMs = status === 'completed' ? scheduledSeconds * 1000 : playedMs()
       settled = true
-      options.signal.removeEventListener('abort', abortPlayback)
-      if (optionsInput?.stopSources !== false)
-        stopAllSources()
-      if (optionsInput?.cancelReader !== false)
-        await reader.cancel().catch(() => {})
-      releaseReader()
-      resolveOnce()
+      signal.removeEventListener('abort', abort)
+      clearInterval(progressTimer)
+      for (const source of sources.keys()) {
+        source.onended = null
+        try {
+          source.stop()
+        }
+        catch {}
+        disconnect(source)
+      }
+      sources.clear()
+      disconnect(output!)
+      if (reader) {
+        // Remote stream cancellation must not block the local terminal receipt.
+        void reader.cancel().catch(() => {}).finally(() => {
+          try {
+            reader?.releaseLock()
+          }
+          catch {}
+        })
+      }
+      resolve(result(status, actualMs, errorCode))
     }
-
-    function maybeResolveCompletedPlayback() {
-      if (!readingDone || activeSources.size > 0)
-        return
-
-      void finalizePlayback({
-        cancelReader: false,
-        stopSources: false,
-      })
+    function abort() {
+      finish('interrupted', 'aborted')
     }
-
-    function abortPlayback() {
-      void finalizePlayback()
+    const maybeComplete = () => {
+      if (readDone && sources.size === 0)
+        finish(scheduledSeconds > 0 ? 'completed' : 'failed', scheduledSeconds > 0 ? null : 'empty-audio')
     }
-
-    if (options.signal.aborted) {
-      abortPlayback()
+    const schedule = (buffer: AudioBuffer) => {
+      if (!Number.isFinite(buffer.duration) || buffer.duration <= 0)
+        throw new Error('invalid-audio-buffer')
+      const source = audioContext.createBufferSource()
+      source.buffer = buffer
+      source.connect(output!)
+      const start = Math.max(audioContext.currentTime, nextStart)
+      sources.set(source, { start, duration: buffer.duration })
+      source.onended = () => {
+        if (settled)
+          return
+        sources.delete(source)
+        completedSeconds += buffer.duration
+        disconnect(source)
+        maybeComplete()
+      }
+      source.start(start)
+      scheduledSeconds += buffer.duration
+      nextStart = start + buffer.duration
+      if (!started) {
+        started = true
+        options.onAudioStarted?.()
+        if (options.onAudioProgress)
+          progressTimer = setInterval(() => options.onAudioProgress?.(playedMs()), 250)
+      }
+    }
+    signal.addEventListener('abort', abort, { once: true })
+    if (signal.aborted) {
+      abort()
       return
     }
-
-    options.signal.addEventListener('abort', abortPlayback, { once: true })
-
+    if (isBufferedSpeechAudioSource(audio)) {
+      try {
+        schedule(audio.audio)
+        readDone = true
+      }
+      catch { finish('failed', 'audio-source-start-failed') }
+      return
+    }
+    if (!isStreamingSpeechAudioSource(audio)) {
+      finish('failed', 'invalid-audio-source')
+      return
+    }
+    try {
+      reader = audio.stream.getReader()
+    }
+    catch {
+      finish('failed', 'audio-stream-locked')
+      return
+    }
     void (async () => {
       try {
-        while (!options.signal.aborted) {
-          const { value, done } = await reader.read()
-          if (done)
+        while (true) {
+          if (settled)
+            return
+          const chunk = await reader!.read()
+          if (settled)
+            return
+          if (chunk.done)
             break
-
-          const chunkAudio = value?.audio
-          if (!chunkAudio)
-            continue
-
-          const source = options.audioContext.createBufferSource()
-          source.buffer = chunkAudio
-          source.connect(outputNode)
-
-          const startAt = Math.max(options.audioContext.currentTime, nextChunkStartAt)
-          nextChunkStartAt = startAt + chunkAudio.duration
-          activeSources.add(source)
-
-          source.onended = () => {
-            activeSources.delete(source)
-            disconnectAudioNode(source)
-            maybeResolveCompletedPlayback()
-          }
-
           try {
-            source.start(startAt)
+            schedule(chunk.value.audio)
           }
           catch {
-            activeSources.delete(source)
-            disconnectAudioNode(source)
+            finish('failed', 'audio-source-start-failed')
+            return
           }
         }
+        readDone = true
+        maybeComplete()
       }
-      catch {
-        void finalizePlayback()
-        return
-      }
-      finally {
-        readingDone = true
-        maybeResolveCompletedPlayback()
-      }
+      catch { finish('failed', 'audio-stream-read-failed') }
     })()
   })
-}
-
-export async function playBrowserSpeechAudio(options: PlayBrowserSpeechAudioOptions) {
-  const outputNode = createSpeechOutputNode(options)
-
-  if (isBufferedSpeechAudioSource(options.audio))
-    return playBufferedSpeechAudio({ ...options, audio: options.audio }, outputNode)
-
-  if (isStreamingSpeechAudioSource(options.audio))
-    return playStreamingSpeechAudio({ ...options, audio: options.audio }, outputNode)
-
-  disconnectAudioNode(outputNode)
 }

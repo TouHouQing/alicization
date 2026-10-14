@@ -243,6 +243,24 @@ describe('vrm performance selection', () => {
     ])?.expressionName).toBe('ConfiguredExpression')
   })
 
+  it('a committed presence action owns the body ahead of stale dialogue aliases', () => {
+    const state = createIdleStageEmbodimentPerformanceState()
+    state.phase = 'armed'
+    state.activeActionCue = 'gentle_boundary'
+    state.activeCue = createActiveCue({ preferredMotionAliases: ['gentle_boundary'] })
+    state.actionPulse = { revision: 3, cue: 'steady_focus', reason: 'presence-pulse', issuedAt: 1000, segmentId: null }
+    expect(resolveVrmPreferredActionBinding(state, [createActionBinding('gentle_boundary'), createActionBinding('steady_focus')])?.actionKey).toBe('steady_focus')
+  })
+  it('a new owned dialogue segment replaces stale aliases and retains aliases from its own segment', () => {
+    const state = createIdleStageEmbodimentPerformanceState()
+    state.activeCue = createActiveCue({ id: 'old-segment', preferredMotionAliases: ['configured_action'] })
+    state.actionPulse = { revision: 3, cue: 'reassuring_nod', reason: 'dialogue', issuedAt: 1000, segmentId: 'current-segment' }
+    const bindings = [createActionBinding('configured_action'), createActionBinding('reassuring_nod')]
+    expect(resolveVrmPreferredActionBinding(state, bindings)?.actionKey).toBe('reassuring_nod')
+    state.activeCue.id = 'current-segment'
+    expect(resolveVrmPreferredActionBinding(state, bindings)?.actionKey).toBe('configured_action')
+  })
+
   it('prefers explicit motion aliases over direct action cues', () => {
     const state = createIdleStageEmbodimentPerformanceState()
     state.phase = 'speaking'

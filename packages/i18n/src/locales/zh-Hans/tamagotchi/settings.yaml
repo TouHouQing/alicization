@@ -34,6 +34,12 @@ about:
       available_title: 发现新版本
       available_description: '版本 {version} 已可下载，建议先查看发行说明。'
       no_release_notes: 当前版本未提供发行说明。
+widgets:
+  empty: 这个窗口还没有小部件。
+  empty_help: 她在对话中打开的小部件会以独立窗口显示。
+  close: 关闭窗口
+  loading: 正在载入小部件…
+  waiting: 正在等待小部件内容…
 hitl:
   actions:
     allow: 允许
@@ -53,7 +59,24 @@ hitl:
     danger: 高风险
     safe: 安全
     sensitive: 敏感
-  title: 安全拦截确认（HitL）
+  title: 确认这次操作
+  details: 查看操作详情
+  operations:
+    create: 创建一个文件
+    replace: 替换现有文件的内容
+    read: 读取文件或资料
+    write: 写入内容
+    delete: 删除内容
+    execute: 运行一个操作
+    network: 通过网络发送或获取内容
+    unknown: 执行这次操作
+  reasons:
+    read: 这次读取超出了已允许的范围。确认后只允许本次读取。
+    write: 请确认目标和内容。允许后将写入这个文件。
+    delete: 删除可能无法撤销，请先确认目标。
+    execute: 这个操作需要你的确认才能运行。
+    network: 这个操作涉及网络通信，请先查看操作详情。
+    unknown: 这个操作的范围尚不明确，请先查看操作详情。
 pages:
   modules:
     mcp-server:

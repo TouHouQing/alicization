@@ -1,4 +1,9 @@
 chat:
+  title: Conversation
+  empty: Start with a hello.
+  send: Send message
+  input-hint: Enter to send · Shift + Enter for a new line
+  preparing: Preparing a reply… You can stop it while waiting.
   message:
     character-name:
       airi: ALICIZATION

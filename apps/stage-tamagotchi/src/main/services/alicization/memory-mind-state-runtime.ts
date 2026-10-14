@@ -56,8 +56,8 @@ export function createAlicizationMemoryMindStateRuntime(
     try {
       return JSON.parse(raw) as T
     }
-    catch {
-      return null
+    catch (error) {
+      throw new Error('Persisted mind head is invalid; recovery is required', { cause: error })
     }
   }
 

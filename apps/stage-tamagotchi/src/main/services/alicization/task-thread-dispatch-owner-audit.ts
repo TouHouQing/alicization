@@ -16,7 +16,7 @@ export interface AlicizationTaskThreadDispatchOwnerAuditEntry {
 }
 
 function toServiceRelativePath(absolutePath: string) {
-  return absolutePath.split('/apps/stage-tamagotchi/src/main/services/alicization/')[1] ?? absolutePath
+  return absolutePath.replaceAll('\\', '/').split('/apps/stage-tamagotchi/src/main/services/alicization/')[1] ?? absolutePath
 }
 
 const dispatchHelperImportNeedle = 'import { dispatchTaskThread } from \'./task-thread-dispatcher\''

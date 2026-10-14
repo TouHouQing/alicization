@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
+import { rankLongTermMemoryHybridEvidence } from './long-term-memory-hybrid-retrieval'
 import {
   buildLongTermMemoryQueryPlan,
   deriveLongTermMemoryRecallIntent,
 } from './long-term-memory-recall'
-import { rankLongTermMemoryHybridEvidence } from './long-term-memory-hybrid-retrieval'
 
 const now = Date.parse('2026-07-03T12:00:00.000Z')
 

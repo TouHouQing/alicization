@@ -199,6 +199,25 @@ describe('stage dialogue utils', () => {
     expect(rect.height).toBeLessThanOrEqual(420)
   })
 
+  it('keeps the default dialogue clear of an actual horizontal body and its face', () => {
+    const frame = { left: 130, right: 770, top: 320, bottom: 490, centerX: 450, anchorY: 350, head: { x: 160, y: 305, width: 90, height: 90 } }
+    for (const placement of ['top-left', 'top-right'] as const) {
+      const rect = resolveStageDialogueAnchoredPanelRect({ containerWidth: 900, containerHeight: 760, characterFrame: frame, placement, quickReplyEnabled: true })
+      expect(rect.y + rect.height <= frame.top || rect.y >= frame.bottom || rect.x + rect.width <= frame.left || rect.x >= frame.right).toBe(true)
+      expect(rect.y + rect.height <= frame.head.y || rect.y >= frame.head.y + frame.head.height || rect.x + rect.width <= frame.head.x || rect.x >= frame.head.x + frame.head.width).toBe(true)
+    }
+  })
+
+  it('protects the face in a narrow desktop while keeping manual relative offsets usable', () => {
+    const frame = { left: 90, right: 360, top: 140, bottom: 500, centerX: 225, anchorY: 180, head: { x: 180, y: 135, width: 90, height: 90 } }
+    const input = { containerWidth: 450, containerHeight: 600, characterFrame: frame, placement: 'top-right' as const, quickReplyEnabled: true }
+    const rect = resolveStageDialogueAnchoredPanelRect(input, { size: { width: 220, height: 220 } })
+    expect(rect.y + rect.height <= frame.head.y || rect.y >= frame.head.y + frame.head.height || rect.x + rect.width <= frame.head.x || rect.x >= frame.head.x + frame.head.width).toBe(true)
+    const customized = resolveStageDialogueAnchoredPanelRect(input, { size: { width: 220, height: 220 }, offset: { x: -20, y: -20 } })
+    expect(customized.x).toBe(rect.x - 20)
+    expect(customized.y).toBe(rect.y - 20)
+  })
+
   it('keeps the same relative offset when the character moves', () => {
     const firstRect = resolveStageDialogueAnchoredPanelRect({
       containerWidth: 1600,

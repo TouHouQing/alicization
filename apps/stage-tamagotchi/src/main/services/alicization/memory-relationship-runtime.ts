@@ -75,6 +75,7 @@ interface DbRelationshipDynamicsRow {
 }
 
 interface CreateAlicizationMemoryRelationshipRuntimeOptions {
+  onOutcomePersistedInside?: (entry: AlicizationRelationshipOutcomeRecord) => Promise<void>
   database: sqlite3.Database
   now: () => number
   randomUUID: () => string
@@ -487,6 +488,7 @@ export function createAlicizationMemoryRelationshipRuntime(
               entry.createdAt,
             ],
           )
+          await options.onOutcomePersistedInside?.({ ...entry })
         }
       })
     })

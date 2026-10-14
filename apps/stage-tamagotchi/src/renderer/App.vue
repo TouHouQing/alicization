@@ -9,7 +9,7 @@ import type { AlicizationCardScope, AlicizationChatAbortPayload, AlicizationChat
 import { defineInvokeHandler } from '@moeru/eventa'
 import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
 import { themeColorFromValue, useThemeColor } from '@proj-alicization/stage-layouts/composables/theme-color'
-import { sanitizeCharacterPerformanceManifest } from '@proj-alicization/stage-shared'
+import { alicizationPrimaryConversationSessionId, sanitizeCharacterPerformanceManifest } from '@proj-alicization/stage-shared'
 import { ToasterRoot } from '@proj-alicization/stage-ui/components'
 import { clearAlicizationBridge, setAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import { useAlicizationEpoch1Store } from '@proj-alicization/stage-ui/stores/alicization-epoch1'
@@ -59,6 +59,7 @@ import {
   alicizationDialogueResponded,
   alicizationKillSwitchStateChanged,
 
+  alicizationSafetyPermissionClosed,
   alicizationSafetyPermissionRequested,
   alicizationSoulChanged,
   electronAlicizationAckDialogue,
@@ -213,6 +214,7 @@ import {
   projectAlicizationSessionRecoveryFailure,
 } from './alicization-session-recovery-projection'
 import { initializeStageThreeRuntimeTraceBridge } from './bridges/stage-three-runtime-trace'
+import { useAlicizationPermissionQueue } from './composables/use-alicization-permission-queue'
 import { useServerChannelSettingsStore } from './stores/settings/server-channel'
 import { useStageWindowLifecycleStore } from './stores/stage-window-lifecycle'
 
@@ -364,9 +366,8 @@ const alicizationResolvePermission = useElectronEventaInvoke(electronAlicization
 
 const resolveAlicizationScope = () => ({ cardId: activeCardId.value || 'default' })
 const isCurrentAlicizationCard = (cardId: string) => cardId === (activeCardId.value || 'default')
-const currentHitlRequest = ref<AlicizationSafetyPermissionRequest | null>(null)
-const pendingHitlRequests = ref<AlicizationSafetyPermissionRequest[]>([])
-const hitlResolving = ref(false)
+const permissionQueue = useAlicizationPermissionQueue({ isCurrentCard: isCurrentAlicizationCard, resolve: alicizationResolvePermission })
+const { current: currentHitlRequest, resolving: hitlResolving, decide: resolveHitlDecision } = permissionQueue
 const alicizationLateToolEventGraceMs = 5_000
 let llmSyncTimer: ReturnType<typeof setTimeout> | undefined
 let lastLlmSyncSignature = ''
@@ -493,7 +494,7 @@ function createAlicizationAbortError(reason?: string) {
   const resolvedReason = typeof reason === 'string' && reason.trim()
     ? reason
     : alicizationChatStreamText('reason-manual')
-  return new DOMException(alicizationChatStreamText('aborted', { reason: resolvedReason }), 'AbortError')
+  return Object.assign(new DOMException(alicizationChatStreamText('aborted', { reason: resolvedReason }), 'AbortError'), { alicizationAbort: true })
 }
 
 function estimateJsonPayloadBytes(value: unknown) {
@@ -707,7 +708,8 @@ function findReplayMessageIndex(messages: any[], options: {
   text: string
   createdAt: number
 }) {
-  const byIdIndex = messages.findIndex(item => item?.id === options.id && item?.role === options.role)
+  const canonicalId = (id: unknown) => typeof id === 'string' ? id.replace(/:gw\d+(?=:user$|$)/u, '') : ''
+  const byIdIndex = messages.findIndex(item => canonicalId(item?.id) === canonicalId(options.id) && item?.role === options.role)
   if (byIdIndex >= 0)
     return byIdIndex
 
@@ -1264,7 +1266,8 @@ function handleAlicizationDialogueRespondedPayload(payload?: AlicizationDialogue
   if (targetSessionId)
     void reconcileSessionTurnsFromMain(targetSessionId)
 
-  if (payload.origin === 'subconscious-proactive' && payload.structured?.reply?.trim()) {
+  const resumedOnPrimary = payload.turnId.startsWith('recovered:') && targetSessionId === alicizationPrimaryConversationSessionId(resolveAlicizationScope().cardId)
+  if ((payload.origin === 'subconscious-proactive' || resumedOnPrimary) && payload.structured?.reply?.trim()) {
     if (targetSessionId) {
       void upsertProactiveAssistantTurn({
         sessionId: targetSessionId,
@@ -1272,7 +1275,7 @@ function handleAlicizationDialogueRespondedPayload(payload?: AlicizationDialogue
         assistantText: payload.structured.reply,
         structured: payload.structured as unknown as Record<string, unknown>,
         createdAt: payload.createdAt,
-        setActive: targetSessionId === activeSessionId.value,
+        setActive: resumedOnPrimary || targetSessionId === activeSessionId.value,
       })
     }
   }
@@ -1351,37 +1354,6 @@ const removeAlicizationChatStreamDispatchListener = window.electron?.ipcRenderer
   alicizationChatStreamDispatchChannel,
   (_event, payload) => handleAlicizationChatStreamDispatch(payload as AlicizationChatStreamDispatchPayload),
 )
-
-function popNextHitlRequest() {
-  if (currentHitlRequest.value || pendingHitlRequests.value.length === 0)
-    return
-  const [next, ...rest] = pendingHitlRequests.value
-  pendingHitlRequests.value = rest
-  currentHitlRequest.value = next ?? null
-}
-
-async function resolveHitlDecision(payload: { allow: boolean, rememberSession: boolean }) {
-  const request = currentHitlRequest.value
-  if (!request || hitlResolving.value)
-    return
-
-  hitlResolving.value = true
-  try {
-    await alicizationResolvePermission({
-      cardId: request.cardId,
-      token: request.token,
-      requestId: request.requestId,
-      allow: payload.allow,
-      rememberSession: payload.allow ? payload.rememberSession : false,
-      reason: payload.allow ? 'user-approved' : 'user-denied',
-    })
-  }
-  finally {
-    hitlResolving.value = false
-    currentHitlRequest.value = null
-    popNextHitlRequest()
-  }
-}
 
 setAlicizationBridge({
   streamLifecycleOwner: 'main',
@@ -1838,8 +1810,14 @@ context.value.on(alicizationSafetyPermissionRequested, (event: EventEnvelope<Ali
   const payload = event?.body
   if (!payload || !isCurrentAlicizationCard(payload.cardId))
     return
-  pendingHitlRequests.value = [...pendingHitlRequests.value, payload]
-  popNextHitlRequest()
+  permissionQueue.push(payload)
+})
+
+context.value.on(alicizationSafetyPermissionClosed, (event) => {
+  const payload = event?.body
+  if (!payload || !isCurrentAlicizationCard(payload.cardId))
+    return
+  permissionQueue.close(payload)
 })
 
 context.value.on(alicizationChatStreamChunk, (event: EventEnvelope<AlicizationChatStreamChunkEvent>) => {
@@ -1910,9 +1888,7 @@ watch(activeCardId, (_cardId, previousCardId) => {
       createAlicizationAbortError('renderer-card-switch'),
     )
   }
-  currentHitlRequest.value = null
-  pendingHitlRequests.value = []
-  hitlResolving.value = false
+  permissionQueue.clear()
   proactiveBackfillInFlight.clear()
   void alicizationEpoch1Store.refreshSoul()
   void alicizationEpoch1Store.syncKillSwitchState()

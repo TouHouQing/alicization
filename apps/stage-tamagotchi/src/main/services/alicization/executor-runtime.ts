@@ -31,6 +31,8 @@ import { errorMessageFrom } from '@moeru/std'
 
 import { locateAlicizationExecutionBinary } from './execution-command-env'
 import { readExecutionOutcome, readLatestExecutionEvent, readTaskThreadActivityAt, sanitizeExecutionLedgerText } from './execution-ledger-shared'
+import { inspectCliTaskCommand } from './executor-adapters/cli'
+import { requiresDelegatedPermissionApproval } from './executor-adapters/delegated-risk-policy'
 import { expandOpenClawBackedCapabilities } from './executor-adapters/embodied-channel'
 import { probeOpenClawCapability } from './executor-adapters/openclaw'
 import { buildHostPersonModelSnapshot } from './humanlike-memory'
@@ -1335,6 +1337,9 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     const sessionId = await options.ensureSessionId(input.context.cardId).catch(() => '')
     const capabilities = await resolveTaskPlanningCapabilities()
     const db = options.getAlicizationDb()
+    const cliRisk = input.dispatch.cli ? inspectCliTaskCommand({ command: input.dispatch.cli, thread: { metadata: { task: { effect: input.task.effect, permissionMode: 'implicit' } }, origin: 'user-turn', turnId: input.context.turnId } }) : null
+    const dangerousDispatch = requiresDelegatedPermissionApproval(input.dispatch.claudeCode) || Boolean(cliRisk && 'riskLevel' in cliRisk && cliRisk.riskLevel === 'danger')
+    const actualTask = { ...input.task, ...(dangerousDispatch ? { effect: 'high-impact' as const } : {}) }
     const planning = await planTaskThread({
       canonicalToolCallId: options.sanitizeText(input.context.toolCallId) || null,
       threadId: `thread:tool:${randomUUID()}`,
@@ -1344,7 +1349,8 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         sessionId: options.normalizeSessionId(sessionId) || null,
         origin: 'user-turn',
       },
-      task: input.task,
+      // Provider-supplied permission is a proposal, never human approval.
+      task: { ...actualTask, permissionMode: input.context.authorizationSource === 'human-ui' ? input.task.permissionMode : input.task.permissionMode === 'none' ? 'none' : 'implicit' },
       capabilities,
       killSwitchSuspended,
     })
@@ -1809,6 +1815,9 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       latestEvent: latestExecutionEvent,
       thread: originalThread,
     })
+    if (recovery?.actions.some(action => action.requiresConfirmation) && input.context.authorizationSource !== 'human-ui') {
+      return { ok: false, finalStatus: originalThread.status, stage: 'dispatch', thread: originalThread, plan: { state: 'needs-affirmation', proposedChannel: resumeChannel }, summary: 'The current task requires approval from its user interface before execution.', errorCode: 'TASK_THREAD_HUMAN_APPROVAL_REQUIRED', errorMessage: 'Provider tool calls cannot approve a task.', createdEventKinds: [], recovery }
+    }
 
     if (input.expectedActionKind !== undefined) {
       const action = recovery?.actions.find(candidate => candidate.kind === input.expectedActionKind)

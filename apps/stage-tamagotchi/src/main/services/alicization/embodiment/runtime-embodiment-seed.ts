@@ -5,6 +5,7 @@ import type {
   AlicizationDialogueSpeechTimeline,
   AlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeSpineDigest,
+  AlicizationInteractionIntent,
   AlicizationResidentPerformanceSnapshot,
 } from '@proj-alicization/stage-shared'
 
@@ -13,11 +14,14 @@ import type { AlicizationCurrentConsciousFrameSnapshot } from '../../../../share
 import {
   createIdleStageEmbodimentMotorState,
   normalizeAlicizationDigitalLifeEnvelope,
+  normalizeAlicizationInteractionIntent,
   normalizeAlicizationPerformancePayload,
   normalizeStageEmbodimentMotorState,
 } from '@proj-alicization/stage-shared'
 
 export interface AlicizationRuntimeEmbodimentSeed {
+  authoredActionCue?: string | null
+  interactionIntent?: AlicizationInteractionIntent | null
   decisionTraceId?: string | null
   turnId: string
   replyText: string
@@ -32,6 +36,8 @@ export interface AlicizationRuntimeEmbodimentSeed {
 }
 
 export interface BuildAlicizationRuntimeEmbodimentSeedInput {
+  authoredActionCue?: string | null
+  interactionIntent?: AlicizationInteractionIntent | null
   decisionTraceId?: string | null
   turnId: string
   reply: string
@@ -138,6 +144,11 @@ export function buildAlicizationRuntimeEmbodimentSeed(
   // but it is not transported over shared IPC yet. The transported execution
   // authority remains `structured.embodimentScript`.
   return {
+    authoredActionCue: input.authoredActionCue ?? null,
+    interactionIntent: (() => {
+      const intent = normalizeAlicizationInteractionIntent(input.interactionIntent)
+      return intent?.turnId === input.turnId ? intent : null
+    })(),
     decisionTraceId: normalizeSeedDecisionTraceId(input.decisionTraceId),
     turnId: normalizeSeedText(input.turnId, 120),
     replyText: normalizeSeedText(input.reply, 4000),

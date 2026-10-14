@@ -5,6 +5,16 @@ import { createAlicizationKnowledgeAssimilationRuntime } from './knowledge-assim
 import { rankAlicizationMemoryFacts } from './memory-fact-retrieval'
 
 describe('explicit long-term memory evidence', () => {
+  it('keeps a trailing remember directive out of the actual preference', () => {
+    expect(extractExplicitLongTermMemoryEvidence({ userText: '我喜欢雨停后听轻柔的钢琴曲，记住这个小偏好吧。你自己有什么小爱好？' })).toMatchObject({ summary: '用户喜欢雨停后听轻柔的钢琴曲。', evidenceSnippets: ['我喜欢雨停后听轻柔的钢琴曲，记住这个小偏好吧。'] })
+    expect(extractExplicitLongTermMemoryEvidence({ userText: '我喜欢歌名叫“记住这个偏好”的曲子。' })?.summary).toContain('“记住这个偏好”')
+  })
+  it('keeps the reported preference when the same turn also asks her opinion', () => {
+    const evidence = extractExplicitLongTermMemoryEvidence({ userText: '我喜欢阴天时听雨声。记住这个小偏好吧。你自己更喜欢什么样的天气？' })
+    expect(evidence).toMatchObject({ kind: 'preference', summary: '用户喜欢阴天时听雨声。', evidenceSnippets: ['我喜欢阴天时听雨声。'] })
+    expect(extractExplicitLongTermMemoryEvidence({ userText: '我喜欢蓝色吗？你猜猜？' })).toBeNull()
+    expect(extractExplicitLongTermMemoryEvidence({ userText: '我喜欢蓝色。不对，刚才是开玩笑。你喜欢什么？' })).toBeNull()
+  })
   it('extracts an explicitly requested user preference without using assistant text', () => {
     expect(extractExplicitLongTermMemoryEvidence({
       userText: '记住我喜欢蓝色',

@@ -2,6 +2,7 @@ import type { MainGatewayResolvedConfig } from './runtime-soul'
 
 import { createOpenAI } from '@xsai-ext/providers/create'
 
+import { resolveLifeProviderRequestLimits } from './life-provider-budget'
 import { defaultAlicizationCardId, normalizeCardId } from './runtime-soul'
 
 interface AlicizationRememberedMainGatewayRoute {
@@ -89,6 +90,7 @@ export function createAlicizationMainGatewayConfigRuntime(options: CreateAliciza
         headers,
         probeHeaders: headers,
         provider: createOpenAI('', baseUrl),
+        providerBudget: resolveLifeProviderRequestLimits(),
       }
     }
 
@@ -138,6 +140,7 @@ export function createAlicizationMainGatewayConfigRuntime(options: CreateAliciza
       headers: requestHeaders,
       probeHeaders,
       provider,
+      providerBudget: resolveLifeProviderRequestLimits(mergedCredentials),
     }
   }
 

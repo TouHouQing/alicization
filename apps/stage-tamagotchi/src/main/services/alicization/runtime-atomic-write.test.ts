@@ -1,6 +1,7 @@
 import { chmod, mkdir, mkdtemp, open, readFile, rename, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { platform } from 'node:process'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,7 +39,7 @@ function deferred<T>() {
 }
 
 describe('writeAlicizationAtomicContent', () => {
-  it('tightens existing POSIX directory and file permissions for durable private writes', async () => {
+  it.skipIf(platform === 'win32')('tightens existing POSIX directory and file permissions for durable private writes', async () => {
     const root = await createTempRoot()
     const journalDir = join(root, 'journal')
     const target = join(journalDir, 'marker.json')

@@ -25,6 +25,7 @@
 import { mkdir, open, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { errorMessageFrom } from '@moeru/std'
 import { app } from 'electron'
 
 // ============================================================================
@@ -68,13 +69,6 @@ export const nullFileLoggerHandle: FileLoggerHandle = {
 // ============================================================================
 
 /**
- * Extracts a human-readable error message from an unknown error object.
- */
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-/**
  * Generates the log file path for the current session.
  * Format: {userData}/logs/alicization-tamagotchi-{timestamp}.log
  */
@@ -93,7 +87,7 @@ async function ensureLogsDirectory(): Promise<string | null> {
     return logsDir
   }
   catch (error) {
-    const message = getErrorMessage(error)
+    const message = errorMessageFrom(error) ?? 'Unknown file error'
     console.error(`[FileLogger] Failed to create logs directory: ${message}`)
     return null
   }
@@ -142,6 +136,9 @@ export async function setupFileLogger(): Promise<FileLoggerHandle> {
     const fileHandle = await open(logFilePath, 'a')
     const logFileFd = fileHandle.fd
     let isFileClosed = false
+    let isClosing = false
+    let writeQueue = Promise.resolve()
+    let closePromise: Promise<void> | undefined
 
     // Write initialization message
     const sessionStartMessage = `[FileLogger] Initialized - logging to: ${logFilePath}\n`
@@ -150,45 +147,53 @@ export async function setupFileLogger(): Promise<FileLoggerHandle> {
     console.info(`[FileLogger] Session logs: ${logFilePath}`)
 
     async function appendLog(content: string) {
-      if (isFileClosed) {
+      if (isFileClosed || isClosing) {
         return
       }
 
       const normalizedContent = content.endsWith('\n') ? content : `${content}\n`
 
-      try {
-        await fileHandle.appendFile(normalizedContent)
-      }
-      catch (error) {
-        const message = getErrorMessage(error)
-        console.error(`[FileLogger] Failed to write log: ${message}`)
-      }
+      // Keep accepted writes ordered and explicitly drain them before closing.
+      // Closing a FileHandle concurrently with untracked writes can stall exit.
+      writeQueue = writeQueue.then(async () => {
+        try {
+          await fileHandle.appendFile(normalizedContent)
+        }
+        catch (error) {
+          const message = errorMessageFrom(error) ?? 'Unknown file error'
+          console.error(`[FileLogger] Failed to write log: ${message}`)
+        }
+      })
+      await writeQueue
     }
 
     async function close() {
-      if (isFileClosed) {
-        return
-      }
-
-      try {
-        await fileHandle.close()
-        isFileClosed = true
-        console.info('[FileLogger] File closed successfully')
-      }
-      catch (error) {
-        const message = getErrorMessage(error)
-        console.error(`[FileLogger] Failed to close log file: ${message}`)
-      }
-
-      const size = await getLogFileSize(logFilePath)
-      const sizeInfo = size !== null ? ` (${(size / 1024).toFixed(2)} KB)` : ''
-      console.info(`[FileLogger] Session log file: ${logFilePath}${sizeInfo}`)
+      if (closePromise)
+        return closePromise
+      isClosing = true
+      closePromise = (async () => {
+        await writeQueue
+        try {
+          await fileHandle.close()
+          isFileClosed = true
+          console.info('[FileLogger] File closed successfully')
+        }
+        catch (error) {
+          const message = errorMessageFrom(error) ?? 'Unknown file error'
+          console.error(`[FileLogger] Failed to close log file: ${message}`)
+          throw error
+        }
+        const size = await getLogFileSize(logFilePath)
+        const sizeInfo = size !== null ? ` (${(size / 1024).toFixed(2)} KB)` : ''
+        console.info(`[FileLogger] Session log file: ${logFilePath}${sizeInfo}`)
+      })()
+      return closePromise
     }
 
     return { logFilePath, logFileFd, appendLog, close }
   }
   catch (error) {
-    const message = getErrorMessage(error)
+    const message = errorMessageFrom(error) ?? 'Unknown file error'
     console.error(`[FileLogger] Failed to create log file - logging to console only: ${message}`)
     return nullFileLoggerHandle
   }

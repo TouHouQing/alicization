@@ -58,8 +58,9 @@ export function resolveVrmManifestActionCapabilities(input: {
   runtimeSupportedActions: CharacterActionCapability[]
   actionBindings: VrmActionBinding[]
 }) {
+  const runtimeKeys = new Set(input.runtimeSupportedActions.map(item => item.key))
   return dedupeCapabilityItemsByKey([
-    ...input.actionBindings.map(item => ({
+    ...input.actionBindings.filter(item => item.source !== 'builtin' || item.actionKey === 'settle_idle' || runtimeKeys.has(item.actionKey)).map(item => ({
       key: item.actionKey,
       label: item.label,
       description: item.description,

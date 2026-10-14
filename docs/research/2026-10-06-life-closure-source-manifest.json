@@ -1,0 +1,45 @@
+{
+  "format": "alicization-life-closure-source-study-v1",
+  "date": "2026-10-06",
+  "previousManifests": [
+    "2026-10-05-desktop-life-source-manifest.json",
+    "2026-10-06-interaction-intent-source-manifest.json"
+  ],
+  "cumulativeProjects": 13,
+  "newRepositoryClaims": 0,
+  "revisited": {
+    "name": "Pi",
+    "repository": "https://github.com/earendil-works/pi",
+    "commit": "83692682f095528f8b71652ddacff7075e36e893",
+    "files": [
+      {
+        "path": "packages/coding-agent/src/core/tools/file-mutation-queue.ts",
+        "sha256": "33cb06ac9bcdf32c8b84d9d12e33be44c503a7670f668e003a3262cd34294d11",
+        "permalink": "https://github.com/earendil-works/pi/blob/83692682f095528f8b71652ddacff7075e36e893/packages/coding-agent/src/core/tools/file-mutation-queue.ts"
+      },
+      {
+        "path": "packages/coding-agent/src/core/tools/write.ts",
+        "sha256": "2ee0a438c24cf83fefd733e349d55a21aa5b633c18934b2c80759fcf14b6f297",
+        "permalink": "https://github.com/earendil-works/pi/blob/83692682f095528f8b71652ddacff7075e36e893/packages/coding-agent/src/core/tools/write.ts"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
+        "permalink": "https://github.com/earendil-works/pi/blob/83692682f095528f8b71652ddacff7075e36e893/LICENSE"
+      }
+    ],
+    "copyScope": "MIT file-mutation queue adapted to local-filesystem tools, including case normalization, permission snapshots, cancellation and independently verified file writes; no assets copied",
+    "licenseFiles": [
+      "apps/stage-tamagotchi/resources/licenses/pi-file-tools-license.txt",
+      "apps/stage-tamagotchi/resources/licenses/pi-file-tools-notice.txt"
+    ]
+  },
+  "documentationOnly": [
+    "https://docs.convai.com/api-docs/convai-playground/character-customization/agentic-actions",
+    "https://docs.inworld.ai/realtime/overview"
+  ],
+  "unavailableCheckout": {
+    "repository": "https://github.com/semperai/amica",
+    "reason": "Two clone attempts failed due to network transport; not counted as inspected or copied source"
+  }
+}

@@ -5,7 +5,7 @@ import { resolveAlicizationAutonomousDialogueFamilyClassification } from '../run
 export type AlicizationTaskPermissionMode = 'none' | 'implicit' | 'explicit'
 export type AlicizationTaskEffect = 'observe' | 'mutate' | 'high-impact'
 
-function readTaskMetadata(thread: AlicizationTaskThreadRecord) {
+function readTaskMetadata(thread: Pick<AlicizationTaskThreadRecord, 'metadata'>) {
   const metadataTask = thread.metadata?.task
   return metadataTask && typeof metadataTask === 'object'
     ? metadataTask as {
@@ -17,7 +17,7 @@ function readTaskMetadata(thread: AlicizationTaskThreadRecord) {
     : null
 }
 
-function hasAutonomousThreadOwnershipProof(thread: AlicizationTaskThreadRecord) {
+function hasAutonomousThreadOwnershipProof(thread: Pick<AlicizationTaskThreadRecord, 'origin' | 'turnId'>) {
   const autonomousDialogueFamily = resolveAlicizationAutonomousDialogueFamilyClassification({
     turnId: thread.turnId,
     origin: thread.origin,
@@ -29,7 +29,7 @@ function hasAutonomousThreadOwnershipProof(thread: AlicizationTaskThreadRecord) 
   }
 }
 
-export function resolveThreadPermissionMode(thread: AlicizationTaskThreadRecord): AlicizationTaskPermissionMode {
+export function resolveThreadPermissionMode(thread: Pick<AlicizationTaskThreadRecord, 'metadata' | 'origin' | 'turnId'>): AlicizationTaskPermissionMode {
   const metadataTask = readTaskMetadata(thread)
   if (metadataTask) {
     const permissionMode = metadataTask.permissionMode

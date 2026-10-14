@@ -262,6 +262,7 @@ function shouldForceRestrainedStopTailBodySuppression(input: {
 }
 
 export interface UseStageEmbodimentSpeechOptions {
+  onAudioPlaybackReceipt?: (event: { item: PlaybackItem<BrowserSpeechAudioSource>, status: 'started' | 'progress' | 'completed' | 'interrupted' | 'failed', playedMs: number, errorCode: string | null }) => void
   audioContext: AudioContext
   digitalLifeSpineDigest?: Readonly<Ref<AlicizationDigitalLifeSpineDigest | null | undefined>>
   mouthOpenSize: Ref<number>
@@ -3134,6 +3135,11 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     clearUpcomingSpeechSegment(normalizedSegmentId)
   }
 
+  function clearSpeechPreviews() {
+    previewCueCache.clear()
+    clearUpcomingSpeechSegment()
+  }
+
   function clearUpcomingSpeechSegment(segmentId?: string | null) {
     const normalizedSegmentId = segmentId?.trim() || null
     if (!normalizedSegmentId) {
@@ -4655,24 +4661,14 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
   async function playAudioSource(
     item: Parameters<PlaybackManagerOptions<BrowserSpeechAudioSource>['play']>[0],
     signal: AbortSignal,
-  ): Promise<void> {
-    if (!item.audio)
-      return
-
-    if (options.audioContext.state === 'suspended') {
-      try {
-        await options.audioContext.resume()
-      }
-      catch {
-        return
-      }
-    }
-
+  ): ReturnType<PlaybackManagerOptions<BrowserSpeechAudioSource>['play']> {
     let boundNode: AudioNode | undefined
     return playBrowserSpeechAudio({
       audio: item.audio,
       audioContext: options.audioContext,
       signal,
+      onAudioStarted: () => options.onAudioPlaybackReceipt?.({ item, status: 'started', playedMs: 0, errorCode: null }),
+      onAudioProgress: playedMs => options.onAudioPlaybackReceipt?.({ item, status: 'progress', playedMs, errorCode: null }),
       analyserNode: audioAnalyser.value,
       observerNodes: [lipSyncNode.value],
       onAudioNodeBound(node) {
@@ -4683,6 +4679,9 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
           playbackDurationMs: resolveBrowserSpeechAudioDurationMs(item.audio),
         }, node)
       },
+    }).then((result) => {
+      options.onAudioPlaybackReceipt?.({ item, ...result })
+      return result
     }).finally(() => {
       clearCurrentAudioSource(boundNode)
     })
@@ -4692,6 +4691,7 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     onStart: (listener: (event: { item: PlaybackItem<BrowserSpeechAudioSource>, startedAt: number }) => void) => void
     onEnd: (listener: (event: { item: PlaybackItem<BrowserSpeechAudioSource>, endedAt: number }) => void) => void
     onInterrupt: (listener: (event: { item: PlaybackItem<BrowserSpeechAudioSource>, reason: string, interruptedAt: number }) => void) => void
+    onFailure: (listener: (event: { item: PlaybackItem<BrowserSpeechAudioSource>, result: { errorCode: string | null }, failedAt: number }) => void) => void
   }) {
     playbackManager.onStart(({ item, startedAt }) => {
       markPlaybackStart({
@@ -4713,6 +4713,9 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         metadata: item.metadata,
         playbackDurationMs: resolveBrowserSpeechAudioDurationMs(item.audio),
       }, interruptedAt, reason)
+    })
+    playbackManager.onFailure(({ item, failedAt, result }) => {
+      markPlaybackStop({ ...item, metadata: item.metadata }, failedAt, result.errorCode ?? 'playback-failed')
     })
   }
 
@@ -5033,6 +5036,7 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     audioAnalyser: readonly(audioAnalyser),
     bindPlaybackManager,
     currentAudioSource: computed(() => speechPlaybackState.value.currentAudioSource ?? undefined),
+    clearSpeechPreviews,
     dispose,
     discardPreviewSpeechSegment,
     nowSpeaking: computed(() => speechRenderState.value.active),

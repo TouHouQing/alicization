@@ -1,0 +1,16 @@
+Pi file operation adaptation
+Copyright (c) 2025 Mario Zechner. MIT License.
+Full source license: pi-file-tools-license.txt.
+
+Source repository: https://github.com/earendil-works/pi
+Pinned commit: 83692682f095528f8b71652ddacff7075e36e893
+Source files:
+packages/coding-agent/src/core/tools/file-mutation-queue.ts
+packages/coding-agent/src/core/tools/write.ts
+
+file-mutation-queue.ts is adapted in src/main/services/airi/mcp-servers/.
+Changes include repository TypeScript style, Windows case normalization, and
+integration behind the existing Alicization path and permission policy.
+The local filesystem handler follows the injected-I/O and cancellation pattern;
+it adds approval snapshots, bounded text I/O, exclusive creation and byte checks.
+No Pi UI code, model asset or character persona was imported by this adaptation.

@@ -58,7 +58,7 @@ function normalizeMessageId(raw: unknown) {
   if (typeof raw !== 'string')
     return ''
 
-  return raw.trim()
+  return raw.trim().replace(/:gw\d+(?=:user$|$)/u, '')
 }
 
 function extractStableTurnId(raw: unknown) {

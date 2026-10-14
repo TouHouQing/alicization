@@ -791,7 +791,7 @@ describe('stage embodiment presence digital life authority', () => {
 
     expect(plannedPerformance).toEqual(expect.objectContaining({
       baseEmotion: 'thinking',
-      facialCue: 'soft-gaze',
+      facialCue: 'focus',
       actionCue: 'steady_focus',
       delivery: 'gentle',
       emphasis: 2,
@@ -806,7 +806,7 @@ describe('stage embodiment presence digital life authority', () => {
       emotion: 'thinking',
       performance: expect.objectContaining({
         baseEmotion: 'thinking',
-        facialCue: 'soft-gaze',
+        facialCue: 'focus',
         actionCue: 'steady_focus',
         delivery: 'gentle',
         emphasis: 2,

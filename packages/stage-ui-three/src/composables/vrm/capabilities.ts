@@ -4,7 +4,11 @@ import type {
   CharacterFacialCapability,
 } from '@proj-alicization/stage-shared'
 
+import type { VrmGestureRig } from './procedural-gestures'
+
 import { alicizationEmotionWhitelist, resolveStageEmbodimentVrmBaseExpressionName } from '@proj-alicization/stage-shared'
+
+import { supportsVrmProceduralGesture, vrmProceduralGestureKeys } from './procedural-gestures'
 
 export interface VrmPresetFacialCapabilityDefinition {
   key: string
@@ -196,8 +200,19 @@ export function resolveVrmBaseExpressionCandidates(
 export function resolveVrmBaseExpressionName(
   baseEmotion: string,
   preferredExpressionCandidates?: Iterable<string>,
+  supportedExpressionNames?: Iterable<string>,
 ) {
-  return resolveVrmBaseExpressionCandidates(baseEmotion, preferredExpressionCandidates)[0] ?? 'neutral'
+  const candidates = resolveVrmBaseExpressionCandidates(baseEmotion, preferredExpressionCandidates)
+  if (supportedExpressionNames) {
+    const supported = [...supportedExpressionNames]
+    for (const candidate of candidates) {
+      const resolved = resolveSupportedVrmExpressionName(supported, candidate)
+      if (resolved)
+        return resolved
+    }
+    return resolveSupportedVrmExpressionName(supported, 'neutral') || 'neutral'
+  }
+  return candidates[0] ?? 'neutral'
 }
 
 export function resolveVrmPresetFacialCapability(key?: string | null) {
@@ -232,6 +247,7 @@ export function supportsVrmVisemeLipSync(expressionNames: Iterable<string>) {
 export function buildVrmRuntimeCapabilitySnapshot(input: {
   expressionNames: Iterable<string>
   supportsLookAt: boolean
+  rig?: VrmGestureRig | null
 }): VrmResolvedRuntimeCapabilitySnapshot {
   const supportedExpressionNames = [...createVrmSupportedExpressionSet(input.expressionNames)]
     .sort((left, right) => left.localeCompare(right))
@@ -248,7 +264,10 @@ export function buildVrmRuntimeCapabilitySnapshot(input: {
       source: 'preset' as const,
       affectsMouth: item.affectsMouth,
     })),
-    supportedActions: vrmRuntimeActionCapabilities.map(item => ({ ...item })),
+    supportedActions: [
+      ...vrmRuntimeActionCapabilities.filter(item => !input.rig || item.key === 'idle_settle' || supportsVrmProceduralGesture(input.rig, item.key)).map(item => ({ ...item })),
+      ...vrmProceduralGestureKeys.filter(key => !vrmRuntimeActionCapabilities.some(item => item.key === key) && supportsVrmProceduralGesture(input.rig, key)).map(key => ({ key, label: key.replaceAll('_', ' '), description: `Procedural ${key.replaceAll('_', ' ')} gesture`, source: 'builtin' as const })),
+    ],
     supportsLookAt: input.supportsLookAt,
     supportsVisemeLipSync: supportsVrmVisemeLipSync(supportedExpressionNames),
     supportsMicroDynamics: true,

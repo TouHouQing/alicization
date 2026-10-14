@@ -17,6 +17,7 @@ import {
   electronMcpCallTool,
 } from '../../../shared/eventa'
 import { setAlicizationKillSwitchState } from './state'
+import { createLifeDatabaseTestPort } from './test-support/life-database-port'
 
 const invokeHandlers = new Map<unknown, (payload?: any) => Promise<any>>()
 const sandboxDirs: string[] = []
@@ -169,7 +170,7 @@ vi.mock('../../libs/bootkit/lifecycle', () => ({
 }))
 
 vi.mock('./db', () => ({
-  setupAlicizationDb: vi.fn(async () => dbStub),
+  setupAlicizationDb: vi.fn(async (_path: string, options?: { cardId?: string }) => ({ ...dbStub, ...createLifeDatabaseTestPort({ cardId: options?.cardId ?? 'default', values: metaStore, writeMeta: dbStub.setMetaValue }) })),
 }))
 
 const { setupAlicizationRuntime } = await import('./runtime')

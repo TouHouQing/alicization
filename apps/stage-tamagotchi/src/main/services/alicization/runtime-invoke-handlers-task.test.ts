@@ -42,12 +42,18 @@ function registerForTest(overrides: Record<string, unknown> = {}) {
     throw new Error('resume task thread handler was not registered')
 
   return {
-    handler: registration[1] as (payload: Record<string, unknown>) => Promise<unknown>,
+    rawHandler: registration[1],
+    handler: (payload: Record<string, unknown>) => registration[1](payload, { raw: { ipcMainEvent: { sender: { isDestroyed: () => false, getURL: () => 'file:///app/renderer/index.html' } } } }),
     resumeMainGatewayTaskThread,
   }
 }
 
 describe('runtime invoke handlers task recovery', () => {
+  it('cannot manufacture human approval without a desktop confirmation sender', async () => {
+    const { rawHandler, resumeMainGatewayTaskThread } = registerForTest()
+    expect(await rawHandler({ threadId: 'pending', expectedChannel: 'cli', expectedUpdatedAt: 100, actionKind: 'continue' })).toMatchObject({ ok: false, errorCode: 'TASK_THREAD_HUMAN_SURFACE_REQUIRED' })
+    expect(resumeMainGatewayTaskThread).not.toHaveBeenCalled()
+  })
   it('accepts only the narrow recovery payload and pins execution to the active card and primary session', async () => {
     const { handler, resumeMainGatewayTaskThread } = registerForTest()
 

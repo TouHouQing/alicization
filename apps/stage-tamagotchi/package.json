@@ -12,6 +12,7 @@
   "homepage": "https://github.com/TouHouQing/alicization",
   "main": "./out/main/index.js",
   "scripts": {
+    "life:acceptance": "tsx scripts/life-loop-acceptance.ts",
     "lint": "eslint --cache .",
     "typecheck:node": "node ../../node_modules/typescript/bin/tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
@@ -95,6 +96,7 @@
     "@xsai/stream-transcription": "0.4.0-beta.8",
     "@xsai/tool": "catalog:",
     "@xsai/utils-chat": "catalog:",
+    "acorn": "catalog:",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "alien-signals": "catalog:",

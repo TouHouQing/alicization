@@ -2,7 +2,6 @@ import type { AlicizationChatEntryIngest } from '@proj-alicization/stage-shared/
 
 export interface DesktopMouseCaptureStateInput {
   desktopInputReady?: boolean
-  startupInteractionActive?: boolean
   fadeOnHoverEnabled: boolean
   hearingDialogOpen: boolean
   insideControls: boolean
@@ -50,17 +49,16 @@ export interface DesktopVoiceTurnDispatchInput<TChatProvider = unknown> {
 }
 
 export function resolveDesktopMouseCaptureState(input: DesktopMouseCaptureStateInput) {
-  const shouldCaptureStagePixels = input.stageCapturePixel && !input.fadeOnHoverEnabled
-  const shouldCaptureMouse = input.desktopInputReady === false
-    || input.startupInteractionActive === true
-    || input.stagePaused
-    || input.hearingDialogOpen
+  const shouldCaptureStagePixels = input.stageCapturePixel && !input.fadeOnHoverEnabled && !input.stagePaused
+  const shouldCaptureMouse = input.hearingDialogOpen
     || input.stageInteractionActive
-    || input.insideControls
-    || input.insideDialogueOverlay
-    || input.insideStageRecoveryPanel
-    || input.emergencyPanelHovered
-    || shouldCaptureStagePixels
+    || (input.desktopInputReady !== false && (
+      input.insideControls
+      || input.insideDialogueOverlay
+      || input.insideStageRecoveryPanel
+      || input.emergencyPanelHovered
+      || shouldCaptureStagePixels
+    ))
 
   if (input.stagePaused || input.hearingDialogOpen) {
     return {

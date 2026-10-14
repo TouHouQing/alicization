@@ -1,5 +1,6 @@
 import type { Buffer } from 'node:buffer'
 
+import type { AlicizationInteractionIntent } from '@proj-alicization/stage-shared'
 import type { Message } from '@xsai/shared-chat'
 import type { NativeImage } from 'electron'
 
@@ -28,6 +29,7 @@ import type {
   AlicizationRuntimeDigest,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
+import type { AlicizationRuntimeReplyArtifact } from './turn-os/reply-artifact'
 import type { AlicizationVisibleReplyRealizationArtifact } from './visible-reply/facade'
 
 import {
@@ -60,6 +62,7 @@ import {
   normalizeAlicizationPerformancePayload,
 } from '../../../shared/eventa'
 import { normalizeClaimEvidenceLedger } from './claim-evidence-ledger'
+import { contextualExpression } from './contextual-expression'
 import { normalizeDialogueActKernel } from './dialogue-act-kernel'
 import { anchorsMateriallyConflict, resolveDialogueAnchorCoherence } from './dialogue-anchor-coherence'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
@@ -74,6 +77,7 @@ import {
   resolveAlicizationAutonomousDialogueOrigin,
   resolveAlicizationRuntimeMindTurnStructuredFormat,
 } from './runtime-structured-format'
+import { parseAlicizationRuntimeReplyArtifact } from './turn-os/reply-artifact'
 import {
   normalizeAlicizationVisibleReplyValidationStatus,
 } from './visible-reply/facade'
@@ -713,6 +717,7 @@ export function buildRuntimeGovernanceEmbodimentScript(input: {
 }
 
 export function buildAlicizationChatStreamEmbodimentMeta(input: {
+  interactionIntent?: AlicizationInteractionIntent | null
   governance?: unknown
   digitalLifeSpine?: AlicizationDialogueStructuredPayload['digitalLifeSpine']
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
@@ -752,10 +757,10 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
         input.explicitPerformance.baseEmotion,
       )
     : null
-  const residentSeededPerformance = resolveResidentFallbackDialoguePerformance(
+  const residentSeededPerformance = contextualExpression(resolveResidentFallbackDialoguePerformance(
     explicitPerformance ?? resolvedEmbodiment.performance,
     input.residentPerformance?.performance,
-  )
+  ), input.interactionIntent ?? null)!
   const embodiment = applyDialoguePerformanceSeedToEmbodiment(
     resolvedEmbodiment,
     residentSeededPerformance,
@@ -773,6 +778,8 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
     seed: buildAlicizationRuntimeEmbodimentSeed({
       decisionTraceId: governance.decisionTraceId ?? null,
       turnId: input.turnId ?? 'unknown-turn',
+      authoredActionCue: ['greet', 'celebrate', 'play'].includes(input.interactionIntent?.purpose ?? '') ? residentSeededPerformance.actionCue : explicitPerformance?.actionCue,
+      interactionIntent: input.interactionIntent,
       reply,
       performance: embodiment.performance,
       embodiment,
@@ -3195,6 +3202,8 @@ export function normalizeDialogueRespondedPayload(
   input: AlicizationConversationTurnInput,
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null,
   options?: {
+    interactionIntent?: AlicizationInteractionIntent | null
+    committedProviderReply?: AlicizationRuntimeReplyArtifact
     residentPerformance?: AlicizationResidentPerformanceSnapshot | null
     currentConsciousFrame?: AlicizationGovernanceCurrentConsciousFrameInput
   },
@@ -3207,7 +3216,12 @@ export function normalizeDialogueRespondedPayload(
   const normalizedCurrentConsciousFrame = coerceGovernanceCurrentConsciousFrame(
     options?.currentConsciousFrame,
   )
-  const structuredPayload = input.structured && typeof input.structured === 'object' ? input.structured : {}
+  const committedArtifact = options?.committedProviderReply ? parseAlicizationRuntimeReplyArtifact(options.committedProviderReply) : null
+  if (committedArtifact && (committedArtifact.visibleText !== input.assistantText || committedArtifact.visibleReplyExecution.providerMindExecuted !== true || committedArtifact.visibleReplyExecution.actualVisibleReplyAuthority !== 'llm-mind'))
+    throw new Error('Committed reply projection requires the exact approved provider artifact')
+  const structuredPayload = committedArtifact
+    ? { ...(input.structured && typeof input.structured === 'object' ? input.structured : {}), reply: committedArtifact.visibleText, format: 'mind-turn-v1', parsePath: 'provider-artifact', visibleReplyAuthority: 'llm-mind', visibleReplyRealization: committedArtifact.realization }
+    : input.structured && typeof input.structured === 'object' ? input.structured : {}
   const structuredEmbodimentScript = normalizeAlicizationEmbodimentScript(
     (structuredPayload as Record<string, unknown>).embodimentScript,
   )
@@ -3235,6 +3249,7 @@ export function normalizeDialogueRespondedPayload(
   })
   const providerContractFailed
     = !autonomousDialogueFamily.isAutonomous
+      && !committedArtifact
       && (
         contractFailed
         || rawFormat !== 'mind-turn-v1'
@@ -3254,9 +3269,11 @@ export function normalizeDialogueRespondedPayload(
     hasGovernance: Boolean(governance),
     origin: input.origin,
   })
-  const format = providerContractFailed
-    ? 'fallback-v1'
-    : formatResolution.format
+  const format = committedArtifact
+    ? 'mind-turn-v1'
+    : providerContractFailed
+      ? 'fallback-v1'
+      : formatResolution.format
   const visibleReplyAuthority = readStringValue((structuredPayload as Record<string, unknown>).visibleReplyAuthority).trim()
   const proactive = normalizeProactiveMetadata(
     (structuredPayload as Record<string, unknown>).proactive,
@@ -3393,6 +3410,8 @@ export function normalizeDialogueRespondedPayload(
       decisionTraceId: governance?.decisionTraceId ?? null,
       turnId,
       reply,
+      interactionIntent: options?.interactionIntent,
+      authoredActionCue: clampedPerformance.performance.actionCue,
       performance: embodiment.performance,
       embodiment,
       speechTimeline: normalizedProvidedSpeechTimeline,
@@ -3431,9 +3450,11 @@ export function normalizeDialogueRespondedPayload(
     speechTimeline: authority.speechTimeline,
     digitalLife,
   })
-  const isFallback = autonomousDialogueFamily.isAutonomous
-    ? contractFailed || parsePath !== 'json'
-    : providerContractFailed
+  const isFallback = committedArtifact
+    ? false
+    : autonomousDialogueFamily.isAutonomous
+      ? contractFailed || parsePath !== 'json'
+      : providerContractFailed
   const origin = autonomousDialogueFamily.isAutonomous
     ? autonomousDialogueFamily.canonicalOrigin ?? resolveAlicizationAutonomousDialogueOrigin('proactive')
     : 'user-turn'

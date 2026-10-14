@@ -143,6 +143,12 @@ describe('alicization chat failure surface', () => {
     })
   })
 
+  it('classifies gateway concurrency exhaustion without HTTP status as a rate limit', () => {
+    expect(extractAlicizationProviderRequestFailure(new Error(
+      'Error from server: {"error":{"message":"Concurrency limit reached","code":"gateway_concurrency_limit"}}',
+    ))).toEqual({ status: 429, code: 'gateway_concurrency_limit', message: 'Concurrency limit reached' })
+  })
+
   it('redacts credentials and user input from Provider request diagnostics', () => {
     const failure = extractAlicizationProviderRequestFailure(new Error(
       'Remote sent 400 response: {"error":{"message":"Authorization: Bearer secret-token api_key=private-key user_input=private-message","type":"invalid_request_error"}}',

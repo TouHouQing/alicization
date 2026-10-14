@@ -3,8 +3,9 @@ import { IconStatusItem, RippleGrid, Section } from '@proj-alicization/stage-ui/
 import { useAnalytics, useScrollToHash } from '@proj-alicization/stage-ui/composables'
 import { useRippleGridState } from '@proj-alicization/stage-ui/composables/use-ripple-grid-state'
 import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
+import { useSessionStorage } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { computed, reactive, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
@@ -22,8 +23,22 @@ const {
 
 type ProviderBlockId = 'chat' | 'speech' | 'transcription'
 
-const expandedProviderBlocks = reactive<Record<ProviderBlockId, boolean>>({
-  chat: false,
+const builtinProviderRoutes: Record<string, string> = {
+  'speech-noop': '/settings/modules/speech',
+  'app-local-audio-speech': '/settings/modules/speech',
+  'app-local-audio-transcription': '/settings/modules/hearing',
+}
+
+async function prepareProvider(provider: { id: string, category: string }) {
+  trackProviderClick(provider.id, provider.category)
+  if (builtinProviderRoutes[provider.id]) {
+    providersStore.markProviderAdded(provider.id)
+    await providersStore.validateProvider(provider.id)
+  }
+}
+
+const expandedProviderBlocks = useSessionStorage<Record<ProviderBlockId, boolean>>('ui/provider-catalog/expanded', {
+  chat: true,
   speech: false,
   transcription: false,
 })
@@ -35,22 +50,22 @@ const providerBlocks = computed(() => {
     {
       id: 'chat' as const,
       icon: 'i-solar:chat-square-like-bold-duotone',
-      title: 'Chat',
-      description: t('settings.providers.explained.chat'),
+      title: t('settings.pages.providers.categories.chat'),
+      description: t('settings.pages.providers.explained.chat'),
       providers: allChatProvidersMetadata.value,
     },
     {
       id: 'speech' as const,
       icon: 'i-solar:user-speak-rounded-bold-duotone',
-      title: 'Speech',
-      description: t('settings.providers.explained.Speech'),
+      title: t('settings.pages.providers.categories.speech'),
+      description: t('settings.pages.providers.explained.Speech'),
       providers: allAudioSpeechProvidersMetadata.value,
     },
     {
       id: 'transcription' as const,
       icon: 'i-solar:microphone-3-bold-duotone',
-      title: 'Transcription',
-      description: t('settings.providers.explained.Transcription'),
+      title: t('settings.pages.providers.categories.transcription'),
+      description: t('settings.pages.providers.explained.Transcription'),
       providers: allAudioTranscriptionProvidersMetadata.value,
     },
   ].map((block) => {
@@ -71,9 +86,9 @@ watch(
   () => route.hash,
   (hash) => {
     const blockId = hash.startsWith('#') ? hash.slice(1) as ProviderBlockId : undefined
-    if (!blockId || !(blockId in expandedProviderBlocks))
+    if (!blockId || !(blockId in expandedProviderBlocks.value))
       return
-    expandedProviderBlocks[blockId] = true
+    expandedProviderBlocks.value[blockId] = true
   },
   { immediate: true },
 )
@@ -104,7 +119,7 @@ useScrollToHash(() => route.hash, {
           <template #chat>
             <div bg="primary-500/10 dark:primary-800/25" inline-flex items-center gap-1 rounded-lg px-2 py-0.5 translate-y="[0.25lh]">
               <div i-solar:chat-square-like-bold-duotone />
-              <strong class="font-normal">Chat</strong>
+              <strong class="font-normal">{{ t('settings.pages.providers.categories.chat') }}</strong>
             </div>
           </template>
         </i18n-t>
@@ -117,9 +132,9 @@ useScrollToHash(() => route.hash, {
       :key="block.id"
     >
       <Section
+        v-model:expand="expandedProviderBlocks[block.id]"
         :title="block.title"
         :icon="block.icon"
-        :expand="expandedProviderBlocks[block.id]"
       >
         <div :class="['flex', 'flex-col', 'gap-4']">
           <p :class="['text-sm', 'text-neutral-400', 'sm:text-base', 'dark:text-neutral-500']">
@@ -139,9 +154,9 @@ useScrollToHash(() => route.hash, {
                 :icon="provider.icon"
                 :icon-color="provider.iconColor"
                 :icon-image="provider.iconImage"
-                :to="`/settings/providers/${provider.category}/${provider.id}`"
+                :to="builtinProviderRoutes[provider.id] || `/settings/providers/${provider.category}/${provider.id}`"
                 :configured="provider.configured"
-                @click="trackProviderClick(provider.id, provider.category)"
+                @click="prepareProvider(provider)"
               />
             </template>
           </RippleGrid>

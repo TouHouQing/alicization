@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { FieldInput } from '@proj-alicization/ui'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
   placeholder?: string
@@ -9,13 +10,14 @@ const props = defineProps<{
 }>()
 
 const modelValue = defineModel<string>({ required: true })
+const { t } = useI18n()
 </script>
 
 <template>
   <FieldInput
     v-model="modelValue"
-    :label="props.label || 'Base URL'"
-    :description="props.description || (props.required ? 'Base URL' : 'Custom base URL (optional)')"
+    :label="props.label || t('settings.dialogs.onboarding.baseUrl')"
+    :description="props.description || t('settings.dialogs.onboarding.baseUrlHelp')"
     :placeholder="props.placeholder"
     :required="props.required"
     type="text"

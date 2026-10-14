@@ -15,6 +15,7 @@ import {
   resolveAlicizationPersonaKernel,
 } from '@proj-alicization/stage-shared'
 
+import { buildLifeExpressionOutputContract } from './life-expression-output-contract'
 import {
   extractCustomDirectivesFromMessages,
   extractHostNameFromMessages,
@@ -191,6 +192,7 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
     personaKernel?: AlicizationPersonaKernelSnapshot | null
   }) {
     const blocks: string[] = []
+    blocks.push(buildLifeExpressionOutputContract())
 
     const hostName = sanitizeText(input.hostName, '')
     if (hostName)

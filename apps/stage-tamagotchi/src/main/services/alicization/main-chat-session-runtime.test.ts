@@ -804,6 +804,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       'persona-kernel',
       'tool-registry',
       'execution-capabilities',
+      'tool:mcp-list-tools',
       'runtime-surface',
     ])
     expect(result.sessionTrace.phaseOrder).toEqual(result.runtimeSurface.trace.sessionPhases)
@@ -6311,7 +6312,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           expect.objectContaining({
             sourceTurnIds: ['turn-provider-memory-evidence:user'],
             kind: 'preference',
-            summary: '用户更喜欢先说结论，再给必要细节。',
+            summary: '用户喜欢先说结论，再给必要细节。',
             allowTraining: false,
             memoryEvidence: expect.objectContaining({
               version: 'working-memory-long-term-evidence-v1',
@@ -6323,7 +6324,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         expect.objectContaining({
           sourceTurnIds: ['turn-provider-memory-evidence:user'],
           kind: 'preference',
-          summary: '用户更喜欢先说结论，再给必要细节。',
+          summary: '用户喜欢先说结论，再给必要细节。',
           status: 'pending-cleaning',
           allowTraining: false,
         }),
@@ -6413,7 +6414,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     ])
   })
 
-  it('persists a plain-text preference through the SQLite queue and recalls it on the next turn', async () => {
+  it.each([
+    { name: 'plain text', userText: '请记住，我最近更喜欢用中文交流，回答尽量直接。', lowSalienceProvider: false },
+    { name: 'mixed question with demoted provider metadata', userText: '请记住，我最近更喜欢用中文交流，回答尽量直接。你喜欢什么样的交流方式？', lowSalienceProvider: true },
+  ])('persists $name preference through the SQLite queue and recalls it on the next turn', async ({ userText, lowSalienceProvider }) => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'alicization-main-chat-memory-closure-'))
     const db = await setupAlicizationDb(userDataPath, {
       cardId: 'default',
@@ -6435,7 +6439,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       })
       const firstMessages: Message[] = [{
         role: 'user',
-        content: '请记住，我最近更喜欢用中文交流，回答尽量直接。',
+        content: userText,
       }]
       const firstTurn = await runtime.prepareExecution({
         payload: {
@@ -6449,6 +6453,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
       const committed = await firstTurn.commitMemoryWriteIntent?.({
         assistantText: '记住了。之后我会优先用中文交流，回答尽量直接。',
+        ...(lowSalienceProvider ? { memoryEvidence: { version: 'provider-memory-evidence-v1' as const, kind: 'preference' as const, summary: '用户更喜欢用中文交流。', reason: '用户表达偏好。', evidenceSnippets: ['请记住，我最近更喜欢用中文交流，回答尽量直接。'], salience: 0.55, sensitivity: 'personal' as const, confidence: 0.99 } } : {}),
       })
 
       expect(committed?.memoryWriteItems).toEqual([
@@ -6488,7 +6493,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         expect.arrayContaining([
           expect.objectContaining({
             role: 'user',
-            text: '请记住，我最近更喜欢用中文交流，回答尽量直接。',
+            text: userText,
           }),
         ]),
       )

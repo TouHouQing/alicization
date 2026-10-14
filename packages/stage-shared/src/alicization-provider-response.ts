@@ -135,7 +135,7 @@ export function normalizeAlicizationProviderMemoryEvidence(
     || record.salience > 1
     || typeof record.confidence !== 'number'
     || !Number.isFinite(record.confidence)
-      || record.confidence < 0
+    || record.confidence < 0
     || record.confidence > 1
   ) {
     return null

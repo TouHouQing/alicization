@@ -2,10 +2,11 @@ import type sqlite3 from 'sqlite3'
 
 import type { MemorySemanticScaleJobExecutionInput } from './memory-semantic-scale-job-runtime'
 
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { chmod, mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { platform } from 'node:process'
 
 import sqlite from 'sqlite3'
 
@@ -155,11 +156,10 @@ function attachRuntime(
   },
 ) {
   const writeQueue = input.writeQueue ?? createWriteQueue()
-  let uuid = 0
   const runtime = createMemorySemanticScaleJobRuntime({
     database: harness.database,
     now: input.now ?? (() => Date.now()),
-    randomUUID: () => `file-semantic-job-uuid-${++uuid}`,
+    randomUUID,
     run: async (_database, sql, params = []) => input.run
       ? await input.run(sql, params)
       : await harness.run(sql, params),
@@ -269,8 +269,8 @@ describe('memory semantic scale file recovery journal', () => {
 
     const markerFiles = await readdir(recoveryJournalDir)
     expect(markerFiles).toHaveLength(1)
-    expect(permissions((await stat(recoveryJournalDir)).mode)).toBe(0o700)
-    expect(permissions((await stat(join(recoveryJournalDir, markerFiles[0]!))).mode)).toBe(0o600)
+    expect(permissions((await stat(recoveryJournalDir)).mode)).toBe(platform === 'win32' ? 0o666 : 0o700)
+    expect(permissions((await stat(join(recoveryJournalDir, markerFiles[0]!))).mode)).toBe(platform === 'win32' ? 0o666 : 0o600)
     await firstHarness.close()
 
     failAllJobUpdates = false
@@ -404,7 +404,7 @@ describe('memory semantic scale file recovery journal', () => {
     await worker
   })
 
-  it('atomically quarantines corrupt, hash-mismatched, and identity-mismatched markers during concurrent initialize', async () => {
+  it.each(Array.from({ length: 10 }, (_, index) => index))('atomically quarantines corrupt, hash-mismatched, and identity-mismatched markers during concurrent initialize (%s)', async () => {
     const rootDir = await createSandboxDir()
     const databasePath = join(rootDir, 'alicization.sqlite')
     const recoveryJournalDir = join(dirname(databasePath), '.alicization-memory-semantic-scale-stop-recovery')
@@ -472,14 +472,14 @@ describe('memory semantic scale file recovery journal', () => {
       status: 'queued',
       attemptCount: 0,
     })
-    expect(permissions((await stat(recoveryJournalDir)).mode)).toBe(0o700)
+    expect(permissions((await stat(recoveryJournalDir)).mode)).toBe(platform === 'win32' ? 0o666 : 0o700)
     const quarantineDir = join(recoveryJournalDir, 'quarantine')
-    expect(permissions((await stat(quarantineDir)).mode)).toBe(0o700)
+    expect(permissions((await stat(quarantineDir)).mode)).toBe(platform === 'win32' ? 0o666 : 0o700)
     const quarantineEntries = await readdir(quarantineDir)
     const quarantinedMarkers = quarantineEntries.filter(name => name.endsWith('.invalid'))
     const auditFiles = quarantineEntries.filter(name => name.endsWith('.error.json'))
     expect(quarantinedMarkers).toHaveLength(3)
-    expect(auditFiles).toHaveLength(3)
+    expect(auditFiles.sort()).toEqual(quarantinedMarkers.map(name => `${name}.error.json`).sort())
     const auditMessages = await Promise.all(auditFiles.map(async name =>
       await import('node:fs/promises').then(fs =>
         fs.readFile(join(quarantineDir, name), 'utf8'))))
@@ -487,7 +487,7 @@ describe('memory semantic scale file recovery journal', () => {
     expect(auditMessages.join('\n')).toContain('file name hash mismatch')
     expect(auditMessages.join('\n')).toContain('identity mismatch')
     for (const name of [...quarantinedMarkers, ...auditFiles])
-      expect(permissions((await stat(join(quarantineDir, name))).mode)).toBe(0o600)
+      expect(permissions((await stat(join(quarantineDir, name))).mode)).toBe(platform === 'win32' ? 0o666 : 0o600)
     expect((await readdir(recoveryJournalDir))
       .filter(name => /^[a-f0-9]{64}\.json$/.test(name))).toEqual([])
 

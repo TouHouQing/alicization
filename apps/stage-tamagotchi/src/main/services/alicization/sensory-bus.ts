@@ -4,7 +4,7 @@ import os from 'node:os'
 
 import { exec } from 'node:child_process'
 import { readdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { posix } from 'node:path'
 import { platform } from 'node:process'
 
 const defaultTickMs = 60_000
@@ -233,10 +233,10 @@ export function createAlicizationSensoryBus(options: AlicizationSensoryBusOption
     if (!batteryDirName)
       return null
 
-    const batteryDir = join('/sys/class/power_supply', batteryDirName)
+    const batteryDir = posix.join('/sys/class/power_supply', batteryDirName)
     const [capacity, status] = await Promise.all([
-      readTextFile(join(batteryDir, 'capacity')),
-      readTextFile(join(batteryDir, 'status')),
+      readTextFile(posix.join(batteryDir, 'capacity')),
+      readTextFile(posix.join(batteryDir, 'status')),
     ])
 
     return parseLinuxBatteryOutput(capacity, status)

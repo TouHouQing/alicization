@@ -44,6 +44,24 @@ describe('alicization presence dispatcher', () => {
     setActivePinia(createPinia())
   })
 
+  it('shows infrastructure diagnostics to observers without voicing or performing them as the character', async () => {
+    const store = useAlicizationPresenceDispatcherStore()
+    const applyPerformance = vi.fn()
+    const speak = vi.fn()
+    const observer = vi.fn()
+    store.registerLive2DController({ applyPerformance })
+    store.registerTTSController({ speak })
+    store.onDialogueResponded(observer)
+    const payload = createPayload({ structured: { thought: '', emotion: 'concerned', reply: '模型输出格式异常', performance: { baseEmotion: 'concerned', emotion: 'concerned', delivery: 'calm', emphasis: 0, facialCue: null, actionCue: null }, formatLane: 'infra-fallback', visibleReplyAuthority: 'non-human-authored-blocked' }, isFallback: true })
+    await store.dispatchDialogueResponded(payload)
+    expect(observer).toHaveBeenCalledWith(payload)
+    expect(speak).not.toHaveBeenCalled()
+    expect(applyPerformance).not.toHaveBeenCalled()
+    await store.dispatchDialogueResponded(createPayload({ turnId: 'next-valid-turn' }))
+    expect(speak).toHaveBeenCalledTimes(1)
+    expect(applyPerformance).toHaveBeenCalledTimes(1)
+  })
+
   it('deduplicates same turnId and dispatches only once', async () => {
     const store = useAlicizationPresenceDispatcherStore()
     const applyPerformance = vi.fn()
@@ -88,10 +106,10 @@ describe('alicization presence dispatcher', () => {
     }))
 
     expect(applyPerformance).toBeCalledWith(expect.objectContaining({
-      baseEmotion: 'thinking',
-      emotion: 'thinking',
-      facialCue: 'frown',
-      actionCue: 'inspect_focus',
+      baseEmotion: 'neutral',
+      emotion: 'neutral',
+      delivery: 'energetic',
+      emphasis: 2,
     }), expect.objectContaining({
       turnId: 'turn-unknown-emotion',
       structured: expect.objectContaining({
@@ -102,18 +120,17 @@ describe('alicization presence dispatcher', () => {
           version: 'speech-timeline-v1',
           segments: expect.arrayContaining([
             expect.objectContaining({
-              actionWindow: 'segment-start',
-              beatWeight: 0.48,
+              emotion: 'neutral',
             }),
           ]),
         }),
-        emotion: 'thinking',
+        emotion: 'neutral',
         rawEmotion: 'super-excited',
       }),
     }))
     expect(speak).toBeCalledWith('我会克制表达', expect.objectContaining({
-      baseEmotion: 'thinking',
-      emotion: 'thinking',
+      baseEmotion: 'neutral',
+      emotion: 'neutral',
     }), expect.any(Object))
     expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
       level: 'warning',

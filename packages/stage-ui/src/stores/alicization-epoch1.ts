@@ -17,14 +17,7 @@ import {
   getMemoryStats,
   runMemoryPrune,
 } from './alicization-memory'
-import { computePersonalityDelta } from './alicization-personality'
 import { useChatOrchestratorStore } from './chat'
-
-function clamp(value: number, min: number, max: number) {
-  if (Number.isNaN(value))
-    return min
-  return Math.min(max, Math.max(min, value))
-}
 
 function normalizeBooleanEnv(value: unknown) {
   if (typeof value !== 'string')
@@ -296,24 +289,12 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
     }
 
     const snapshot = await getAlicizationBridge().bootstrap()
-    soul.value = snapshot
-    needsGenesis.value = snapshot.needsGenesis
-    if (!snapshot.needsGenesis)
-      genesisConflictCandidate.value = null
-    if (snapshot.needsGenesis)
-      setupGenesisPolling()
-    else
-      stopGenesisPolling()
-    organicMemorySnapshot.value = {
-      ...organicMemorySnapshot.value,
-      hostAttitude: snapshot.frontmatter.host_attitude,
-      coreIncarnation: snapshot.frontmatter.core_incarnation,
-    }
+    setSoulSnapshot(snapshot)
   }
 
   async function initializeGenesis(payload: AlicizationGenesisInput) {
     if (!hasAlicizationBridge())
-      return
+      throw new Error('Alicization desktop runtime is not connected.')
 
     const result = await getAlicizationBridge().initializeGenesis(payload)
     const resolvedNeedsGenesis = result.soul.needsGenesis
@@ -350,7 +331,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
     const updated = await getAlicizationBridge().updateSoul({
       expectedRevision: soul.value.revision,
       content,
-    }).catch(() => null)
+    })
 
     if (updated)
       setSoulSnapshot(updated)
@@ -372,7 +353,6 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
 
     hookDisposers.push(
       chatOrchestrator.onChatTurnComplete(async ({ output }, context) => {
-        const userText = parseUserText(context.message.content)
         const structured = output.structured
         const turnId = output.id ?? context.message.id ?? nanoid()
         const sessionId = context.sessionId ?? 'unknown-session'
@@ -446,68 +426,9 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
           return
 
         structured.sentimentConfidence = calibratedConfidence
-        const confidence = calibratedConfidence
-        if (confidence < 0.25) {
-          lastAssistantEmotion = structured.emotion
-          return
-        }
-        const userSignal = estimateLexicalSentiment(userText)
-        const modelScore = clamp(structured.userSentimentScore ?? 0, -1, 1)
-        const weightedScore = clamp(userSignal * 0.75 + modelScore * 0.25, -1, 1)
-        const confidenceDecay = confidence < 0.35
-          ? clamp(confidence / 0.35, 0, 1)
-          : 1
-        const effectiveScore = clamp(weightedScore * confidenceDecay, -1, 1)
-
-        await appendAlicizationAuditLog({
-          level: 'info',
-          category: 'alicization.personality',
-          action: 'drift-signal',
-          message: 'Computed autonomous personality drift signal from user-first sentiment weighting.',
-          details: {
-            sessionId,
-            turnId,
-            userSignal,
-            modelScore,
-            effectiveScore,
-            confidence,
-          },
-        })
-
-        const delta = computePersonalityDelta(effectiveScore, confidence)
-        if (
-          Math.abs(delta.obedience) <= 0.0001
-          && Math.abs(delta.liveliness) <= 0.0001
-          && Math.abs(delta.sensibility) <= 0.0001
-        ) {
-          lastAssistantEmotion = structured.emotion
-          return
-        }
-
-        const nextSoul = await getAlicizationBridge().updatePersonality({
-          expectedRevision: soul.value?.revision,
-          reason: 'epoch1-sentiment-drift',
-          deltas: delta,
-        }).catch(() => null)
-
-        if (nextSoul) {
-          soul.value = nextSoul
-          await appendAlicizationAuditLog({
-            level: 'notice',
-            category: 'personality-drift',
-            action: 'personality-drift-updated',
-            message: 'Applied autonomous multi-axis personality drift from structured turn sentiment.',
-            details: {
-              sessionId,
-              turnId,
-              userSignal,
-              modelScore,
-              effectiveScore,
-              confidence,
-              delta,
-            },
-          })
-        }
+        // A host's mood is an emotional experience, not evidence for changing
+        // enduring traits. Durable growth belongs to the main-process persona
+        // development and review pipeline; the renderer only records emotion.
         lastAssistantEmotion = structured.emotion
       }),
     )
@@ -526,6 +447,10 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
   }
 
   function setSoulSnapshot(snapshot: AlicizationSoulSnapshot) {
+    // A bootstrap response may arrive after a newer spontaneous notification.
+    // Compare only snapshots of the same identity file; card changes stay valid.
+    if (snapshot.soulPath && snapshot.soulPath === soul.value?.soulPath && snapshot.revision < soul.value.revision)
+      return
     soul.value = snapshot
     needsGenesis.value = snapshot.needsGenesis
     if (!snapshot.needsGenesis)

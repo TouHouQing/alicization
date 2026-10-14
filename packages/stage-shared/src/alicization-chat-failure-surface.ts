@@ -432,6 +432,7 @@ function parseEmbeddedJsonObject(raw: string) {
 function inferProviderStatusFromCode(code: string | null) {
   switch (code?.trim().toLowerCase()) {
     case 'rate_limit_error':
+    case 'gateway_concurrency_limit':
     case 'rate_limit':
     case 'too_many_requests':
       return 429

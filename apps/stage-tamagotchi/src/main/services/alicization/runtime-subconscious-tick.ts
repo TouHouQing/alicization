@@ -7,6 +7,7 @@ import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
 import { resolveAlicizationEmotionalTransitionDecay } from './emotional-ledger'
 import { adjustProactiveStyleFromHostPersonModel, buildHostSocialContexts } from './host-social-guidance'
 import { resolveHumanlikeMemoryRecallSeedFromEventHistory } from './humanlike-memory-recall-seed'
+import { applyLifeDailyNeedsEffects } from './life-daily-needs'
 import { buildAlicizationPresenceExpression } from './presence-expression'
 import { applyProactiveMemoryBoundaryRestraint } from './proactive-memory-boundary'
 import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
@@ -406,12 +407,6 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     emitVisualPresencePulse,
     buildPresencePulsePayload,
     buildAgentRuntimeAuditSnapshot,
-    queueSoulMutation,
-    parseSoul,
-    clamp01,
-    syncPersonalityBaselineInBody,
-    snapshotFromContent,
-    toSoulContent,
     normalizeCustomDirectives,
     buildProactiveRecallSeed,
     buildVisualRecallSeed,
@@ -439,6 +434,9 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     persistSubconsciousState,
     getActiveSelfRevisionStatePatch,
     generatePresenceExpression,
+    reserveLifeInitiative,
+    runPersonalProject,
+    hasPendingPersonalProposal,
   } = options as any
   function resolveDeferredAutonomyContinuitySignal(input: {
     now: number
@@ -480,6 +478,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     assertNotAborted()
     let proactiveLoopState = await ensureProactiveLoopState(activeCardId, { signal: options.signal })
     assertNotAborted()
+    await alicizationDb.resumeLifeEvidenceCleanup()
     const now = Date.now()
     const backgroundAgentTurn = await openAgentTurn({
       cardId: activeCardId,
@@ -493,7 +492,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     assertNotAborted()
     proactiveLoopState = await settleExpiredPendingProactiveOutcomes(activeCardId, now, `subconscious-tick:${trigger}`, { signal: options.signal })
     assertNotAborted()
-    const elapsedMinutes = Math.max(1 / 6, (now - state.lastTickAt) / 60_000)
+    const elapsedMinutes = Math.max(0, Math.min(30, (now - state.lastTickAt) / 60_000))
     const sensorySnapshot = getSensorySnapshot()
     const cpuUsage = Number(sensorySnapshot?.sample?.cpu?.usagePercent ?? 0)
     let perceptionState = await ensurePerceptionState(activeCardId, { signal: options.signal })
@@ -520,7 +519,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     const idleLikely = interruptionContext.inputActivity === 'idle'
       || (interruptionContext.inputActivity !== 'active' && cpuUsage <= 10)
 
-    const nextState = {
+    let nextState = {
       ...state,
       boredom: clampNeed(state.boredom + elapsedMinutes * ((cpuUsage >= 70 || interruptionContext.fullscreenLikely) ? 2.2 : 1.2)),
       loneliness: clampNeed(state.loneliness + elapsedMinutes * (idleLikely ? 2.4 : 0.8)),
@@ -533,8 +532,31 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     const killSwitchSuspended
       = isAlicizationKillSwitchSuspended()
         || getAlicizationCardKillSwitchState(activeCardId) === 'SUSPENDED'
+    const attentionDecision = await reserveLifeInitiative({ cardId: activeCardId, now, force: trigger === 'force', suspended: killSwitchSuspended, cpuUsage, needs: nextState, fullscreen: interruptionContext.fullscreenLikely === true, foreground: { processName: interruptionContext.foregroundWindow?.processName ?? null, title: interruptionContext.foregroundWindow?.title ?? null } }, options.signal)
+    nextState = applyLifeDailyNeedsEffects(nextState, attentionDecision.dailyNeedsEffects ?? [])
+    if (!attentionDecision.allowed) {
+      // Explicit due responsibilities and execution callbacks retain their own
+      // delivery rules while ordinary background cognition can remain quiet.
+      await processPendingExecutionDeliveriesForCurrentCard(trigger, backgroundAgentTurn, { signal: options.signal })
+      await persistSubconsciousState(activeCardId, nextState, { signal: options.signal })
+      await appendAuditLog({ level: 'info', category: 'initiative', action: 'held', message: attentionDecision.reason, payload: { cardId: activeCardId, trigger } })
+      return { proactive: false, outwardProactiveTriggered: false, suppressed: true }
+    }
     const hostActive = interruptionContext.inputActivity === 'active'
       || (typeof interruptionContext.idleSeconds === 'number' && interruptionContext.idleSeconds < 5 * 60)
+    // A small application-owned creative choice can proceed silently while the
+    // host works. Foreground turns, resources and policy retain their fences.
+    if ((!hostActive || await hasPendingPersonalProposal?.()) && !interruptionContext.fullscreenLikely) {
+      const activity = await runPersonalProject(activeCardId, options.signal)
+      assertNotAborted()
+      await appendAuditLog({ level: 'info', category: 'initiative', action: 'personal-activity', message: activity.status, payload: { cardId: activeCardId, ...activity } })
+    }
+    if (attentionDecision.holdOrdinaryOutreach) {
+      await processPendingExecutionDeliveriesForCurrentCard(trigger, backgroundAgentTurn, { signal: options.signal })
+      await persistSubconsciousState(activeCardId, nextState, { signal: options.signal })
+      await appendAuditLog({ level: 'info', category: 'initiative', action: 'remembered-space', message: attentionDecision.relationshipChoice.reason, payload: { cardId: activeCardId, evidence: attentionDecision.relationshipChoice.sourceEvidence, silentPersonalActivityAvailable: true } })
+      return { proactive: false, outwardProactiveTriggered: false, suppressed: true }
+    }
     const lateNightState = updateLateNightActivityState(proactiveLoopState, {
       now,
       hostActive,
@@ -596,7 +618,6 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     const currentForegroundPid = Number(
       interruptionContext.foregroundWindow?.pid
       ?? sensorySnapshot?.sample?.foregroundWindow?.pid
-      ?? visualPresenceState.currentScene?.target?.pid
       ?? 0,
     )
     const shouldProbeForegroundDurability
@@ -610,7 +631,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         )
     if (!durabilityPulse && shouldProbeForegroundDurability) {
       const pidAlive = await probeForegroundPidLiveness(currentForegroundPid)
-      if (!pidAlive) {
+      if (pidAlive === false) {
         durabilityPulse = {
           kind: 'process-gone',
           source: 'foreground-app',
@@ -621,7 +642,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
           title: interruptionContext.foregroundWindow?.title,
         }
       }
-      else {
+      else if (pidAlive === true) {
         const timeoutStreak = updateForegroundProbeTimeoutStreak(currentForegroundPid, interruptionContext.foregroundProbeTimedOut === true)
         if (timeoutStreak >= 2) {
           durabilityPulse = {
@@ -1056,24 +1077,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       const { hardSuppressed } = entrySurface
       if (hardSuppressed) {
         suppressed = true
-        const obediencePenalty = decision.reasonCodes.includes('busy-host') || decision.reasonCodes.includes('fullscreen-host')
-          ? -0.01
-          : 0
-        if (obediencePenalty !== 0) {
-          await queueSoulMutation(async (current: any) => {
-            const parsed = parseSoul(current.content)
-            const nextPersonality = {
-              ...parsed.frontmatter.personality,
-              obedience: clamp01(parsed.frontmatter.personality.obedience + obediencePenalty),
-            }
-            const nextFrontmatter = {
-              ...parsed.frontmatter,
-              personality: nextPersonality,
-            }
-            const syncedBody = syncPersonalityBaselineInBody(parsed.body, nextPersonality)
-            return snapshotFromContent(toSoulContent(nextFrontmatter, syncedBody))
-          })
-        }
+        // Busy/fullscreen withholding is a transient initiative decision.
+        // It provides no evidence for changing her enduring personality.
         await appendAuditLog({
           level: 'notice',
           category: 'alicization.subconscious',
@@ -1098,7 +1103,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             feedbackBias: decision.feedbackBias,
             perception: perceptionSignals,
             runtimeDigest: proactiveRuntimeSnapshot,
-            obediencePenalty,
+            personalityMutation: false,
           },
         })
       }

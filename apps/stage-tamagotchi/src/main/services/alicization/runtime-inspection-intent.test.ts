@@ -55,6 +55,17 @@ function createInspectionCarryState(): AlicizationPerceptionState {
 }
 
 describe('runtime inspection intent', () => {
+  it('releases stale screen attention for a bounded file action with a hypothetical confirmation reference', () => {
+    const runtime = createInspectionIntentRuntime()
+    const userText = '请写入 C:/Users/QA/Desktop/proof.txt。如果我在确认界面拒绝，就停止；如实告诉我结果。'
+    const visualPresenceState = createDefaultVisualPresenceState(2000)
+    visualPresenceState.watchMode = 'invited-inspection'
+    const result = runtime.resolveInspectionIntentForChatTurn({ now: 2000, userText, messages: [{ role: 'user', content: '看看当前屏幕。' }, { role: 'assistant', content: '我在看。' }, { role: 'user', content: userText }], perceptionState: createInspectionCarryState(), visualPresenceState })
+    expect(result.active).toBe(false)
+    expect(result.releaseCarry).toBe(true)
+    expect(result.reasonCodes).toContain('bounded-file-action')
+  })
+
   it('releases screen carry for an answer-only uncertainty instruction', () => {
     const runtime = createInspectionIntentRuntime()
     const visualPresenceState = createDefaultVisualPresenceState(2_000)

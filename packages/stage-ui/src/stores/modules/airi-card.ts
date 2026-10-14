@@ -73,6 +73,7 @@ export const useAiriCardStore = defineStore('airi-card', () => {
     activeSpeechModel,
   } = storeToRefs(speechStore)
   const { stageModelSelected } = storeToRefs(stageModelStore)
+  let applyingCardBindings = false
 
   function getCurrentStageModelId() {
     const currentModelId = stageModelSelected.value?.trim()
@@ -343,20 +344,26 @@ export const useAiriCardStore = defineStore('airi-card', () => {
 
     // NOTICE: avoid clobbering persisted runtime selections with empty card fields.
     // Card metadata can be stale/missing for legacy cards, while runtime selections remain valid.
-    if (consciousnessProvider)
-      activeConsciousnessProvider.value = consciousnessProvider
-    if (consciousnessModel)
-      activeConsciousnessModel.value = consciousnessModel
+    applyingCardBindings = true
+    try {
+      if (consciousnessProvider)
+        activeConsciousnessProvider.value = consciousnessProvider
+      if (consciousnessModel)
+        activeConsciousnessModel.value = consciousnessModel
 
-    if (speechProvider)
-      activeSpeechProvider.value = speechProvider
-    if (speechModel)
-      activeSpeechModel.value = speechModel
-    if (speechVoiceId)
-      activeSpeechVoiceId.value = speechVoiceId
+      if (speechProvider)
+        activeSpeechProvider.value = speechProvider
+      if (speechModel)
+        activeSpeechModel.value = speechModel
+      if (speechVoiceId)
+        activeSpeechVoiceId.value = speechVoiceId
 
-    if (stageModelSelected.value !== displayModelId)
-      stageModelSelected.value = displayModelId
+      if (stageModelSelected.value !== displayModelId)
+        stageModelSelected.value = displayModelId
+    }
+    finally {
+      applyingCardBindings = false
+    }
 
     await stageModelStore.updateStageModel()
   }
@@ -364,6 +371,26 @@ export const useAiriCardStore = defineStore('airi-card', () => {
   watch(activeCard, (newCard: AiriCard | undefined) => {
     void applyActiveCardBindings(newCard)
   }, { immediate: true })
+
+  // The card owns its body and voice binding. Saving selection changes here
+  // prevents a newly opened renderer from restoring stale bindings over them.
+  watch([stageModelSelected, activeSpeechProvider, activeSpeechModel, activeSpeechVoiceId], () => {
+    const card = activeCard.value
+    if (applyingCardBindings || !card || !stageModelSelected.value?.trim())
+      return
+    const extension = resolveAiriExtension(card)
+    const selected = {
+      displayModel: { modelId: getCurrentStageModelId() },
+      speech: { ...extension.modules.speech, provider: activeSpeechProvider.value, model: activeSpeechModel.value, voice_id: activeSpeechVoiceId.value },
+    }
+    if (extension.modules.displayModel.modelId === selected.displayModel.modelId
+      && extension.modules.speech.provider === selected.speech.provider
+      && extension.modules.speech.model === selected.speech.model
+      && extension.modules.speech.voice_id === selected.speech.voice_id) {
+      return
+    }
+    cards.value.set(activeCardId.value, newAiriCard({ ...card, extensions: { ...card.extensions, airi: { ...extension, modules: { ...extension.modules, ...selected } } } }))
+  }, { flush: 'sync' })
 
   function resetState() {
     activeCardId.reset()

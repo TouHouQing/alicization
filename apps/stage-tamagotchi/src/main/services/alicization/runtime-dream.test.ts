@@ -102,7 +102,7 @@ describe('runtime dream', () => {
             .filter(item => item.text)
         : [],
       sanitizeBriefText: (raw: string) => raw,
-      queueSoulMutation,
+      stageSoulProposal: queueSoulMutation,
       snapshotFromContent: vi.fn((content: string) => ({ content }) as any),
       persistSubconsciousState,
       persistProactiveLoopState,
@@ -262,7 +262,7 @@ describe('runtime dream', () => {
             .filter(item => item.text)
         : [],
       sanitizeBriefText: (raw: string) => raw,
-      queueSoulMutation,
+      stageSoulProposal: queueSoulMutation,
       snapshotFromContent: vi.fn((content: string) => ({ content }) as any),
       persistSubconsciousState: vi.fn(async () => undefined),
       persistProactiveLoopState: vi.fn(async () => undefined),

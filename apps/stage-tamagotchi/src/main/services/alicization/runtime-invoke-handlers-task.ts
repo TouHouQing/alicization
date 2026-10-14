@@ -50,6 +50,7 @@ interface RegisterAlicizationTaskInvokeHandlersOptions {
   dispatchTaskThread: (...args: any[]) => Promise<unknown>
   resumeMainGatewayTaskThread: (input: {
     context: {
+      authorizationSource?: 'human-ui'
       cardId: string
       sessionId: string
       turnId: string
@@ -217,7 +218,14 @@ export function registerAlicizationTaskInvokeHandlers(options: RegisterAlicizati
     }
   }))
 
-  registerInvokeHandler(electronAlicizationResumeTaskThread, async (payload: AlicizationCardScope & AlicizationResumeTaskThreadInput): Promise<AlicizationResumeTaskThreadResult> => await withCardScope(getActiveCardId(), async () => {
+  registerInvokeHandler(electronAlicizationResumeTaskThread, async (payload: AlicizationCardScope & AlicizationResumeTaskThreadInput, metadata): Promise<AlicizationResumeTaskThreadResult> => await withCardScope(getActiveCardId(), async () => {
+    const sender = metadata?.raw?.ipcMainEvent?.sender
+    const url = sender?.getURL?.() ?? ''
+    const source = url ? new URL(url) : null
+    const trustedUi = source?.protocol === 'file:' || source?.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(source.hostname)
+    if (!sender || sender.isDestroyed() || !trustedUi) {
+      return { ok: false, accepted: false, finalStatus: 'blocked', summary: 'Task approval requires its active desktop interface.', errorCode: 'TASK_THREAD_HUMAN_SURFACE_REQUIRED', errorMessage: 'No trusted desktop confirmation surface was supplied.', recovery: null }
+    }
     const cardId = getActiveCardId()
     const killSwitchSuspended = getAlicizationKillSwitchState() === 'SUSPENDED'
       || getAlicizationCardKillSwitchState(cardId) === 'SUSPENDED'
@@ -236,6 +244,7 @@ export function registerAlicizationTaskInvokeHandlers(options: RegisterAlicizati
     const turnId = `ui:recovery:${randomUUID()}`
     const result = await resumeMainGatewayTaskThread({
       context: {
+        authorizationSource: 'human-ui',
         cardId,
         sessionId: getCanonicalSessionId(),
         turnId,

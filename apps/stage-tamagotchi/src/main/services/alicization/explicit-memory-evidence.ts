@@ -143,7 +143,7 @@ function buildChinesePreferenceSummary(match: RegExpMatchArray) {
     : rawPredicate
   const qualifiedPredicate = `${modifiers}${predicate}`
   const object = trimTrailingPunctuation(
-    stripExpiredPreferenceExplanation(match[3] ?? ''),
+    stripExpiredPreferenceExplanation(match[3] ?? '').replace(/[，,；;]\s*请?(?:帮我)?(?:记住|记下|别忘了|保存|记录)(?:一下)?(?:这个|这条|我的)?(?:小偏好|偏好|习惯|喜好)(?:[吧哦啊]|一下)?[。！？.!?]*$/u, '').trim(),
   )
   if (!qualifiedPredicate || !object || looksLikeQuestion(object))
     return null
@@ -315,6 +315,19 @@ export function extractExplicitLongTermMemoryEvidence(input: {
   const userText = normalizeText(input.userText, 260)
   if (!userText)
     return null
+
+  // A factual clause followed by a question is still reported evidence. Keep
+  // the exact source clause, and leave questions and corrections to their
+  // existing owners instead of treating the entire mixed turn as a question.
+  if (looksLikeQuestion(userText)) {
+    const clauses = userText.split(/(?<=[。！？.!?])\s*/u).filter(Boolean)
+    const candidates = clauses.filter(clause => !looksLikeQuestion(clause) && (resolveChinesePreference(clause) || resolveEnglishPreference(clause)))
+    if (candidates.length === 1 && !/不对|不是真的|开玩笑|更正|改口|just kidding|actually/iu.test(userText)) {
+      const evidence = extractExplicitLongTermMemoryEvidence({ ...input, userText: candidates[0] })
+      if (evidence)
+        return evidence
+    }
+  }
 
   const factCorrection = resolveChineseFactCorrection(userText)
   if (factCorrection) {

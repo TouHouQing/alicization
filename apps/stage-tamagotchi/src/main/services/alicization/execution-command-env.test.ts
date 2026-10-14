@@ -1,4 +1,4 @@
-import { delimiter } from 'node:path'
+import { posix } from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -10,8 +10,8 @@ import {
 
 describe('execution command env', () => {
   it('appends known GUI fallback roots into the execution PATH', () => {
-    const pathValue = buildAlicizationExecutionPath('/usr/bin:/bin', '/Users/tester')
-    const entries = pathValue.split(delimiter)
+    const pathValue = buildAlicizationExecutionPath('/usr/bin:/bin', '/Users/tester', 'darwin')
+    const entries = pathValue.split(posix.delimiter)
 
     expect(entries).toContain('/Users/tester/.local/bin')
     expect(entries).toContain('/opt/homebrew/bin')

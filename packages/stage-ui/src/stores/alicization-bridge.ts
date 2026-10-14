@@ -1,4 +1,5 @@
 import type {
+  AlicizationActivityPresence,
   AlicizationAffectiveResidueMemorySnapshot as SharedAlicizationAffectiveResidueMemorySnapshot,
   AlicizationAnswerAct as SharedAlicizationAnswerAct,
   AlicizationAnswerEvidenceMode as SharedAlicizationAnswerEvidenceMode,
@@ -2412,6 +2413,7 @@ export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizatio
 }
 
 export interface AlicizationPresencePulsePayload {
+  activity?: AlicizationActivityPresence
   watchMode: AlicizationVisualWatchMode
   embodiedPresence: AlicizationEmbodiedPresenceState
   scenario: AlicizationProactiveScenario

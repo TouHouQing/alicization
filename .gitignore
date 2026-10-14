@@ -41,6 +41,9 @@ cert*/
 # Test coverage
 coverage/
 
+# Local QA profiles, evidence, and temporary tooling
+/output/
+
 # Build
 out/
 bundle/

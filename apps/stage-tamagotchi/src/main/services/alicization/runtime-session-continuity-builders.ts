@@ -137,16 +137,19 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
 
     const threadMetadata = asRecord(input.thread.metadata)
     const fabricMetadata = asRecord(threadMetadata?.fabric)
+    const goalOutcome = asRecord(threadMetadata?.lifeGoalOutcome)
+    const goalSummary = goalOutcome ? `goal-status=${goalOutcome.status}; verdict=${goalOutcome.verdict}; independent=${goalOutcome.independent}; verification=${goalOutcome.verificationId ?? 'none'}` : ''
     return {
       kind: 'executor',
-      status: normalizeTaskThreadSessionMirrorStatus(input.thread.status),
+      status: goalOutcome?.verdict === 'not-satisfied' || goalOutcome?.invalidated ? 'failed' : normalizeTaskThreadSessionMirrorStatus(input.thread.status),
       label: `${labelPrefix}:${channel}`,
-      summary: sanitizeExecutionLedgerText(input.thread.summary ?? '', 180) || null,
+      summary: sanitizeExecutionLedgerText([goalSummary, input.thread.summary ?? ''].filter(Boolean).join(' | '), 360) || null,
       signature: [
         input.source,
         input.thread.id,
         input.thread.status,
         activityAt,
+        goalOutcome?.revision ?? '',
       ].join(':'),
       startedAt: input.thread.createdAt,
       finishedAt: terminalTaskThreadStatuses.has(input.thread.status)
@@ -161,6 +164,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         selectedChannel: input.thread.selectedChannel,
         proposedChannel: input.thread.proposedChannel,
         threadStatus: input.thread.status,
+        goalOutcome,
         goal: input.thread.goal,
         threadKind: input.thread.kind,
         fabricState: sanitizeExecutionLedgerText(fabricMetadata?.state, 64) || null,

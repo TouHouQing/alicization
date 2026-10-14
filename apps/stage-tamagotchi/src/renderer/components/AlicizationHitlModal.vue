@@ -60,6 +60,12 @@ function onAllow() {
   })
 }
 
+const operationLabel = computed(() => {
+  const operation = props.request?.changePreview?.operation ?? props.request?.actionCategory ?? 'unknown'
+  return t(`tamagotchi.settings.hitl.operations.${operation}`)
+})
+const reasonText = computed(() => t(`tamagotchi.settings.hitl.reasons.${props.request?.actionCategory ?? 'unknown'}`))
+
 function onDeny() {
   emit('decide', {
     allow: false,
@@ -73,14 +79,13 @@ function onDeny() {
     <div
       v-if="request"
       :class="[
-        'fixed inset-0 z-[9999]',
-        'flex items-center justify-center px-4 py-8',
-        'bg-black/55 backdrop-blur-sm',
+        'fixed inset-0 z-[9999] pointer-events-none',
+        'flex items-start justify-end p-4',
       ]"
     >
       <div
         :class="[
-          'w-full max-w-2xl rounded-2xl border border-red-200 bg-white p-6 shadow-2xl',
+          'pointer-events-auto w-full max-w-sm max-h-[70vh] overflow-y-auto rounded-2xl border border-red-200 bg-white p-5 shadow-xl',
           'text-zinc-900',
         ]"
       >
@@ -99,11 +104,24 @@ function onDeny() {
         </div>
 
         <div :class="['space-y-3 text-sm leading-6']">
-          <p><b>{{ t('tamagotchi.settings.hitl.fields.tool') }}</b>{{ request.serverName }}::{{ request.toolName }}</p>
-          <p><b>{{ t('tamagotchi.settings.hitl.fields.type') }}</b>{{ request.actionCategory }}</p>
-          <p><b>{{ t('tamagotchi.settings.hitl.fields.target') }}</b>{{ request.resourceLabel || t('tamagotchi.settings.hitl.fields.not_provided') }}</p>
-          <p><b>{{ t('tamagotchi.settings.hitl.fields.reason') }}</b>{{ request.reason }}</p>
-          <p><b>{{ t('tamagotchi.settings.hitl.fields.arguments_summary') }}</b>{{ argumentsSummaryText }}</p>
+          <p class="font-600">
+            {{ operationLabel }}
+          </p>
+          <p class="break-all">
+            <b>{{ t('tamagotchi.settings.hitl.fields.target') }}</b>{{ request.resourcePath || request.resourceLabel || t('tamagotchi.settings.hitl.fields.not_provided') }}
+          </p>
+          <p>{{ reasonText }}</p>
+          <pre v-if="request.changePreview" class="max-h-32 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-zinc-100 p-3 text-xs">{{ request.changePreview.text }}</pre>
+          <details class="text-xs text-zinc-500">
+            <summary class="cursor-pointer">
+              {{ t('tamagotchi.settings.hitl.details') }}
+            </summary>
+            <p class="mt-2 break-all">
+              {{ request.serverName }}::{{ request.toolName }}
+            </p>
+            <p>{{ request.reason }}</p>
+            <p>{{ argumentsSummaryText }}</p>
+          </details>
         </div>
 
         <label

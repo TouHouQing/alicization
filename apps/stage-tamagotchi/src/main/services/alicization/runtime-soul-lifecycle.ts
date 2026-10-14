@@ -46,7 +46,9 @@ interface CreateAlicizationRuntimeSoulLifecycleOptions {
   importWatch: () => Promise<{
     watch: typeof import('node:fs').watch
   }>
-  writeSoulContent: (content: string) => Promise<void>
+  writeSoulContent: (content: string, expectedBaseHash?: string) => Promise<void>
+  activateSoul: (snapshot: AlicizationSoulSnapshot) => Promise<number>
+  recoverSoul: () => Promise<void>
   parseSoul: (raw: string) => { frontmatter: AlicizationSoulFrontmatter, body: string }
   hashContent: (content: string) => string
   withNeedsGenesis: (snapshot: Omit<AlicizationSoulSnapshot, 'needsGenesis'>) => AlicizationSoulSnapshot
@@ -87,6 +89,7 @@ export function createAlicizationRuntimeSoulLifecycle(options: CreateAlicization
     unlink,
     importWatch,
     writeSoulContent,
+    activateSoul,
     parseSoul,
     hashContent,
     withNeedsGenesis,
@@ -110,18 +113,13 @@ export function createAlicizationRuntimeSoulLifecycle(options: CreateAlicization
   function snapshotFromContent(content: string): AlicizationSoulSnapshot {
     const parsed = parseSoul(content)
     const hash = hashContent(content)
-    if (!state.soulSnapshot || state.soulSnapshot.hash !== hash) {
-      state.revision += 1
-    }
-    else {
-      state.revision = state.soulSnapshot.revision
-    }
+    const revision = !state.soulSnapshot || state.soulSnapshot.hash !== hash ? state.revision + 1 : state.soulSnapshot.revision
 
     return withNeedsGenesis({
       soulPath: getPaths().soulPath,
       content,
       frontmatter: parsed.frontmatter,
-      revision: state.revision,
+      revision,
       hash,
       watching: state.watching,
     })
@@ -163,6 +161,8 @@ export function createAlicizationRuntimeSoulLifecycle(options: CreateAlicization
           return
 
         const next = snapshotFromContent(content)
+        next.revision = await activateSoul(next)
+        state.revision = next.revision
         state.soulSnapshot = next
         emitSoulChanged(next)
       }
@@ -236,6 +236,7 @@ export function createAlicizationRuntimeSoulLifecycle(options: CreateAlicization
   }
 
   async function readSoulSnapshot() {
+    await options.recoverSoul()
     const { soulRoot, soulPath } = getPaths()
     await mkdir(soulRoot, { recursive: true })
     if (!existsSync(soulPath)) {
@@ -245,6 +246,8 @@ export function createAlicizationRuntimeSoulLifecycle(options: CreateAlicization
 
     const content = await readFile(soulPath, 'utf-8')
     const snapshot = snapshotFromContent(content)
+    snapshot.revision = await activateSoul(snapshot)
+    state.revision = snapshot.revision
     state.soulSnapshot = snapshot
     return snapshot
   }
@@ -264,7 +267,9 @@ export function createAlicizationRuntimeSoulLifecycle(options: CreateAlicization
       const current = state.soulSnapshot ?? await bootstrap()
       const next = await task(current)
       state.muteWatchUntil = now() + 400
-      await writeSoulContent(next.content)
+      await writeSoulContent(next.content, current.hash)
+      next.revision = await activateSoul(next)
+      state.revision = next.revision
       state.soulSnapshot = {
         ...next,
         watching: state.watching,

@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import type { SpeechProvider } from '@xsai-ext/providers/utils'
 
+import { errorMessageFrom } from '@moeru/std'
 import {
   SpeechPlayground,
   SpeechProviderSettings,
 } from '@proj-alicization/stage-ui/components'
 import { useSpeechStore } from '@proj-alicization/stage-ui/stores/modules/speech'
 import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
-import { getDefaultKokoroModel } from '@proj-alicization/stage-ui/workers/kokoro/constants'
-import { Callout, Select } from '@proj-alicization/ui'
-import { computed, onMounted, ref, watch } from 'vue'
+import { getDefaultKokoroModel, kokoroModelsToModelInfo } from '@proj-alicization/stage-ui/workers/kokoro/constants'
+import { Button, Callout, Progress, Select } from '@proj-alicization/ui'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const providerId = 'kokoro-local'
@@ -17,11 +18,9 @@ const defaultModel = 'kokoro-82m'
 const speechStore = useSpeechStore()
 const providersStore = useProvidersStore()
 const { t } = useI18n()
-
-// Get available voices for Kokoro
-const availableVoices = computed(() => {
-  return speechStore.availableVoices[providerId] || []
-})
+const loadedModel = ref('')
+const loadError = ref('')
+const loadProgress = ref(0)
 
 // Get provider config
 const providerConfig = computed(() => {
@@ -29,20 +28,10 @@ const providerConfig = computed(() => {
 })
 
 // Check if WebGPU is supported
-const hasWebGPU = ref(false)
+const hasWebGPU = typeof navigator !== 'undefined' && !!navigator.gpu
 
 // Track voices loading state
 const voicesLoading = ref(false)
-
-// Get provider models from store
-const providerModels = computed(() => {
-  return providersStore.getModelsForProvider(providerId)
-})
-
-// Model loading state
-const modelsLoading = computed(() => {
-  return providersStore.isLoadingModels[providerId] || false
-})
 
 // Model computed property
 const model = computed({
@@ -51,7 +40,7 @@ const model = computed({
     if (currentValue)
       return currentValue
 
-    return getDefaultKokoroModel(hasWebGPU.value)
+    return getDefaultKokoroModel(hasWebGPU)
   },
   set(val: string) {
     const config = providersStore.getProviderConfig(providerId)
@@ -60,8 +49,11 @@ const model = computed({
 })
 
 // Model options for the dropdown
+const availableVoices = computed(() => loadedModel.value === model.value ? speechStore.availableVoices[providerId] || [] : [])
+
 const modelOptions = computed(() => {
-  return providerModels.value.map(m => ({
+  // These choices are local metadata and must exist on the first render.
+  return kokoroModelsToModelInfo(hasWebGPU, t).map(m => ({
     label: m.name,
     value: m.id,
   }))
@@ -97,65 +89,45 @@ async function handleGenerateSpeech(input: string, voiceId: string, _useSSML: bo
   }
 }
 
-onMounted(async () => {
-  // Check WebGPU support
-  hasWebGPU.value = typeof navigator !== 'undefined' && !!navigator.gpu
-
+async function loadSelectedModel() {
+  if (voicesLoading.value)
+    return
+  voicesLoading.value = true
+  loadedModel.value = ''
+  loadError.value = ''
+  loadProgress.value = 0
   try {
-    voicesLoading.value = true
-
-    // Fetch available models first
-    await providersStore.fetchModelsForProvider(providerId)
-
     const config = providersStore.getProviderConfig(providerId)
+    config.model = model.value
     const metadata = providersStore.getProviderMetadata(providerId)
     const validationResult = await metadata.validators.validateProviderConfig(config)
-    if (validationResult.valid) {
-      // Load the initial model
-      if (metadata.capabilities.loadModel) {
-        await metadata.capabilities.loadModel(config, {
-          onProgress: async (_progress) => {},
-        })
-      }
-
-      await speechStore.loadVoicesForProvider(providerId)
-    }
-    else {
-      console.error('Failed to validate Kokoro provider config', config, validationResult)
-    }
+    if (!validationResult.valid)
+      throw new Error(validationResult.reason)
+    if (!metadata.capabilities.loadModel)
+      throw new Error('Kokoro model loading is unavailable')
+    await metadata.capabilities.loadModel(config, {
+      onProgress: (progress) => {
+        if ('progress' in progress && typeof progress.progress === 'number')
+          loadProgress.value = Math.max(0, Math.min(100, progress.progress))
+      },
+    })
+    const voices = await speechStore.loadVoicesForProvider(providerId)
+    if (!voices.length)
+      throw new Error('The loaded model did not provide any voices')
+    loadedModel.value = model.value
+  }
+  catch (error) {
+    loadError.value = errorMessageFrom(error) ?? t('settings.pages.providers.provider.kokoro-local.loading.failed')
   }
   finally {
     voicesLoading.value = false
   }
-})
+}
 
-// Watch for model changes and reload model + voices
-watch(model, async (newValue) => {
-  if (newValue) {
-    try {
-      voicesLoading.value = true
-
-      const config = providersStore.getProviderConfig(providerId)
-      const metadata = providersStore.getProviderMetadata(providerId)
-      const validationResult = await metadata.validators.validateProviderConfig(config)
-
-      if (validationResult.valid && metadata.capabilities.loadModel) {
-        // Load the model using the capability with progress tracking
-        await metadata.capabilities.loadModel(config, {
-          onProgress: async (_progress) => {},
-        })
-
-        // Then reload voices
-        await speechStore.loadVoicesForProvider(providerId)
-      }
-    }
-    catch (error) {
-      console.error('[Kokoro Settings] Error in model watcher:', error)
-    }
-    finally {
-      voicesLoading.value = false
-    }
-  }
+watch(model, () => {
+  loadedModel.value = ''
+  loadError.value = ''
+  loadProgress.value = 0
 })
 </script>
 
@@ -163,6 +135,8 @@ watch(model, async (newValue) => {
   <SpeechProviderSettings
     :provider-id="providerId"
     :default-model="defaultModel"
+    :auto-load-voices="false"
+    :show-api-key="false"
   >
     <template #voice-settings>
       <!-- Model Selection -->
@@ -176,10 +150,32 @@ watch(model, async (newValue) => {
           <Select
             v-model="model"
             :options="modelOptions"
-            :disabled="modelsLoading"
-            :placeholder="t('settings.pages.providers.common.speech_model.select_placeholder')"
+            :disabled="voicesLoading"
+            :placeholder="t('settings.pages.providers.provider.common.speech_model.select_placeholder')"
           />
         </div>
+        <p class="text-sm text-neutral-500">
+          {{ t('settings.pages.providers.provider.kokoro-local.loading.description') }}
+        </p>
+        <Button
+          :disabled="voicesLoading"
+          :loading="voicesLoading"
+          :label="t(voicesLoading ? 'settings.pages.providers.provider.kokoro-local.loading.busy' : loadError ? 'settings.pages.providers.provider.kokoro-local.loading.retry' : 'settings.pages.providers.provider.kokoro-local.loading.start')"
+          @click="loadSelectedModel"
+        />
+        <div v-if="voicesLoading" role="status">
+          <Progress :progress="loadProgress" />
+          <p>{{ t('settings.pages.providers.provider.kokoro-local.loading.progress', { percent: Math.round(loadProgress) }) }}</p>
+        </div>
+        <p v-if="loadError" role="alert" class="text-sm text-red-600 dark:text-red-400">
+          {{ t('settings.pages.providers.provider.kokoro-local.loading.failed') }}
+        </p>
+        <details v-if="loadError" class="text-sm text-neutral-500">
+          <summary>{{ t('settings.pages.providers.provider.kokoro-local.loading.details') }}</summary>
+          <p class="break-words">
+            {{ loadError }}
+          </p>
+        </details>
       </div>
     </template>
 
@@ -188,7 +184,7 @@ watch(model, async (newValue) => {
       <SpeechPlayground
         :available-voices="availableVoices"
         :generate-speech="handleGenerateSpeech"
-        :api-key-configured="true"
+        :api-key-configured="loadedModel === model"
         :voices-loading="voicesLoading"
         :default-text="t('settings.pages.providers.provider.kokoro-local.playground.default-text')"
       />

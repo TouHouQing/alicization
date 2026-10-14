@@ -6,6 +6,7 @@ import { useFileDialog } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger, EditableArea, EditableEditTrigger, EditableInput, EditablePreview, EditableRoot, EditableSubmitTrigger } from 'reka-ui'
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import { DisplayModelFormat, useDisplayModelsStore } from '../../../../stores/display-models'
 
@@ -18,6 +19,7 @@ const emits = defineEmits<{
 }>()
 
 const displayModelStore = useDisplayModelsStore()
+const { t } = useI18n()
 const { displayModelsFromIndexedDBLoading, displayModels } = storeToRefs(displayModelStore)
 
 function handleRemoveModel(model: DisplayModel) {
@@ -76,10 +78,10 @@ vrmDialog.onChange(handleAddVRMModel)
 </script>
 
 <template>
-  <div pt="4 sm:0" gap="4 sm:6" h-full flex flex-col>
-    <div flex items-center>
+  <div pt="4 sm:0" gap="4 sm:6" h-full min-h-0 flex flex-col>
+    <div flex shrink-0 items-center>
       <div w-full flex-1 text-xl>
-        Model Selector
+        {{ t('settings.model-selector.title') }}
       </div>
       <div>
         <DropdownMenuRoot>
@@ -87,10 +89,10 @@ vrmDialog.onChange(handleAddVRMModel)
             bg="neutral-400/20 hover:neutral-400/45 active:neutral-400/60 dark:neutral-700/50 hover:dark:neutral-700/65 active:dark:neutral-700/90"
             flex items-center justify-center gap-1 rounded-lg px-2 py-1 backdrop-blur-sm
             transition="colors duration-200 ease-in-out"
-            aria-label="Options for Display Models"
+            :aria-label="t('settings.model-selector.add')"
           >
             <div i-solar:add-circle-bold />
-            <div>Add</div>
+            <div>{{ t('settings.model-selector.add') }}</div>
           </DropdownMenuTrigger>
           <DropdownMenuPortal>
             <DropdownMenuContent
@@ -131,16 +133,16 @@ vrmDialog.onChange(handleAddVRMModel)
       </div>
     </div>
     <div v-if="displayModelsFromIndexedDBLoading">
-      Loading display models...
+      {{ t('settings.model-selector.loading') }}
     </div>
-    <div class="flex-1 overflow-x-auto overflow-y-hidden md:flex-none sm:overflow-x-hidden sm:overflow-y-scroll" h-full w-full>
-      <div class="w-full flex gap-2 md:grid lg:grid-cols-2 md:grid-cols-1 lg:max-h-80dvh">
+    <div class="min-h-0 w-full flex-1 overflow-y-auto">
+      <div class="grid grid-cols-2 w-full gap-4">
         <div
           v-for="(model) of displayModels"
           :key="model.id"
           v-auto-animate
           relative gap-2
-          class="block h-full w-full md:flex md:flex-row"
+          class="min-w-0 w-full flex flex-col"
           @click="() => highlightDisplayModelCard = model.id"
         >
           <div absolute left-3 top-4 z-1>
@@ -152,7 +154,7 @@ vrmDialog.onChange(handleAddVRMModel)
                 text="white"
                 h-7 w-7 flex items-center justify-center rounded-lg backdrop-blur-sm
                 transition="colors duration-200 ease-in-out"
-                aria-label="Options for Display Models"
+                :aria-label="t('settings.model-selector.options', { name: model.name })"
               >
                 <div i-solar:menu-dots-bold />
               </DropdownMenuTrigger>
@@ -178,7 +180,7 @@ vrmDialog.onChange(handleAddVRMModel)
                   >
                     <button flex items-center gap-1 outline-none @click="handleRemoveModel(model)">
                       <div i-solar:trash-bin-minimalistic-bold-duotone />
-                      <div>Remove</div>
+                      <div>{{ t('settings.model-selector.remove') }}</div>
                     </button>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -186,11 +188,11 @@ vrmDialog.onChange(handleAddVRMModel)
             </DropdownMenuRoot>
           </div>
           <div
-            class="h-full min-w-80 w-full lg:min-h-60 md:min-w-70 sm:min-w-65"
+            class="min-h-0 w-full"
             aspect="12/16"
             px-1 py-2
           >
-            <img v-if="model.previewImage" :src="model.previewImage" h-full w-full rounded-lg object-cover :class="[highlightDisplayModelCard && highlightDisplayModelCard === model.id ? 'ring-3 ring-primary-400' : 'ring-0 ring-transparent']" transition="all duration-200 ease-in-out">
+            <img v-if="model.previewImage" :src="model.previewImage" h-full w-full rounded-lg object-contain :class="[highlightDisplayModelCard && highlightDisplayModelCard === model.id ? 'ring-3 ring-primary-400' : 'ring-0 ring-transparent']" transition="all duration-200 ease-in-out">
             <div v-else bg="neutral-100 dark:neutral-900" relative h-full w-full flex flex-col items-center justify-center gap-2 overflow-hidden rounded-lg :class="[highlightDisplayModelCard && highlightDisplayModelCard === model.id ? 'ring-3 ring-primary-400' : 'ring-0 ring-transparent']" transition="all duration-200 ease-in-out">
               <div i-solar:question-square-bold-duotone text-4xl opacity-75 />
               <div translate-y="100%" absolute top-0 flex flex-col translate-x--7 rotate-45 scale-250 gap-0 opacity-5>
@@ -211,7 +213,7 @@ vrmDialog.onChange(handleAddVRMModel)
               <EditableRoot
                 v-slot="{ isEditing }"
                 :default-value="model.name"
-                placeholder="Model Name..."
+                :placeholder="t('settings.model-selector.name')"
                 class="flex gap-2"
                 auto-resize
               >
@@ -234,14 +236,14 @@ vrmDialog.onChange(handleAddVRMModel)
               </div>
             </div>
             <Button class="hidden md:block" variant="secondary" @click="handlePick(model)">
-              Pick
+              {{ t('settings.model-selector.pick') }}
             </Button>
           </div>
         </div>
       </div>
     </div>
-    <Button class="block md:hidden" @click="handleMobilePick()">
-      Confirm
+    <Button class="block shrink-0 md:hidden" @click="handleMobilePick()">
+      {{ t('settings.model-selector.confirm') }}
     </Button>
   </div>
 </template>

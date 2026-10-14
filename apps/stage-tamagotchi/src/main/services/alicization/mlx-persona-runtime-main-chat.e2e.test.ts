@@ -4,12 +4,21 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { runAlicizationMainChatProviderStep } from './main-chat-stream-runner'
 import { createMlxPersonaRuntime } from './mlx-persona-runtime'
 import { createAlicizationMainGatewayConfigRuntime } from './runtime-main-gateway-config'
 import { createCanonicalToolRegistry } from './turn-os/tool-registry'
+
+vi.mock('node:child_process', async () => {
+  const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process')
+  const { portableFixtureInvocation } = await import('./test-support/portable-fixture-process')
+  return { ...actual, spawn: (command: string, args: readonly string[] = [], options?: Parameters<typeof actual.spawn>[2]) => {
+    const invocation = portableFixtureInvocation(command, args)
+    return actual.spawn(invocation.command, invocation.args, options ?? {})
+  } }
+})
 
 const roots: string[] = []
 const runtimes: Array<ReturnType<typeof createMlxPersonaRuntime>> = []

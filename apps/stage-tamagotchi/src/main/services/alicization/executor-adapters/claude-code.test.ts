@@ -48,6 +48,12 @@ function parseProviderFact(raw: string) {
 }
 
 describe('claude-code executor adapter', () => {
+  it.each(['bypassPermissions', 'dontAsk', 'delegate'] as const)('blocks unapproved delegated permission override %s before starting a process', async (permissionMode) => {
+    const result = await executeClaudeCodeTaskThread({ thread: createThread({ metadata: { task: { effect: 'mutate', permissionMode: 'implicit' } } }), command: { prompt: 'Make an ordinary workspace edit.', allowTools: true, permissionMode } })
+    expect(result).toMatchObject({ ok: false, errorCode: 'CLAUDE_CODE_PERMISSION_REQUIRED' })
+    expect(execFileMock).not.toHaveBeenCalled()
+  })
+
   beforeEach(() => {
     execFileMock.mockReset()
   })

@@ -31,9 +31,9 @@ async function handleConfigured(payload?: OnboardingConfiguredPayload) {
 </script>
 
 <template>
-  <div class="onboarding-root" h-full w-full flex flex-col overflow-x-hidden overflow-y-auto overscroll-none :class="bgClass">
-    <div :class="bgClass" w="100dvw" min-h="12" w-full flex-shrink-0 select-none data-tauri-drag-region />
-    <div class="onboarding-scroll" w-full flex-1 px-3>
+  <div class="onboarding-root" h-full w-full flex flex-col overflow-hidden overscroll-none :class="bgClass">
+    <div :class="bgClass" w="100dvw" min-h="8" w-full flex-shrink-0 select-none data-tauri-drag-region />
+    <div class="onboarding-scroll" min-h-0 w-full flex-1 px-3>
       <div class="onboarding-content" h-full>
         <OnboardingScreen @skipped="handleSkipped" @configured="payload => handleConfigured(payload)" />
       </div>
@@ -51,13 +51,13 @@ async function handleConfigured(payload?: OnboardingConfiguredPayload) {
 }
 
 .onboarding-content {
-  padding: 8px 0 20px 0;
+  min-height: 0;
 }
 
 .onboarding-scroll {
   padding-top: 8px;
-  padding-bottom: 20px;
-  overflow-y: auto;
+  padding-bottom: 12px;
+  overflow-y: hidden;
 }
 </style>
 

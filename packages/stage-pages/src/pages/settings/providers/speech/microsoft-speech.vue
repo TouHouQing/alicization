@@ -176,7 +176,7 @@ async function handleGenerateSpeech(input: string, voiceId: string, useSSML: boo
         :available-voices="availableVoices"
         :generate-speech="handleGenerateSpeech"
         :api-key-configured="apiKeyConfigured"
-        :default-text="t('settings.pages.providers.common.playground.default_text')"
+        :default-text="t('settings.pages.providers.provider.common.playground.default_text')"
       />
     </template>
   </SpeechProviderSettings>

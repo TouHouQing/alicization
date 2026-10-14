@@ -60,6 +60,7 @@ const codexIsolatedHomeStaleAgeMs = 6 * 60 * 60_000
 const codexTerminationGraceMs = 750
 const codexTerminalReapDelayMs = 250
 const codexPostExitDrainTimeoutMs = 2_000
+const codexPrivateProviderTokenEnv = 'ALICIZATION_CODEX_PROVIDER_TOKEN'
 const codexExecutionEventDrainTimeoutMs = 1_000
 const activeCodexProcessGroupPids = new Set<number>()
 let codexProcessExitCleanupRegistered = false
@@ -138,7 +139,9 @@ interface AlicizationCodexInheritedConfig {
   modelReasoningEffort: string | null
   approvalPolicy: string | null
   disableResponseStorage: boolean | null
+  windowsSandbox: 'elevated' | 'unelevated' | null
   provider: {
+    bearerToken: string | null
     baseUrl: string | null
     envKey: string | null
     name: string | null
@@ -642,9 +645,11 @@ async function readInheritedCodexConfig(
       disableResponseStorage: typeof parsed.disable_response_storage === 'boolean'
         ? parsed.disable_response_storage
         : null,
+      windowsSandbox: readRecord(parsed.windows)?.sandbox === 'elevated' ? 'elevated' : readRecord(parsed.windows)?.sandbox === 'unelevated' ? 'unelevated' : null,
       provider: selectedProvider
         ? {
             baseUrl: normalizeProviderBaseUrl(selectedProvider.base_url),
+            bearerToken: normalizeOptionalText(selectedProvider.experimental_bearer_token, 10_000),
             envKey: normalizeCodexConfigKey(selectedProvider.env_key),
             name: normalizeOptionalText(selectedProvider.name, 120),
             requestMaxRetries: normalizeNonNegativeInteger(selectedProvider.request_max_retries),
@@ -663,12 +668,12 @@ async function readInheritedCodexConfig(
   }
 }
 
-function appendCodexConfigOverride(args: string[], key: string, value: string | number | boolean | null) {
+function appendCodexConfigOverride(args: string[], key: string, value: string | number | boolean | string[] | null) {
   if (value === null)
     return
   args.push(
     '-c',
-    `${key}=${typeof value === 'string' ? JSON.stringify(value) : String(value)}`,
+    `${key}=${typeof value === 'string' || Array.isArray(value) ? JSON.stringify(value) : String(value)}`,
   )
 }
 
@@ -1084,13 +1089,15 @@ function buildCodexExecArgs(
   appendCodexConfigOverride(args, 'model_auto_compact_token_limit', inheritedConfig?.modelAutoCompactTokenLimit ?? null)
   appendCodexConfigOverride(args, 'approval_policy', inheritedConfig?.approvalPolicy ?? null)
   appendCodexConfigOverride(args, 'disable_response_storage', inheritedConfig?.disableResponseStorage ?? null)
+  appendCodexConfigOverride(args, 'windows.sandbox', inheritedConfig?.windowsSandbox ?? null)
   if (modelProvider && inheritedConfig?.provider) {
     const providerKey = `model_providers.${modelProvider}`
     appendCodexConfigOverride(args, `${providerKey}.name`, inheritedConfig.provider.name)
     appendCodexConfigOverride(args, `${providerKey}.wire_api`, inheritedConfig.provider.wireApi)
     appendCodexConfigOverride(args, `${providerKey}.requires_openai_auth`, inheritedConfig.provider.requiresOpenAiAuth)
     appendCodexConfigOverride(args, `${providerKey}.base_url`, inheritedConfig.provider.baseUrl)
-    appendCodexConfigOverride(args, `${providerKey}.env_key`, inheritedConfig.provider.envKey)
+    const providerEnvKey = inheritedConfig.provider.envKey ?? (inheritedConfig.provider.bearerToken ? codexPrivateProviderTokenEnv : null)
+    appendCodexConfigOverride(args, `${providerKey}.env_key`, providerEnvKey)
     // NOTICE: The Alicization adapter owns the outer retry and timeout
     // lifecycle. Letting Codex silently apply its own reconnect storm makes a
     // failed Provider look like a hung tool and prevents the UI from showing
@@ -1116,6 +1123,12 @@ function buildCodexExecArgs(
       inheritedConfig.provider.streamIdleTimeoutMs ?? codexProviderStreamIdleTimeoutMs,
     )
   }
+  // Authentication belongs to the CLI process. Generated shell commands must
+  // not inherit provider credentials, and tokens never enter argv or the
+  // isolated configuration directory. These options are supported by the
+  // validated local Codex CLI (0.142.3).
+  appendCodexConfigOverride(args, 'shell_environment_policy.ignore_default_excludes', false)
+  appendCodexConfigOverride(args, 'shell_environment_policy.exclude', [...new Set(['OPENAI_API_KEY', 'CODEX_API_KEY', codexPrivateProviderTokenEnv, ...inheritedConfig?.provider?.envKey ? [inheritedConfig.provider.envKey] : []])])
   args.push(spec.prompt)
   return args
 }
@@ -1185,6 +1198,8 @@ type AlicizationCodexPreflightResult
   }
 
 function codexAuthenticationRequired(config: AlicizationCodexInheritedConfig | null) {
+  if (config?.provider?.bearerToken && config.provider.requiresOpenAiAuth !== true)
+    return false
   if (config?.provider?.requiresOpenAiAuth === false)
     return false
   const providerEnvKey = config?.provider?.envKey
@@ -1406,6 +1421,13 @@ async function runCodexPreflight(input: {
       const env = buildAlicizationExecutionEnv(processEnv, {
         CODEX_HOME: isolatedHome.home,
       })
+      const provider = inheritedConfigResult.config?.provider
+      if (provider?.envKey && processEnv[provider.envKey])
+        env[provider.envKey] = processEnv[provider.envKey]
+      if (provider?.bearerToken && !provider.envKey)
+        env[codexPrivateProviderTokenEnv] = provider.bearerToken
+      else if (!provider?.envKey && provider?.requiresOpenAiAuth !== false && processEnv.CODEX_API_KEY)
+        env.CODEX_API_KEY = processEnv.CODEX_API_KEY
       let command: string
       try {
         command = await resolveAlicizationExecutionBinary('codex', {

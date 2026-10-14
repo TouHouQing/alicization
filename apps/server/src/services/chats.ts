@@ -438,6 +438,8 @@ export function createChatService(db: Database) {
 
           void (async () => {
             try {
+              // Stream end/error callbacks change this flag outside the reader loop.
+              // eslint-disable-next-line no-unmodified-loop-condition
               while (!settled) {
                 const next = await reader!.read()
                 if (next.done)

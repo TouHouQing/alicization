@@ -1,8 +1,16 @@
 import type { AlicizationChannelCapability } from '@proj-alicization/stage-shared'
 
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
+import { callLocalFilesystem } from '../airi/mcp-servers/local-filesystem'
+import { setupAlicizationDb } from './db'
 import { buildAlicizationExecutionRuntimeContext } from './execution-runtime-context'
+import { createLifeReplyGroundingRuntime } from './life-reply-grounding-runtime'
+import { createLifeTurnRuntime } from './life-turn-runtime'
 import {
   buildExecutionCapabilitySystemBlocks,
   buildMainGatewayTools as buildMainGatewayToolsImplementation,
@@ -65,6 +73,96 @@ function buildMainGatewayTools(options: Record<string, unknown>) {
 }
 
 describe('main chat execution surface', () => {
+  it('respects a host capture exclusion before dispatch and leaves semantic controls available', async () => {
+    const executeTaskThread = vi.fn()
+    const desktopListInteractables = vi.fn(async () => ({ status: 'completed', channel: 'desktop', operation: 'desktop_list_interactables', elements: [] }))
+    const tools = await buildMainGatewayTools({ userText: '只操作这个窗口，不截图，不进行屏幕观察。', context: { cardId: 'default', turnId: 'semantic-only' }, buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), executionCapabilityChannels: executionChannels, executeTaskThread, desktopListInteractables, getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn() })
+    const visual = tools.find(tool => tool.function.name === 'local_visual')!
+    await expect(visual.execute({ channel: 'desktop', instruction: 'inspect the window', requiresVisualGrounding: true }, { messages: [], toolCallId: 'wrong-route' })).resolves.toMatchObject({ status: 'failed', errorCode: 'LOCAL_VISUAL_CAPTURE_NOT_AUTHORIZED' })
+    expect(executeTaskThread).not.toHaveBeenCalled()
+    await tools.find(tool => tool.function.name === 'desktop_list_interactables')!.execute({ windowTitle: 'Own notes' }, { messages: [], toolCallId: 'semantic-route' })
+    expect(desktopListInteractables).toHaveBeenCalledOnce()
+  })
+
+  it('closes actual interface file readback through MCP without trimming bytes or accepting a different window or wrong contents', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'alicization-interface-file-readback-'))
+    const db = await setupAlicizationDb(workspace, { cardId: 'default' })
+    const signal = new AbortController().signal
+    const path = join(workspace, 'result.txt')
+    const requested = '  雨声陪伴\n\n'
+    const life = createLifeTurnRuntime({ read: db.readLifeState, commit: db.commitLifeState, getIngress: db.getLifeIngress, getEffect: db.getLifeEffect, now: Date.now, observeInterface: async () => null })
+    try {
+      async function checkedRead(turnId: string, clickedWindow = '41') {
+        await life.admit({ cardId: 'default', turnId, conversationId: 'qa', messages: [{ role: 'user', content: '在测试窗口输入并保存指定文字，再读取测试文件核对。' }] }, signal)
+        async function step(actionId: string, operation: string, parameters: Record<string, unknown>, output: unknown) {
+          const effect = await life.beforeAction({ cardId: 'default', turnId, actionId, capabilityId: `tool.${operation}`, parameters }, signal)
+          await life.afterAction({ cardId: 'default', id: effect.id, outcome: 'success', interrupted: false, output })
+        }
+        const owner = { channel: 'desktop', desktop: 'QA-owned', windowId: '41', processId: 42, title: 'QA Notes', status: 'completed', ok: true, finalStatus: 'completed' }
+        await step('input', 'desktop_type_text', { text: requested, clearExisting: true }, { ...owner, operation: 'desktop_type_text' })
+        await step('save', 'desktop_click_element', { text: '保存' }, { ...owner, windowId: clickedWindow, operation: 'desktop_click_element' })
+        const tools = await buildMainGatewayTools({ buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId, sessionId: 'qa' }, executionCapabilityChannels: executionChannels, executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(), invokeMcpListTools: vi.fn(async () => ({ tools: [] })), invokeMcpCallTool: vi.fn(async (payload: { arguments: Record<string, unknown> }) => callLocalFilesystem({ workspace, toolName: 'read_file', arguments: payload.arguments, signal })) })
+        const result = await tools.find(tool => tool.function.name === 'filesystem_read_file')!.execute({ path }, { messages: [], toolCallId: `read-${turnId}` })
+        expect(result).toMatchObject({ verifiedPath: await realpath(path), truncated: false })
+        await step('readback', 'filesystem_read_file', { path }, result)
+        return result
+      }
+      await writeFile(path, requested, 'utf8')
+      expect(await checkedRead('match')).toMatchObject({ content: requested })
+      const goal = (await db.readLifeState()).obligations.find(item => item.sourceTurnId === 'match')!
+      expect(goal).toMatchObject({ status: 'fulfilled', proof: { kind: 'file' }, verification: { independent: true, verdict: 'satisfied', evidence: { channel: 'desktop', windowId: '41' } } })
+      const text = '已在原生窗口保存，并读回核对一致。'
+      const review = createLifeReplyGroundingRuntime({ read: db.readLifeState, readUserInput: db.getLifeUserInput, commit: db.commitLifeState, readMemoryEvidence: cardId => db.readLifeFactVersions({ cardId }), now: Date.now, generate: async ({ user }) => {
+        const target = JSON.parse(user).obligations.find((item: { proofKind: string }) => item.proofKind === 'file')
+        return JSON.stringify({ claims: [{ kind: 'task-complete', quote: text, binding: target.binding, meaningMatchesBinding: true }] })
+      } })
+      expect((await review({ cardId: 'default', turnId: 'match', text, owners: (await db.readLifeState()).owners, signal })).accepted).toBe(true)
+      const readText = '实际读取结果包含雨声陪伴。'
+      const readReview = createLifeReplyGroundingRuntime({ read: db.readLifeState, readUserInput: db.getLifeUserInput, commit: db.commitLifeState, readMemoryEvidence: cardId => db.readLifeFactVersions({ cardId }), now: Date.now, generate: async ({ user }) => {
+        const target = JSON.parse(user).completedExecutionSteps.find((item: { result: { returnedText?: string } }) => item.result.returnedText)
+        return JSON.stringify({ claims: [{ kind: 'execution-step-outcome', quote: readText, binding: target.binding, meaningMatchesBinding: true }] })
+      } })
+      expect((await readReview({ cardId: 'default', turnId: 'match', text: readText, owners: (await db.readLifeState()).owners, signal })).accepted).toBe(true)
+      await writeFile(path, 'different bytes', 'utf8')
+      await checkedRead('mismatch')
+      expect((await db.readLifeState()).obligations.find(item => item.sourceTurnId === 'mismatch')).toMatchObject({ verification: { verdict: 'not-satisfied' } })
+      await writeFile(path, requested, 'utf8')
+      await checkedRead('other-window', '99')
+      expect((await db.readLifeState()).obligations.some(item => item.sourceTurnId === 'other-window')).toBe(false)
+    }
+    finally {
+      await db.close()
+      await rm(workspace, { recursive: true, force: true })
+    }
+  })
+
+  it('offers native read/write-derived tools while withholding unregistered directory backends on the primary chat surface', async () => {
+    const tools = await buildMainGatewayTools({ toolSurface: 'main-chat', buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId: 'available-files', sessionId: 's' }, executionCapabilityChannels: [], executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(), invokeMcpListTools: vi.fn(async () => ({ tools: [{ serverName: 'filesystem', toolName: 'read_file' }, { serverName: 'filesystem', toolName: 'write_file' }] })), invokeMcpCallTool: vi.fn() })
+    expect(tools.map(tool => tool.function.name)).toEqual(expect.arrayContaining(['filesystem_read_file', 'filesystem_write_file', 'filesystem_edit_file', 'filesystem_patch_file']))
+    expect(tools.some(tool => ['filesystem_list_directory', 'filesystem_search_files'].includes(tool.function.name))).toBe(false)
+  })
+
+  it('offers bounded personal creation only with a real handler and preserves the owning turn and cancellation', async () => {
+    const common = { buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId: 'personal-piece', sessionId: 's' }, executionCapabilityChannels: executionChannels, executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(async () => ({ ok: true })), invokeMcpListTools: vi.fn(async () => ({ tools: [] })), invokeMcpCallTool: vi.fn() }
+    expect((await buildMainGatewayTools(common)).some(tool => tool.function.name === 'life_create_personal_piece')).toBe(false)
+    const createPersonalPiece = vi.fn(async () => ({ status: 'held', reason: 'daily-project-budget' }))
+    const tool = (await buildMainGatewayTools({ ...common, createPersonalPiece })).find(tool => tool.function.name === 'life_create_personal_piece')!
+    expect(tool.function.parameters).toMatchObject({ type: 'object', additionalProperties: false, properties: {} })
+    await tool.execute({}, { messages: [], toolCallId: 'create-own' })
+    expect(createPersonalPiece).toHaveBeenCalledWith(expect.objectContaining({ cardId: 'default', turnId: 'personal-piece' }))
+    expect(common.invokeMcpCallTool).not.toHaveBeenCalled()
+  })
+
+  it('blocks credential paths before MCP dispatch while ordinary local reads remain available', async () => {
+    const invokeMcpCallTool = vi.fn(async () => ({ content: [{ type: 'text', text: 'ordinary QA note' }] }))
+    const tools = await buildMainGatewayTools({ buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId: 'private-read', sessionId: 's' }, executionCapabilityChannels: executionChannels, executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(async () => ({ ok: true })), invokeMcpListTools: vi.fn(async () => ({ tools: [] })), invokeMcpCallTool })
+    const read = tools.find(tool => tool.function.name === 'filesystem_read_file')!
+    const blocked = await read.execute({ path: '.env' }, { messages: [], toolCallId: 'private' })
+    expect(blocked).toMatchObject({ errorCode: 'PRIVATE_READ_CONFIRMATION_REQUIRED' })
+    expect(invokeMcpCallTool).not.toHaveBeenCalled()
+    await read.execute({ path: 'notes/qa.txt' }, { messages: [], toolCallId: 'ordinary' })
+    expect(invokeMcpCallTool).toHaveBeenCalledOnce()
+  })
   it('requires an explicit tool surface and ToolRegistry', async () => {
     const common = {
       buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),

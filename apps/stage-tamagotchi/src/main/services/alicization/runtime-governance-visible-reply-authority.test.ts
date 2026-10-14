@@ -8,6 +8,7 @@ import {
   coerceConversationTurnToMindGovernedPayload,
   normalizeDialogueRespondedPayload,
 } from './runtime-governance'
+import { createAlicizationRuntimeReplyArtifact } from './turn-os/reply-artifact'
 
 function createProviderExecution(overrides?: Record<string, unknown>) {
   return {
@@ -48,6 +49,18 @@ function createGovernance() {
 }
 
 describe('runtime governance visible reply authority', () => {
+  it('projects an approved committed artifact into the same visible text and speech plan without pretending to parse plain text as JSON', () => {
+    const text = 'QA-你好，很高兴见到你。'
+    const artifact = createAlicizationRuntimeReplyArtifact({ artifactVersion: 1, visibleText: text, fullText: text, finishReason: 'stop', visibleReplyExecution: { mode: 'provider-stream', expectedVisibleReplyAuthority: 'llm-mind', actualVisibleReplyAuthority: 'llm-mind', providerMindExecuted: true, reason: 'real-provider-artifact' }, realization: { version: 'visible-reply-realization-v1', expectedAuthority: 'llm-mind', actualAuthority: 'llm-mind', providerMindExecuted: true, mode: 'provider-stream', visibleText: text, visibleReplyValidationStatus: 'approved', nonHumanAuthoredStatus: null, blockedReasons: [], reason: 'real-provider-artifact', critic: { version: 'visible-reply-critic-public-summary-v1', status: 'pass', providerMindRequired: true, reasonCodes: [] }, closure: { version: 'visible-reply-closure-public-summary-v1', status: 'approved', reasonCodes: [], initialCriticStatus: 'pass', finalCriticStatus: 'pass' } } })
+    const input = { turnId: 'recovered:actual', sessionId: 'session', origin: 'user-turn' as const, assistantText: text, structured: {}, createdAt: 100 }
+    const projection = normalizeDialogueRespondedPayload(input, null, { committedProviderReply: artifact })!
+    expect(projection.structured.reply).toBe(text)
+    expect(projection.structured.speechTimeline?.reply).toBe(text)
+    expect(projection.visibleReplyRealization?.visibleText).toBe(text)
+    expect(projection.isFallback).toBe(false)
+    expect(() => normalizeDialogueRespondedPayload({ ...input, assistantText: 'Different reply' }, null, { committedProviderReply: artifact })).toThrow('exact approved provider artifact')
+    expect(normalizeDialogueRespondedPayload(input)?.isFallback).toBe(true)
+  })
   it('keeps the first Provider reply without content-contamination governance', () => {
     const providerReply = '主人……我仔细看看了。你今天很累，却还在 IntelliJ IDEA 里盯着代码。'
     const input: AlicizationConversationTurnInput = {
@@ -371,10 +384,10 @@ describe('runtime governance visible reply authority', () => {
 
   it('removes second-pass authority from shared contracts and runtime authority helpers', () => {
     const contractsSource = readFileSync(
-      'packages/stage-shared/src/alicization-transport-contracts.ts',
+      new URL('../../../../../../packages/stage-shared/src/alicization-transport-contracts.ts', import.meta.url),
       'utf8',
     )
-    const rootPackageSource = readFileSync('package.json', 'utf8')
+    const rootPackageSource = readFileSync(new URL('../../../../../../package.json', import.meta.url), 'utf8')
     const failureAuthoritySource = readFileSync(
       new URL('./visible-reply/authority-orchestrator.ts', import.meta.url),
       'utf8',

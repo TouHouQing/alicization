@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
 
   createCanonicalToolRegistry,
+  createToolRegistry,
   registerDiscoveredMcpCapability,
 } from './tool-registry'
 
@@ -27,9 +28,24 @@ const manifestFields: Array<keyof CapabilityManifest> = [
   'activationStatus',
   'providerToolName',
   'adapterToolName',
+  'effects',
 ]
 
 describe('canonical ToolRegistry', () => {
+  it('cannot declare a writer or an unknown remote tool safe for automatic read retries', () => {
+    const manifests = createCanonicalToolRegistry()
+    const read = manifests.get('tool.filesystem_read_file')!
+    const write = manifests.get('tool.filesystem_write_file')!
+    expect(() => createToolRegistry().register({ ...write, effects: read.effects })).toThrow('known reader')
+    expect(() => createToolRegistry().register({ ...read, permissions: ['filesystem.write'] })).toThrow('read permissions')
+    expect(() => createToolRegistry().register({ ...read, permissions: ['mcp.invoke'] })).toThrow('known reader')
+  })
+  it('declares read and mutation recovery separately and freezes their policy contracts', () => {
+    const registry = createCanonicalToolRegistry()
+    expect(registry.get('tool.filesystem_read_file')?.effects).toMatchObject({ sideEffect: 'read', retryClass: 'read-only', compensation: 'none' })
+    expect(registry.get('tool.filesystem_write_file')?.effects).toMatchObject({ sideEffect: 'mutation', retryClass: 'verify-before-retry', verifier: 'independent-goal-proof', compensation: 'manual-review' })
+    expect(Object.isFrozen(registry.get('tool.filesystem_read_file')?.effects)).toBe(true)
+  })
   it('registers the canonical capability representatives with complete manifests', () => {
     const registry = createCanonicalToolRegistry()
     const manifests = registry.list()
@@ -67,6 +83,7 @@ describe('canonical ToolRegistry', () => {
       'tool.filesystem_read_file',
       'tool.filesystem_search_files',
       'tool.filesystem_write_file',
+      'tool.life_create_personal_piece',
       'tool.sensory_capture_state',
       'tool.set_reminder',
     ])
@@ -148,8 +165,10 @@ describe('canonical ToolRegistry', () => {
       adapterToolName: 'test_echo_adapter',
     }
 
-    expect(registry.register(manifest)).toEqual(manifest)
-    expect(registry.get('test.echo')).toEqual(manifest)
+    const registered = registry.register(manifest)
+    expect(registered).toMatchObject(manifest)
+    expect(registered.effects).toBeDefined()
+    expect(registry.get('test.echo')).toEqual(registered)
     expect(() => registry.register(manifest)).toThrow(/already registered/u)
   })
 

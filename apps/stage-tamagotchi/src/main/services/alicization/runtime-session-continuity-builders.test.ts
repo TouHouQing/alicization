@@ -17,6 +17,15 @@ function createRuntime() {
 }
 
 describe('runtime session continuity builders', () => {
+  it('carries independent goal failure while retaining the completed adapter observation', () => {
+    const runtime = createRuntime()
+    const goalOutcome = { obligationId: 'task:write', generation: 1, revision: 4, status: 'blocked', verdict: 'not-satisfied', independent: true, verificationId: 'proof:actual' }
+    const action = runtime.buildTaskThreadSessionMirrorAction({ source: 'task-dispatch', thread: { id: 'write', status: 'completed', selectedChannel: 'cli', goal: 'Write agreed bytes', summary: 'Adapter exited successfully', createdAt: 1, updatedAt: 2, completedAt: 2, metadata: { lifeGoalOutcome: goalOutcome } } as any })
+    expect(action.status).toBe('failed')
+    expect(action.summary).toContain('verdict=not-satisfied')
+    expect(action.metadata).toMatchObject({ threadStatus: 'completed', goalOutcome })
+    expect(action.signature).toContain(':4')
+  })
   it('keeps pending proactive facts in metadata without a generated summary', () => {
     const runtime = createRuntime()
     const signal = runtime.buildPendingProactiveContinuitySignal({

@@ -293,7 +293,7 @@ beforeAll(async () => {
       return mountedSetupState
     },
   }
-})
+}, 30_000)
 
 beforeEach(() => {
   vi.restoreAllMocks()

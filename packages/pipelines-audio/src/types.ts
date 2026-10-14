@@ -136,6 +136,27 @@ export interface PlaybackItem<TAudio> {
   metadata?: SpeechIntentMetadata | null
 }
 
+export interface PlaybackResult {
+  status: 'completed' | 'interrupted' | 'failed'
+  playedMs: number
+  errorCode: string | null
+}
+
+export interface PlaybackFailureEvent<TAudio> {
+  item: PlaybackItem<TAudio>
+  result: PlaybackResult
+  failedAt: number
+}
+
+export interface UtterancePlaybackResultEvent {
+  intentId: string
+  streamId: string
+  metadata: SpeechIntentMetadata | null
+  segmentCount: number
+  completedSegments: number
+  result: PlaybackResult
+}
+
 export interface PlaybackStartEvent<TAudio> {
   item: PlaybackItem<TAudio>
   startedAt: number
@@ -144,12 +165,14 @@ export interface PlaybackStartEvent<TAudio> {
 export interface PlaybackEndEvent<TAudio> {
   item: PlaybackItem<TAudio>
   endedAt: number
+  result: PlaybackResult
 }
 
 export interface PlaybackInterruptEvent<TAudio> {
   item: PlaybackItem<TAudio>
   reason: string
   interruptedAt: number
+  result: PlaybackResult
 }
 
 export interface PlaybackRejectEvent<TAudio> {
@@ -190,6 +213,8 @@ export interface SpeechPipelineEvents<TAudio> {
   onPlaybackStart: (event: PlaybackStartEvent<TAudio>) => void
   onPlaybackEnd: (event: PlaybackEndEvent<TAudio>) => void
   onPlaybackInterrupt: (event: PlaybackInterruptEvent<TAudio>) => void
+  onPlaybackFailure: (event: PlaybackFailureEvent<TAudio>) => void
+  onUtterancePlaybackResult: (event: UtterancePlaybackResultEvent) => void
   onPlaybackReject: (event: PlaybackRejectEvent<TAudio>) => void
   onIntentStart: (intentId: string) => void
   onIntentEnd: (intentId: string) => void

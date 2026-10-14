@@ -86,6 +86,13 @@ async function handleImport(event: Event) {
 
 <template>
   <div class="flex flex-col gap-4 pb-4">
+    <p
+      v-if="statusMessage && !importError"
+      role="status"
+      :class="['text-sm', statusTone === 'error' ? 'text-red-600' : 'text-primary-600']"
+    >
+      {{ statusMessage }}
+    </p>
     <div class="border-2 border-neutral-200/50 rounded-xl bg-white/70 p-4 shadow-sm dark:border-neutral-800/60 dark:bg-neutral-900/60">
       <div class="grid grid-cols-1 items-start gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
         <div class="flex flex-col gap-1 md:max-w-[560px]">
@@ -120,7 +127,7 @@ async function handleImport(event: Event) {
         </div>
       </div>
       <input ref="importFileInput" type="file" accept="application/json" class="hidden" @change="handleImport">
-      <p v-if="importError" class="text-sm text-red-500">
+      <p v-if="importError" role="alert" class="text-sm text-red-500">
         {{ importError }}
       </p>
     </div>

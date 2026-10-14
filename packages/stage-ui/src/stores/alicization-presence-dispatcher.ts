@@ -12,6 +12,7 @@ import type {
 import {
   buildAlicizationDialogueSpeechTimeline,
   buildAlicizationDigitalLifeEnvelope,
+  isAlicizationInfraVisibleReplyAuthority,
   normalizeAlicizationDialogueEmbodimentEnvelope,
   normalizeAlicizationDialogueSpeechTimeline,
   normalizeAlicizationDigitalLifeEnvelope,
@@ -183,8 +184,10 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     return {
       renderer,
       supportedBaseEmotions,
-      supportedFacialCues: [],
-      supportedActions: [],
+      // Preserve requested cues during routing. The actual renderer still
+      // clamps against its live capabilities before executing them.
+      supportedFacialCues: [...new Set([input.performance.facialCue, ...script.facePlan.speakingCues.map(cue => cue.facialCue)])].filter((key): key is string => Boolean(key)).map(key => ({ key, label: key, description: 'Requested by the normalized embodiment script', source: 'preset' as const, affectsMouth: false })),
+      supportedActions: [...new Set([input.performance.actionCue, ...script.motionPlan.actionBursts.map(burst => burst.actionCue)])].filter((key): key is string => Boolean(key)).map(key => ({ key, label: key, description: 'Requested by the normalized embodiment script', source: 'builtin' as const })),
       supportsLookAt: renderer === 'vrm',
       supportsVisemeLipSync: renderer === 'vrm' && script.lipsyncPlan.mode === 'energy-phoneme-hybrid',
       supportsMicroDynamics: true,
@@ -442,6 +445,18 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     if (!rememberTurnId(payload.turnId))
       return
 
+    if (payload.structured?.formatLane === 'infra-fallback' || isAlicizationInfraVisibleReplyAuthority(payload.structured?.visibleReplyAuthority)) {
+      // Deliver diagnostics to UI observers without attributing them to her
+      // voice, emotional expression, or the next dialogue's routing state.
+      for (const listener of listeners) {
+        try {
+          listener(payload)
+        }
+        catch { /* Observers must never block error recovery. */ }
+      }
+      return
+    }
+
     const normalizedEmotion = normalizeAlicizationEmotion(payload.structured?.emotion)
     const normalizedPerformance = normalizeAlicizationPerformancePayload(
       payload.structured?.performance,
@@ -473,10 +488,16 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
       }
     }
 
+    const inferredPerformanceManifest = inferPerformanceManifestFromEmbodimentScript({
+      performance: resolvedPerformance,
+      script: resolvedEmbodimentScript,
+    })
+
     if (!resolvedEmbodiment || shouldRouteSparseDialoguePerformance(resolvedPerformance)) {
       resolvedEmbodiment = resolveAlicizationDialogueEmbodiment({
         candidateEmotion: resolvedEmotion,
         candidatePerformance: resolvedPerformance,
+        performanceManifest: inferredPerformanceManifest,
         governance: payload.structured?.governance,
         previous: {
           actionCue: dialogueEmbodimentRoutingState.previousActionCue,
@@ -496,11 +517,6 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
         emotion: resolvedEmbodiment.emotion,
       }
     }
-
-    const inferredPerformanceManifest = inferPerformanceManifestFromEmbodimentScript({
-      performance: resolvedPerformance,
-      script: resolvedEmbodimentScript,
-    })
 
     if (!resolvedSpeechTimeline) {
       resolvedSpeechTimeline = buildAlicizationDialogueSpeechTimeline({

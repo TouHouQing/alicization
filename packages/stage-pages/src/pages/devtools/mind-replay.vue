@@ -30,16 +30,28 @@ const {
   benchmarkRegressionTriageRows,
   benchmarkPresenceQualityRows,
   benchmarkRuntimeSamplingEvidenceRows,
-  benchmarkContinuityLaneGapRows,
-  benchmarkContinuityRepairTargetRows,
-  benchmarkContinuitySessionRows,
-  benchmarkContinuityTransitionRows,
+  benchmarkMemoryClosureRepairTargetRows,
+  benchmarkMemoryClosureLongRunRows,
   filteredBenchmarkFailingTurns,
   memoryHealthComparisonRows,
   lastError,
   replayCoverage,
   replaySummary,
 } = storeToRefs(store)
+
+// The current proof publishes actual repair targets and long-run evidence.
+// Project the unresolved lanes/transitions from those targets rather than
+// reading removed benchmark properties or inventing empty compatibility data.
+const memoryClosureLaneGapRows = computed(() => [...new Set(benchmarkMemoryClosureRepairTargetRows.value.map(target => target.lane))].map(lane => ({
+  key: lane,
+  value: benchmarkMemoryClosureRepairTargetRows.value.filter(target => target.lane === lane).length,
+  detail: benchmarkMemoryClosureRepairTargetRows.value.filter(target => target.lane === lane).map(target => target.turnId).join(', '),
+})))
+const memoryClosureTransitionRows = computed(() => benchmarkMemoryClosureRepairTargetRows.value.filter(target => target.targetKind === 'transition').map(target => ({
+  key: `${target.sessionId}:${target.turnId}:${target.lane}`,
+  value: null,
+  detail: target.reasons.join(', '),
+})))
 
 const i18nPageKey = 'settings.pages.system.sections.section.developer.sections.section.mind-replay.page'
 
@@ -240,7 +252,7 @@ async function runBenchmark() {
 }
 
 async function runContinuitySessionProof() {
-  await store.runContinuitySessionProof()
+  await store.runMemoryClosureProof()
 }
 
 async function inspectBenchmarkTurn(turnId: string | null) {
@@ -340,10 +352,10 @@ async function inspectBenchmarkTurn(turnId: string | null) {
       :memory-health-rows="memoryHealthComparisonRows"
       :presence-quality-rows="benchmarkPresenceQualityRows"
       :runtime-sampling-evidence-rows="benchmarkRuntimeSamplingEvidenceRows"
-      :continuity-session-rows="benchmarkContinuitySessionRows"
-      :continuity-lane-gap-rows="benchmarkContinuityLaneGapRows"
-      :continuity-transition-rows="benchmarkContinuityTransitionRows"
-      :continuity-repair-target-rows="benchmarkContinuityRepairTargetRows"
+      :continuity-session-rows="benchmarkMemoryClosureLongRunRows"
+      :continuity-lane-gap-rows="memoryClosureLaneGapRows"
+      :continuity-transition-rows="memoryClosureTransitionRows"
+      :continuity-repair-target-rows="benchmarkMemoryClosureRepairTargetRows"
       @run="runBenchmark"
       @run-continuity-session-proof="runContinuitySessionProof"
       @update:pack-id="store.setBenchmarkPackId($event)"

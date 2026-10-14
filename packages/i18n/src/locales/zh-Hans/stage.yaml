@@ -1,4 +1,9 @@
 chat:
+  title: 对话
+  empty: 从一句问候开始吧。
+  send: 发送消息
+  input-hint: Enter 发送 · Shift + Enter 换行
+  preparing: 正在准备回复… 等待时可以点击中断按钮。
   message:
     character-name:
       airi: ALICIZATION

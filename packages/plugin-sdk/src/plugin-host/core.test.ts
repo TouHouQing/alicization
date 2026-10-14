@@ -103,17 +103,17 @@ describe('for FileSystemPluginHost', () => {
     expect(host.resolveEntrypointFor(runtimeEntryManifest, {
       cwd: '/tmp/plugin',
       runtime: 'node',
-    })).toBe('/tmp/plugin/node-entry.ts')
+    })).toBe(join('/tmp/plugin', 'node-entry.ts'))
 
     expect(host.resolveEntrypointFor(defaultFallbackManifest, {
       cwd: '/tmp/plugin',
       runtime: 'node',
-    })).toBe('/tmp/plugin/default-entry.ts')
+    })).toBe(join('/tmp/plugin', 'default-entry.ts'))
 
     expect(host.resolveEntrypointFor(electronFallbackManifest, {
       cwd: '/tmp/plugin',
       runtime: 'node',
-    })).toBe('/tmp/plugin/electron-entry.ts')
+    })).toBe(join('/tmp/plugin', 'electron-entry.ts'))
   })
 
   it('should preserve absolute runtime entrypoints', () => {

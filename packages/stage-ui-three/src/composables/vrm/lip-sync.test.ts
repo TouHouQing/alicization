@@ -99,6 +99,27 @@ function createSpeechRenderState(rendererHints?: {
 }
 
 describe('vrm lip sync', () => {
+  it.each(['idle', 'armed', 'stopping'])('releases stale analyser and cue values after speech ends in %s', (phase) => {
+    const speech = createSpeechRenderState()
+    const lipSync = useVRMLipSync(speech)
+    for (let frame = 0; frame < 30; frame++)
+      lipSync.update(1 / 60)
+    expect(lipSync.executionState.value.dominantWeight).toBeGreaterThan(0.05)
+    // Leave the analyser, cue, energy and descriptor intact, as actual devices do.
+    speech.value.active = false
+    speech.value.phase = phase
+    let result = lipSync.update(1 / 60)
+    for (let frame = 0; frame < 180; frame++)
+      result = lipSync.update(1 / 60)
+    expect(result.active).toBe(false)
+    expect(Object.values(result.weights)).toEqual([0, 0, 0, 0, 0])
+    speech.value.active = true
+    speech.value.phase = 'playing'
+    speech.value.item.segmentId = 'new-segment'
+    expect(lipSync.update(1 / 60).active).toBe(true)
+    expect(lipSync.executionState.value.segmentId).toBe('new-segment')
+  })
+
   beforeEach(() => {
     mockLipSyncNode.volume = 1
     mockLipSyncNode.weights = {

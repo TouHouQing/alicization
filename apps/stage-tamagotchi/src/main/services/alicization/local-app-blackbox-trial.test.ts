@@ -4,6 +4,7 @@ import type {
 import type { MemoryProductionTrialReport } from './memory-production-trial-runner'
 
 import { EventEmitter } from 'node:events'
+import { join } from 'node:path'
 
 import sqlite3 from 'sqlite3'
 
@@ -718,7 +719,7 @@ describe('local macOS app blackbox trial', () => {
 
   it('filters runtime debug JSONL by trial start and preserves malformed evidence', async () => {
     const trace = await readRuntimeDebugTraceSince(
-      '/tmp/runtime-debug.log',
+      join('/tmp/runtime-debug.log'),
       Date.parse('2026-08-29T06:00:00.000Z'),
       async () => [
         '{"ts":"2026-08-29T05:59:59.000Z","event":"old"}',
@@ -759,10 +760,10 @@ describe('local macOS app blackbox trial', () => {
     const spawn = vi.fn(() => child as never)
     const automation = createPlaywrightLocalAppBlackboxAutomation({
       args: {
-        appPath: '/Users/alice/Applications/Alicization Local.app',
-        userDataPath: '/tmp/alicization',
+        appPath: join('/Users/alice/Applications/Alicization Local.app'),
+        userDataPath: join('/tmp/alicization'),
         cardId: 'card-a',
-        outputDir: '/tmp/blackbox',
+        outputDir: join('/tmp/blackbox'),
         remoteDebugPort: 9333,
         launchTimeoutMs: 45_000,
         turnTimeoutMs: 120_000,
@@ -781,14 +782,14 @@ describe('local macOS app blackbox trial', () => {
 
     await expect(automation.launch()).resolves.toEqual({ pid: 1234 })
     expect(spawn).toHaveBeenCalledWith(
-      '/Users/alice/Applications/Alicization Local.app/Contents/MacOS/alicization',
+      join('/Users/alice/Applications/Alicization Local.app/Contents/MacOS/alicization'),
       [
         '--user-data-dir',
-        '/tmp/alicization',
+        join('/tmp/alicization'),
       ],
       expect.objectContaining({
         env: expect.objectContaining({
-          ALICIZATION_USER_DATA_PATH: '/tmp/alicization',
+          ALICIZATION_USER_DATA_PATH: join('/tmp/alicization'),
           APP_REMOTE_DEBUG: 'true',
           APP_REMOTE_DEBUG_PORT: '9333',
         }),
@@ -815,10 +816,10 @@ describe('local macOS app blackbox trial', () => {
     const spawn = vi.fn(() => child as never)
     const automation = createPlaywrightLocalAppBlackboxAutomation({
       args: {
-        appPath: '/Users/alice/Applications/Alicization Local.app/Contents/MacOS/alicization',
-        userDataPath: '/tmp/alicization',
+        appPath: join('/Users/alice/Applications/Alicization Local.app/Contents/MacOS/alicization'),
+        userDataPath: join('/tmp/alicization'),
         cardId: 'card-a',
-        outputDir: '/tmp/blackbox',
+        outputDir: join('/tmp/blackbox'),
         remoteDebugPort: 9334,
         launchTimeoutMs: 45_000,
         turnTimeoutMs: 120_000,
@@ -831,13 +832,13 @@ describe('local macOS app blackbox trial', () => {
         qualityReadOnly: false,
       },
       spawn,
-      pathExists: path => path === '/Users/alice/Applications/Alicization Local.app/Contents/MacOS/alicization',
+      pathExists: path => path === join('/Users/alice/Applications/Alicization Local.app/Contents/MacOS/alicization'),
       connectOverCDP: vi.fn(),
     })
 
     await expect(automation.launch()).resolves.toEqual({ pid: 1234 })
     expect(spawn).toHaveBeenCalledWith(
-      '/Users/alice/Applications/Alicization Local.app/Contents/MacOS/alicization',
+      join('/Users/alice/Applications/Alicization Local.app/Contents/MacOS/alicization'),
       expect.any(Array),
       expect.any(Object),
     )
@@ -866,10 +867,10 @@ describe('local macOS app blackbox trial', () => {
     })
     const automation = createPlaywrightLocalAppBlackboxAutomation({
       args: {
-        appPath: '/Users/alice/Applications/Alicization Local.app',
-        userDataPath: '/tmp/alicization',
+        appPath: join('/Users/alice/Applications/Alicization Local.app'),
+        userDataPath: join('/tmp/alicization'),
         cardId: 'card-a',
-        outputDir: '/tmp/blackbox',
+        outputDir: join('/tmp/blackbox'),
         remoteDebugPort: 9333,
         launchTimeoutMs: 45_000,
         turnTimeoutMs: 120_000,
@@ -909,15 +910,15 @@ describe('local macOS app blackbox trial', () => {
 
   it('resolves the current card database before the legacy unbound database path', () => {
     const existing = new Set([
-      '/tmp/alicization/alicizations/cards/default/alicization.db',
-      '/tmp/alicization/alicizations/alicization.db',
+      join('/tmp/alicization/alicizations/cards/default/alicization.db'),
+      join('/tmp/alicization/alicizations/alicization.db'),
     ])
 
     expect(resolveLocalAppMemoryDatabasePath({
-      userDataPath: '/tmp/alicization',
+      userDataPath: join('/tmp/alicization'),
       cardId: 'default',
       pathExists: path => existing.has(path),
-    })).toBe('/tmp/alicization/alicizations/cards/default/alicization.db')
+    })).toBe(join('/tmp/alicization/alicizations/cards/default/alicization.db'))
   })
 
   it('does not treat a matching search document as recall for a natural Chinese question', async () => {
@@ -2213,9 +2214,9 @@ describe('local macOS app blackbox trial', () => {
       startedAt: 10,
       finishedAt: 20,
       appPath: '/Applications/Alicization Local.app',
-      userDataPath: '/tmp/alicization',
+      userDataPath: join('/tmp/alicization'),
       cardId: 'card-a',
-      outputDir: '/tmp/blackbox',
+      outputDir: join('/tmp/blackbox'),
       summary: {
         requestedMessageCount: 2,
         completedMessageCount: 2,
@@ -2293,9 +2294,9 @@ describe('local macOS app blackbox trial', () => {
       startedAt: 10,
       finishedAt: 20,
       appPath: '/Applications/Alicization Local.app',
-      userDataPath: '/tmp/alicization',
+      userDataPath: join('/tmp/alicization'),
       cardId: 'card-a',
-      outputDir: '/tmp/blackbox',
+      outputDir: join('/tmp/blackbox'),
       summary: {
         requestedMessageCount: 1,
         completedMessageCount: 1,
@@ -2349,11 +2350,11 @@ describe('local macOS app blackbox trial', () => {
   it('parses the card scope used by the real App database', () => {
     expect(parseLocalAppBlackboxTrialArgs([
       '--user-data-path',
-      '/tmp/alicization',
+      join('/tmp/alicization'),
       '--card-id',
       'card-a',
     ])).toMatchObject({
-      userDataPath: '/tmp/alicization',
+      userDataPath: join('/tmp/alicization'),
       cardId: 'card-a',
     })
   })
@@ -2365,9 +2366,9 @@ describe('local macOS app blackbox trial', () => {
       startedAt: 10,
       finishedAt: 20,
       appPath: '/Applications/Alicization Local.app',
-      userDataPath: '/tmp/alicization',
+      userDataPath: join('/tmp/alicization'),
       cardId: 'card-a',
-      outputDir: '/tmp/blackbox',
+      outputDir: join('/tmp/blackbox'),
       summary: {
         requestedMessageCount: 1,
         completedMessageCount: 1,
@@ -2406,9 +2407,9 @@ describe('local macOS app blackbox trial', () => {
     }) => {
       expect(input).toEqual({
         cardId: 'card-a',
-        userDataPath: '/tmp/alicization',
+        userDataPath: join('/tmp/alicization'),
         mode: 'historical-replay',
-        reportPath: '/tmp/blackbox/quality-report.json',
+        reportPath: join('/tmp/blackbox/quality-report.json'),
         readOnly: true,
       })
       return {
@@ -2420,9 +2421,9 @@ describe('local macOS app blackbox trial', () => {
     const report = await runLocalAppProductionTrial({
       args: {
         appPath: '/Applications/Alicization Local.app',
-        userDataPath: '/tmp/alicization',
+        userDataPath: join('/tmp/alicization'),
         cardId: 'card-a',
-        outputDir: '/tmp/blackbox',
+        outputDir: join('/tmp/blackbox'),
         remoteDebugPort: 9222,
         launchTimeoutMs: 45_000,
         turnTimeoutMs: 120_000,
@@ -2450,7 +2451,7 @@ describe('local macOS app blackbox trial', () => {
       qualityTrialError: null,
     })
     expect(writeText).toHaveBeenCalledWith(
-      '/tmp/blackbox/production-report.json',
+      join('/tmp/blackbox/production-report.json'),
       expect.stringContaining('"version": "alicization-local-app-production-trial-v1"'),
     )
   })
@@ -2846,13 +2847,13 @@ describe('local macOS app blackbox trial', () => {
 
   it('provides novice-safe installed app and artifact defaults', () => {
     expect(parseLocalAppBlackboxTrialArgs([], {
-      homeDir: '/Users/alice',
+      homeDir: join('/Users/alice'),
       now: () => Date.parse('2026-08-29T06:00:00.000Z'),
     })).toEqual({
-      appPath: '/Users/alice/Applications/Alicization Local.app',
-      userDataPath: '/Users/alice/Library/Application Support/Alicization',
+      appPath: join('/Users/alice/Applications/Alicization Local.app'),
+      userDataPath: join('/Users/alice/Library/Application Support/Alicization'),
       cardId: 'default',
-      outputDir: '/Users/alice/Desktop/Alicization-Blackbox-Traces/2026-08-29T06-00-00-000Z',
+      outputDir: join('/Users/alice/Desktop/Alicization-Blackbox-Traces/2026-08-29T06-00-00-000Z'),
       remoteDebugPort: 9222,
       launchTimeoutMs: 45_000,
       turnTimeoutMs: 120_000,
@@ -2903,7 +2904,7 @@ describe('local macOS app blackbox trial', () => {
       captureScreenshots: vi.fn(async () => [{
         title: 'Chat',
         url: 'file:///app/index.html#/chat',
-        path: '/tmp/blackbox/chat.png',
+        path: join('/tmp/blackbox/chat.png'),
       }]),
       collectDiagnostics: vi.fn(async () => ({
         processOutput: ['[stdout] app ready'],
@@ -2920,9 +2921,9 @@ describe('local macOS app blackbox trial', () => {
     const report = await runLocalAppBlackboxTrial({
       args: {
         appPath: '/Applications/Alicization Local.app',
-        userDataPath: '/tmp/alicization',
+        userDataPath: join('/tmp/alicization'),
         cardId: 'default',
-        outputDir: '/tmp/blackbox',
+        outputDir: join('/tmp/blackbox'),
         remoteDebugPort: 9222,
         launchTimeoutMs: 45_000,
         turnTimeoutMs: 120_000,
@@ -3004,19 +3005,19 @@ describe('local macOS app blackbox trial', () => {
       'screenshots',
     ])
     expect(writeText).toHaveBeenCalledWith(
-      '/tmp/blackbox/runtime-debug.jsonl',
+      join('/tmp/blackbox/runtime-debug.jsonl'),
       expect.stringContaining('"event":"chat-start.accepted"'),
     )
     expect(writeText).toHaveBeenCalledWith(
-      '/tmp/blackbox/report.json',
+      join('/tmp/blackbox/report.json'),
       expect.stringContaining('"version": "alicization-local-app-blackbox-trial-v1"'),
     )
     expect(writeText).toHaveBeenCalledWith(
-      '/tmp/blackbox/app-process.log',
+      join('/tmp/blackbox/app-process.log'),
       '[stdout] app ready\n',
     )
     expect(writeText).toHaveBeenCalledWith(
-      '/tmp/blackbox/renderer-console.jsonl',
+      join('/tmp/blackbox/renderer-console.jsonl'),
       expect.stringContaining('"text":"renderer mounted"'),
     )
     expect(automation.close).toHaveBeenCalledOnce()
@@ -3060,9 +3061,9 @@ describe('local macOS app blackbox trial', () => {
     const report = await runLocalAppBlackboxTrial({
       args: {
         appPath: '/Applications/Alicization Local.app',
-        userDataPath: '/tmp/alicization',
+        userDataPath: join('/tmp/alicization'),
         cardId: 'default',
-        outputDir: '/tmp/blackbox',
+        outputDir: join('/tmp/blackbox'),
         remoteDebugPort: 9222,
         launchTimeoutMs: 45_000,
         turnTimeoutMs: 120_000,
@@ -3166,9 +3167,9 @@ describe('local macOS app blackbox trial', () => {
     const report = await runLocalAppBlackboxTrial({
       args: {
         appPath: '/Applications/Alicization Local.app',
-        userDataPath: '/tmp/alicization',
+        userDataPath: join('/tmp/alicization'),
         cardId: 'default',
-        outputDir: '/tmp/blackbox',
+        outputDir: join('/tmp/blackbox'),
         remoteDebugPort: 9222,
         launchTimeoutMs: 45_000,
         turnTimeoutMs: 120_000,

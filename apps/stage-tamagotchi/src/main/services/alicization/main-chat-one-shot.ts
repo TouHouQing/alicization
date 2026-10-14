@@ -12,6 +12,7 @@ import {
   createAbortError,
   sanitizeText,
 } from './main-chat-stream-primitives'
+import { withProviderFetch } from './provider-fetch'
 import {
   resolveAlicizationProviderRetryDeadline,
   runWithAlicizationProviderRetry,
@@ -225,7 +226,7 @@ async function executeAlicizationMainChatOneShot(input: AlicizationMainChatOneSh
           const providerSignal = attemptController.signal
           return await awaitAlicizationPromiseWithAbort(
             invokeGenerateText({
-              ...input.chatConfig,
+              ...withProviderFetch(input.chatConfig),
               maxSteps: input.maxSteps,
               messages: input.messages,
               headers: input.headers,

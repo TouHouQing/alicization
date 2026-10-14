@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { constants } from 'node:fs'
 import { access, readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { delimiter, join } from 'node:path'
+import { posix, win32 } from 'node:path'
 import { env as processEnv, platform as processPlatform } from 'node:process'
 
 type AccessImpl = (path: string, mode?: number) => Promise<void>
@@ -42,7 +42,10 @@ function removeParentCodexEnvironment(baseEnv: NodeJS.ProcessEnv) {
   ) as NodeJS.ProcessEnv
 }
 
-function buildKnownExecutionRootEntries(homeDir: string) {
+function buildKnownExecutionRootEntries(homeDir: string, platform: NodeJS.Platform) {
+  const { join } = platform === 'win32' ? win32 : posix
+  if (platform === 'win32')
+    return normalizeEntries([join(homeDir, '.local', 'bin'), join(homeDir, '.bun', 'bin'), join(homeDir, 'bin'), join(homeDir, 'AppData', 'Roaming', 'npm')])
   return normalizeEntries([
     join(homeDir, '.local', 'bin'),
     join(homeDir, '.bun', 'bin'),
@@ -60,7 +63,8 @@ function buildKnownExecutionRootEntries(homeDir: string) {
   ])
 }
 
-function buildKnownExecutionBinaryCandidates(binary: string, homeDir: string) {
+function buildKnownExecutionBinaryCandidates(binary: string, homeDir: string, platform: NodeJS.Platform) {
+  const { join } = platform === 'win32' ? win32 : posix
   if (binary === 'codex') {
     return normalizeEntries([
       '/Applications/Codex.app/Contents/Resources/codex',
@@ -83,7 +87,8 @@ function buildKnownExecutionBinaryCandidates(binary: string, homeDir: string) {
   return []
 }
 
-async function buildVersionManagerBinaryCandidates(binary: string, homeDir: string, readdirImpl: ReaddirImpl) {
+async function buildVersionManagerBinaryCandidates(binary: string, homeDir: string, readdirImpl: ReaddirImpl, platform: NodeJS.Platform) {
+  const { join } = platform === 'win32' ? win32 : posix
   const roots = [
     join(homeDir, '.nvm', 'versions', 'node'),
     join(homeDir, '.fnm', 'node-versions'),
@@ -178,14 +183,15 @@ function createVersionProbe(): VersionImpl {
   }
 }
 
-export function buildAlicizationExecutionPath(pathValue = processEnv.PATH, homeDir = homedir()) {
+export function buildAlicizationExecutionPath(pathValue = processEnv.PATH, homeDir = homedir(), platform: NodeJS.Platform = processPlatform) {
+  const { delimiter } = platform === 'win32' ? win32 : posix
   const baseEntries = typeof pathValue === 'string'
     ? normalizeEntries(pathValue.split(delimiter))
     : []
 
   return unique([
     ...baseEntries,
-    ...buildKnownExecutionRootEntries(homeDir),
+    ...buildKnownExecutionRootEntries(homeDir, platform),
   ]).join(delimiter)
 }
 
@@ -215,6 +221,7 @@ export async function locateAlicizationExecutionBinary(
 
   const homeDir = options.homeDir ?? homedir()
   const platform = options.platform ?? processPlatform
+  const { delimiter, join } = platform === 'win32' ? win32 : posix
   const accessImpl = options.accessImpl ?? access
   const readdirImpl = options.readdirImpl ?? (async (path: string) => await readdir(path, { withFileTypes: false }))
   const inheritedPathValue = options.pathValue ?? processEnv.PATH
@@ -224,9 +231,9 @@ export async function locateAlicizationExecutionBinary(
   const extensions = buildPathExtensions(platform)
   const inheritedPathCandidates = inheritedPathEntries.flatMap(root => extensions.map(extension => join(root, `${normalizedBinary}${extension}`)))
   const versionManagerCandidates = platform === 'darwin' || platform === 'linux'
-    ? await buildVersionManagerBinaryCandidates(normalizedBinary, homeDir, readdirImpl)
+    ? await buildVersionManagerBinaryCandidates(normalizedBinary, homeDir, readdirImpl, platform)
     : []
-  const fallbackPathEntries = buildKnownExecutionRootEntries(homeDir)
+  const fallbackPathEntries = buildKnownExecutionRootEntries(homeDir, platform)
   const fallbackPathCandidates = fallbackPathEntries.flatMap(root => extensions.map(extension => join(root, `${normalizedBinary}${extension}`)))
   const explicitPath = typeof options.explicitPath === 'string'
     ? options.explicitPath.trim()
@@ -235,7 +242,7 @@ export async function locateAlicizationExecutionBinary(
     ...(explicitPath ? extensions.map(extension => explicitPath.endsWith(extension) ? explicitPath : `${explicitPath}${extension}`) : []),
     ...inheritedPathCandidates,
     ...versionManagerCandidates,
-    ...buildKnownExecutionBinaryCandidates(normalizedBinary, homeDir),
+    ...buildKnownExecutionBinaryCandidates(normalizedBinary, homeDir, platform),
     ...fallbackPathCandidates,
   ])
 

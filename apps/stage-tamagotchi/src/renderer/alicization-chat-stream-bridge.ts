@@ -178,7 +178,7 @@ export function createAlicizationChatStreamLifecycle(
     }, terminalToolHandoffTimeoutMs)
   }
 
-  const scheduleTerminalSettlement = () => {
+  function scheduleTerminalSettlement() {
     if (!pendingTerminalSettlement)
       return
     if (activeToolCallIds.size > 0) {
@@ -494,6 +494,8 @@ export function bridgeAlicizationChatFinishEventToStreamEvent(
 ): Extract<AlicizationBridgeChatStreamEvent, { type: 'finish' }> {
   return {
     type: 'finish',
+    conversationCommitted: payload.conversationCommitted === true,
+    acceptedProviderReply: payload.acceptedProviderReply,
     origin: payload.origin,
     learningPolicy: payload.learningPolicy,
     failureSurface: payload.failureSurface ?? null,

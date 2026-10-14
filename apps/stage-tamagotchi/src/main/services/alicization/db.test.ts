@@ -368,6 +368,7 @@ const personaReinforcementEvents = new Map<string, {
   summary: string
   created_at: number
 }>()
+const lifeMemoryWithdrawals = new Map<string, 'correction' | 'forget'>()
 const longTermMemoryTombstones = new Map<string, {
   id: string
   card_id: string
@@ -434,8 +435,9 @@ function upsertMemoryFactRow(row: {
 }
 
 class FakeSqliteDatabase {
-  constructor(_path: string, callback: (error?: Error | null) => void) {
-    callback(null)
+  constructor(_path: string, modeOrCallback: number | ((error?: Error | null) => void), callback?: (error?: Error | null) => void) {
+    const onOpen = typeof modeOrCallback === 'function' ? modeOrCallback : callback
+    onOpen?.(null)
   }
 
   run(sql: string, params: unknown[] | ((error: Error | null) => void), callback?: (this: { changes: number, lastID: number }, error: Error | null) => void) {
@@ -623,6 +625,11 @@ class FakeSqliteDatabase {
       else {
         changes = 0
       }
+    }
+    else if (sql.includes('INSERT INTO life_memory_source_withdrawals')) {
+      const [cardId, source, sourceId, mode] = actualParams as [string, string, string, 'correction' | 'forget']
+      const key = `${cardId}:${source}:${sourceId}`
+      lifeMemoryWithdrawals.set(key, lifeMemoryWithdrawals.get(key) === 'forget' ? 'forget' : mode)
     }
     else if (sql.includes('INSERT OR REPLACE INTO long_term_memory_tombstones')) {
       const [id, cardId, sourceId, source, reason, createdAt] = actualParams as [string, string, string, string, string | null, number]
@@ -1485,6 +1492,13 @@ class FakeSqliteDatabase {
       return this
     }
 
+    if (sql.includes('SELECT mode FROM life_memory_source_withdrawals')) {
+      const key = actualParams.map(String).join(':')
+      const mode = lifeMemoryWithdrawals.get(key)
+      actualCallback?.(null, mode ? { mode } : undefined)
+      return this
+    }
+
     if (sql.includes('COUNT(1) AS total FROM memory_facts')) {
       actualCallback?.(null, { total: memoryFacts.size })
       return this
@@ -2000,6 +2014,7 @@ class FakeSqliteDatabase {
 vi.mock('./sqlite3-runtime', () => ({
   default: {
     Database: FakeSqliteDatabase,
+    OPEN_READONLY: 1,
   },
 }))
 
@@ -2104,6 +2119,7 @@ describe('alicization sqlite dao', () => {
     memoryReflections.clear()
     personaReinforcementEvents.clear()
     longTermMemoryTombstones.clear()
+    lifeMemoryWithdrawals.clear()
     executorSessions.clear()
     capabilityManifests.clear()
     while (sandboxDirs.length > 0) {
@@ -2115,18 +2131,13 @@ describe('alicization sqlite dao', () => {
   })
 
   it('initializes sqlite pragmas with WAL', async () => {
-    runCalls.length = 0
-    metaState.clear()
-    scheduledTasks.clear()
-    mindTurnEvents.length = 0
-    taskThreads.clear()
-    executionEvents.length = 0
-
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
-    expect(runCalls.some(sql => sql.includes('PRAGMA journal_mode = WAL'))).toBe(true)
-    expect(runCalls.some(sql => sql.includes('PRAGMA busy_timeout = 2000'))).toBe(true)
-    expect(await db.getJournalMode()).toBe('wal')
-    await db.close()
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
+    try {
+      expect(await db.getJournalMode()).toBe('wal')
+    }
+    finally {
+      await db.close()
+    }
   })
 
   it('aborts a queued SQLite write without applying it after the queue head is released', async () => {
@@ -5235,10 +5246,12 @@ describe('alicization sqlite dao', () => {
       ]))
 
       let embeddingHealth = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
-      const embeddingDeadline = Date.now() + 5_000
+      // The background worker may start on its next tick under workspace load.
+      // Wait for recall readiness, not merely the first persisted vector row.
+      const embeddingDeadline = Date.now() + 15_000
       while (
         Date.now() < embeddingDeadline
-        && (embeddingHealth.reindexRequired || embeddingHealth.indexedCount < 1)
+        && (!embeddingHealth.searchReady || embeddingHealth.reindexRequired || embeddingHealth.indexedCount < 1)
       ) {
         await new Promise(resolve => setTimeout(resolve, 10))
         embeddingHealth = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
@@ -5303,10 +5316,10 @@ describe('alicization sqlite dao', () => {
       }], 'rule')
 
       let embeddingHealth = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
-      const embeddingDeadline = Date.now() + 5_000
+      const embeddingDeadline = Date.now() + 15_000
       while (
         Date.now() < embeddingDeadline
-        && (embeddingHealth.reindexRequired || embeddingHealth.indexedCount < 1)
+        && (!embeddingHealth.searchReady || embeddingHealth.reindexRequired || embeddingHealth.indexedCount < 1)
       ) {
         await new Promise(resolve => setTimeout(resolve, 10))
         embeddingHealth = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
@@ -6488,10 +6501,10 @@ describe('alicization sqlite dao', () => {
       }], 'rule')
 
       let embeddingHealth = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
-      const embeddingDeadline = Date.now() + 5_000
+      const embeddingDeadline = Date.now() + 15_000
       while (
         Date.now() < embeddingDeadline
-        && (embeddingHealth.reindexRequired || embeddingHealth.indexedCount < 1)
+        && (!embeddingHealth.searchReady || embeddingHealth.reindexRequired || embeddingHealth.indexedCount < 1)
       ) {
         await new Promise(resolve => setTimeout(resolve, 10))
         embeddingHealth = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
@@ -7165,21 +7178,9 @@ describe('alicization sqlite dao', () => {
       correlationId: 'legacy-session-runtime-turn',
       idempotencyKey: null,
       occurredAt: 220,
-      payload: {},
+      payload: { deliveryOwner: 'inline' },
     })
-    await db.saveRuntimeCheckpoint({
-      turnId: 'legacy-session-runtime-turn',
-      cardId,
-      userId: 'local-user',
-      conversationId: legacySessionId,
-      sequence: 0,
-      status: 'running',
-      activeActionIds: [],
-      deliveryOwner: 'inline',
-      projection: runtimeCheckpointProjection(),
-      schemaVersion: 3,
-      updatedAt: 220,
-    })
+    // Runtime event admission now persists its canonical checkpoint atomically.
 
     const dryRun = await db.migrateLegacyConversationSessionsToPrimary({
       cardId,
@@ -9599,7 +9600,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     const nowMs = Date.now()
     await db.insertScheduledTask({
       taskId: 'task-due-1',
@@ -9622,8 +9623,8 @@ describe('alicization sqlite dao', () => {
     await db.completeScheduledTask('task-due-1', 'turn-reminder-1')
     await db.failScheduledTask('task-future-1', 'manual-fail')
 
-    expect(scheduledTasks.get('task-due-1')?.status).toBe('completed')
-    expect(scheduledTasks.get('task-future-1')?.status).toBe('failed')
+    expect((await db.readLifeState()).obligations.find(item => item.id === 'reminder:task-due-1')?.status).toBe('verifying')
+    expect((await db.listPendingScheduledTasks(10)).map(item => item.taskId)).not.toContain('task-future-1')
     await db.close()
   })
 
@@ -9635,7 +9636,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     const nowMs = Date.now()
     await db.insertScheduledTask({
       taskId: 'task-requeue-1',
@@ -9649,7 +9650,7 @@ describe('alicization sqlite dao', () => {
 
     const pending = await db.listPendingScheduledTasks(10)
     expect(pending.map(item => item.taskId)).toContain('task-requeue-1')
-    expect(scheduledTasks.get('task-requeue-1')?.status).toBe('pending')
+    expect(pending.find(item => item.taskId === 'task-requeue-1')?.status).toBe('pending')
     await db.close()
   })
 

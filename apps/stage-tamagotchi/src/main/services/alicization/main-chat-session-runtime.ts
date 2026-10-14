@@ -87,9 +87,9 @@ import {
   normalizeAlicizationRuntimeDigest,
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
-import { applyPromptBudget } from '@proj-alicization/stage-ui/composables/alicization-guardrails'
 
 import { buildAlicizationCodingAgentDelegationAuthority } from './coding-agent-task-contract'
+import { applyDesktopMemoryPromptBudget } from './desktop-memory-prompt-budget'
 import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
@@ -456,6 +456,7 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   desktopTypeText?: BuildMainGatewayToolsOptions['desktopTypeText']
   desktopPressKeys?: BuildMainGatewayToolsOptions['desktopPressKeys']
   desktopWait?: BuildMainGatewayToolsOptions['desktopWait']
+  createPersonalPiece?: BuildMainGatewayToolsOptions['createPersonalPiece']
   desktopInspectScene?: BuildMainGatewayToolsOptions['desktopInspectScene']
   desktopOpenApplication?: BuildMainGatewayToolsOptions['desktopOpenApplication']
   resolveTaskPlanningCapabilities: BuildMainGatewayToolsOptions['resolveTaskPlanningCapabilities']
@@ -2715,6 +2716,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             desktopTypeText: sessionBoundToolOptions.desktopTypeText,
             desktopPressKeys: sessionBoundToolOptions.desktopPressKeys,
             desktopWait: sessionBoundToolOptions.desktopWait,
+            createPersonalPiece: options.createPersonalPiece,
             desktopInspectScene: sessionBoundToolOptions.desktopInspectScene,
             desktopOpenApplication: sessionBoundToolOptions.desktopOpenApplication,
             executionCapabilityChannels: options.executionCapabilityChannels,
@@ -2802,6 +2804,8 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
 
     const runtimeSurface = await agentTurn.trackPhase('runtime-surface', async () => {
       return buildAlicizationMainChatRuntimeSurface({
+        cardId: payload.cardId,
+        turnId: payload.turnId,
         actionObligation: prelude.actionObligation,
         allowTools,
         waitForTools,
@@ -3006,11 +3010,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     messages = filterAlicizationProviderSystemMessages(messages)
     messages = injectAlicizationMainChatMemoryContext(messages, memoryContext)
     messages = filterAlicizationProviderSystemMessages(messages)
-    const promptBudgetResult = applyPromptBudget(
+    const promptBudgetResult = applyDesktopMemoryPromptBudget(
       messages,
       Number.isFinite(options.promptBudgetTokens)
-        ? { totalTokens: options.promptBudgetTokens }
-        : undefined,
+        ? { totalTokens: options.promptBudgetTokens, preserveCurrentRequest: true }
+        : { preserveCurrentRequest: true },
     )
     messages = promptBudgetResult.messages
     runtimeSurface.messages = messages
@@ -3070,17 +3074,17 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       const providerMemoryEvidence = resolveProviderMemoryEvidenceForWorkingMemory(
         resolveInput.memoryEvidence,
       )
-      const explicitMemoryEvidence = providerMemoryEvidence
-        ? null
-        : extractExplicitLongTermMemoryEvidence({
-            userText: currentUserText,
-            assistantText: resolveInput.assistantText,
-          })
+      // A bounded direct host statement owns its evidence; provider metadata
+      // must not demote an explicit memory request into an optional suggestion.
+      const explicitMemoryEvidence = extractExplicitLongTermMemoryEvidence({
+        userText: currentUserText,
+        assistantText: resolveInput.assistantText,
+      })
       const settledWorkingMemoryOwner = buildWorkingMemoryOwnerContextFromRuntime({
         ...workingMemoryBuildInput,
         currentAssistantText: resolveInput.assistantText,
-        currentMemoryEvidence: providerMemoryEvidence
-          ?? resolveProviderMemoryEvidenceForWorkingMemory(explicitMemoryEvidence),
+        currentMemoryEvidence: resolveProviderMemoryEvidenceForWorkingMemory(explicitMemoryEvidence)
+          ?? providerMemoryEvidence,
       })
       return {
         version: 'memory-write-intent-v1',

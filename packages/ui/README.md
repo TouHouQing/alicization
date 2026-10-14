@@ -2,6 +2,14 @@
 
 A stylized UI component library built with [Reka UI](https://reka-ui.com/) and [UnoCSS](https://unocss.dev/).
 
+## File Inputs And Collapsible State
+
+`InputFile` forwards its default slot and the `isDragging` slot property. `BasicInputFile` emits selected or dropped files through `update:modelValue`, respects `multiple`, and prevents dropped files from navigating the page. Callers validate their accepted file formats before changing application state.
+
+`Collapsible` supports controlled `v-model` state. Its optional `default` prop stays undefined when omitted, so an absent Boolean prop cannot overwrite the caller's expansion state.
+
+`Select` forwards its disabled state, placeholder, and title to the underlying combobox. A disabled selection prevents both text entry and opening the choices.
+
 To preview the components, refer to the [`stage-ui`](../stage-ui) package for instructions for running the Histoire UI storyboard.
 
 ## Get started

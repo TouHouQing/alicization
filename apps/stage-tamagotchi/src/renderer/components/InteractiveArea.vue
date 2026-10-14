@@ -36,6 +36,7 @@ const providersStore = useProvidersStore()
 const consciousnessStore = useConsciousnessStore()
 const { activeModel, activeProvider } = storeToRefs(consciousnessStore)
 const isComposing = ref(false)
+const preparing = ref(false)
 const runtimeConfigWaitTimeoutMs = 1500
 
 function failChatSend(message: string): never {
@@ -47,7 +48,7 @@ function failChatSend(message: string): never {
 }
 
 async function handleSend() {
-  if (isComposing.value) {
+  if (isComposing.value || preparing.value || sending.value || aborting.value) {
     return
   }
 
@@ -57,6 +58,9 @@ async function handleSend() {
 
   const textToSend = messageInput.value
   const attachmentsToSend = attachments.value.map(att => ({ ...att }))
+  // Cover configuration loading as well as streaming so rapid clicks cannot
+  // submit the same draft twice before the orchestrator starts a turn.
+  preparing.value = true
 
   // optimistic clear
   messageInput.value = ''
@@ -91,13 +95,24 @@ async function handleSend() {
   }
   catch (error) {
     // restore on failure
-    messageInput.value = textToSend
+    if (!messageInput.value.trim())
+      messageInput.value = textToSend
     attachments.value = attachmentsToSend.map(att => ({
       ...att,
       url: URL.createObjectURL(new Blob([Uint8Array.from(atob(att.data), c => c.charCodeAt(0))], { type: att.mimeType })),
     }))
     console.error('Failed to send chat message:', error)
   }
+  finally {
+    preparing.value = false
+  }
+}
+
+function handleEnter(event: KeyboardEvent) {
+  if (event.isComposing || isComposing.value || event.keyCode === 229)
+    return
+  event.preventDefault()
+  void handleSend()
 }
 
 async function handleFilePaste(files: File[]) {
@@ -190,8 +205,11 @@ async function handleRecoveryAction(action: ChatRecoveryAction) {
 </script>
 
 <template>
-  <div h-full w-full flex="~ col gap-1">
-    <div w-full flex-1 overflow-hidden>
+  <div min-h-0 w-full flex="~ col gap-1">
+    <div min-h-0 w-full flex-1 overflow-hidden>
+      <p v-if="!historyMessages.length && !sending && !preparing" class="py-8 text-center text-sm text-neutral-500">
+        {{ t('stage.chat.empty') }}
+      </p>
       <ChatHistory
         :messages="historyMessages"
         :sending="sending"
@@ -216,14 +234,11 @@ async function handleRecoveryAction(action: ChatRecoveryAction) {
         border="solid 2 primary-200/20 dark:primary-400/20"
         bg="primary-100/50 dark:primary-900/70"
         max-h="[10lh]" min-h="[1lh]"
-        w-full shrink-0 resize-none overflow-y-scroll rounded-xl p-2 font-medium outline-none
+        w-full shrink-0 resize-none overflow-y-auto rounded-xl p-2 pb-12 pr-12 font-medium outline-none
         transition="all duration-250 ease-in-out placeholder:all placeholder:duration-250 placeholder:ease-in-out"
-        :class="[
-          sending ? 'pb-12 pr-12' : '',
-        ]"
         @compositionstart="isComposing = true"
         @compositionend="isComposing = false"
-        @keydown.enter.exact.prevent="handleSend"
+        @keydown.enter.exact="handleEnter"
         @paste-file="handleFilePaste"
       />
 
@@ -241,6 +256,23 @@ async function handleRecoveryAction(action: ChatRecoveryAction) {
       >
         <div class="i-solar:stop-circle-linear h-5 w-5" aria-hidden="true" />
       </button>
+      <button
+        v-else
+        type="button"
+        class="absolute bottom-2 right-2 h-8 w-8 flex items-center justify-center rounded-full bg-primary-500 text-white disabled:opacity-40"
+        :aria-label="t('stage.chat.send')"
+        :title="t('stage.chat.send')"
+        :disabled="preparing || aborting || (!messageInput.trim() && !attachments.length)"
+        @click="handleSend"
+      >
+        <div class="i-solar:arrow-up-linear h-5 w-5" aria-hidden="true" />
+      </button>
     </div>
+    <p v-if="sending || preparing" role="status" class="text-sm text-neutral-500">
+      {{ t('stage.chat.preparing') }}
+    </p>
+    <p class="text-xs text-neutral-500">
+      {{ t('stage.chat.input-hint') }}
+    </p>
   </div>
 </template>

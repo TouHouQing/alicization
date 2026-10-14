@@ -16,6 +16,7 @@ export interface StageCharacterFrame {
   bottom: number
   centerX: number
   anchorY: number
+  head?: StageDialoguePanelRect
 }
 
 export interface StageDialoguePanelBoundsInput {
@@ -103,6 +104,7 @@ function normalizeCharacterFrame(input: StageDialoguePanelBoundsInput): StageCha
     bottom,
     centerX,
     anchorY,
+    ...(frame.head ? { head: frame.head } : {}),
   }
 }
 
@@ -205,6 +207,34 @@ function resolveDefaultAnchorPoint(
   }
 }
 
+function overlapArea(a: StageDialoguePanelRect, b: StageDialoguePanelRect) {
+  return Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x))
+    * Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y))
+}
+
+/** Default dialogue follows the rendered body; protect the face before limbs. */
+function avoidCharacterInDefaultPanel(rect: StageDialoguePanelRect, input: StageDialoguePanelBoundsInput) {
+  const frame = normalizeCharacterFrame(input)
+  if (!frame.head)
+    return rect
+  const body = { x: frame.left, y: frame.top, width: frame.right - frame.left, height: frame.bottom - frame.top }
+  if (!overlapArea(rect, frame.head) && !overlapArea(rect, body))
+    return rect
+  const gap = stageDialoguePanelCharacterGap
+  const centeredX = frame.centerX - rect.width / 2
+  const candidates = [
+    rect,
+    { ...rect, x: frame.left - gap - rect.width },
+    { ...rect, x: frame.right + gap },
+    { ...rect, x: centeredX, y: frame.top - gap - rect.height },
+    { ...rect, x: centeredX, y: frame.bottom + gap },
+    ...[stageDialoguePanelPadding, input.containerWidth - rect.width - stageDialoguePanelPadding].flatMap(x => [stageDialoguePanelPadding, input.containerHeight - rect.height - stageDialoguePanelPadding].map(y => ({ ...rect, x, y }))),
+  ].map(candidate => clampStageDialoguePanelRect(candidate, input))
+  return candidates.map(candidate => ({ rect: candidate, head: overlapArea(candidate, frame.head!), body: overlapArea(candidate, body), move: Math.hypot(candidate.x - rect.x, candidate.y - rect.y) }))
+    .sort((a, b) => a.head - b.head || a.body - b.body || a.move - b.move)[0]
+    .rect
+}
+
 export function resolveStageBubbleText(message: StageBubbleMessage) {
   if (!message || message.role !== 'assistant')
     return ''
@@ -295,12 +325,12 @@ export function resolveStageDialogueDefaultPanelRect(input: StageDialoguePanelBo
   )
   const anchorPoint = resolveDefaultAnchorPoint(input, width, height)
 
-  return clampStageDialoguePanelRect({
+  return avoidCharacterInDefaultPanel(clampStageDialoguePanelRect({
     x: anchorPoint.x,
     y: anchorPoint.y,
     width,
     height,
-  }, input)
+  }, input), input)
 }
 
 export function resolveStageDialogueAnchoredPanelRect(
@@ -315,12 +345,13 @@ export function resolveStageDialogueAnchoredPanelRect(
   const height = options.size?.height ?? defaultRect.height
   const anchorPoint = resolveDefaultAnchorPoint(input, width, height)
 
-  return clampStageDialoguePanelRect({
-    x: anchorPoint.x + (options.offset?.x ?? 0),
-    y: anchorPoint.y + (options.offset?.y ?? 0),
+  const anchored = avoidCharacterInDefaultPanel(clampStageDialoguePanelRect({
+    x: anchorPoint.x,
+    y: anchorPoint.y,
     width,
     height,
-  }, input)
+  }, input), input)
+  return clampStageDialoguePanelRect({ ...anchored, x: anchored.x + (options.offset?.x ?? 0), y: anchored.y + (options.offset?.y ?? 0) }, input)
 }
 
 export function clampStageDialoguePanelRect(

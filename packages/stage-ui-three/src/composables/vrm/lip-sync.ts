@@ -337,6 +337,9 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
   function update(delta = 0.016): VrmLipSyncUpdateResult {
     const node = lipSyncNode.value
     const speech = speechRenderState.value
+    // The analyser and cue descriptor may retain their last values after audio
+    // ends. Only the current speech owner can excite a new mouth movement.
+    const ownsSpeech = speech?.active === true
     const fallbackTarget = createFallbackTarget()
     const digitalLifeLipSync = speech?.item?.digitalLifeFrame?.lipSync ?? null
     const motorFacial = speech?.item?.digitalLifeFrame?.motor.facial ?? null
@@ -345,15 +348,18 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
     const actionRendererHints = speech?.item?.digitalLifeFrame?.action.rendererHints ?? null
     const lipSyncMode = digitalLifeLipSync?.mode ?? 'hybrid'
     if (lipSyncMode === 'closed') {
+      for (const key of LIP_KEYS)
+        smoothState[key] = 0
+      Object.assign(continuityState, createVrmLipSyncContinuityState())
       syncExecutionState(createEmptyWeights(), false)
       return { active: false, weights: createEmptyWeights() }
     }
     const fallbackPeak = Math.max(...Object.values(fallbackTarget))
-    const mouthOpen = clampUnit(speech?.mouthOpenRatio ?? 0)
-    const speechEnergy = clampUnit(speech?.dynamics.speechEnergy ?? 0)
-    const prosodyIntensity = clampUnit(speech?.dynamics.prosodyIntensity ?? 0)
+    const mouthOpen = ownsSpeech ? clampUnit(speech?.mouthOpenRatio ?? 0) : 0
+    const speechEnergy = ownsSpeech ? clampUnit(speech?.dynamics.speechEnergy ?? 0) : 0
+    const prosodyIntensity = ownsSpeech ? clampUnit(speech?.dynamics.prosodyIntensity ?? 0) : 0
     const emphasisLevel = clampUnit(speech?.dynamics.emphasisLevel ?? 0)
-    const cueMouthWeight = clampUnit(speech?.item?.cue?.mouthWeight ?? prosodyIntensity)
+    const cueMouthWeight = ownsSpeech ? clampUnit(speech?.item?.cue?.mouthWeight ?? prosodyIntensity) : 0
     const mouthScale = clampRange(digitalLifeLipSync?.mouthScale ?? 1, 0.4, 1.35, 1)
     const jawOpenBias = clampUnit(motorFacial?.jawOpenBias ?? 0.26, 0.26)
     const mouthSpread = clampUnit(motorFacial?.mouthSpread ?? 0.18, 0.18)
@@ -391,7 +397,7 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
       }
     }
 
-    const vol = node.volume ?? 0
+    const vol = ownsSpeech ? node.volume ?? 0 : 0
     const amp = Math.max(
       Math.min(vol * 0.9, 1) ** 0.7,
       speechEnergy * 0.9,
@@ -402,7 +408,7 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
     const projected: Record<LipKey, number> = { A: 0, E: 0, I: 0, O: 0, U: 0 }
     for (const raw of RAW_KEYS) {
       const lip = RAW_TO_LIP[raw]
-      const rawVal = node.weights[raw] ?? 0
+      const rawVal = ownsSpeech ? node.weights[raw] ?? 0 : 0
       projected[lip] = Math.max(projected[lip], rawVal * amp)
     }
 
@@ -442,7 +448,7 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
         ?? null,
       segmentId: resolveSpeechAuthoritySegmentId(speech),
       speechActive: speech?.active === true,
-      speechPhase: speech?.phase,
+      speechPhase: ownsSpeech ? speech?.phase : 'idle',
       wlipsyncSignal: Math.max(amp, winnerVal),
     })
     const speechActive = continuity.active

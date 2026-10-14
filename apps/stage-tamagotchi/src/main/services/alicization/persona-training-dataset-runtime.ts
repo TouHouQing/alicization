@@ -251,7 +251,7 @@ function contentHash(input: {
     .digest('hex')
 }
 
-function personaTrainingExampleContentHash(
+export function personaTrainingExampleContentHash(
   example: Pick<
     PersonaTrainingDatasetExample,
     'schemaVersion' | 'behaviorLesson' | 'positiveExample' | 'negativeExample' | 'sourceKind'

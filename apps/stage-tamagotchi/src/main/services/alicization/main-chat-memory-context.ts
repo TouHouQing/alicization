@@ -75,6 +75,8 @@ export interface AlicizationLongTermMemoryRecallProviderEvidence {
   rankReasons: string[]
   evidenceVersion: string
   version: string
+  sourceVersion?: string
+  temporalScope?: NonNullable<LongTermMemoryEvidenceBundle['evidence'][number]['candidate']['lifeFact']>
 }
 
 export interface AlicizationLongTermMemoryRecallProviderContext {
@@ -432,6 +434,7 @@ function sanitizeLongTermRecallEvidence(
     rankReasons: sanitizeList(item.rankReasons, 10, 120),
     evidenceVersion: normalizeEvidenceVersion(item.evidenceVersion ?? item.candidate.evidenceVersion),
     version: normalizeEvidenceVersion(item.version ?? item.evidenceVersion ?? item.candidate.version ?? item.candidate.evidenceVersion),
+    ...(item.candidate.lifeFact ? { sourceVersion: String(item.candidate.lifeFact.version), temporalScope: item.candidate.lifeFact } : {}),
   } satisfies AlicizationLongTermMemoryRecallProviderEvidence
 }
 
@@ -525,6 +528,7 @@ export function buildAlicizationMainChatMemoryContext(input: {
       version,
       workingMemory,
       longTermRecall: providerLongTermRecall,
+      ...(longTermRecall?.evidence.some(item => item.temporalScope) ? { temporalEvidenceRule: 'recordedFrom/recordedTo describe the recorded version. Current versioned facts take precedence for present preferences over older dialogue, compressed timelines and inferred consolidations. Historical evidence is a past record, never a current preference. Keep user and alice statements attached to their recorded roles; Alice\'s own preference is not the user\'s preference. When validFrom/validTo are unknown, do not claim the record proves reality on a specific date; explain what was remembered at that time.' } : {}),
     },
   })
 

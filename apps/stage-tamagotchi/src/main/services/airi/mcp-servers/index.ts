@@ -16,7 +16,10 @@ import type {
   ElectronMcpStdioServerRuntimeStatus,
   ElectronMcpToolDescriptor,
 } from '../../../../shared/eventa'
+import type { LifeInterfaceAuthorization, LifeInterfaceRiskRequest } from '../../alicization/life-interface-risk'
+import type { LocalFilesystemWritePrecondition } from './local-filesystem'
 
+import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
@@ -32,6 +35,7 @@ import { app, shell } from 'electron'
 import { z } from 'zod'
 
 import {
+  alicizationSafetyPermissionClosed,
   alicizationSafetyPermissionRequested,
   electronAlicizationSafetyResolvePermission,
   electronMcpApplyAndRestart,
@@ -54,6 +58,7 @@ import {
   isCodingAgentLikeMcpName,
   registerDiscoveredMcpCapability,
 } from '../../alicization/turn-os/tool-registry'
+import { callLocalFilesystem, inspectFilesystemWritePrecondition, isNewFilesystemTarget, localFilesystemTools, resolveFilesystemTarget } from './local-filesystem'
 
 interface McpServerSession {
   client: Client
@@ -74,7 +79,7 @@ export interface McpStdioManager {
   openConfigFile: () => Promise<{ path: string }>
   applyAndRestart: () => Promise<ElectronMcpStdioApplyResult>
   listTools: () => Promise<ElectronMcpToolDescriptor[]>
-  callTool: (payload: ElectronMcpCallToolPayload, signal?: AbortSignal) => Promise<ElectronMcpCallToolResult>
+  callTool: (payload: ElectronMcpCallToolPayload, signal?: AbortSignal, writePrecondition?: LocalFilesystemWritePrecondition) => Promise<ElectronMcpCallToolResult>
   stopAll: () => Promise<void>
   getRuntimeStatus: () => ElectronMcpStdioRuntimeStatus
   getCapabilitiesSnapshot: () => Promise<ElectronMcpCapabilitiesSnapshot>
@@ -103,6 +108,13 @@ const mcpWorkspaceDirectoryName = 'Alicization_Workspace'
 const defaultAlicizationCardId = 'default'
 let sharedMcpListToolsInvoker: (() => Promise<ElectronMcpToolDescriptor[]>) | undefined
 let sharedMcpCallToolInvoker: ((payload: ElectronMcpCallToolPayload, signal?: AbortSignal) => Promise<ElectronMcpCallToolResult>) | undefined
+
+let sharedInterfaceApproval: ((request: LifeInterfaceRiskRequest, signal?: AbortSignal) => Promise<LifeInterfaceAuthorization>) | undefined
+
+export async function requestAlicizationInterfaceApprovalFromMain(request: LifeInterfaceRiskRequest, signal?: AbortSignal) {
+  signal?.throwIfAborted()
+  return sharedInterfaceApproval ? await sharedInterfaceApproval(request, signal) : { allow: false, reason: 'unavailable' }
+}
 
 export async function invokeAlicizationMcpListToolsFromMain() {
   if (!sharedMcpListToolsInvoker)
@@ -280,7 +292,7 @@ function createPermissionDeniedResult(reason?: string) {
   if (reason === 'user-denied') {
     return createToolErrorResult(
       'ALICIZATION_TOOL_DENIED_BY_HOST',
-      'The Host (User) explicitly INTERCEPTED and DENIED your permission to execute this tool. They do not trust you with this file.',
+      'The user declined this operation. It was not executed. Respect this scope and continue without retrying the declined action; this decision does not imply a change in the relationship.',
     )
   }
 
@@ -559,10 +571,10 @@ export function createMcpStdioManager(): McpStdioManager {
       }
     }))
 
-    return listResult.flat()
+    return [...listResult.flat(), ...(sessions.has('filesystem') ? [] : localFilesystemTools)]
   }
 
-  const callTool = async (payload: ElectronMcpCallToolPayload, signal?: AbortSignal): Promise<ElectronMcpCallToolResult> => {
+  const callTool = async (payload: ElectronMcpCallToolPayload, signal?: AbortSignal, writePrecondition?: LocalFilesystemWritePrecondition): Promise<ElectronMcpCallToolResult> => {
     if (isAlicizationKillSwitchSuspended()) {
       throw new Error('Alicization kill switch is suspended; MCP tool execution is disabled.')
     }
@@ -607,6 +619,15 @@ export function createMcpStdioManager(): McpStdioManager {
     const { serverName, toolName } = parseQualifiedToolName(payload.name)
     const session = sessions.get(serverName)
     if (!session) {
+      if (serverName === 'filesystem' && localFilesystemTools.some(tool => tool.toolName === toolName)) {
+        return callLocalFilesystem({
+          toolName,
+          arguments: payload.arguments ?? {},
+          workspace: join(app.getPath('documents'), mcpWorkspaceDirectoryName),
+          signal,
+          writePrecondition,
+        })
+      }
       throw new Error(`mcp server is not running: ${serverName}`)
     }
 
@@ -746,14 +767,21 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
   const sessionReadWhitelistByCard = new Map<string, Set<string>>()
   const userDataAbsolutePath = normalizeFsPath(app.getPath('userData'))
   const alicizationsRootPath = normalizeFsPath(join(app.getPath('userData'), 'alicizations'))
-  const workspaceRootPath = normalizeFsPath(join(app.getPath('documents'), mcpWorkspaceDirectoryName))
+  let workspaceRootPath = normalizeFsPath(join(app.getPath('documents'), mcpWorkspaceDirectoryName))
   const absolutePathBlacklist = new Set<string>([
     alicizationsRootPath,
     normalizeFsPath(join(homedir(), '.ssh')),
     normalizeFsPath(join(homedir(), '.aws')),
     platform === 'win32' ? normalizeFsPath('C:\\Windows\\System32') : normalizeFsPath('/etc/shadow'),
   ])
-  const ensureWorkspaceReady = mkdir(workspaceRootPath, { recursive: true }).catch((error) => {
+  const ensureWorkspaceReady = mkdir(workspaceRootPath, { recursive: true }).then(async () => {
+    // Compare targets and policy roots in the same real-path namespace (also
+    // resolves Windows short names and links leading into protected data).
+    workspaceRootPath = await resolveFilesystemTarget(workspaceRootPath)
+    const canonical = await Promise.all([...absolutePathBlacklist].map(resolveFilesystemTarget))
+    for (const path of canonical)
+      absolutePathBlacklist.add(path)
+  }).catch((error) => {
     log.withError(error).warn('failed to prepare Alicization workspace directory')
   })
 
@@ -836,11 +864,11 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     await appendAlicizationRuntimeAuditLog(input)
   }
 
-  function evaluateToolPermission(payload: ElectronMcpCallToolPayload, cardId: string): ToolPermissionEvaluation {
+  async function evaluateToolPermission(payload: ElectronMcpCallToolPayload, cardId: string): Promise<ToolPermissionEvaluation> {
     const parsed = parseQualifiedToolName(payload.name)
     const actionCategory = inferActionCategory(parsed.toolName)
     const rawPathCandidates = collectPathCandidates(payload.arguments ?? {})
-    const pathCandidates = uniqueNormalizedPaths(rawPathCandidates, workspaceRootPath)
+    const pathCandidates = await Promise.all(uniqueNormalizedPaths(rawPathCandidates, workspaceRootPath).map(resolveFilesystemTarget))
     const resourcePath = pathCandidates[0]
 
     const traversalEscapePath = rawPathCandidates
@@ -908,6 +936,11 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
       }
     }
 
+    if (actionCategory === 'write' && resourcePath && pathCandidates.length === 1
+      && isPathWithin(workspaceRootPath, resourcePath) && await isNewFilesystemTarget(resourcePath)) {
+      return { decision: 'allow', riskLevel: 'safe', actionCategory, reason: 'Create a new local file inside Alicization workspace.', resourcePath, allowBy: 'workspace' }
+    }
+
     if (actionCategory === 'write' || actionCategory === 'delete' || actionCategory === 'execute' || actionCategory === 'network') {
       return {
         decision: 'prompt',
@@ -948,6 +981,12 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
         clearTimeout(timeout)
         signal?.removeEventListener('abort', onAbort)
         pendingPermissionRequests.delete(request.token)
+        params.context.emit(alicizationSafetyPermissionClosed, {
+          cardId: request.cardId,
+          requestId: request.requestId,
+          token: request.token,
+          reason: decision.reason ?? (decision.allow ? 'user-approved' : 'user-denied'),
+        })
         resolve(decision)
       }
       onAbort = () => {
@@ -1041,7 +1080,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     }
   }
 
-  async function runToolCallWithKillSwitchGuard(payload: ElectronMcpCallToolPayload, cardId: string, signal?: AbortSignal) {
+  async function runToolCallWithKillSwitchGuard(payload: ElectronMcpCallToolPayload, cardId: string, signal?: AbortSignal, writePrecondition?: LocalFilesystemWritePrecondition) {
     if (signal?.aborted || isAlicizationKillSwitchSuspended() || isAlicizationCardKillSwitchSuspended(cardId)) {
       return createToolErrorResult('ALICIZATION_TOOL_ABORTED', 'Alicization kill switch is suspended; tool execution was aborted.')
     }
@@ -1076,7 +1115,8 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
         return
       }
 
-      params.manager.callTool(payload, signal)
+      const invocation = writePrecondition ? params.manager.callTool(payload, signal, writePrecondition) : params.manager.callTool(payload, signal)
+      invocation
         .then(result => finish(result))
         .catch((error) => {
           finish(createToolErrorResult('MCP_CALL_FAILED', stringifyError(error)))
@@ -1215,7 +1255,13 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
       )
     }
 
-    const permission = evaluateToolPermission(payload, cardId)
+    let permission: ToolPermissionEvaluation
+    try {
+      permission = await evaluateToolPermission(payload, cardId)
+    }
+    catch (error) {
+      return createToolErrorResult('FILESYSTEM_SCOPE_UNAVAILABLE', stringifyError(error))
+    }
     const argumentsSummary = summarizeToolArguments(payload.arguments)
     if (permission.decision === 'deny') {
       await appendSafetyAudit({
@@ -1265,6 +1311,16 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
       })
     }
 
+    let writePrecondition: LocalFilesystemWritePrecondition | undefined
+    if (parsedName.serverName === 'filesystem' && permission.actionCategory === 'write' && permission.resourcePath) {
+      try {
+        writePrecondition = await inspectFilesystemWritePrecondition(permission.resourcePath)
+      }
+      catch (error) {
+        return createToolErrorResult('FILESYSTEM_WRITE_PRECONDITION_UNAVAILABLE', stringifyError(error))
+      }
+    }
+
     if (permission.decision === 'prompt') {
       const request: AlicizationSafetyPermissionRequest = {
         cardId,
@@ -1276,6 +1332,10 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
         toolName: parsedName.toolName,
         reason: permission.reason,
         resourceLabel: maskPath(permission.resourcePath),
+        resourcePath: permission.resourcePath,
+        changePreview: permission.actionCategory === 'write' && typeof payload.arguments?.content === 'string'
+          ? { operation: writePrecondition?.exists ? 'replace' : 'create', byteLength: Buffer.byteLength(payload.arguments.content, 'utf8'), text: payload.arguments.content.slice(0, 600) }
+          : undefined,
         argumentsSummary,
         timeoutMs: permissionRequestTimeoutMsec,
         createdAt: Date.now(),
@@ -1312,7 +1372,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
       }
     }
 
-    const result = await runToolCallWithKillSwitchGuard(payload, cardId, signal)
+    const result = await runToolCallWithKillSwitchGuard(payload, cardId, signal, writePrecondition)
     if (result.isError) {
       await appendSafetyAudit({
         level: result.errorCode === 'ALICIZATION_TOOL_ABORTED' ? 'notice' : 'warning',
@@ -1332,6 +1392,17 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     return result
   }
 
+  sharedInterfaceApproval = async (input, signal) => {
+    if (signal?.aborted || isAlicizationKillSwitchSuspended() || isAlicizationCardKillSwitchSuspended(input.cardId))
+      return { allow: false, reason: 'suspended-or-aborted' }
+    const request: AlicizationSafetyPermissionRequest = { cardId: input.cardId, requestId: randomUUID(), token: randomUUID(), riskLevel: input.riskLevel, actionCategory: input.actionCategory, serverName: 'local-interface', toolName: input.operation, reason: input.reason.slice(0, 900), resourceLabel: input.label.slice(0, 220), resourcePath: input.targetId.slice(0, 4096), argumentsSummary: { kind: 'object', keyCount: 2, keys: ['observedTarget', 'currentSurface'] }, timeoutMs: permissionRequestTimeoutMsec, createdAt: Date.now(), supportsRememberSession: false }
+    await appendSafetyAudit({ level: 'notice', category: 'alicization.safety.permission', action: 'local-interface-approval-requested', message: 'Requested approval for a classified observed interface action.', payload: { cardId: input.cardId, requestId: request.requestId, riskLevel: input.riskLevel, actionCategory: input.actionCategory, operation: input.operation, label: request.resourceLabel } })
+    params.context.emit(alicizationSafetyPermissionRequested, request)
+    const decision = await waitForPermissionDecision(request, { resourcePath: request.resourcePath, argumentsSummary: { kind: 'object', keyCount: 2, keys: ['observedTarget', 'currentSurface'] } }, signal)
+    const allow = decision.allow && !signal?.aborted && !isAlicizationKillSwitchSuspended() && !isAlicizationCardKillSwitchSuspended(input.cardId)
+    const interrupted = signal?.aborted || isAlicizationKillSwitchSuspended() || isAlicizationCardKillSwitchSuspended(input.cardId)
+    return { allow, reason: allow ? 'approved' : interrupted ? 'suspended-or-aborted' : ['timeout', 'aborted', 'suspended', 'card-switched'].includes(decision.reason || '') ? decision.reason! : 'host-denied' }
+  }
   sharedMcpListToolsInvoker = async () => await params.manager.listTools()
   sharedMcpCallToolInvoker = async (payload, signal) => await executeGuardedCallTool(payload, signal)
 

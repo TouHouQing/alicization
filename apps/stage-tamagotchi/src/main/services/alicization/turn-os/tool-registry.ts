@@ -1,5 +1,7 @@
 import type { ErrorObject, ValidateFunction } from 'ajv'
 
+import type { LifeCapabilityEffects } from '../../../../shared/life-contracts'
+
 import Ajv from 'ajv'
 
 export type CapabilityKind = 'tool' | 'skill'
@@ -12,6 +14,7 @@ export type CapabilityActivationStatus = 'candidate' | 'active' | 'disabled' | '
 export type JsonSchema = Record<string, unknown>
 
 export interface CapabilityManifest {
+  effects?: LifeCapabilityEffects
   capabilityId: string
   kind: CapabilityKind
   version: string
@@ -472,6 +475,13 @@ function createCanonicalManifests(mcpAllowlist: ReadonlySet<string>): Capability
       risk: 'low',
       idempotency: 'best-effort',
     })),
+    createBuiltInManifest('life_create_personal_piece', { type: 'object', properties: {}, required: [], additionalProperties: false }, {
+      description: 'Create one bounded personal fictional piece in the owned local project workspace, with persistent evidence and independent file verification.',
+      permissions: ['workspace.write'],
+      risk: 'low',
+      supportsCancellation: true,
+      idempotency: 'required',
+    }),
     createBuiltInManifest('filesystem_read_file', {
       type: 'object',
       properties: {
@@ -694,6 +704,19 @@ function createManifestSnapshot(manifest: CapabilityManifest) {
   return deepFreeze(cloneJsonCompatibleValue(manifest))
 }
 
+function withEffectContract(manifest: CapabilityManifest): CapabilityManifest {
+  const readOnly = new Set(['filesystem_read_file', 'filesystem_list_directory', 'filesystem_search_files', 'filesystem::read_file', 'filesystem::list_directory', 'filesystem::search_files', 'browser_read_page', 'browser_wait', 'desktop_inspect_scene', 'desktop_list_interactables', 'desktop_wait', 'executor_capability_snapshot', 'sensory_capture_state'])
+  const reader = readOnly.has(manifest.adapterToolName) || readOnly.has(manifest.capabilityId.replace(/^mcp\./u, ''))
+  const external = manifest.adapterToolName === 'browser_open_url' || manifest.adapterToolName === 'browser_search_web' || manifest.executionChannel === 'openclaw'
+  const unknown = manifest.permissions.includes('mcp.invoke')
+  const effects = manifest.effects ?? { version: 'life-capability-effects-v1', sideEffect: unknown ? 'unknown' : reader ? 'read' : external ? 'external' : 'mutation', retryClass: unknown ? 'manual-only' : reader ? 'read-only' : 'verify-before-retry', verifier: reader ? 'returned-observation' : 'independent-goal-proof', compensation: reader ? 'none' : 'manual-review' } as LifeCapabilityEffects
+  if (effects.version !== 'life-capability-effects-v1' || !['read', 'mutation', 'external', 'unknown'].includes(effects.sideEffect) || !['read-only', 'verify-before-retry', 'manual-only'].includes(effects.retryClass) || !['returned-observation', 'independent-goal-proof'].includes(effects.verifier) || !['none', 'manual-review'].includes(effects.compensation) || effects.retryClass === 'read-only' && effects.sideEffect !== 'read')
+    throw new TypeError('Capability recovery contract has inconsistent effects')
+  if (effects.retryClass === 'read-only' && (!reader || unknown || manifest.permissions.some(permission => permission.endsWith('.write'))))
+    throw new TypeError(`${manifest.capabilityId}: automatic read retry requires a known reader with read permissions`)
+  return { ...manifest, effects }
+}
+
 export function createToolRegistry(options: CreateToolRegistryOptions = {}): ToolRegistry {
   const mcpAllowlist = new Set(options.mcpAllowlist ?? [])
   const manifests = new Map<string, CapabilityManifest>()
@@ -808,7 +831,7 @@ export function createToolRegistry(options: CreateToolRegistryOptions = {}): Too
       if (adapterCapabilityId)
         throw new Error(`adapterToolName "${manifest.adapterToolName}" is already registered by ${adapterCapabilityId}`)
 
-      const internalManifest = cloneJsonCompatibleValue(manifest)
+      const internalManifest = cloneJsonCompatibleValue(withEffectContract(manifest))
       const validator = ajv.compile(internalManifest.inputSchema)
       deepFreeze(internalManifest)
       manifests.set(internalManifest.capabilityId, internalManifest)
@@ -839,7 +862,7 @@ export function createToolRegistry(options: CreateToolRegistryOptions = {}): Too
       adapterToolNames.delete(existing.adapterToolName)
       validators.delete(existing.capabilityId)
 
-      const internalManifest = cloneJsonCompatibleValue(manifest)
+      const internalManifest = cloneJsonCompatibleValue(withEffectContract(manifest))
       const validator = ajv.compile(internalManifest.inputSchema)
       deepFreeze(internalManifest)
       manifests.set(internalManifest.capabilityId, internalManifest)

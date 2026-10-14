@@ -1,0 +1,86 @@
+{
+  "adaptation": {
+    "target": "packages/stage-ui-three/src/composables/vrm/one-euro-filter.ts",
+    "licenseResource": "apps/stage-tamagotchi/resources/licenses/neko-license.txt",
+    "noticeResource": "apps/stage-tamagotchi/resources/licenses/neko-notice.txt",
+    "licenseSha256": "0d99b64baf1323c3a7f70a28075b14d573df6d773aa2d33d827053cc775062d8",
+    "noticeSha256": "96199da23327c5086c4f562e4c1a05685e18643ab32ce896f13934b15b4a8aca",
+    "source": "neko/static/vrm/vrm-cursor-follow.js OneEuroFilter",
+    "license": "Apache-2.0"
+  },
+  "date": "2026-10-05",
+  "repositories": [
+    {
+      "name": "vpet",
+      "commit": "c3420bb77d6d00ed5fabf975a0945c4f6179bba3",
+      "files": [
+        {
+          "sha256": "37e638739068f152aa5c59b21d500e74f67cf986f414492189fc3995c4e45d73",
+          "path": "VPet-Simulator.Core/Display/MainLogic.cs",
+          "permalink": "https://github.com/LorisYounger/VPet/blob/c3420bb77d6d00ed5fabf975a0945c4f6179bba3/VPet-Simulator.Core/Display/MainLogic.cs"
+        }
+      ],
+      "sourceCopied": false,
+      "repository": "https://github.com/LorisYounger/VPet"
+    },
+    {
+      "name": "SillyTavern",
+      "commit": "06bde939fb1e9c4c8d8641d810f0a916b5bce127",
+      "files": [
+        {
+          "sha256": "6e234e89e06e670a88e0d869b830ef24a386b70782cdb20fc7aed17863ff4332",
+          "path": "public/scripts/extensions/expressions/index.js",
+          "permalink": "https://github.com/SillyTavern/SillyTavern/blob/06bde939fb1e9c4c8d8641d810f0a916b5bce127/public/scripts/extensions/expressions/index.js"
+        }
+      ],
+      "sourceCopied": false,
+      "repository": "https://github.com/SillyTavern/SillyTavern"
+    },
+    {
+      "name": "neko",
+      "commit": "f2fea6de7149ef333422e61bafa4102d44f2cf2c",
+      "files": [
+        {
+          "sha256": "ad887aef0531cf747d6aae946a15f5cce177f357a4ea46aaae5dbc2415022373",
+          "path": "static/vrm/vrm-cursor-follow.js",
+          "permalink": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/f2fea6de7149ef333422e61bafa4102d44f2cf2c/static/vrm/vrm-cursor-follow.js"
+        },
+        {
+          "sha256": "c819d21ba2510b952de4107d11a300710b0a1c9a437ad0a89fedbc36d16a428e",
+          "path": "static/vrm/vrm-expression.js",
+          "permalink": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/f2fea6de7149ef333422e61bafa4102d44f2cf2c/static/vrm/vrm-expression.js"
+        },
+        {
+          "sha256": "840e86612e0a75ac463599a8d94fa1cbf38c24c81534102cd556cbd41122b77e",
+          "path": "static/vrm/vrm-animation.js",
+          "permalink": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/f2fea6de7149ef333422e61bafa4102d44f2cf2c/static/vrm/vrm-animation.js"
+        }
+      ],
+      "sourceCopied": true,
+      "repository": "https://github.com/Project-N-E-K-O/N.E.K.O"
+    },
+    {
+      "name": "Open-LLM-VTuber",
+      "commit": "992309c0aa19845960228f880013d4685fde93b5",
+      "files": [
+        {
+          "sha256": "e5f071dd1642684e94954bccd1349ec27135e5baa0a7f42365217bd5dc99dc0a",
+          "path": "src/open_llm_vtuber/conversations/tts_manager.py",
+          "permalink": "https://github.com/Open-LLM-VTuber/Open-LLM-VTuber/blob/992309c0aa19845960228f880013d4685fde93b5/src/open_llm_vtuber/conversations/tts_manager.py"
+        },
+        {
+          "sha256": "11f7751ba4d641b0c19d7d20706474c4bfcb7f9ab644072d86ac6ae1e21ff65f",
+          "path": "src/open_llm_vtuber/conversations/single_conversation.py",
+          "permalink": "https://github.com/Open-LLM-VTuber/Open-LLM-VTuber/blob/992309c0aa19845960228f880013d4685fde93b5/src/open_llm_vtuber/conversations/single_conversation.py"
+        }
+      ],
+      "sourceCopied": false,
+      "repository": "https://github.com/Open-LLM-VTuber/Open-LLM-VTuber"
+    }
+  ],
+  "priorProjects": 11,
+  "focusedProjects": 4,
+  "format": "alicization-living-presence-source-study-v1",
+  "priorManifest": "docs/research/2026-10-05-desktop-life-source-manifest.json",
+  "staticInspectionOnly": true
+}

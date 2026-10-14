@@ -3563,6 +3563,7 @@ export function createAlicizationReplayBenchmarkRuntime(
 
     if (options.selfEvolutionRuntime) {
       await options.selfEvolutionRuntime.validateAllShadowVersions({
+        evaluatedCandidateIds: [...new Set(result.turns.flatMap(turn => turn.turnGraph?.learning.activeSelfEvolutionCandidateId ? [turn.turnGraph.learning.activeSelfEvolutionCandidateId] : []))],
         replayPassed: result.gate.passed,
         finalReplayGatePassed: result.finalReplayGate.passed,
         productionGoldSampleCount: result.finalReplayGate.metrics.productionGoldSampleCount,

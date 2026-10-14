@@ -1,0 +1,7 @@
+failure:
+  title: Alicization could not start
+  message: Local state could not be loaded
+  detail: Your data has been preserved. Open the logs or data folder to diagnose the problem or restore a backup.
+  logs: Open logs
+  data: Open data folder
+  close: Close

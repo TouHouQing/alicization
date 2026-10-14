@@ -17,6 +17,7 @@ import type {
   AlicizationPresencePulsePayload,
   AlicizationRuntimeDigest,
 } from '../../stores/alicization-bridge'
+import type { StageResidentBehaviorFrame } from './stage-resident-behavior-frame'
 
 import { createBufferedSpeechAudioSource, createPlaybackManager, createSpeechPipeline } from '@proj-alicization/pipelines-audio'
 import { createLazyBroadcastPoster, listStageEmbodimentLive2DFacialCapabilities } from '@proj-alicization/stage-shared'
@@ -29,27 +30,30 @@ import {
   supportsVrmBaseEmotion,
 } from '@proj-alicization/stage-ui-three/composables/vrm'
 import { createQueue } from '@proj-alicization/stream-kit'
-import { useLocalStorage, useMediaQuery, useNow, useResizeObserver } from '@vueuse/core'
+import { useDocumentVisibility, useLocalStorage, useMediaQuery, useNow, useResizeObserver } from '@vueuse/core'
 // import { createTransformers } from '@xsai-transformers/embed'
 // import embedWorkerURL from '@xsai-transformers/embed/worker?worker&url'
 // import { embed } from '@xsai/embed'
 import { generateSpeech } from '@xsai/generate-speech'
 import { storeToRefs } from 'pinia'
-import { computed, onBeforeMount, onErrorCaptured, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeMount, onErrorCaptured, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import StageActivityIndicator from './stage-activity-indicator.vue'
 import StageDialoguePanel from './stage-dialogue-panel.vue'
 import StageEmbodimentDiagnosticsOverlay from './stage-embodiment-diagnostics-overlay.vue'
 
 import { useDelayMessageQueue, useEmotionsMessageQueue } from '../../composables/queues'
 import { llmInferenceEndToken } from '../../constants'
 import { EMOTION_EmotionMotionName_value, EMOTION_VRMExpressionName_value } from '../../constants/emotions'
+import { resolveSpeechRequestStyle } from '../../services/embodiment/speech-synthesis-style'
 import {
   alicizationEmotionWhitelist,
   clampAlicizationPerformancePayloadToManifest,
   getAlicizationBridge,
   hasAlicizationBridge,
 } from '../../stores/alicization-bridge'
+import { useAlicizationEpoch1Store } from '../../stores/alicization-epoch1'
 import { useAlicizationPresenceDispatcherStore } from '../../stores/alicization-presence-dispatcher'
 import { useAudioContext, useSpeakingStore } from '../../stores/audio'
 import { useChatOrchestratorStore } from '../../stores/chat'
@@ -60,6 +64,7 @@ import { useSpeechStore } from '../../stores/modules/speech'
 import { useProvidersStore } from '../../stores/providers'
 import { useSettings } from '../../stores/settings'
 import { useSpeechRuntimeStore } from '../../stores/speech-runtime'
+import { useStageDialogueStore } from '../../stores/stage-dialogue'
 import { isVrmCustomExpressionConfigured, resolveLive2DActionBindingForMotion, useStagePerformanceStore } from '../../stores/stage-performance'
 import { resolveStageBubblePlacement, resolveStageBubbleText } from '../../utils'
 import { resolveStageProactiveFeedbackTarget } from '../../utils/stage-dialogue'
@@ -68,6 +73,8 @@ import {
   attachEmbodimentScriptToSpeechMetadata,
   attachFallbackDialogueMetadataToSpeechMetadata,
   createStageChatIntentBridge,
+  isCurrentStageChatDelivery,
+  resolveStageRenderedDeliveryTurn,
 } from './stage-chat-intent-bridge'
 import {
   gateStageExecutionDiagnostics,
@@ -75,6 +82,7 @@ import {
 } from './stage-execution-diagnostics-gate'
 import { resolveLive2DManifestActionCapabilities } from './stage-live2d-performance-manifest'
 import { resolveStagePresencePulsePerformance } from './stage-presence-pulse-performance'
+import { projectStageResidentBehavior } from './stage-resident-behavior-frame'
 import {
   resolveResidentLive2DPreferredExpressionAliasesFromRuntimeState,
   resolveResidentVrmPreferredExpressionAliasesFromRuntimeState,
@@ -94,7 +102,10 @@ import {
   resolveVrmManifestBaseEmotions,
   resolveVrmManifestFacialCapabilities,
 } from './stage-vrm-performance-manifest'
+import { stageActivityNeedsBodyFocus } from './use-stage-activity-presence'
+import { useStageBodyActivity } from './use-stage-body-activity'
 import { useStageDesktopInteractions } from './use-stage-desktop-interactions'
+import { useStageDialogueArrivalVisibility } from './use-stage-dialogue-arrival-visibility'
 import { useStageDialogueHoverVisibility } from './use-stage-dialogue-hover-visibility'
 import { useStageEmbodimentRuntime } from './use-stage-embodiment-runtime'
 
@@ -108,10 +119,14 @@ const props = withDefaults(defineProps<{
   quickReplyEnabled?: boolean
   characterHoveredOverride?: boolean | null
   debugEmbodiment?: boolean
+  residentBehavior?: StageResidentBehaviorFrame | null
 }>(), { paused: false, live2dPositionMode: 'percent', scale: 1, quickReplyEnabled: true, characterHoveredOverride: null, debugEmbodiment: false })
 
 const emit = defineEmits<{
   (e: 'desktopInteractionChange', active: boolean): void
+  (e: 'dialogueRendered', input: { cardId: string, turnId: string }): void
+  (e: 'speechReceipt', input: import('../../types/speech-receipts').StageSpeechReceiptInput): void
+  (e: 'bodyActivityReceipt', input: import('@proj-alicization/stage-shared').AlicizationBodyActivityReceipt): void
 }>()
 const { t } = useI18n()
 const stageEmbodimentDebugStorageKey = 'devtools/embodiment-debug'
@@ -215,6 +230,7 @@ const chatSessionStore = useChatSessionStore()
 const chatStreamStore = useChatStreamStore()
 const dialoguePanelRef = ref<InstanceType<typeof StageDialoguePanel>>()
 const { messages } = storeToRefs(chatSessionStore)
+const { minimized: dialogueMinimized } = storeToRefs(useStageDialogueStore())
 const { streamingMessage } = storeToRefs(chatStreamStore)
 const { position: live2dPosition, scale: live2dScale } = storeToRefs(live2dStore)
 const {
@@ -356,15 +372,17 @@ viewUpdateCleanups.push(live2dStore.onShouldUpdateView(async () => {
   }
 }))
 
-const { activeCard } = storeToRefs(useAiriCardStore())
+const { activeCardId: selectedCardId } = storeToRefs(useAiriCardStore())
 const speechStore = useSpeechStore()
 const { ssmlEnabled, activeSpeechProvider, activeSpeechModel, activeSpeechVoice, pitch, rate } = storeToRefs(speechStore)
-const activeCardId = computed(() => activeCard.value?.name ?? 'default')
+const activeCardId = computed(() => selectedCardId.value || 'default')
 const speechRuntimeStore = useSpeechRuntimeStore()
 const chatIntentBridge = createStageChatIntentBridge({
   openIntent: options => speechRuntimeStore.openIntent(options),
 })
 const currentChatIntent = ref<ReturnType<typeof speechRuntimeStore.openIntent> | null>(null)
+const currentChatDeliveryTurnId = ref<string | null>(null)
+const fallbackSpeechStatus = ref<'not-requested' | 'empty' | 'held-by-chat' | 'held-by-playback' | 'queued'>('not-requested')
 const debugEmbodimentStorage = useLocalStorage(stageEmbodimentDebugStorageKey, false)
 const showEmbodimentDiagnostics = computed(() => {
   return Boolean(props.debugEmbodiment || debugEmbodimentStorage.value)
@@ -497,6 +515,7 @@ function resolveRuntimeSpeechSynthesisMetadata(input: {
     return null
 
   return {
+    relativeToUserSettings: true,
     ...(pitchDelta != null ? { pitchDelta } : {}),
     ...(rateMultiplier != null ? { rateMultiplier } : {}),
   }
@@ -759,9 +778,9 @@ function playSpecialToken(special: string) {
 const playbackManager = createPlaybackManager<BrowserSpeechAudioSource>({
   play: async (...args) => {
     if (!embodimentRuntime)
-      return
+      return { status: 'failed', playedMs: 0, errorCode: 'embodiment-unavailable' }
 
-    await embodimentRuntime.playAudioSource(...args)
+    return embodimentRuntime.playAudioSource(...args)
   },
   maxVoices: 1,
   maxVoicesPerOwner: 1,
@@ -837,10 +856,11 @@ const speechPipeline = createSpeechPipeline<BrowserSpeechAudioSource>({
     if (!model || !voice)
       return null
 
+    const requestStyle = resolveSpeechRequestStyle({ metadata: request.metadata, basePitch: pitch.value, baseRate: Number.isFinite(providerConfig?.speed) ? Number(providerConfig?.speed) : rate.value })
     const providerRuntimeConfigForSsml = {
       ...providerConfig,
-      pitch: embodimentRuntime?.styledPitch.value ?? pitch.value,
-      speed: embodimentRuntime?.styledRate.value ?? rate.value,
+      pitch: requestStyle.pitch,
+      speed: requestStyle.speed,
     }
 
     const input = ssmlEnabled.value
@@ -852,6 +872,8 @@ const speechPipeline = createSpeechPipeline<BrowserSpeechAudioSource>({
         ...provider.speech(model, providerConfig),
         input,
         voice: voice.id,
+        ...(!ssmlEnabled.value ? { speed: requestStyle.speed } : {}),
+        abortSignal: signal,
       })
 
       if (signal.aborted || !res || res.byteLength === 0)
@@ -867,6 +889,21 @@ const speechPipeline = createSpeechPipeline<BrowserSpeechAudioSource>({
   playback: playbackManager,
 })
 logStageStartupTrace('after-speech-pipeline')
+const speechReceiptProgress = new Map<string, { started: boolean, parts: Map<string, number> }>()
+speechPipeline.on('onUtterancePlaybackResult', (event) => {
+  if (event.result.errorCode === 'empty-utterance' && !speechReceiptProgress.get(event.intentId)?.started) {
+    speechReceiptProgress.delete(event.intentId)
+    return
+  }
+  const delivery = event.metadata?.lifeDelivery as { cardId?: string, turnId?: string } | undefined
+  if (delivery?.cardId && delivery.turnId) {
+    emit('speechReceipt', { cardId: delivery.cardId, turnId: delivery.turnId, utteranceId: event.intentId, playbackEpoch: event.intentId, state: event.result.status === 'completed' ? 'audio-ended' : event.result.status === 'interrupted' ? 'audio-interrupted' : 'audio-failed', playedMs: event.result.playedMs, errorCode: event.result.errorCode })
+  }
+  speechReceiptProgress.delete(event.intentId)
+})
+watch(selectedCardId, (_current, previous) => {
+  speechRuntimeStore.cancelOwner(previous || 'default', 'card-switch')
+})
 
 function resolvePresenceIntensity(emphasis: number | undefined, fallbackIntensity: number) {
   const normalizedEmphasis = typeof emphasis === 'number' && Number.isFinite(emphasis)
@@ -1175,7 +1212,7 @@ function clampPresencePerformanceToManifest(performance: AlicizationDialoguePerf
 }
 
 function resolveClampedPresencePulsePerformance(payload: AlicizationPresencePulsePayload) {
-  return clampPresencePerformanceToManifest(resolveStagePresencePulsePerformance(payload))
+  return clampPresencePerformanceToManifest(resolveStagePresencePulsePerformance(payload, payload.activity ? embodimentRuntime?.visualPresenceState.value?.residentPerformance?.performance?.baseEmotion : undefined))
 }
 
 watch([stageModelRenderer, stageModelSelected, currentStoredVrmExternalAnimations], async () => {
@@ -1193,7 +1230,27 @@ watch([stageModelRenderer, stageModelSelected], ([renderer]) => {
   currentVrmRuntimeCapabilities.value = null
 }, { immediate: true })
 
+const { killSwitch: activityKillSwitch } = storeToRefs(useAlicizationEpoch1Store())
 embodimentRuntime = useStageEmbodimentRuntime({
+  activeCardId,
+  onAudioPlaybackReceipt: ({ item, status, playedMs }) => {
+    const delivery = item.metadata?.lifeDelivery as { cardId?: string, turnId?: string } | undefined
+    if (!delivery?.cardId || !delivery.turnId)
+      return
+    let progress = speechReceiptProgress.get(item.intentId)
+    if (!progress) {
+      progress = { started: false, parts: new Map() }
+      speechReceiptProgress.set(item.intentId, progress)
+    }
+    progress.parts.set(item.segmentId, playedMs)
+    if (status === 'started' && !progress.started) {
+      progress.started = true
+      emit('speechReceipt', { cardId: delivery.cardId, turnId: delivery.turnId, utteranceId: item.intentId, playbackEpoch: item.intentId, state: 'audio-started', playedMs: 0, errorCode: null })
+    }
+    else if (progress.started && status !== 'started') {
+      emit('speechReceipt', { cardId: delivery.cardId, turnId: delivery.turnId, utteranceId: item.intentId, playbackEpoch: item.intentId, state: 'audio-progress', playedMs: [...progress.parts.values()].reduce((sum, duration) => sum + duration, 0), errorCode: null })
+    }
+  },
   applyRuntimeEmbodimentEnvelope,
   audioContext,
   clampPerformance: clampPresencePerformanceToManifest,
@@ -1214,11 +1271,16 @@ embodimentRuntime = useStageEmbodimentRuntime({
   resolvePresenceIntensity,
   speakFallback: async (reply, _performance, metadata) => {
     const normalizedReply = reply.trim()
-    if (!normalizedReply)
+    if (!normalizedReply) {
+      fallbackSpeechStatus.value = 'empty'
       return
+    }
 
-    if (currentChatIntent.value || embodimentRuntime?.nowSpeaking.value)
+    const deliveryTurnId = (metadata?.lifeDelivery as { turnId?: string } | undefined)?.turnId
+    if (isCurrentStageChatDelivery(deliveryTurnId, currentChatDeliveryTurnId.value) || (!deliveryTurnId && (currentChatIntent.value || embodimentRuntime?.nowSpeaking.value))) {
+      fallbackSpeechStatus.value = currentChatIntent.value ? 'held-by-chat' : 'held-by-playback'
       return
+    }
 
     const fallbackIntent = speechRuntimeStore.openIntent({
       ownerId: activeCardId.value,
@@ -1232,6 +1294,7 @@ embodimentRuntime = useStageEmbodimentRuntime({
     fallbackIntent.writeLiteral(normalizedReply)
     fallbackIntent.writeFlush()
     fallbackIntent.end()
+    fallbackSpeechStatus.value = 'queued'
   },
   stageBounds,
   stageModelRenderer,
@@ -1241,6 +1304,8 @@ embodimentRuntime = useStageEmbodimentRuntime({
 })
 logStageStartupTrace('after-embodiment-runtime')
 const {
+  activityPresence,
+  clearActivityPresence,
   armDialoguePerformance,
   bindPlaybackManager,
   diagnostics: embodimentDiagnostics,
@@ -1254,6 +1319,34 @@ const {
   vrmIdleActionPreference,
   vrmLookAtScreenPoint,
 } = embodimentRuntime
+
+const residentPerformanceState = computed(() => projectStageResidentBehavior(performanceState.value, props.residentBehavior, { cardId: activeCardId.value, now: Date.now(), paused: props.paused || activityKillSwitch.value.state === 'SUSPENDED', taskActive: stageActivityNeedsBodyFocus(activityPresence.value), speaking: embodimentRuntime.nowSpeaking.value }))
+function stageBodyActuallyVisible() {
+  const canvas = vrmViewerRef.value?.canvasElement()
+  if (!canvas || canvas.getBoundingClientRect().width <= 0)
+    return false
+  for (let element: HTMLElement | null = canvas; element; element = element.parentElement) {
+    const style = getComputedStyle(element)
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) <= 0.01)
+      return false
+  }
+  return true
+}
+useStageBodyActivity({ activity: activityPresence, cardId: () => activeCardId.value, visible: () => document.visibilityState === 'visible' && stageBodyActuallyVisible() && showStage.value && !props.paused && activityKillSwitch.value.state !== 'SUSPENDED', frame: () => vrmViewerRef.value?.bodyFrame() ?? null, visiblePixels: () => {
+  const frame = vrmViewerRef.value?.characterFrame()
+  if (!frame || !stageBodyActuallyVisible())
+    return false
+  const points = [
+    ...(frame.head ? [[frame.head.x + frame.head.width / 2, frame.head.y + frame.head.height / 2]] : []),
+    [frame.centerX, (frame.top + frame.bottom) / 2],
+    [frame.centerX, frame.anchorY],
+  ]
+  return points.some(([x, y]) => vrmViewerRef.value?.hitTestClientPoint(x, y))
+}, emit: receipt => emit('bodyActivityReceipt', receipt) })
+watch([activeCardId, stageModelSelected, () => props.paused, () => activityKillSwitch.value.state], () => {
+  clearActivityPresence()
+  embodimentRuntime.clearInteractionIntent()
+})
 logStageStartupTrace('after-embodiment-destructure')
 
 const currentLive2DPreferredExpressionAliases = computed(() => {
@@ -1481,7 +1574,7 @@ chatHookCleanups.push(onPlaybackEvent((event) => {
     playSpecialToken(event.state.item.special)
 }))
 
-chatHookCleanups.push(onBeforeMessageComposed(async (_message, _context) => {
+chatHookCleanups.push(onBeforeMessageComposed(async (_message, context) => {
   const prepareStartedAt = performance.now()
   speechRuntimeStore.cancelOwner(activeCardId.value, 'new-message')
   clearRuntimeEmbodimentEnvelope({ preserveTurnEnvelope: true })
@@ -1508,14 +1601,16 @@ chatHookCleanups.push(onBeforeMessageComposed(async (_message, _context) => {
     ownerId: activeCardId.value,
     priority: 'normal',
     behavior: 'queue',
-    metadata: createSpeechIntentMetadata('chat'),
+    metadata: { ...createSpeechIntentMetadata('chat'), lifeDelivery: { cardId: activeCardId.value, turnId: `chat:${context.sessionId}:${context.message.id}` } },
   })
+  currentChatDeliveryTurnId.value = `chat:${context.sessionId}:${context.message.id}`
 }))
 
 chatHookCleanups.push(onEmbodimentMeta(async (meta) => {
   runtimeDigest.value = meta.runtimeDigest ?? null
 
   const embodimentScript = meta.embodimentScript ?? null
+  embodimentRuntime.acceptInteractionScript(embodimentScript)
   const authoritativeMeta = resolveStageEmbodimentMetaAuthority({
     embodiment: meta.embodiment,
     embodimentScript,
@@ -1682,9 +1777,12 @@ function handleDialoguePanelFocusChange(focused: boolean) {
 const proactiveFeedbackClock = useNow({ interval: 1_000 })
 const dismissedProactiveFeedbackTurnIds = ref<string[]>([])
 
-const dialoguePlacement = computed(() => {
-  if (stageCharacterFrame.value && stageBounds.value.width > 0)
+const dialoguePlacement = computed((previous: ReturnType<typeof resolveStageBubblePlacement> | undefined) => {
+  if (stageCharacterFrame.value && stageBounds.value.width > 0) {
+    if (previous && Math.abs(stageCharacterFrame.value.centerX - stageBounds.value.width / 2) < 24)
+      return previous
     return resolveStageBubblePlacement(stageCharacterFrame.value, stageBounds.value.width)
+  }
 
   return resolveStageBubblePlacement(parseStagePositionX(props.xOffset))
 })
@@ -1740,6 +1838,11 @@ const dialogueHoverVisibility = useStageDialogueHoverVisibility({
   loading: bubbleLoading,
   streaming: bubbleStreaming,
 })
+const dialogueArrivalVisibility = useStageDialogueArrivalVisibility({
+  message: recentAssistantBubbleMessage,
+  owner: computed(() => `${activeCardId.value}:${chatSessionStore.activeSessionId}`),
+  paused: computed(() => Boolean(props.paused) || activityKillSwitch.value.state === 'SUSPENDED'),
+})
 const showDialogueOverlay = computed(() => {
   if (!dialogueHasVisibleContent.value)
     return false
@@ -1749,6 +1852,7 @@ const showDialogueOverlay = computed(() => {
 
   return bubbleLoading.value
     || bubbleStreaming.value
+    || (!!bubbleText.value && dialogueArrivalVisibility.visible.value)
     || dialogueHoverVisibility.visible.value
 })
 const shouldRenderDialogueOverlay = computed(() => {
@@ -1779,6 +1883,43 @@ async function handleProactiveFeedback(kind: 'dismiss' | 'positive') {
 function dialogueOverlayElement() {
   return dialoguePanelRef.value?.panelRootElement()
 }
+
+const lifeDocumentVisibility = useDocumentVisibility()
+
+watch([shouldRenderDialogueOverlay, recentAssistantBubbleMessage, bubbleStreaming, activeCardId, lifeDocumentVisibility, dialogueMinimized], async ([visible, message, streaming, cardId, _visibility, minimized], _previous, onCleanup) => {
+  let cancelled = false
+  onCleanup(() => cancelled = true)
+  if (!visible || streaming || minimized || !message?.id)
+    return
+  const turnId = resolveStageRenderedDeliveryTurn(message, cardId)
+  if (!turnId)
+    return
+  await nextTick()
+  let remainingFrames = 60
+  const observe = () => {
+    if (cancelled || document.visibilityState !== 'visible')
+      return
+    const element = dialogueOverlayElement()
+    const rect = element?.getBoundingClientRect()
+    if (!element || !rect || rect.width <= 0 || rect.height <= 0 || rect.bottom <= 0 || rect.right <= 0 || rect.top >= window.innerHeight || rect.left >= window.innerWidth) {
+      // The panel measures its host through ResizeObserver after mounting.
+      // Its first animation frame can still have zero bounds.
+      if (remainingFrames-- > 0)
+        requestAnimationFrame(observe)
+      return
+    }
+    for (let ancestor: HTMLElement | null = element; ancestor; ancestor = ancestor.parentElement) {
+      const style = getComputedStyle(ancestor)
+      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) < 0.95) {
+        if (remainingFrames-- > 0)
+          requestAnimationFrame(observe)
+        return
+      }
+    }
+    emit('dialogueRendered', { cardId, turnId })
+  }
+  requestAnimationFrame(observe)
+}, { flush: 'post' })
 
 function readRenderTargetRegionAtClientPoint(clientX: number, clientY: number, radius: number) {
   if (stageModelRenderer.value !== 'vrm')
@@ -1815,6 +1956,9 @@ defineExpose({
   hitTestClientPoint,
   readRenderTargetRegionAtClientPoint,
   embodimentDiagnostics,
+  speechActivity: computed(() => ({ chatIntentId: currentChatIntent.value?.intentId ?? null, speaking: embodimentRuntime.nowSpeaking.value, host: speechRuntimeStore.isHost(), fallback: fallbackSpeechStatus.value })),
+  residentBehavior: computed(() => ({ mode: props.residentBehavior?.mode ?? null, applied: residentPerformanceState.value !== performanceState.value, motor: residentPerformanceState.value.motor })),
+  interactionPerformance: computed(() => ({ intent: embodimentRuntime.interactionIntent.value, phase: performanceState.value.phase, motor: performanceState.value.motor })),
 })
 </script>
 
@@ -1840,7 +1984,7 @@ defineExpose({
         :speech-render-state="speechRenderState"
         :idle-motion-preference="live2dIdleMotionPreference"
         :paused="paused"
-        :performance-state="performanceState"
+        :performance-state="residentPerformanceState"
         :preferred-expression-aliases="currentLive2DPreferredExpressionAliases"
         :x-offset="xOffset"
         :y-offset="yOffset"
@@ -1871,7 +2015,9 @@ defineExpose({
         :show-axes="stageViewControlsEnabled"
         :external-look-at-screen-point="vrmLookAtScreenPoint"
         :presence-posture="presencePosture"
-        :performance-state="performanceState"
+        :daily-posture="activityPresence?.phase === 'working' ? activityPresence.posture ?? (activityPresence.kind === 'execution' || activityPresence.kind === 'personal-project' ? 'work' : 'stand') : 'stand'"
+        :daily-action="activityPresence?.kind === 'daily-life' && activityPresence.phase === 'working' ? { id: activityPresence.id, sequence: activityPresence.sequence, cue: activityPresence.behavior === 'stretch' ? 'stretch' : 'rest_settle' } : null"
+        :performance-state="residentPerformanceState"
         :speech-render-state="speechRenderState"
         :idle-action-preference="vrmIdleActionPreference"
         @custom-expressions-resolved="syncVrmCustomExpressionScan"
@@ -1883,6 +2029,7 @@ defineExpose({
       v-if="showEmbodimentDiagnostics"
       :diagnostics="embodimentDiagnostics"
     />
+    <StageActivityIndicator v-if="activityPresence && !paused && showStage && activityKillSwitch.state !== 'SUSPENDED'" :activity="activityPresence" />
     <div
       v-if="shouldRenderDialogueOverlay"
       class="stage-dialogue-layer"

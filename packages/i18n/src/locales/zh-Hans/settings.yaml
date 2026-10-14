@@ -1,5 +1,15 @@
 common:
   save: 保存
+  back: 返回上一级
+model-selector:
+  title: 选择角色模型
+  add: 导入模型
+  loading: 正在读取角色模型…
+  options: '{name} 的选项'
+  remove: 移除模型
+  name: 模型名称
+  pick: 使用此模型
+  confirm: 确认选择
 animations:
   stage-transitions:
     title: 是否开启舞台动画
@@ -10,7 +20,11 @@ animations:
 dialogs:
   onboarding:
     title: 欢迎来到 ALICIZATION！
-    description: 让我们设置您的第一个服务来源来开始使用。
+    description: 先认识彼此，再为她连接对话模型。
+    credentialsTitle: 连接对话服务
+    credentialsHelp: 密钥用于连接你选择的服务。对话内容会发送到该服务，请选择你信任的服务商。
+    connectionHelp: 连接未通过。请检查服务是否启动、地址和密钥是否正确，再重试。也可以返回更换服务。
+    errorDetails: 查看错误详情
     selectProvider: 选择服务来源
     configureProvider: 配置 {provider}
     apiKey: API 密钥
@@ -44,28 +58,55 @@ dialogs:
       skip: 稍后再说
       open: 去配置动作映射
     personaWorkshop:
+      back: 返回上一步
+      progress: 人格初始化进度
+      adjustLater: 这是她的起点，之后也可以在设置中调整。
+      steps:
+        identity: 初次相识
+        temperament: 性格气质
+        style: 相处方式
+        review: 确认人格
       intro:
-        title: 先定下她最初的自我感
-        lead: 这是一个引导式 quick-birth 工作坊，不是问卷。我们会先描出感觉，再让系统把它解释回来，最后由你确认。
+        title: 从彼此的名字开始
+        lead: 用几个简单的选择，描绘她最初的样子。
+        nameLabel: 她的名字
+        namePlaceholder: 为她取一个名字
+        hostNameLabel: 她怎么称呼你
+        hostNamePlaceholder: 你的名字或昵称
+        requiredHint: 填好两个称呼，就可以继续。
         exampleTitle: 例子
         exampleBody: '不要先想标签，可以直接写：‘温柔，会注意细微变化，被夸奖时会害羞，说话不要太冷。’'
-        guidance: 先写你希望她拥有的存在感，不必追求术语。几句话就够。
+        guidance: 她会带着自己的性格与你相处，也会在日后的陪伴中慢慢成长。
       core:
-        title: 先给出核心感觉
-        description: 先选整体气质，再补一段短描述，说明她在对话里应该是什么感觉。
-        obedience: 服从度
+        title: 你期待怎样的她
+        description: 调整她的气质，也可以用自己的话补充。保留默认值同样可以。
+        obedience: 配合程度
         liveliness: 活力感
         sensibility: 细腻度
         summary: 当前理解：{summary}
-        freeDescription: 简短人格描述
+        freeDescription: 用几句话描述她（选填）
+        descriptionPlaceholder: 例如：温柔，留意细微的变化，被夸奖时会害羞，说话带一点俏皮。
+        traits:
+          obedience:
+            low: 更有主见
+            balanced: 商量着来
+            high: 更愿意配合
+          liveliness:
+            low: 安静沉稳
+            balanced: 从容自然
+            high: 活泼外向
+          sensibility:
+            low: 理性直接
+            balanced: 温和体贴
+            high: 敏感细腻
         examplesTitle: 可参考的写法
-        examplesBody: 可以描述语气、依恋方式，或她在压力下的反应。下一步会帮你把它整理成预览。
+        examplesBody: 写你在意的感觉就好，不需要完整的人物设定。
       calibration:
-        title: 调整回应风格
-        description: 选择她在沉默后如何重新接话、如何安抚你，以及如何处理吃醋。这些是行为提示，不是硬性规则。
-        silenceReconnect: 沉默后重新接话
+        title: 让相处更合你的心意
+        description: 选择你喜欢的回应方式，让她知道怎样靠近你。
+        silenceReconnect: 你安静了一阵子时
         options:
-          hold: 保持
+          hold: 静静等你
           lightProbe: 轻轻试探
           directApproach: 直接接话
           quietPresence: 静静陪伴
@@ -74,19 +115,38 @@ dialogs:
           maskIt: 先藏起来
           softAche: 轻轻吃醋
           sayIt: 直接说出来
-        comfortStyle: 安抚方式
-        jealousyStyle: 吃醋风格
+        comfortStyle: 你心情低落时
+        jealousyStyle: 她有一点吃醋时
+        hints:
+          hold: 留一些空间，不急着打破沉默
+          lightProbe: 轻声问候，看看你是否想聊
+          directApproach: 主动找个话题，重新聊起来
+          quietPresence: 陪在身边，让你慢慢缓过来
+          gentleCare: 听你说，也给你温柔的安慰
+          takeCharge: 帮你理清问题，一起想办法
+          maskIt: 先收起情绪，不让你有压力
+          softAche: 流露一点在意，带着小小委屈
+          sayIt: 坦率表达自己的感受
         summary: 当前校准：{summary}
         examplesBody: 如果不确定，先选更柔和的项。预览页会把它翻译成简洁的系统摘要。
       preview:
-        title: 检查系统理解结果
-        description: 我们会把你的选择整理成一份简洁的人格草稿。请把它当作系统对你意图的理解预览，合适再提交。
+        title: 这是她最初的样子
+        description: 看看是否符合你的期待。想调整，可以返回前面，也可以在这里补充。
+        addressAs: '她会称呼你「{name}」'
+        correctionsPlaceholder: 例如：不要说教，多一些自然的关心。
+        nextHint: 保存人格后，下一步配置对话模型。
+        saving: 正在保存…
+        savingHint: 正在保存她的人格，请稍候。
+        retry: 重新保存
+        saveError: '人格保存失败：{reason}。你的填写仍然保留，可以重试。'
+        conflictError: 人格文件在此期间发生了变化。本次没有覆盖，请检查已有内容后重试。
+        unavailableError: 暂时无法连接桌面运行时。你的填写仍然保留，请稍后重试。
         summaryPending: 正在编译草稿。
-        correctionsTitle: 补充小修正
+        correctionsTitle: 还有什么想告诉她（选填）
         correctionsLabel: 修正内容
         notesTitle: 系统推断出的内容
         notesEmpty: 还没有备注。
-        emptyDescription: 还没有填写简短人格描述。
+        emptyDescription: 从自然、温和的陪伴开始，在与你相处的日子里慢慢成长。
         relationshipPosture: 关系姿态：{value}
         relationshipPostureDefault: 关系姿态：陪伴者
         initiativeStyle: 主动风格：{value}
@@ -109,7 +169,7 @@ dialogs:
           hold: 保持
           lightProbe: 轻轻试探
           directApproach: 直接接话
-        complete: 确认并开始生成
+        complete: 确认并继续
     permissions:
       title: Notifications
       description: You can allow notifications now or continue and set it up later.
@@ -348,14 +408,14 @@ pages:
     title: Alicization 角色卡
     try_different_search: 尝试使用其他关键词搜索
     upload: 上传
+    import_error: 角色卡导入失败。请选择有效的角色卡 JSON 文件后重试。
     upload_desc: 点击或拖拽文件到此处上传
     alicization:
       title: Alicization 中枢
       inactive_hint: 请先激活这张 Alicization 角色卡，再编辑其人格与记忆。
       desktop_only: Alicization 面板仅在桌面端可用。
       architecture_boundary: >-
-        架构边界：卡片页只管理卡壳与模块绑定；人格、记忆、执行熔断统一在
-        Alicization 中枢编辑。
+        点击角色卡上的编辑按钮，可以调整模型绑定、人格设定和休眠状态。
       runtime:
         title: 执行熔断开关
         kill_switch:
@@ -585,6 +645,7 @@ pages:
       confirm_tombstone_title: 确认删除并屏蔽这条记忆？
       confirm_tombstone_description: 这会让她不再召回这条记忆，也不会进入人格训练。当前内容：{summary}
       states:
+        empty_persona_source_revoke_intents: 目前没有待处理的人格来源撤回任务。
         empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
         loading_long_term: 正在读取长期记忆...
         loading_tombstones: 正在读取回收站...
@@ -841,8 +902,6 @@ pages:
         persona_training_max_seq_length: 最大序列长度
         persona_training_seed: 随机种子
         persona_training_mask_prompt: 仅训练回答内容
-      options:
-        persona_training_external: 外部协议训练器
         persona_training_runs: 人格训练运行
         persona_training_runs_description: 训练异步运行，状态、进度、取消和错误都以本地数据库为准。
         persona_training_stage: 阶段
@@ -946,12 +1005,13 @@ pages:
         quality_findings: 质量问题
         recommended_actions: 建议动作
         recall_reasons: 召回理由
-        rank_reasons: 排序理由
         query_matches: 查询匹配
         provenance: 来源与溯源
         expected_ids: 应该命中
         surfaced_ids: 已提到
         wrong_thread_ids: 错线程
+      options:
+        persona_training_external: 外部协议训练器
       skills:
         title: 能力与技能
         description: 查看已发现的 Skill 版本，并控制它们是否进入生产工具注册表。
@@ -1095,7 +1155,7 @@ pages:
         persona_training_executable: /绝对路径/persona-training-wrapper
         persona_training_base_model: 本地基础模型名称或路径
   data:
-    title: Data
+    title: 数据管理
     description: 管理存储 Alicization 数据、导出和重置
     sections:
       chats:
@@ -1216,7 +1276,7 @@ pages:
           provider-model-selection:
             collapse: 折叠
             custom_model_placeholder: 输入自订模型名称
-            current_model_label: 'Current model:'
+            current_model_label: '当前模型：'
             description: 为意识选择合适的 LLM 服务来源
             error: 获取出错啦
             health_check_failed: 健康检查失败
@@ -1479,6 +1539,10 @@ pages:
         restarted: >-
           MCP 服务已重新启动，启动了{started}，未启动{failed}，跳过{skipped}
   providers:
+    categories:
+      chat: 对话模型
+      speech: 语音合成
+      transcription: 语音识别
     catalog_v2:
       title: 服务目录
       search_configured: 搜索已配置项目...
@@ -1712,6 +1776,14 @@ pages:
         title: ElevenLabs (11labs)
       kokoro-local:
         description: 基于 Kokoro-82M 的本地语音合成
+        loading:
+          description: 首次载入需要联网下载模型，文件会缓存在本机。请选择模型后点击载入。
+          start: 载入语音模型
+          busy: 正在载入模型…
+          retry: 重试载入
+          progress: '当前文件进度：{percent}%'
+          failed: 模型载入失败。请检查网络连接后重试，或选择其他语音服务。
+          details: 查看技术详情
         fields:
           field:
             model:
@@ -2756,3 +2828,165 @@ wip:
   title: 正在开发中
   description: >-
     此功能正在开发中，尚未公开发布。请在未来的更新中再次查看此功能。
+
+life:
+  personal_choices: 她现在想尝试的事
+  personal_choices_description: 这些是暂时的想法。只有实际完成并核验的作品，才会成为已做过的经历。
+  withdraw_choice: 撤回这个想法
+  personal_projects: 她分享的小作品
+  project_feedback_positive: 我喜欢这篇
+  project_feedback_dismiss: 暂时不想继续这类创作
+  project_feedback_received: 已收到你的反馈，会影响后续创作。
+  project_feedback_unpresented: 请先让她在对话里展示这篇作品，再留下反馈。
+  host_requested_quiet: 按你的要求，主动交流已暂停。你下一次主动和她说话时，会恢复普通交流；明确约定的提醒仍会送达。
+  activity:
+    rest: 歇一会儿
+    stretch: 活动一下
+    personal_working: 在忙一点自己的事
+    personal_finished: 这段小事做完了
+    orienting: 先看看该从哪里开始
+    working: 正在处理这件事
+    verifying: 再确认一下结果
+    blocked: 这里需要先处理一个问题
+    finished: 这件事已经核验完成
+    interrupted: 已经停下了
+    failed: 这次没能完成
+  backup:
+    recovery_title: 恢复没有完成
+    recovery_message: 备份恢复遇到问题。你可以退出后重试，或取消恢复并使用恢复前的数据继续。两份数据都会保留。
+    recovery_quit: 退出并保留恢复请求
+    recovery_original: 取消恢复，使用原数据
+    title: 本地备份与恢复
+    description: 保存人格与记忆的一致快照。恢复会重启软件，保留恢复前的数据，并暂停自动活动，等待核对任务结果。
+    create: 创建备份
+    list: 查看备份
+    restore: 恢复此备份
+    restarting: 备份已核验，正在重启并恢复。
+    restored: 已恢复人格与记忆。恢复前的数据已保留，自动活动已暂停。请核对任务实际结果，再决定恢复活动；已发生的操作不会自动重放。
+    confirm_title: 恢复本地备份
+    confirm_message: 恢复这份备份中的人格与记忆？
+    confirm_detail: 软件将重启。当前完整数据会保留，现有执行和提醒记录不会回退。自动活动将暂停，未核验的操作需要重新检查实际结果。
+    cancel: 取消
+    confirm: 恢复并重启
+  withdrawn_documents: 来源已撤销的活动文档
+  restore_artifact: 核对并恢复文档
+  artifact_restored: 文档已恢复，来源记忆和原活动仍保持撤销。
+  artifact_restore_held: 恢复状态需要核验，已有文件会保留。
+  persona_revisions: 人格成长候选
+  persona_revision_description: 对照原人格与候选的真实回答，核对持续身份、事实、陪伴和行动表现。评价使用清洗后的许可样本；请查看结果后决定是否采用。
+  inspect_persona: 查看候选与对照回答
+  persona_baseline: 原人格
+  persona_candidate: 候选人格
+  persona_invariants: 连续性检查
+  persona_passed: 通过
+  persona_failed: 未通过
+  evaluate_persona: 生成对照评价
+  approve_persona: 我已核对并认可结果
+  reject_persona: 不认可此结果
+  adopt_persona: 采用此人格修订
+  rollback_persona: 恢复采用前的人格
+  native_visible: 桌面窗口可见
+  nodes:
+    N00: 输入与事件
+    N01: 当前状态
+    N02: 注意与决策
+    N03: 记忆召回
+    N04: 认知与事实
+    N05: 情绪与关系
+    N06: 目标与约定
+    N07: 主动与内在活动
+    N08: 对话生成
+    N09: 状态提交
+    N10: 工具执行
+    N11: 结果核验
+    N12: 身体与表达
+    N13: 呈现回执
+    N14: 记忆整理
+    N15: 学习与成长
+    N16: 恢复与持续性
+    N17: 用户治理
+  held_inputs: 待恢复的请求
+  held_inputs_description: 上次中断的请求已暂停。请先核对尚未完成的操作，再重新提交原始输入；结果不明的操作需要先核验。
+  inspect_input: 查看原始输入
+  copy_input: 复制全文
+  discard_input: 放弃此待办
+  input_copied: 原始输入全文已复制，可重新提交。
+  input_resume: 继续处理
+  evaluate_policy: 对照评估
+  inspect_policy: 查看原策略与候选策略的回答
+  adopt_policy: 确认采用这次评估的策略
+  input_resumed: 已作为新的请求继续处理；旧请求的操作不会重放。
+  input_discarded: 已放弃此待办，原始输入仍保留在对话记录中。
+  input_source_unavailable: 旧版本未保存原始输入，无法可靠恢复内容。
+  input_preview_truncated: 预览只显示前4000字，复制会包含全文。
+  input_has_attachments: 此请求含附件，重新提交时需要一并带上。
+  pixel_state: 绘制像素
+  pixel_status:
+    visible: 已检测到
+    invisible: 未显示
+    unknown: 尚未核验
+  closure_title: 一次对话的闭环证据
+  closure_description: 查看实际采用的状态、执行与呈现证据。未调用表示本次不曾使用该节点，不能据此判断整个能力已经完成。
+  closure_turn: 对话编号
+  closure_lookup: 查看证据
+  closure_evidence: '{count} 条引用与说明'
+  closure_status:
+    recorded: 已记录证据
+    adopted: 已采用现有状态
+    pending: 仍待处理
+    failed: 未通过
+    not-invoked: 本次未调用
+    unverified: 尚未核验
+  initiative_preferences: 主动交流节奏
+  initiative_description: 普通主动交流遵守这些限制；你明确约定的提醒独立送达。
+  maximum_per_day: 每日最多次数（0 为暂停）
+  minimum_interval: 最少间隔（分钟）
+  quiet_start: 安静时段开始（小时）
+  quiet_end: 安静时段结束（小时）
+  quiet_enabled: 安静时段已开启
+  quiet_disabled: 安静时段已关闭
+  save_preferences: 保存交流节奏
+  manage_memory: 纠正与遗忘记忆
+  manage_personality: 人格与自主设置
+  growth: 成长记录
+  rollback: 撤销这项成长
+  source_withdrawn: 来源已撤销
+  source_count: '引用 {count} 条来源'
+  sources: 来源与核验依据
+  growth_consumed: 最近的生产对话已采用这项成长。
+  expression_health: 身体与表达状态
+  renderer_state: 渲染状态
+  canvas_present: 画布已连接
+  expression_result: 最近的呈现结果
+  growth_status:
+    shadow: 等待来源与评价通过
+    active: 正在采用
+    rejected: 未通过评价
+    rolled-back: 已撤销
+  title: 生命与约定
+  description: 查看她记得的责任、执行进展和仍需确认的结果。
+  refresh: 刷新
+  responsibilities: 正在进行的约定
+  empty: 目前没有待完成的约定。
+  cancel: 取消
+  reschedule: 改期
+  invalid_time: 请选择未来的准确时间。
+  verify: 核验结果
+  report_completed: 我确认目标已完成
+  awaiting_proof: 执行或生成已经结束，仍需实际结果或投递证明。
+  history: 最近的完成与取消记录
+  diagnostics: 连续性诊断
+  revision: 已提交的生命版本
+  uncertain: 结果待核验的操作
+  input_pending: 尚未结算的输入
+  status:
+    proposed: 等待确认
+    accepted: 已接受
+    waiting: 等待合适时间
+    in-progress: 正在进行
+    verifying: 等待结果证明
+    fulfilled: 已履约
+    blocked: 需要处理
+    failed: 未完成
+    cancelled: 已取消
+    superseded: 已被新约定替代

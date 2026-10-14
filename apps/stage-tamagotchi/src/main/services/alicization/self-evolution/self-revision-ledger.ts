@@ -18,6 +18,7 @@ export interface AlicizationSelfRevisionEvent {
     supportCount: number
     contradictionCount: number
     verificationBasis: string[]
+    supportingFactIds?: string[]
   }
   proposedRevision: {
     summary: string | null
@@ -79,6 +80,7 @@ export function buildAlicizationSelfRevisionEvent(input: {
       supportCount: input.supportCount,
       contradictionCount,
       verificationBasis: unique(input.result.verificationBasis ?? [], 6),
+      supportingFactIds: unique(artifact?.supportingFactIds ?? input.task.payload.supportingFactIds ?? [], 32),
     },
     proposedRevision: {
       summary,

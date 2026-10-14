@@ -172,5 +172,8 @@ describe('main chat stream meta', () => {
       lastReply: '第二句',
       lastSignature: expect.any(String),
     })
+    const committed = emitter.compose('已完成的同一轮回复', { turnId: 'turn-emitter:gw1' })
+    expect(committed.turnId).toBe('turn-emitter:gw1')
+    expect(emit).toHaveBeenCalledTimes(2)
   })
 })

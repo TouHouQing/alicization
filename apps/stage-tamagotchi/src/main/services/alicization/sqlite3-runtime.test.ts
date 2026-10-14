@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -16,7 +17,7 @@ vi.mock('sqlite3', () => ({
 describe('sqlite3 runtime loader', () => {
   it('prefers the unpacked Electron resource entry when it exists', () => {
     expect(resolveAlicizationSqlite3RuntimeEntry('/Applications/Alicization Local.app/Contents/Resources', () => true))
-      .toBe('/Applications/Alicization Local.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/lib/sqlite3.js')
+      .toBe(join('/Applications/Alicization Local.app/Contents/Resources', 'app.asar.unpacked', 'node_modules', 'sqlite3', 'lib', 'sqlite3.js'))
   })
 
   it('falls back to the regular package entry outside packaged Electron apps', () => {
@@ -35,14 +36,14 @@ describe('sqlite3 runtime loader', () => {
   it('requires both the unpacked JavaScript loader and native binding', () => {
     expect(() => resolveAlicizationSqlite3RuntimeEntry(
       '/Applications/Alicization Local.app/Contents/Resources',
-      path => path.endsWith('/sqlite3/lib/sqlite3.js'),
+      path => path.endsWith(join('sqlite3', 'lib', 'sqlite3.js')),
       { packaged: true },
     )).toThrow(/node_sqlite3\.node/u)
   })
 
   it('injects the explicit unpacked native binding instead of using ASAR path inference', () => {
     const entry = '/Applications/Alicization Local.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/lib/sqlite3.js'
-    const bindingEntry = '/Applications/Alicization Local.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/lib/sqlite3-binding.js'
+    const bindingEntry = join(dirname(entry), 'sqlite3-binding.js')
     const nativeBinding = '/Applications/Alicization Local.app/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node'
     const nativeModule = { Database: class Database {} }
     const calls: string[] = []

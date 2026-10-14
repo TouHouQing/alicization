@@ -2,6 +2,7 @@ import { useLocalStorage } from '@vueuse/core'
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
+import { hasAlicizationBridge } from './alicization-bridge'
 import { useAlicizationEpoch1Store } from './alicization-epoch1'
 import { useConsciousnessStore } from './modules/consciousness'
 import { useProvidersStore } from './providers'
@@ -68,7 +69,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
       || hasRuntimeProviderSelection.value
   })
 
-  const hasGenesisReady = computed(() => !alicizationEpoch1Store.needsGenesis)
+  const hasGenesisReady = computed(() => !alicizationEpoch1Store.needsGenesis && (!hasAlicizationBridge() || alicizationEpoch1Store.soul !== null))
   const preferredEntryStepId = computed(() => {
     return hasGenesisReady.value ? 'provider-selection' : 'welcome'
   })

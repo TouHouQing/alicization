@@ -16,6 +16,7 @@ import {
   parseAlicizationActionSettlement,
 } from '@proj-alicization/stage-shared'
 
+import { activeLifeTransaction, assertLifeTransaction } from '../life-transaction'
 import {
   assertAlicizationRuntimeReplyDeliveryScope,
   parseAlicizationRuntimeReplyDeliveryIntent,
@@ -788,79 +789,86 @@ export function createAlicizationRuntimeCheckpointStore(
     }
   }
 
+  async function saveParsed(checkpoint: AlicizationRuntimeCheckpoint) {
+    const eventState = await findEventTurnState(checkpoint.turnId)
+    if (eventState)
+      assertSameScope(checkpoint, eventState.scope)
+    assertWithinEventCursor(checkpoint, eventState?.maxSequence ?? 0)
+
+    const existingRow = await findByTurnId(checkpoint.turnId)
+    if (existingRow) {
+      const existing = mapCheckpointRow(existingRow)
+      assertSameScope(checkpoint, existing)
+      if (checkpoint.sequence < existing.sequence)
+        throw new Error('runtime checkpoint stale checkpoint sequence cannot replace a newer cursor')
+      if (checkpoint.sequence === existing.sequence) {
+        if (checkpoint.updatedAt < existing.updatedAt)
+          throw new Error('runtime checkpoint updatedAt cannot move backward at the same sequence')
+        if (!sameCheckpointSemantics(existing, checkpoint))
+          throw new Error('runtime checkpoint semantic projection must not change at the same sequence')
+        if (checkpoint.updatedAt === existing.updatedAt)
+          return existing
+      }
+    }
+
+    await options.run(
+      options.database,
+      `
+    INSERT INTO alicization_runtime_checkpoints (
+      turn_id,
+      card_id,
+      user_id,
+      conversation_id,
+      sequence,
+      runtime_status,
+      active_action_ids_json,
+      delivery_owner,
+      projection_json,
+      schema_version,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(turn_id)
+    DO UPDATE SET
+      card_id = excluded.card_id,
+      user_id = excluded.user_id,
+      conversation_id = excluded.conversation_id,
+      sequence = excluded.sequence,
+      runtime_status = excluded.runtime_status,
+      active_action_ids_json = excluded.active_action_ids_json,
+      delivery_owner = excluded.delivery_owner,
+      projection_json = excluded.projection_json,
+      schema_version = excluded.schema_version,
+      updated_at = excluded.updated_at
+    `,
+      [
+        checkpoint.turnId,
+        checkpoint.cardId,
+        checkpoint.userId,
+        checkpoint.conversationId,
+        checkpoint.sequence,
+        checkpoint.status,
+        JSON.stringify(checkpoint.activeActionIds),
+        checkpoint.deliveryOwner,
+        JSON.stringify(checkpoint.projection),
+        checkpoint.schemaVersion,
+        checkpoint.updatedAt,
+      ],
+    )
+
+    return checkpoint
+  }
+
   async function save(input: AlicizationRuntimeCheckpoint) {
     const checkpoint = parseAlicizationRuntimeCheckpoint(input)
+    return options.enqueueWrite(() => options.runInTransaction(options.database, () => saveParsed(checkpoint)))
+  }
 
-    return await options.enqueueWrite(async () => {
-      return await options.runInTransaction(options.database, async () => {
-        const eventState = await findEventTurnState(checkpoint.turnId)
-        if (eventState)
-          assertSameScope(checkpoint, eventState.scope)
-        assertWithinEventCursor(checkpoint, eventState?.maxSequence ?? 0)
-
-        const existingRow = await findByTurnId(checkpoint.turnId)
-        if (existingRow) {
-          const existing = mapCheckpointRow(existingRow)
-          assertSameScope(checkpoint, existing)
-          if (checkpoint.sequence < existing.sequence)
-            throw new Error('runtime checkpoint stale checkpoint sequence cannot replace a newer cursor')
-          if (checkpoint.sequence === existing.sequence) {
-            if (checkpoint.updatedAt < existing.updatedAt)
-              throw new Error('runtime checkpoint updatedAt cannot move backward at the same sequence')
-            if (!sameCheckpointSemantics(existing, checkpoint))
-              throw new Error('runtime checkpoint semantic projection must not change at the same sequence')
-            if (checkpoint.updatedAt === existing.updatedAt)
-              return existing
-          }
-        }
-
-        await options.run(
-          options.database,
-          `
-          INSERT INTO alicization_runtime_checkpoints (
-            turn_id,
-            card_id,
-            user_id,
-            conversation_id,
-            sequence,
-            runtime_status,
-            active_action_ids_json,
-            delivery_owner,
-            projection_json,
-            schema_version,
-            updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(turn_id)
-          DO UPDATE SET
-            card_id = excluded.card_id,
-            user_id = excluded.user_id,
-            conversation_id = excluded.conversation_id,
-            sequence = excluded.sequence,
-            runtime_status = excluded.runtime_status,
-            active_action_ids_json = excluded.active_action_ids_json,
-            delivery_owner = excluded.delivery_owner,
-            projection_json = excluded.projection_json,
-            schema_version = excluded.schema_version,
-            updated_at = excluded.updated_at
-          `,
-          [
-            checkpoint.turnId,
-            checkpoint.cardId,
-            checkpoint.userId,
-            checkpoint.conversationId,
-            checkpoint.sequence,
-            checkpoint.status,
-            JSON.stringify(checkpoint.activeActionIds),
-            checkpoint.deliveryOwner,
-            JSON.stringify(checkpoint.projection),
-            checkpoint.schemaVersion,
-            checkpoint.updatedAt,
-          ],
-        )
-
-        return checkpoint
-      })
-    })
+  async function saveInside(input: AlicizationRuntimeCheckpoint) {
+    const handle = activeLifeTransaction(options.database)
+    if (!handle)
+      throw new Error('Atomic runtime checkpoint requires the current writer transaction')
+    assertLifeTransaction(options.database, handle)
+    return saveParsed(parseAlicizationRuntimeCheckpoint(input))
   }
 
   async function load(scopeInput: AlicizationRuntimeCheckpointScope) {
@@ -878,6 +886,7 @@ export function createAlicizationRuntimeCheckpointStore(
 
   return {
     save,
+    saveInside,
     load,
   }
 }

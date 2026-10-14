@@ -65,6 +65,8 @@ describe('runtime soul lifecycle', () => {
         files.delete(String(path))
       },
       importWatch: async () => ({ watch: watchMock as any }),
+      activateSoul: async snapshot => snapshot.revision,
+      recoverSoul: async () => {},
       writeSoulContent: async (content) => {
         files.set('/tmp/card/SOUL.md', content)
       },
@@ -154,6 +156,8 @@ describe('runtime soul lifecycle', () => {
         files.delete(String(path))
       },
       importWatch: async () => ({ watch: vi.fn() as any }),
+      activateSoul: async snapshot => snapshot.revision,
+      recoverSoul: async () => {},
       writeSoulContent: async (content) => {
         files.set('/tmp/card/SOUL.md', content)
       },
@@ -239,7 +243,7 @@ describe('runtime soul lifecycle', () => {
           comfortStyle: 'quiet-presence',
           jealousyStyle: 'mask-it',
         },
-        previewCorrections: ['short openings'],
+        previewCorrections: ['short openings', 'keep an independent perspective'],
       },
     })
 
@@ -264,7 +268,7 @@ describe('runtime soul lifecycle', () => {
           comfortStyle: 'quiet-presence',
           jealousyStyle: 'mask-it',
         },
-        previewCorrections: ['short openings'],
+        previewCorrections: ['short openings', 'keep an independent perspective'],
       },
     })
 
@@ -275,6 +279,8 @@ describe('runtime soul lifecycle', () => {
     expect(initialized.soul.frontmatter.personality.initiativeBaseline).toEqual(compiled.initiativeBaseline)
     expect(initialized.soul.frontmatter.personality.identityAnchors).toEqual(compiled.identityAnchors)
     expect(initialized.soul.frontmatter.personality.antiPersonaConstraints).toEqual(compiled.antiPersonaConstraints)
+    expect(initialized.soul.frontmatter.personality.evolutionSeed?.fastLayers).toEqual(expect.arrayContaining(['short openings', 'keep an independent perspective']))
+    expect(persisted).toContain('keep an independent perspective')
     expect(persisted).toContain('## Persona Kernel')
     expect(persisted).toContain('## Expression Profile')
     expect(persisted).toContain('## Anti-Persona Constraints')
@@ -395,6 +401,8 @@ describe('runtime soul lifecycle', () => {
       },
       importWatch: async () => ({ watch: vi.fn() as any }),
       writeSoulContent,
+      activateSoul: async snapshot => snapshot.revision,
+      recoverSoul: async () => {},
       parseSoul: raw => ({
         frontmatter: JSON.parse(raw.split('\n')[1] ?? '{}') as AlicizationSoulFrontmatter,
         body: raw.split('\n').slice(4).join('\n').trim(),
@@ -518,6 +526,8 @@ describe('runtime soul lifecycle', () => {
         files.delete(String(path))
       },
       importWatch: async () => ({ watch: vi.fn() as any }),
+      activateSoul: async snapshot => snapshot.revision,
+      recoverSoul: async () => {},
       writeSoulContent: async (content) => {
         files.set('/tmp/card/SOUL.md', content)
       },

@@ -1,6 +1,7 @@
 import type { Locale } from '@intlify/core'
 import type { ServerOptions } from '@proj-alicization/server-runtime/server'
 import type {
+  AlicizationActivityPresence,
   AlicizationAffectiveResidueEntrySnapshot as SharedAlicizationAffectiveResidueEntrySnapshot,
   AlicizationAffectiveResidueKind as SharedAlicizationAffectiveResidueKind,
   AlicizationAffectiveResidueMemorySnapshot as SharedAlicizationAffectiveResidueMemorySnapshot,
@@ -3466,6 +3467,7 @@ export interface AlicizationPrivateThoughtSnapshot {
 }
 
 export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizationPersistentPresenceAuthoritySnapshot {
+  emotionalTemporalState?: import('@proj-alicization/stage-shared').AlicizationEmotionalTemporalState | null
   watchMode: AlicizationVisualWatchMode
   currentScene: AlicizationVisualSceneSnapshot | null
   attention: AlicizationVisualAttentionSnapshot | null
@@ -3584,6 +3586,7 @@ export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizatio
 }
 
 export interface AlicizationPresencePulsePayload extends AlicizationCardScope {
+  activity?: AlicizationActivityPresence
   watchMode: AlicizationVisualWatchMode
   embodiedPresence: AlicizationEmbodiedPresenceState
   scenario: AlicizationProactiveScenario
@@ -3886,6 +3889,8 @@ export interface AlicizationVisibleReplyPublicClosureSummary extends Record<stri
 }
 
 export interface AlicizationChatFinishEvent {
+  conversationCommitted?: boolean
+  acceptedProviderReply?: import('@proj-alicization/stage-shared').AlicizationProviderResponsePayload | null
   cardId: string
   turnId: string
   status: 'completed' | 'aborted' | 'timed-out' | 'failed'
@@ -4006,6 +4011,8 @@ export interface AlicizationSafetyPermissionRequest {
   toolName: string
   reason: string
   resourceLabel?: string
+  resourcePath?: string
+  changePreview?: { operation: 'create' | 'replace', byteLength: number, text: string }
   argumentsSummary?: {
     kind: string
     keyCount?: number
@@ -4023,6 +4030,13 @@ export interface AlicizationSafetyPermissionDecision {
   allow: boolean
   rememberSession?: boolean
   reason?: string
+}
+
+export interface AlicizationSafetyPermissionClosed {
+  cardId: string
+  requestId: string
+  token: string
+  reason: string
 }
 
 export interface AlicizationSafetyPermissionDecisionResult {
@@ -4148,6 +4162,7 @@ export const alicizationDialogueResponded = defineEventa<AlicizationDialogueResp
 export const electronAlicizationVisualPresenceChanged = defineEventa<AlicizationPresencePulsePayload>('eventa:event:electron:alicization:visual-presence:changed')
 export const electronAlicizationVisualPresenceStateChanged = defineEventa<AlicizationVisualPresenceStateChangedPayload>('eventa:event:electron:alicization:visual-presence:state-changed')
 export const alicizationSafetyPermissionRequested = defineEventa<AlicizationSafetyPermissionRequest>('eventa:event:electron:alicization:safety:permission-requested')
+export const alicizationSafetyPermissionClosed = defineEventa<AlicizationSafetyPermissionClosed>('eventa:event:electron:alicization:safety:permission-closed')
 export const alicizationChatStreamChunk = defineEventa<AlicizationChatStreamChunkEvent>('eventa:event:electron:alicization:chat:stream-chunk')
 export const alicizationChatStreamMeta = defineEventa<AlicizationChatMetaEvent>('eventa:event:electron:alicization:chat:stream-meta')
 export const alicizationChatStreamToolCall = defineEventa<AlicizationChatToolCallEvent>('eventa:event:electron:alicization:chat:stream-tool-call')

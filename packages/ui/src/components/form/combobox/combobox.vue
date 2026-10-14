@@ -20,6 +20,7 @@ import {
 const props = defineProps<{
   options: { groupLabel: string, children?: { label: string, value: T }[] }[]
   placeholder?: string
+  disabled?: boolean
 }>()
 
 const modelValue = defineModel<T>({ required: false })
@@ -31,7 +32,7 @@ function toDisplayValue(value: T): string {
 </script>
 
 <template>
-  <ComboboxRoot v-model="modelValue" :class="['relative', 'w-full']">
+  <ComboboxRoot v-model="modelValue" :disabled="props.disabled" :class="['relative', 'w-full']">
     <ComboboxAnchor
       :class="[
         'w-full inline-flex items-center justify-between rounded-xl border px-3 leading-none h-10 gap-[5px] outline-none',

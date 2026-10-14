@@ -19,6 +19,8 @@ import type {
 } from './runtime-soul'
 import type { deriveSensoryCaptureSnapshotFromAccessRuntimeSnapshot } from './sensory-capture'
 
+import { createHash } from 'node:crypto'
+
 import { errorMessageFrom } from '@moeru/std'
 import {
   buildAlicizationProviderFactBlock,
@@ -45,6 +47,7 @@ import {
   mainGatewayForegroundPreemptionReason,
 } from './main-gateway-work-coordinator'
 import { parseScreenSemanticSummary, pickScreenSemanticCaptureCandidate } from './proactive-screen-semantic'
+import { withProviderFetch } from './provider-fetch'
 import {
   resolveAlicizationProviderRetryDeadline,
   runWithAlicizationProviderRetry,
@@ -436,6 +439,17 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     'alicization-organic-self-context',
     'alicization-turn-memory-context',
   ])
+  // These contracts belong to specific internal jobs, not arbitrary caller prose.
+  function callerFactTypesForSource(source: AlicizationMainGatewaySource) {
+    const allowed = new Set(trustedCallerSystemFactTypes)
+    if (source === 'reply-grounding')
+      allowed.add('alicization-reply-grounding-context')
+    if (source === 'personal-activity')
+      allowed.add('alicization-personal-activity-context')
+    if (source === 'persona-evaluation')
+      allowed.add('alicization-persona-evaluation-context')
+    return allowed
+  }
   function sanitizeOneShotStructuredValue(raw: unknown): unknown {
     if (typeof raw === 'string') {
       const sanitized = sanitizeAlicizationProviderFacingText(raw, 2_400, '', {
@@ -851,7 +865,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
 
     const callerSystemBlock = sanitizeOneShotProviderSystemBlock(
       generateOptions.system,
-      trustedCallerSystemFactTypes,
+      callerFactTypesForSource(generateOptions.source),
     )
     const systemMessages: Message[] = [
       ...(generateOptions.extraSystemBlocks ?? [])
@@ -1002,7 +1016,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
             try {
               const providerSignal = attemptController.signal
               const providerPromise = generateText({
-                ...config.provider.chat(config.model),
+                ...withProviderFetch(config.provider.chat(config.model)),
                 maxSteps: 1,
                 messages: generationMessages,
                 responseFormat: generateOptions.responseFormat,
@@ -1439,7 +1453,14 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       }
     }
 
+    const imageDataUrl = buildCompressedNativeImageDataUrl({
+      image: candidate.source.thumbnail,
+      maxWidth: proactiveScreenSemanticImageMaxWidth,
+      maxHeight: proactiveScreenSemanticImageMaxHeight,
+      jpegQuality: proactiveScreenSemanticImageJpegQuality,
+    })
     const candidateKey = [
+      imageDataUrl ? createHash('sha256').update(imageDataUrl).digest('hex') : 'empty-thumbnail',
       candidate.source.id,
       candidate.strategy,
       sanitizeText(candidate.focusTarget?.source ?? ''),
@@ -1453,6 +1474,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     if (
       cached
       && cached.key === candidateKey
+      && input.now >= cached.updatedAt
       && input.now - cached.updatedAt <= (cached.summary ? proactiveScreenSemanticCacheTtlMs : proactiveScreenSemanticFailureTtlMs)
     ) {
       return {
@@ -1463,12 +1485,6 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       }
     }
 
-    const imageDataUrl = buildCompressedNativeImageDataUrl({
-      image: candidate.source.thumbnail,
-      maxWidth: proactiveScreenSemanticImageMaxWidth,
-      maxHeight: proactiveScreenSemanticImageMaxHeight,
-      jpegQuality: proactiveScreenSemanticImageJpegQuality,
-    })
     if (!imageDataUrl) {
       options.screenSemanticCacheByCard.set(cardId, {
         key: candidateKey,

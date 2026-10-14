@@ -1195,6 +1195,39 @@ describe('long-term memory search index', () => {
     }
   })
 
+  it('indexes a newer source after its former embedding job finishes without committing a stale vector', async () => {
+    let start!: () => void
+    let release!: () => void
+    const started = new Promise<void>(resolve => start = resolve)
+    const held = new Promise<void>(resolve => release = resolve)
+    let first = true
+    const texts: string[] = []
+    const cardId = 'card-dirty-embedding-tail'
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { cardId, embeddingProvider: {
+      modelId: 'test-tail',
+      dimensions: 3,
+      vectorSpaceId: 'test-tail:3',
+      embedTexts: async (batch: string[]) => {
+        texts.push(...batch)
+        if (first) { first = false; start(); await held }
+        return batch.map(text => ({ text, vector: [1, 0, 0] }))
+      },
+    } })
+    try {
+      const reflection = { id: 'changing-source', cardId, sourceKind: 'reply' as const, targetScope: 'habit' as const, status: 'confirmed' as const, confidence: 0.95, createdAt: 10 }
+      await db.upsertMemoryReflections([{ ...reflection, summary: '原始资料', lesson: '旧正文', updatedAt: 10 }])
+      await db.reindexMemoryWorkbenchEmbeddings({ cardId, sourceIds: [reflection.id] })
+      await started
+      await db.upsertMemoryReflections([{ ...reflection, summary: '更正资料', lesson: '新正文', updatedAt: 20 }])
+      release()
+      await expect.poll(async () => {
+        const health = await db.getMemoryWorkbenchEmbeddingHealth({ cardId })
+        return { ready: health.searchReady, dirty: health.reindexRequired, newText: texts.includes('更正资料 新正文') }
+      }, { timeout: 10_000, interval: 25 }).toEqual({ ready: true, dirty: false, newText: true })
+    }
+    finally { release(); await db.close() }
+  }, 20_000)
+
   it('reindexes the canonical search document text and invalidates vectors after the source text changes', async () => {
     const embeddedTexts: string[] = []
     const db = await setupAlicizationDb(await createSandboxUserDataPath(), {

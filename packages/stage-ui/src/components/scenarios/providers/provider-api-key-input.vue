@@ -16,7 +16,7 @@ const { t } = useI18n()
 const modelValue = defineModel<string>({ required: false, default: '' })
 
 const computedDescription = computed(() => {
-  return props.description || `API Key for ${props.providerName}`
+  return props.description || t('settings.dialogs.onboarding.apiKeyHelp', { provider: props.providerName })
 })
 </script>
 

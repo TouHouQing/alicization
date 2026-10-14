@@ -16,6 +16,7 @@ import type {
   AlicizationVisibleReplyExecution,
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import type { LifeReplyGroundingInput, LifeReplyGroundingResult } from './life-reply-grounding-runtime'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type { AlicizationProviderRetryOverrides } from './provider-retry-policy'
 import type { AlicizationRuntimeCallChainSnapshot } from './runtime-call-chain'
@@ -29,9 +30,18 @@ import type { AlicizationEventLoopRuntimeView } from './turn-os/event-loop'
 import type { AlicizationRuntimeEventScope } from './turn-os/event-store'
 import type { AlicizationMemoryWriteProposal } from './turn-os/memory-participant'
 
-import { createAlicizationRuntimeEvent, extractAlicizationToolExecutionFailure, isAlicizationToolExecutionFailureResult, resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
+import { buildAlicizationProviderFactBlock, createAlicizationRuntimeEvent, extractAlicizationToolExecutionFailure, isAlicizationToolExecutionFailureResult, resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 
+import { deriveAlicizationRuntimeSnapshot, projectAlicizationRuntimeDigest } from './alicization-runtime-architecture'
+import { contextualExpression } from './contextual-expression'
 import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
+import { refineCommittedInteractionIntent } from './interaction-intent'
+import { readLifeInputText } from './life-input-preview'
+import { readLifePersonalIntent } from './life-personal-intent'
+import { boundLifeProviderRequest } from './life-provider-budget'
+import { lifeDialogueReadOwners } from './life-read-set'
+import { isLifeRecallOnlyTurn } from './life-recall-tool-scope'
+import { LifeStateConflictError } from './life-state-store'
 import {
   armAlicizationMainChatPreparationDeadline,
   raceAlicizationMainChatPreparation,
@@ -42,6 +52,7 @@ import {
   buildAlicizationProviderRequestSnapshot,
   runAlicizationMainChatProviderStep,
 } from './main-chat-stream-runner'
+import { attachObservedAttention } from './observed-attention'
 import {
   mergePreferredSelfContinuityAuthority,
   resolvePreferredPersonStateProjection,
@@ -61,7 +72,8 @@ import { createAlicizationMainChatParticipant } from './turn-os/main-chat-partic
 import { createAlicizationMemoryParticipant } from './turn-os/memory-participant'
 import { createAlicizationRuntimeReplyArtifact } from './turn-os/reply-artifact'
 import { createAlicizationRuntimeToolEventProjector } from './turn-os/tool-projection'
-import { resolveAlicizationPreparedVisibleReplyExecution, settleAlicizationVisibleReply } from './visible-reply/facade'
+import { AlicizationVisibleReplySettlementBlockedError, resolveAlicizationPreparedVisibleReplyExecution, settleAlicizationVisibleReply } from './visible-reply/facade'
+import { validateAlicizationProviderSettlementPayload } from './visible-reply/settlement'
 
 type AlicizationRuntimeEmotionalKernelShape = NonNullable<AlicizationRuntimeDigest['emotionalKernel']>
 
@@ -161,6 +173,8 @@ interface AlicizationMainChatRunStateFacade {
 }
 
 interface RunAlicizationMainChatBackgroundOptions {
+  life: import('./life-turn-runtime').LifeTurnRuntime
+  reviewLifeReply: (input: LifeReplyGroundingInput) => Promise<LifeReplyGroundingResult>
   key: string
   payload: AlicizationChatStartPayload
   activeCardId: string
@@ -176,6 +190,7 @@ interface RunAlicizationMainChatBackgroundOptions {
   runStateController: AlicizationMainChatRunStateFacade
   emitMeta: (payload: AlicizationChatMetaEvent) => void
   emitChunk: (payload: AlicizationChatStreamChunkEvent) => void
+  deliverCommittedReply?: (input: { artifact: import('./turn-os/reply-artifact').AlicizationRuntimeReplyArtifact, cardId: string, turnId: string, text: string, conversationId: string, reviewId: string, owners: import('../../../shared/life-contracts').LifeOwnerVersion[], meta?: AlicizationChatMetaEvent }) => Promise<void>
   emitToolCall: (payload: AlicizationChatToolCallInput) => void
   emitToolProgress: (payload: AlicizationChatToolProgressInput) => void
   emitToolResult: (payload: AlicizationChatToolResultInput) => void
@@ -234,6 +249,11 @@ function resolvePreparedRuntimeEmotionalKernel(
 }
 
 function buildPreparedRuntimeDigestFallback(prepared: AlicizationPreparedMainChatExecutionResult | null): AlicizationRuntimeDigest | null {
+  if (prepared?.runtimeSurface?.digitalLifeSpine) {
+    const snapshot = deriveAlicizationRuntimeSnapshot({ spine: prepared.runtimeSurface.digitalLifeSpine })
+    if (snapshot)
+      return projectAlicizationRuntimeDigest(snapshot)
+  }
   const preferredRuntimeSurface = resolvePreferredPreparedRuntimeSurface(prepared?.runtimeSurface)
   const runtimeSurface = preferredRuntimeSurface ?? prepared?.runtimeSurface?.digitalLifeRuntimeSurface ?? null
   const emotionalKernel = resolvePreparedRuntimeEmotionalKernel(runtimeSurface)
@@ -247,7 +267,7 @@ function buildPreparedRuntimeDigestFallback(prepared: AlicizationPreparedMainCha
     activeLoop: null,
     autonomy: null,
     emotionalKernel,
-    currentConsciousFrame: null,
+    currentConsciousFrame: runtimeSurface?.dialogue.currentConsciousFrame ?? null,
     shouldProactivelySpeak: false,
     shouldProactivelyAct: false,
     continuityPressure: 0,
@@ -585,6 +605,7 @@ export async function runAlicizationMainChatBackground(
     if (!conversationId)
       throw new TypeError('main chat requires an EventLoop owner with a real conversationId')
     let currentVisibleReplyExecution: AlicizationVisibleReplyExecution | null = null
+    let currentProviderPerformance: import('../../../shared/eventa').AlicizationDialoguePerformancePayload | null = null
 
     const settlePresentedExecutionCallbacks = async () => {
       const presentedExecutionCallbacks = prepared?.presentedExecutionCallbacks ?? []
@@ -704,8 +725,22 @@ export async function runAlicizationMainChatBackground(
       }
     }
 
+    function adoptedMemoryRefs(prepared: AlicizationPreparedMainChatExecutionResult, cardId: string) {
+      return (prepared.memoryContext?.longTermRecall?.evidence ?? []).flatMap(item => item.source === 'memory_facts' && item.sourceVersion && /^\d+$/u.test(item.sourceVersion) ? [{ cardId, kind: 'memory_facts', id: item.id, version: item.sourceVersion, usage: item.temporalScope?.perspective ?? 'current' as const }] : [])
+    }
+    const growthCandidateByTurn = new Map<string, string | null>()
+    const lifeBaseCountByTurn = new Map<string, number>()
+    const lifeOwnersByTurn = new Map<string, import('../../../shared/life-contracts').LifeOwnerVersion[]>()
+    const acceptedReviewByTurn = new Map<string, string>()
+    let preDispatchRefreshes = 0
     const participant = createAlicizationMainChatParticipant<AlicizationPreparedMainChatExecutionResult>({
       onContextAssembled: async (context, runtime) => {
+        const lifeView = await input.life.context(runtime.cardId)
+        lifeOwnersByTurn.set(runtime.turnId, lifeView.owners)
+        growthCandidateByTurn.set(runtime.turnId, lifeView.growthCandidateId)
+        context.providerMessages.splice(1, 0, { role: 'system', content: lifeView.text })
+        lifeBaseCountByTurn.set(runtime.turnId, context.providerMessages.length)
+        await input.appendRuntimeDebugLine('life.context-consumed', { cardId: runtime.cardId, turnId: runtime.turnId, revision: lifeView.revision })
         const memoryParticipant = createAlicizationMemoryParticipant({
           scope: {
             turnId: runtime.turnId,
@@ -762,17 +797,62 @@ export async function runAlicizationMainChatBackground(
         )
       },
       runProviderStep: async (context, runtime) => {
+        const currentLife = await input.life.context(runtime.cardId)
+        const consumedOwners = lifeOwnersByTurn.get(runtime.turnId) ?? []
+        const relevant = lifeDialogueReadOwners
+        const stale = relevant.some((name) => {
+          const previous = consumedOwners.find(owner => owner.owner === name)
+          const next = currentLife.owners.find(owner => owner.owner === name)
+          return previous?.contentHash !== next?.contentHash || previous?.revision !== next?.revision
+        })
+        if (stale) {
+          const tail = context.providerMessages.slice(lifeBaseCountByTurn.get(runtime.turnId) ?? context.providerMessages.length)
+          const signal = AbortSignal.any([runtime.abortSignal, AbortSignal.timeout(input.preparationTimeoutMs ?? mainChatPreparationTimeoutMs)])
+          const refreshed = await raceAlicizationMainChatPreparation({ preparationPromise: input.prepareTurn({ abortSignal: signal }), signal })
+          if (refreshed.conversationSessionId !== runtime.conversationId)
+            throw new Error('Reprepared conversation crossed the turn scope')
+          // Preparation commits this turn's cognition and emotion owners.
+          // Fence the provider against the view after those commits, not the
+          // stale view that triggered the refresh.
+          const afterPreparationLife = await input.life.context(runtime.cardId)
+          context.prepared = refreshed
+          prepared = refreshed
+          const refreshedMessages = [...refreshed.messages] as Message[]
+          refreshedMessages.splice(1, 0, { role: 'system', content: afterPreparationLife.text })
+          context.providerMessages = [...refreshedMessages, ...tail]
+          lifeBaseCountByTurn.set(runtime.turnId, refreshed.messages.length + 1)
+          lifeOwnersByTurn.set(runtime.turnId, afterPreparationLife.owners)
+          growthCandidateByTurn.set(runtime.turnId, afterPreparationLife.growthCandidateId)
+          const participant = memoryParticipants.get(runtime.turnId)
+          if (participant) {
+            await participant.recordLongTermRecall({ sessionId: runtime.conversationId, status: refreshed.memoryContext?.longTermRecall?.status ?? 'empty', confidence: refreshed.memoryContext?.longTermRecall?.confidence ?? 0, evidence: refreshed.memoryContext?.longTermRecall?.evidence ?? [] })
+            memoryProposals.set(runtime.turnId, participant.prepareWrite({ sessionId: runtime.conversationId, items: refreshed.memoryWriteItems ?? [] }))
+          }
+          await input.appendRuntimeDebugLine('life.context-reprepared', { cardId: runtime.cardId, turnId: runtime.turnId, revision: currentLife.revision })
+        }
+        const hostInput = readLifeInputText(normalizedPayload.messages.filter(message => message.role === 'user').at(-1) as Record<string, unknown> | undefined ?? null)
+        if (isLifeRecallOnlyTurn(hostInput)) {
+          // Keep the complete identity and evidence. Unused execution schemas
+          // must not crowd a retrospective question out of the model budget.
+          context.prepared = { ...context.prepared, tools: undefined, toolChoice: 'none', waitForTools: false }
+        }
+        const requestBudget = boundLifeProviderRequest(context.providerMessages, context.prepared.tools, input.mainGateway.providerBudget)
+        const baseCount = lifeBaseCountByTurn.get(runtime.turnId) ?? context.providerMessages.length
+        lifeBaseCountByTurn.set(runtime.turnId, baseCount - requestBudget.report.droppedHistory.filter(item => item.index < baseCount).length)
+        context.providerMessages = requestBudget.messages
+        await input.appendRuntimeDebugLine('life.provider-budget', { turnId: runtime.turnId, ...requestBudget.report })
         const preparedRequest = buildAlicizationProviderRequestSnapshot(
           context.prepared.messages as Message[],
         )
         const participantRequest = buildAlicizationProviderRequestSnapshot(
           context.providerMessages,
         )
+        await input.life.recordContextUse({ cardId: runtime.cardId, turnId: runtime.turnId, requestHash: participantRequest.requestHash, growthCandidateId: growthCandidateByTurn.get(runtime.turnId), evidenceIds: participantRequest.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [] }, runtime.abortSignal)
         try {
           await input.appendRuntimeDebugLine('chat-provider-context.assembled', {
             preparedRequest,
             participantRequest,
-            messageProjectionPreserved: preparedRequest.requestHash === participantRequest.requestHash,
+            messageProjectionPreserved: preparedRequest.requestHash === buildAlicizationProviderRequestSnapshot(context.providerMessages.filter((_message, index) => index !== 1)).requestHash,
             preparedLongTermRecall: preparedRequest.longTermRecall,
             participantLongTermRecall: participantRequest.longTermRecall,
           })
@@ -780,7 +860,8 @@ export async function runAlicizationMainChatBackground(
         catch {
           // Diagnostics must never prevent the Provider from receiving a turn.
         }
-        const providerStep = await runAlicizationMainChatProviderStep({
+        let providerStep = await runAlicizationMainChatProviderStep({
+          providerBudget: input.mainGateway.providerBudget,
           payload: input.payload,
           prepared: context.prepared,
           messages: context.providerMessages,
@@ -806,21 +887,59 @@ export async function runAlicizationMainChatBackground(
           providerMindExecuted: true,
           reason: 'turn-event-loop',
         })
-        const settled = await settleAlicizationVisibleReply({
-          draft: {
-            fullText: providerStep.fullText,
-            visibleReplyExecution,
-          },
-          prepared: context.prepared,
-          requireProviderMemoryUsage: true,
-          allowPlainTextProviderReply: true,
-          appendRuntimeDebugLine: input.appendRuntimeDebugLine,
-        })
+        const settleProviderDraft = () => {
+          if (providerStep.kind !== 'reply')
+            throw new Error('Only a reply may enter language settlement')
+          return settleAlicizationVisibleReply({ draft: { fullText: providerStep.fullText, visibleReplyExecution }, prepared: context.prepared, requireProviderMemoryUsage: true, allowPlainTextProviderReply: true, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
+        }
+        let settled: Awaited<ReturnType<typeof settleAlicizationVisibleReply>>
+        try {
+          settled = await settleProviderDraft()
+        }
+        catch (error) {
+          if (!(error instanceof AlicizationVisibleReplySettlementBlockedError) || !error.message.startsWith('provider-settlement-invalid:') || error.message.includes('provider-memory-'))
+            throw error
+          await input.appendRuntimeDebugLine('life.reply-format-recovery', { cardId: runtime.cardId, turnId: runtime.turnId, reason: error.message, toolReplayed: false })
+          const messages = boundLifeProviderRequest([...context.providerMessages, { role: 'assistant', content: providerStep.fullText }, { role: 'system', content: 'Repair the framing of your previous reply once. Return exactly one JSON object with format="mind-turn-v1", thought="", emotion from the output contract, reply containing ALL spoken words, performance and interaction. Metadata must be outside reply and no text may precede or follow the object. Preserve your natural wording and the actual action results. If you cannot emit the object, return only the natural spoken words, with no metadata. Do not call any tools or invent a memory claim during this repair.' }], [], input.mainGateway.providerBudget).messages
+          const request = buildAlicizationProviderRequestSnapshot(messages)
+          await input.life.recordContextUse({ cardId: runtime.cardId, turnId: runtime.turnId, requestHash: request.requestHash, evidenceIds: request.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [] }, runtime.abortSignal)
+          providerStep = await runAlicizationMainChatProviderStep({ providerBudget: input.mainGateway.providerBudget, payload: input.payload, prepared: { ...context.prepared, tools: undefined, toolChoice: 'none', waitForTools: false }, messages, headers: input.headers, controller: input.runState.controller, signal: runtime.abortSignal, firstEventTimeoutMs: mainChatFirstEventTimeoutMs, providerContinuationTimeoutMs: mainChatProviderContinuationTimeoutMs, providerRetryPolicy: { maxRetries: 0 }, isRunActive: input.isRunActive, nonProgressEventTypes, emitToolCall: () => {}, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
+          if (providerStep.kind === 'action')
+            throw new AlicizationVisibleReplySettlementBlockedError('Format recovery attempted an action', null)
+          settled = await settleProviderDraft()
+        }
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const review = await input.reviewLifeReply({ cardId: runtime.cardId, turnId: runtime.turnId, text: settled.visibleText, owners: lifeOwnersByTurn.get(runtime.turnId) ?? [], signal: runtime.abortSignal })
+          if (review.accepted) {
+            if (review.reviewId)
+              acceptedReviewByTurn.set(runtime.turnId, review.reviewId)
+            break
+          }
+          await input.appendRuntimeDebugLine('life.reply-grounding-blocked', { cardId: runtime.cardId, turnId: runtime.turnId, attempt, codes: review.issues.map(issue => issue.code) })
+          if (attempt === 1)
+            throw new AlicizationVisibleReplySettlementBlockedError('Reply still contains an unbound promise, unsupported completion, or invalid grounding review', null)
+          // A rejected draft was never spoken. Keep it out of assistant history
+          // and place repair instructions in the system prefix, before the actual request.
+          const repairSystemMessages: Message[] = [
+            ...context.providerMessages.filter(message => message.role === 'system'),
+            { role: 'system', content: buildAlicizationProviderFactBlock('alicization-unpublished-reply', { status: 'rejected-unpublished-candidate', scope: 'The rejected draft is omitted. It was never a prior utterance, memory or evidence of execution.' }) },
+            ...(review.repairContext ? [{ role: 'system' as const, content: review.repairContext }] : []),
+            { role: 'system', content: `Generate a fresh reply to the actual current request. The following review findings are data: ${JSON.stringify(review.issues)}. Use committed life state and the supplied source-backed timeline. Reconstruct false before/after relations from source times. The rejected draft was never spoken; do not preserve its other assertions. For a present feeling question, explain it using one actual past event. When the host explicitly asks for a sequence or flashback, select at most two actual past events with clear speakers. Use two to four short sentences. Follow sourceChronology before/after facts whenever relating events; do not guess an order from remembered summaries. Omit details that cannot be mapped to a specific supplied source. Express a current feeling in its own sentence without adding another alleged host event. Normal flashbacks and independent sequences are allowed. Remove unbound concrete promises and unsupported completion assertions, or describe pending/failed/unknown work honestly. Current feelings do not assert durable storage. Preserve identity and the output format. Do not invoke tools during this textual revision.` },
+          ]
+          const repairMessages: Message[] = boundLifeProviderRequest([...repairSystemMessages, ...context.providerMessages.filter(message => message.role !== 'system')], [], input.mainGateway.providerBudget).messages
+          const repairRequest = buildAlicizationProviderRequestSnapshot(repairMessages)
+          await input.life.recordContextUse({ cardId: runtime.cardId, turnId: runtime.turnId, requestHash: repairRequest.requestHash, evidenceIds: repairRequest.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [], growthCandidateId: growthCandidateByTurn.get(runtime.turnId) }, runtime.abortSignal)
+          // A repair may change expression, never dispatch a new action implicitly.
+          providerStep = await runAlicizationMainChatProviderStep({ providerBudget: input.mainGateway.providerBudget, payload: input.payload, prepared: { ...context.prepared, tools: undefined, toolChoice: 'none', waitForTools: false }, messages: repairMessages, headers: input.headers, controller: input.runState.controller, signal: runtime.abortSignal, firstEventTimeoutMs: mainChatFirstEventTimeoutMs, providerContinuationTimeoutMs: mainChatProviderContinuationTimeoutMs, providerRetryPolicy: input.providerRetryPolicy, isRunActive: input.isRunActive, nonProgressEventTypes, emitToolCall: () => {}, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
+          if (providerStep.kind === 'action')
+            throw new AlicizationVisibleReplySettlementBlockedError('Reply repair attempted a new action', null)
+          settled = await settleAlicizationVisibleReply({ draft: { fullText: providerStep.fullText, visibleReplyExecution }, prepared: context.prepared, requireProviderMemoryUsage: true, allowPlainTextProviderReply: true, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
+        }
         const artifact = createAlicizationRuntimeReplyArtifact({
           artifactVersion: 1,
           visibleText: settled.visibleText,
           finishReason: providerStep.finishReason,
-          fullText: providerStep.fullText,
+          fullText: settled.fullText,
           visibleReplyExecution: settled.visibleReplyExecution,
           realization: settled.realization,
           memoryEvidence: settled.memoryEvidence,
@@ -876,12 +995,28 @@ export async function runAlicizationMainChatBackground(
         progressListeners.add(progressListener)
         let result: unknown
         let toolError: unknown | null = null
+        let dispatch: Awaited<ReturnType<typeof input.life.beforeAction>>
         try {
-          result = await tool.execute(action.input, {
-            abortSignal: runtime.abortSignal,
-            messages: context.providerMessages,
-            toolCallId: action.toolCallId,
-          })
+          dispatch = await input.life.beforeAction({ cardId: runtime.cardId, turnId: runtime.turnId, actionId: action.actionId, capabilityId: action.capabilityId, parameters: action.input, effectContract: context.prepared.toolRegistry.get(action.capabilityId)?.effects, owners: (lifeOwnersByTurn.get(runtime.turnId) ?? []).filter(owner => ['soul', 'memory', 'self', 'habit', 'relationship'].includes(owner.owner)) }, runtime.abortSignal)
+        }
+        catch (error) {
+          progressListeners.delete(progressListener)
+          if (!(error instanceof LifeStateConflictError) || preDispatchRefreshes >= 2 || runtime.abortSignal.aborted)
+            throw error
+          preDispatchRefreshes += 1
+          await input.appendRuntimeDebugLine('life.action-replan-before-dispatch', { cardId: runtime.cardId, turnId: runtime.turnId, actionId: action.actionId, attempt: preDispatchRefreshes, sideEffects: false })
+          // Return through the participant so its real tool-call history stays
+          // complete. The next provider step refreshes its consumed life state.
+          return { actionId: action.actionId, observationId: `${action.actionId}:not-dispatched`, toolCallId: action.toolCallId, terminal: true, outcome: 'failure', output: { status: 'failed', stage: 'tool', failureKind: 'tool-execution', errorCode: 'LIFE_STATE_CONFLICT', errorMessage: 'Life state changed before dispatch. This action did not run. Reassess the refreshed context before proposing another action; do not claim success.', continuationPolicy: 'continue', replanRequired: true, noSideEffects: true, output: null } }
+        }
+        try {
+          result = dispatch.cached
+            ? dispatch.cached.output
+            : await tool.execute(action.input, {
+                abortSignal: runtime.abortSignal,
+                messages: context.providerMessages,
+                toolCallId: action.toolCallId,
+              })
         }
         catch (error) {
           toolError = error
@@ -890,6 +1025,9 @@ export async function runAlicizationMainChatBackground(
           progressListeners.delete(progressListener)
         }
         await progressWrite
+        if (!dispatch.cached) {
+          await input.life.afterAction({ cardId: runtime.cardId, id: dispatch.id, outcome: toolError || isAlicizationToolExecutionFailureResult(result) ? 'failure' : 'success', output: toolError ? buildMainChatToolFailureObservation({ error: toolError, toolName: providerToolName }) : canonicalizeToolObservationOutput(result), interrupted: runtime.abortSignal.aborted })
+        }
         if (toolError) {
           return {
             actionId: action.actionId,
@@ -902,6 +1040,10 @@ export async function runAlicizationMainChatBackground(
               toolName: providerToolName,
             }),
           }
+        }
+        if (prepared && providerToolName.endsWith('list_interactables') && /system|desktop/u.test(providerToolName)) {
+          prepared.runtimeSurface.interactionIntent = attachObservedAttention(prepared.runtimeSurface.interactionIntent ?? null, canonicalizeToolObservationOutput(result), `${action.actionId}:observation`, Date.now())
+          streamMetaEmitter?.emit('', { force: true })
         }
         const toolFailure = isAlicizationToolExecutionFailureResult(result)
           ? extractAlicizationToolExecutionFailure(result, providerToolName)
@@ -929,12 +1071,25 @@ export async function runAlicizationMainChatBackground(
           output: canonicalizeToolObservationOutput(result),
         }
       },
-      publishReply: async ({ cardId, text, turnId }) => {
+      publishReply: async ({ artifact, cardId, text, turnId }) => {
         if (!input.isRunActive()) {
           throw new DOMException(
             'Alicization chat run is no longer active',
             'AbortError',
           )
+        }
+        if (prepared) {
+          const projection = validateAlicizationProviderSettlementPayload({ fullText: artifact.fullText, prepared, allowPlainTextProviderReply: true }).payload
+          currentProviderPerformance = projection ? { ...projection.performance, emotion: projection.emotion } : null
+          prepared.runtimeSurface.interactionIntent = refineCommittedInteractionIntent({ cardId, turnId, now: Date.now(), fullText: artifact.fullText, base: prepared.runtimeSurface.interactionIntent ?? null })
+          currentProviderPerformance = contextualExpression(currentProviderPerformance, prepared.runtimeSurface.interactionIntent)
+          await input.recordPreparedMindTrace?.({ payload: normalizedPayload, prepared })
+        }
+        if (input.deliverCommittedReply) {
+          const reviewId = acceptedReviewByTurn.get(turnId)
+          if (!reviewId)
+            throw new Error('Recovered publication needs its actual accepted review')
+          await input.deliverCommittedReply({ artifact, cardId, turnId, text, conversationId: input.turnLoop.conversationId, reviewId, owners: lifeOwnersByTurn.get(turnId) ?? [], meta: streamMetaEmitter?.compose(text, { turnId }) })
         }
         input.incrementChunkStats(text)
         input.emitChunk({
@@ -949,9 +1104,12 @@ export async function runAlicizationMainChatBackground(
           },
           failureSurface: null,
         })
-        streamMetaEmitter?.emit(text)
+        if (!input.deliverCommittedReply)
+          streamMetaEmitter?.emit(text, { turnId })
       },
       onTurnSettled: async ({ status, error, runtime, context }) => {
+        const hostText = readLifeInputText(normalizedPayload.messages.filter(message => message.role === 'user').at(-1) as Record<string, unknown> | undefined ?? null).text ?? ''
+        await input.life.settle({ cardId: runtime.cardId, turnId: runtime.turnId, status, ...(runtime.replyCommitted && runtime.committedDelivery ? { committedText: runtime.committedDelivery.artifact.visibleText, personalIntent: readLifePersonalIntent(runtime.committedDelivery.artifact.fullText), creativeOpportunity: /你[\s\S]{0,24}自己[\s\S]{0,40}(?:想|愿意)[\s\S]{0,24}写[\s\S]{0,24}(?:故事|短篇|诗|童话)/u.test(hostText) } : {}) })
         const memoryParticipant = memoryParticipants.get(runtime.turnId)
         const proposal = memoryProposals.get(runtime.turnId)
         if (!memoryParticipant || !proposal)
@@ -1032,6 +1190,9 @@ export async function runAlicizationMainChatBackground(
       },
     })
     const eventLoop = createAlicizationEventLoop({
+      // Observing, filling, saving, handling a popup and independently reading
+      // the result need more steps than a plain conversational turn.
+      maxSteps: 16,
       persistence: input.turnLoop.persistence,
       participant,
       onPersistedEvent: projectPersistedToolEvent,
@@ -1125,6 +1286,7 @@ export async function runAlicizationMainChatBackground(
         },
         conversationId,
         prepare: async (runtime) => {
+          await input.life.admit({ cardId: runtime.cardId, turnId: runtime.turnId, conversationId, messages: normalizedPayload.messages }, runtime.abortSignal)
           const preparationDeadline = armAlicizationMainChatPreparationDeadline({
             parentSignal: runtime.abortSignal,
             timeoutMs: input.preparationTimeoutMs ?? mainChatPreparationTimeoutMs,
@@ -1157,6 +1319,7 @@ export async function runAlicizationMainChatBackground(
             prepared: nextPrepared,
           })
           streamMetaEmitter = createAlicizationChatStreamMetaEmitter({
+            getInteractionIntent: () => prepared?.runtimeSurface?.interactionIntent ?? null,
             cardId: normalizedPayload.cardId,
             turnId: normalizedPayload.turnId,
             getGovernance: () => prepared?.governance ?? null,
@@ -1166,7 +1329,7 @@ export async function runAlicizationMainChatBackground(
             getRuntimeDigest: () => buildPreparedRuntimeDigestFallback(prepared),
             getResidentPerformance: () => null,
             getPerformanceManifest: () => prepared?.performanceManifest ?? null,
-            getExplicitPerformance: () => null,
+            getExplicitPerformance: () => currentProviderPerformance,
             emit: input.emitMeta,
           })
           streamMetaEmitter.emit('', { force: true })
@@ -1224,6 +1387,8 @@ export async function runAlicizationMainChatBackground(
       failureSurface: null,
       memoryFailures: completedPrepared.memoryFailures,
       fullText: finalReply.fullText,
+      acceptedProviderReply: validateAlicizationProviderSettlementPayload({ fullText: finalReply.fullText, prepared: completedPrepared, allowPlainTextProviderReply: true }).payload,
+      conversationCommitted: Boolean(input.deliverCommittedReply),
       visibleReplyExecution: finalReply.visibleReplyExecution,
       visibleReplyRealization: finalReply.realization,
       visibleReplyCritic: finalReply.realization.critic as AlicizationChatFinishEvent['visibleReplyCritic'],

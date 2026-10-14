@@ -14,6 +14,25 @@ import {
   testPersonaTrainingProcessConnection,
 } from './persona-training-process-executor'
 
+const { blockedCleanupRoots } = vi.hoisted(() => ({ blockedCleanupRoots: new Set<string>() }))
+vi.mock('node:fs/promises', async () => {
+  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+  return { ...actual, rename: (path: Parameters<typeof actual.rename>[0], target: Parameters<typeof actual.rename>[1]) => {
+    if ([...blockedCleanupRoots].some(root => String(path).startsWith(root)))
+      throw Object.assign(new Error('injected owned-directory cleanup denial'), { code: 'EACCES' })
+    return actual.rename(path, target)
+  } }
+})
+
+vi.mock('node:child_process', async () => {
+  const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process')
+  const { portableFixtureInvocation } = await import('./test-support/portable-fixture-process')
+  return { ...actual, spawn: (command: string, args: readonly string[] = [], options?: Parameters<typeof actual.spawn>[2]) => {
+    const invocation = portableFixtureInvocation(command, args)
+    return actual.spawn(invocation.command, invocation.args, options ?? {})
+  } }
+})
+
 const sandboxes: string[] = []
 
 async function createSandbox() {
@@ -397,7 +416,7 @@ process.stdout.write(JSON.stringify({ type: 'artifact' }) + '\\n')
     delete receipt.compatibilityReason
     await writeFile(receiptPath, JSON.stringify(receipt), 'utf8')
 
-    await chmod(artifactRoot, 0o500)
+    blockedCleanupRoots.add(artifactRoot)
     try {
       await expect(executor.reconcileArtifacts({
         availableArtifacts: [],
@@ -405,7 +424,7 @@ process.stdout.write(JSON.stringify({ type: 'artifact' }) + '\\n')
       } as any)).rejects.toThrow()
     }
     finally {
-      await chmod(artifactRoot, 0o700)
+      blockedCleanupRoots.delete(artifactRoot)
     }
     expect(onOrphanCleanupFailure).toHaveBeenCalledWith(expect.objectContaining({
       artifact: expect.objectContaining({

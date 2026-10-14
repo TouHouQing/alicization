@@ -1,5 +1,6 @@
 export type AlicizationMainGatewayAuditFamily
-  = 'background-life'
+  = 'dialogue-grounding'
+    | 'background-life'
     | 'execution-callback'
     | 'memory-planning'
     | 'mind-state'
@@ -7,7 +8,10 @@ export type AlicizationMainGatewayAuditFamily
 
 // Source tags select runtime routing, timeout, and audit behavior only.
 export type AlicizationMainGatewaySource
-  = 'execution-callback'
+  = 'personal-activity'
+    | 'persona-evaluation'
+    | 'reply-grounding'
+    | 'execution-callback'
     | 'reminder'
     | 'proactive'
     | 'dream'
@@ -45,7 +49,9 @@ export interface AlicizationMainGatewayGenerateTextProvider<
 export function resolveAlicizationMainGatewayAuditFamilyForSource(
   source: string | null | undefined,
 ): AlicizationMainGatewayAuditFamily | null {
-  if (source === 'dream' || source === 'reminder' || source === 'proactive')
+  if (source === 'reply-grounding')
+    return 'dialogue-grounding'
+  if (source === 'persona-evaluation' || source === 'personal-activity' || source === 'dream' || source === 'reminder' || source === 'proactive')
     return 'background-life'
   if (source === 'counterfactual-deliberation' || source === 'memory-quality-trial')
     return 'memory-planning'

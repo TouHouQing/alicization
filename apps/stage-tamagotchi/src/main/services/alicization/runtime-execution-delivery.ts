@@ -164,6 +164,7 @@ function sanitizeExecutionPersonStateProjection(projection: AlicizationPersonSta
 }
 
 interface CreateAlicizationRuntimeExecutionDeliveryOptions {
+  readTaskGoalOutcome?: (cardId: string, threadId: string) => Promise<import('./life-task-outcome').LifeTaskOutcome>
   getActiveCardId: () => string
   getActiveSessionId?: (cardId: string) => string | null | undefined
   getNow?: () => number
@@ -597,6 +598,7 @@ export function createAlicizationRuntimeExecutionDelivery(
       ? sanitizeExecutionPersonStateProjection(input.personStateProjection)
       : null
     const prompt = buildAlicizationExecutionPayoffPrompt({
+      goalVerification: await options.readTaskGoalOutcome?.(input.cardId, input.threadId) ?? null,
       mode: 'callback-delivery',
       channel: sanitizeExecutionLedgerText(input.channel, 48) || 'executor',
       status: formatExecutionDeliveryStatus(input.status),

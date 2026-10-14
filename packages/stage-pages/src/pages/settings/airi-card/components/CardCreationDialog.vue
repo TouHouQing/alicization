@@ -73,7 +73,7 @@ const { stageModelSelected } = storeToRefs(stageModelStore)
 const dialogMode = ref<'create' | 'edit'>('create')
 const dialogCardId = ref('')
 const isEditMode = computed(() => dialogMode.value === 'edit')
-const supportsAlicizationEdit = computed(() => hasAlicizationBridge() && isEditMode.value)
+const supportsAlicizationEdit = computed(() => hasAlicizationBridge() && isEditMode.value && dialogCardId.value === activeCardId.value)
 const supportsAlicizationCreate = computed(() => hasAlicizationBridge() && !isEditMode.value)
 
 const selectedConsciousnessProvider = ref<string>('')
@@ -292,8 +292,6 @@ watch(() => props.modelValue, (isOpen, wasOpen) => {
   if (isOpen && !wasOpen) {
     dialogMode.value = props.cardId ? 'edit' : 'create'
     dialogCardId.value = props.cardId ?? ''
-    if (supportsAlicizationEdit.value && dialogCardId.value)
-      activeCardId.value = dialogCardId.value
     card.value = initializeCard()
     createPersonaDraft.value = createDefaultPersonaDraft(card.value)
     activeTabId.value = tabs.value[0]?.id || ''
@@ -582,6 +580,9 @@ async function saveCard(nextCard: Card) {
             </div>
           </div>
 
+          <p v-if="isEditMode && hasAlicizationBridge() && !supportsAlicizationEdit" class="mt-3 text-sm text-neutral-500">
+            {{ t('settings.pages.card.alicization.inactive_hint') }}
+          </p>
           <div v-if="showError" class="w-full rounded-xl bg-red900">
             <p class="w-full p-4">
               {{ errorMessage }}

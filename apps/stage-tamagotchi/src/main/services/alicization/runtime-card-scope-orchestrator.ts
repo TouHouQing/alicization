@@ -18,7 +18,7 @@ interface ActiveCardScopeLease {
   resolveSlotReleased: () => void
   taskCompleted: boolean
   finalized: boolean
-  retainedForegroundCount: number
+  retainedScopeCount: number
   finalize?: () => void
   foregroundHandoff?: {
     count: number
@@ -85,6 +85,19 @@ export function createAlicizationRuntimeCardScopeOrchestrator(
   const scopeStorage = new AsyncLocalStorage<CardScopeExecutionContext>()
   const foregroundQueue: QueuedCardScopeTask<unknown>[] = []
   const backgroundQueue: QueuedCardScopeTask<unknown>[] = []
+
+  const retainLease = (lease: ActiveCardScopeLease) => {
+    lease.retainedScopeCount += 1
+    let released = false
+    return () => {
+      if (released)
+        return
+      released = true
+      lease.retainedScopeCount = Math.max(0, lease.retainedScopeCount - 1)
+      if (lease.taskCompleted && lease.retainedScopeCount === 0)
+        lease.finalize?.()
+    }
+  }
 
   const scheduleScopeQueueDrain = () => {
     if (drainingScopeQueue)
@@ -271,6 +284,7 @@ export function createAlicizationRuntimeCardScopeOrchestrator(
           }
         }
         backgroundLease.foregroundHandoff.count += 1
+        const releaseScope = retainLease(backgroundLease)
         const releaseHandoff = () => {
           const handoff = backgroundLease.foregroundHandoff
           if (!handoff)
@@ -294,6 +308,7 @@ export function createAlicizationRuntimeCardScopeOrchestrator(
         }
         finally {
           releaseHandoff()
+          releaseScope()
           taskAbort.dispose()
         }
       }
@@ -304,6 +319,7 @@ export function createAlicizationRuntimeCardScopeOrchestrator(
       && inheritedScope.lease === activeLease
       && inheritedScope.cardId === requestedCardId
     ) {
+      const releaseScope = retainLease(inheritedScope.lease)
       try {
         return await scopeStorage.run(inheritedScope, async () => await executeTask({
           waitMs: options.now() - queuedAt,
@@ -312,6 +328,7 @@ export function createAlicizationRuntimeCardScopeOrchestrator(
         }))
       }
       finally {
+        releaseScope()
         taskAbort.dispose()
       }
     }
@@ -324,6 +341,9 @@ export function createAlicizationRuntimeCardScopeOrchestrator(
       const sharedLease = activeLease
       await sharedLease.ready.catch(() => {})
       if (activeLease === sharedLease && options.getActiveCardId() === requestedCardId) {
+        // A presentation callback can finish while chat preparation is awaiting
+        // SQLite. Sharing its card must retain the lease until this task ends.
+        const releaseScope = retainLease(sharedLease)
         try {
           return await scopeStorage.run({
             cardId: requestedCardId,
@@ -335,6 +355,7 @@ export function createAlicizationRuntimeCardScopeOrchestrator(
           }))
         }
         finally {
+          releaseScope()
           taskAbort.dispose()
         }
       }
@@ -365,7 +386,7 @@ export function createAlicizationRuntimeCardScopeOrchestrator(
         resolveSlotReleased,
         taskCompleted: false,
         finalized: false,
-        retainedForegroundCount: 0,
+        retainedScopeCount: 0,
       }
       activeLease = lease
       queued.hold = lease.slotReleased
@@ -373,7 +394,7 @@ export function createAlicizationRuntimeCardScopeOrchestrator(
         if (
           lease.finalized
           || !lease.taskCompleted
-          || lease.retainedForegroundCount > 0
+          || lease.retainedScopeCount > 0
         ) {
           return
         }
@@ -433,21 +454,7 @@ export function createAlicizationRuntimeCardScopeOrchestrator(
       throw new Error('Cannot retain a foreground card scope outside an active foreground task.')
     }
 
-    const lease = currentScope.lease
-    lease.retainedForegroundCount += 1
-    let released = false
-    return () => {
-      if (released)
-        return
-      released = true
-      lease.retainedForegroundCount = Math.max(0, lease.retainedForegroundCount - 1)
-      if (
-        lease.taskCompleted
-        && lease.retainedForegroundCount === 0
-      ) {
-        lease.finalize?.()
-      }
-    }
+    return retainLease(currentScope.lease)
   }
 
   return {

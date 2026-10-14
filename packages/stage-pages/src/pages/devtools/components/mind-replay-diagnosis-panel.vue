@@ -6,11 +6,11 @@ import type {
 import type {
   AlicizationMindReplayBenchmarkDimensionGroup,
   AlicizationMindReplayBenchmarkTurnDiagnosis,
-  AlicizationMindReplayContinuityRepairTargetRow,
   AlicizationMindReplayHumanRatingDimensionRow,
   AlicizationMindReplayMemoryHealthComparisonRow,
   AlicizationMindReplayMetricRow,
   AlicizationMindReplayRegressionTriageRow,
+  AlicizationMindReplayRuntimeRepairTargetRow,
   AlicizationMindReplayShipGateRow,
 } from '@proj-alicization/stage-ui/stores/alicization-mind-replay'
 
@@ -39,7 +39,7 @@ const props = defineProps<{
   continuitySessionRows: AlicizationMindReplayMetricRow[]
   continuityLaneGapRows: AlicizationMindReplayMetricRow[]
   continuityTransitionRows: AlicizationMindReplayMetricRow[]
-  continuityRepairTargetRows: AlicizationMindReplayContinuityRepairTargetRow[]
+  continuityRepairTargetRows: AlicizationMindReplayRuntimeRepairTargetRow[]
 }>()
 
 const emit = defineEmits<{
@@ -491,8 +491,8 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
                 <div>
                   coherence={{ turn.replyMemoryCoherenceSummary.coherenceState || 'n/a' }}
                 </div>
-                <div v-if="turn.replyMemoryCoherenceSummary.whyWithheld">
-                  why_withheld={{ turn.replyMemoryCoherenceSummary.whyWithheld }}
+                <div v-if="turn.replyMemoryCoherenceSummary.withheldReasons.length">
+                  why_withheld={{ turn.replyMemoryCoherenceSummary.withheldReasons.join(', ') }}
                 </div>
                 <div v-if="turn.replyMemoryCoherenceSummary.followUpSummary">
                   follow_up={{ turn.replyMemoryCoherenceSummary.followUpSummary }}
@@ -694,7 +694,7 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
                     {{ target.lane }} · {{ target.turnId }}
                   </div>
                   <div :class="['mt-1', 'font-mono', 'text-[11px]', 'text-neutral-500', 'dark:text-neutral-400']">
-                    session={{ target.sessionId }} · missing={{ target.missingLanes.join(' + ') }}
+                    session={{ target.sessionId }} · target={{ target.targetKind }}
                   </div>
                   <div :class="['mt-2', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']">
                     {{ target.firstCheck }}

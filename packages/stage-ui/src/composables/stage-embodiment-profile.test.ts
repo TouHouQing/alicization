@@ -34,7 +34,7 @@ describe('stage embodiment profile', () => {
       delivery: 'gentle',
     })).toEqual({
       facialCueCandidates: ['frown', 'soft-gaze', 'relaxed'],
-      actionCueCandidates: ['idle_gentle_nod', 'comfort_sway', 'observe_focus', 'slow_nod'],
+      actionCueCandidates: ['listen_close', 'reassuring_nod', 'idle_gentle_nod', 'comfort_sway', 'observe_focus', 'slow_nod'],
     })
   })
 

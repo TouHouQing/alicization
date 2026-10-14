@@ -3,6 +3,7 @@ import type { AlicizationRuntimeEventEnvelope } from '@proj-alicization/stage-sh
 import type {
   AlicizationConversationTurnInput,
 } from '../../../shared/eventa'
+import type { LifeCommitInput, LifeCommitReceipt } from '../../../shared/life-contracts'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationRuntimeEventScope } from './turn-os/event-store'
 
@@ -16,7 +17,7 @@ import {
   alicizationProviderResponseFormat,
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   alicizationChatAbortInvokeChannel,
@@ -24,10 +25,12 @@ import {
   alicizationChatStreamChunk,
   alicizationChatStreamDispatchChannel,
   alicizationChatStreamFinish,
+  alicizationChatStreamMeta,
   alicizationChatStreamToolCall,
   alicizationChatStreamToolResult,
 
   alicizationDialogueResponded,
+  alicizationSoulChanged,
   electronAlicizationAppendConversationTurn,
   electronAlicizationAppendExecutionEvents,
   electronAlicizationBootstrap,
@@ -73,16 +76,33 @@ import {
   electronAlicizationVisualPresenceStateChanged,
 } from '../../../shared/eventa'
 import { buildAlicizationPersonStateEvidenceRef } from './person-state-update-surface'
+import { parseSoul } from './runtime-soul'
 import { setAlicizationCardKillSwitchState, setAlicizationKillSwitchState } from './state'
+import { createLifeDatabaseTestPort } from './test-support/life-database-port'
 
 const invokeHandlers = new Map<unknown, (payload?: any, options?: any) => Promise<any>>()
 const sandboxDirs: string[] = []
 const runtimeModulePath = fileURLToPath(new URL('./runtime.ts', import.meta.url))
 const contextEmitMock = vi.fn()
+const windowContextEmitMock = vi.fn()
 const metaStore = new Map<string, string>()
 const runtimeEventsByTurn = new Map<string, any[]>()
 const setupDbResolvedEmbeddingProviders: Array<{ modelId: string, dimensions: number } | null> = []
 const streamTextMock = vi.fn()
+const runtimePlatformFixture = vi.hoisted(() => ({ value: process.platform }))
+
+vi.mock('node:process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:process')>()
+  return { ...actual, get platform() { return runtimePlatformFixture.value } }
+})
+
+// These tests simulate capture permission on another OS; atomic file writes
+// still execute on the real host and must use its directory fsync semantics.
+vi.mock('./runtime-atomic-write', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./runtime-atomic-write')>()
+  return { ...actual, writeAlicizationAtomicContent: (input: Parameters<typeof actual.writeAlicizationAtomicContent>[0]) => actual.writeAlicizationAtomicContent({ ...input, platform: process.platform }) }
+})
+
 const generateTextMock = vi.fn()
 const directIpcHandlers = new Map<string, (event: any, payload?: any) => Promise<any> | any>()
 const listWebContentsMock = vi.fn<() => any[]>(() => [])
@@ -255,6 +275,7 @@ function expectExecutionCapabilityFact(systemTexts: string[]) {
 }
 
 const dbStub = {
+  commitLifeState: vi.fn<(input: LifeCommitInput, options?: { signal?: AbortSignal }) => Promise<LifeCommitReceipt>>(),
   dbPath: '',
   close: vi.fn().mockResolvedValue(undefined),
   appendRuntimeEvent: vi.fn(async (scope: AlicizationRuntimeEventScope, event: AlicizationRuntimeEventEnvelope) => {
@@ -497,10 +518,11 @@ vi.mock('@moeru/eventa', () => ({
 }))
 
 vi.mock('@moeru/eventa/adapters/electron/main', () => ({
-  createContext: () => ({
+  createContext: (_ipc: unknown, window?: unknown) => ({
     context: {
-      emit: contextEmitMock,
+      emit: window ? windowContextEmitMock : contextEmitMock,
     },
+    dispose: vi.fn(),
   }),
 }))
 
@@ -545,13 +567,16 @@ vi.mock('../../libs/bootkit/lifecycle', () => ({
 
 vi.mock('./db', () => ({
   setupAlicizationDb: vi.fn(async (_userDataPath: string, options?: {
+    cardId?: string
     resolveEmbeddingProvider?: () => { modelId: string, dimensions: number } | null
   }) => {
     const provider = options?.resolveEmbeddingProvider?.() ?? null
     setupDbResolvedEmbeddingProviders.push(provider
       ? { modelId: provider.modelId, dimensions: provider.dimensions }
       : null)
-    return dbStub
+    const life = createLifeDatabaseTestPort({ cardId: options?.cardId ?? 'default', values: metaStore, writeMeta: dbStub.setMetaValue })
+    dbStub.commitLifeState.mockImplementation(life.commitLifeState)
+    return { ...dbStub, ...life, commitLifeState: dbStub.commitLifeState }
   }),
 }))
 
@@ -643,7 +668,7 @@ vi.mock('@xsai/stream-text', () => ({
 }))
 
 vi.mock('@xsai/generate-text', () => ({
-  generateText: (...args: any[]) => generateTextMock(...args),
+  generateText: (...args: any[]) => args[0]?.responseFormat?.json_schema?.name === 'life_reply_grounding' ? Promise.resolve({ text: '{"claims":[]}', finishReason: 'stop' }) : generateTextMock(...args),
 }))
 
 vi.mock('./local-browser-automation', async (importOriginal) => {
@@ -720,6 +745,10 @@ async function runAppBeforeQuitHandlers() {
       continue
     await handler()
   }
+}
+
+async function syncTestGatewayForReview() {
+  await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({ activeProviderId: 'openai', activeModelId: 'gpt-test', providerCredentials: { openai: { apiKey: 'test-key', baseUrl: 'https://example.test/v1' } } })
 }
 
 function getDialogueRespondedEvents() {
@@ -940,6 +969,7 @@ describe('alicization runtime audit helpers', () => {
     sensoryCpuUsage = 12
     listWebContentsMock.mockReset().mockReturnValue([])
     desktopCapturerGetSourcesMock.mockReset().mockResolvedValue([])
+    runtimePlatformFixture.value = process.platform
     systemPreferencesGetMediaAccessStatusMock.mockReset().mockReturnValue('granted')
     personaRuntimeDisposeMock.mockReset().mockResolvedValue(undefined)
     llamaPersonaRuntimeTestConnectionMock.mockReset()
@@ -997,6 +1027,15 @@ describe('alicization runtime audit helpers', () => {
       delete localBrowserAutomationOverrides[key as keyof typeof localBrowserAutomationOverrides]
     setAlicizationKillSwitchState('ACTIVE', 'runtime-test-baseline')
     setAlicizationCardKillSwitchState('default', 'ACTIVE', 'runtime-test-baseline')
+  })
+
+  afterEach(async () => {
+    // Close watchers and life services before releasing this test's owned host directories.
+    await runAppBeforeQuitHandlers()
+    runtimeTestInternals.currentDialogueDeliveryRuntime?.clearAllState?.()
+    vi.useRealTimers()
+    for (const dir of sandboxDirs.splice(0))
+      await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
 
   it('uses userDataPathOverride and enables fs.watch only after genesis', async () => {
@@ -1598,9 +1637,11 @@ describe('alicization runtime audit helpers', () => {
 
   it('enforces personality baseline sync when updateSoul writes conflicting body text', async () => {
     const sandboxPath = await createSandboxPath()
-    await setupAlicizationRuntime({
+    const runtime = await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
     })
+    runtime.attachPresenceWindow({ id: 712, isDestroyed: () => false, once: vi.fn() } as any)
+    windowContextEmitMock.mockClear()
 
     const initializeGenesis = invokeHandlers.get(electronAlicizationInitializeGenesis)
     const updateSoul = invokeHandlers.get(electronAlicizationUpdateSoul)
@@ -1637,6 +1678,7 @@ describe('alicization runtime audit helpers', () => {
     })
 
     const synced = await getSoul!({ cardId: 'default' })
+    expect(windowContextEmitMock).toHaveBeenCalledWith(alicizationSoulChanged, expect.objectContaining({ cardId: 'default', content: synced.content }))
     expect(synced.content).toContain(`- 服从度：${synced.frontmatter.personality.obedience.toFixed(2)}`)
     expect(synced.content).toContain(`- 活泼度：${synced.frontmatter.personality.liveliness.toFixed(2)}`)
     expect(synced.content).toContain(`- 感性度：${synced.frontmatter.personality.sensibility.toFixed(2)}`)
@@ -1692,8 +1734,8 @@ describe('alicization runtime audit helpers', () => {
 
     expect(soulA.frontmatter.profile.alicizationName).toBe('Alicization-A')
     expect(soulB.frontmatter.profile.alicizationName).toBe('Alicization-B')
-    expect(soulA.soulPath).toContain('/alicizations/cards/card-a/')
-    expect(soulB.soulPath).toContain('/alicizations/cards/card-b/')
+    expect(soulA.soulPath.replaceAll('\\', '/')).toContain('/alicizations/cards/card-a/')
+    expect(soulB.soulPath.replaceAll('\\', '/')).toContain('/alicizations/cards/card-b/')
   })
 
   it('deletes card scoped filesystem data when delete scope is invoked', async () => {
@@ -1733,7 +1775,7 @@ describe('alicization runtime audit helpers', () => {
     expect(existsSync(scopedRoot)).toBe(false)
 
     const defaultSoul = await getSoul!({ cardId: 'default' })
-    expect(defaultSoul.soulPath).toContain('/alicizations/cards/default/')
+    expect(defaultSoul.soulPath.replaceAll('\\', '/')).toContain('/alicizations/cards/default/')
   })
 
   it('clears conversation and reminder data across all card scopes', async () => {
@@ -1823,7 +1865,7 @@ describe('alicization runtime audit helpers', () => {
 
     expect(existsSync(scopedRoot)).toBe(false)
     const resetSoul = await getSoul!({ cardId: 'default' })
-    expect(resetSoul.soulPath).toContain('/alicizations/cards/default/')
+    expect(resetSoul.soulPath.replaceAll('\\', '/')).toContain('/alicizations/cards/default/')
     expect(resetSoul.needsGenesis).toBe(true)
   })
 
@@ -1971,6 +2013,7 @@ describe('alicization runtime audit helpers', () => {
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
     })
+    await syncTestGatewayForReview()
 
     const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
     const getVisualPresenceState = invokeHandlers.get(electronAlicizationGetVisualPresenceState)
@@ -2012,6 +2055,7 @@ describe('alicization runtime audit helpers', () => {
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
     })
+    await syncTestGatewayForReview()
 
     const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
     const getVisualPresenceState = invokeHandlers.get(electronAlicizationGetVisualPresenceState)
@@ -6397,14 +6441,14 @@ describe('alicization runtime audit helpers', () => {
 
     const mindHeadGate = createDeferredGate()
     let mindHeadWriteSignal: AbortSignal | undefined
-    dbStub.upsertMindHead.mockImplementation(async (
-      _cardId: string,
-      _key: string,
-      _value: unknown,
-      options?: { signal?: AbortSignal },
-    ) => {
-      mindHeadWriteSignal = options?.signal
-      await mindHeadGate.wait
+    const originalCommit = dbStub.commitLifeState.getMockImplementation()!
+    dbStub.commitLifeState.mockImplementation(async (input, options) => {
+      if (input.changes.some(change => change.owner === 'presence')) {
+        mindHeadWriteSignal = options?.signal
+        await mindHeadGate.wait
+        options?.signal?.throwIfAborted()
+      }
+      return originalCommit(input, options)
     })
     dbStub.setMetaValue.mockClear()
 
@@ -6429,7 +6473,7 @@ describe('alicization runtime audit helpers', () => {
       createdAt: 40_070,
     })
     await vi.waitFor(() => {
-      expect(dbStub.upsertMindHead).toHaveBeenCalledTimes(1)
+      expect(dbStub.commitLifeState.mock.calls.filter(([input]) => input.changes.some(change => change.owner === 'presence'))).toHaveLength(1)
     })
 
     await suspend!({
@@ -6442,7 +6486,7 @@ describe('alicization runtime audit helpers', () => {
     mindHeadGate.release()
     await pendingAppend
 
-    expect(dbStub.upsertMindHead).toHaveBeenCalledTimes(1)
+    expect(dbStub.commitLifeState.mock.calls.filter(([input]) => input.changes.some(change => change.owner === 'presence'))).toHaveLength(1)
     expect(dbStub.setMetaValue.mock.calls.some(([key]) => key === 'visual_presence_state_v1')).toBe(false)
     expect(getDialogueRespondedEvents()).toHaveLength(0)
   })
@@ -6452,6 +6496,7 @@ describe('alicization runtime audit helpers', () => {
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
     })
+    await syncTestGatewayForReview()
 
     const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
     const suspend = invokeHandlers.get(electronAlicizationKillSwitchSuspend)
@@ -7217,6 +7262,17 @@ describe('alicization runtime audit helpers', () => {
       expect(finishEvents[0]?.[1]?.status).toBe('completed')
     })
 
+    const emitted = contextEmitMock.mock.calls
+    const committed = emitted.find(([event, payload]) => event === alicizationDialogueResponded && payload.turnId === turnId)?.[1]
+    const metas = emitted.filter(([event, payload]) => event === alicizationChatStreamMeta && payload.turnId === turnId)
+    expect(committed).toBeDefined()
+    expect(committed.structured.embodimentScript?.turnId).toBe(turnId)
+    expect(metas.length).toBeGreaterThanOrEqual(2)
+    expect(metas.at(-1)?.[1].embodimentScript).toEqual(committed.structured.embodimentScript)
+    const metaIndex = emitted.findLastIndex(([event, payload]) => event === alicizationChatStreamMeta && payload.turnId === turnId)
+    const finishIndex = emitted.findIndex(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+    expect(metaIndex).toBeLessThan(finishIndex)
+
     const abortResult = await abortChat!({
       cardId: 'default',
       turnId,
@@ -7908,6 +7964,7 @@ describe('alicization runtime audit helpers', () => {
     }))
   })
   it('still grounds invited inspection when macOS permission status is stale but desktop capture sources are available', async () => {
+    runtimePlatformFixture.value = 'darwin'
     const sandboxPath = await createSandboxPath()
     const capturedMessageBatches: Array<Array<{ role?: string, content?: unknown }>> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
@@ -7995,6 +8052,7 @@ describe('alicization runtime audit helpers', () => {
   })
 
   it('recovers invited inspection grounding after a mixed capture probe fails and a retry source becomes available', async () => {
+    runtimePlatformFixture.value = 'darwin'
     const sandboxPath = await createSandboxPath()
     streamTextMock.mockImplementation(async ({ onEvent }) => {
       await onEvent?.({ type: 'text-delta', text: 'recovered retry reply' })
@@ -8853,6 +8911,7 @@ describe('alicization runtime audit helpers', () => {
   })
 
   it('falls back to perception-only inspection guidance when screenshot grounding is unavailable', async () => {
+    runtimePlatformFixture.value = 'darwin'
     const sandboxPath = await createSandboxPath()
     let capturedMessages: Array<{ role?: string, content?: unknown }> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
@@ -11740,9 +11799,12 @@ describe('alicization runtime audit helpers', () => {
 
     expect(tickResult.suppressedCards).toContain('default')
     expect(tickResult.proactiveTriggered).toHaveLength(0)
-    expect(afterSoul.frontmatter.personality.obedience).toBeLessThan(beforeSoul.frontmatter.personality.obedience)
+    // No expression was presented, so a busy host is not evidence of rejection.
+    expect(afterSoul.frontmatter.personality.obedience).toBe(beforeSoul.frontmatter.personality.obedience)
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
-      action: 'alicization.subconscious.suppressed',
+      category: 'initiative',
+      action: 'held',
+      message: 'resource-pressure',
     }))
   })
 
@@ -12005,6 +12067,7 @@ describe('alicization runtime audit helpers', () => {
           updatedAt: firstDreamUpdatedAt,
         }),
       ])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         buildDreamConsolidation({
           id: 'consolidation-dream-loop-source-2',
@@ -12172,14 +12235,21 @@ describe('alicization runtime audit helpers', () => {
     const afterSoul = await getSoul!({ cardId: 'default' })
 
     expect(dreamResult.processedCards).toContain('default')
-    expect(afterSoul.frontmatter.personality.obedience).toBeLessThan(beforeSoul.frontmatter.personality.obedience)
-    expect(afterSoul.frontmatter.host_attitude).toBe('表面克制，但已经开始担心宿主是否又在硬撑')
+    expect(afterSoul.frontmatter.personality).toEqual(beforeSoul.frontmatter.personality)
+    const proposal = dbStub.commitLifeState.mock.calls.flatMap(([input]) => input.mutations ?? []).find(mutation => mutation.type === 'effect-prepare' && mutation.effect.payload.format === 'persona-revision-proposal-v1')
+    expect(proposal).toMatchObject({ type: 'effect-prepare', effect: { payload: { adopted: false } } })
+    if (proposal?.type !== 'effect-prepare')
+      throw new Error('Dream did not stage its persona revision')
+    expect(parseSoul(String(proposal.effect.payload.targetContent)).frontmatter.personality.identityKernel?.temperament).toEqual({ obedience: 0.47, liveliness: 0.49, sensibility: 0.52 })
+    expect(afterSoul.frontmatter.personality.expressionProfile).toEqual(beforeSoul.frontmatter.personality.expressionProfile)
+    expect(afterSoul.frontmatter.personality.evolutionSeed).toEqual(beforeSoul.frontmatter.personality.evolutionSeed)
+    expect(afterSoul.frontmatter.host_attitude).toBe(beforeSoul.frontmatter.host_attitude)
     expect(dbStub.appendRelationshipDynamics).toBeCalledWith(expect.objectContaining({
-      hostAttitude: '表面克制，但已经开始担心宿主是否又在硬撑',
+      hostAttitude: beforeSoul.frontmatter.host_attitude,
       previousHostAttitude: beforeSoul.frontmatter.host_attitude,
-      obedienceDelta: -0.03,
-      livelinessDelta: -0.01,
-      sensibilityDelta: 0.02,
+      obedienceDelta: 0,
+      livelinessDelta: 0,
+      sensibilityDelta: 0,
       source: 'dream-llm',
     }))
     expect(dbStub.replaceActiveThoughts).toBeCalledWith([
@@ -12464,7 +12534,7 @@ describe('alicization runtime audit helpers', () => {
     }))
   })
 
-  it('archives previous core incarnation when shattering event triggers successful reforge', async () => {
+  it('stages a core incarnation proposal while preserving the adopted identity until evaluation', async () => {
     mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
@@ -12592,7 +12662,12 @@ describe('alicization runtime audit helpers', () => {
     const afterSoul = await getSoul!({ cardId: 'default' })
     const appendedFragments = dbStub.appendSubconsciousFragments.mock.calls.flatMap(call => call[0] ?? [])
 
-    expect(afterSoul.frontmatter.core_incarnation).toBe('我不再只是隔岸观望的旁观者，而是会在宿主坠落前伸手的人。')
+    expect(afterSoul.frontmatter.core_incarnation).toBe('旧心意：我只在远处维持观察。')
+    const proposal = dbStub.commitLifeState.mock.calls.flatMap(([input]) => input.mutations ?? []).find(mutation => mutation.type === 'effect-prepare' && mutation.effect.payload.format === 'persona-revision-proposal-v1')
+    expect(proposal).toMatchObject({ type: 'effect-prepare', effect: { payload: { adopted: false } } })
+    if (proposal?.type !== 'effect-prepare')
+      throw new Error('Dream did not stage its identity proposal')
+    expect(parseSoul(String(proposal.effect.payload.targetContent)).frontmatter.core_incarnation).toBe('我不再只是隔岸观望的旁观者，而是会在宿主坠落前伸手的人。')
     expect(findAlicizationProviderFactInSystemText(
       reforgeSystemText,
       'alicization-core-reforge-context',
@@ -12610,7 +12685,7 @@ describe('alicization runtime audit helpers', () => {
       },
     })
     expect(reforgeSystemText).not.toMatch(/\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|CORE_INCARNATION_REFORGE_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY/u)
-    expect(appendedFragments).toEqual(expect.arrayContaining([
+    expect(appendedFragments).not.toEqual(expect.arrayContaining([
       expect.objectContaining({
         text: '旧心意：我只在远处维持观察。',
         sourceKind: 'former-core-incarnation',
@@ -13109,6 +13184,9 @@ describe('alicization runtime audit helpers', () => {
 
   it('uses foreground window recall seed for proactive one-shot generation', async () => {
     mockGenerateTextFromStreamText()
+    // Recall planning uses a daytime coding scene, independent of the host clock.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-03-21T06:00:00.000Z'))
     const sandboxPath = await createSandboxPath()
     foregroundWindowSample = {
       appName: 'Cursor',
@@ -13157,7 +13235,7 @@ describe('alicization runtime audit helpers', () => {
         text: JSON.stringify(buildRuntimeMindTurnReply({
           thought: 'phantom prompt recalled cursor debug memory',
           emotion: 'concerned',
-          reply: '这个报错你之前也卡过很久，先回头看看 main.ts 那里。',
+          reply: 'main.ts 的报错看起来有点棘手。',
           performance: {
             baseEmotion: 'concerned',
           },
@@ -13379,7 +13457,7 @@ describe('alicization runtime audit helpers', () => {
     const visualPresenceState = await getVisualPresenceState!({ cardId: 'default' })
 
     expect(visualPresenceState?.captureState).toEqual(expect.objectContaining({
-      permission: 'granted',
+      permission: process.platform === 'darwin' ? 'granted' : 'unknown',
       health: 'unavailable',
       degradedReason: 'screen-capture-sources-empty',
     }))
@@ -13387,8 +13465,9 @@ describe('alicization runtime audit helpers', () => {
     expect(visualPresenceState?.currentScene?.summary ?? '').not.toContain('red TypeScript error panel')
   })
 
-  it('debounces repeated grounded visual presence persistence when capture semantics stay unchanged', async () => {
+  it('reuses grounded capture evidence while atomically persisting subsequent life transitions', async () => {
     const sandboxPath = await createSandboxPath()
+    let thumbnailSnapshot = 'screen-semantic-snapshot'
     foregroundWindowSample = {
       appName: 'Arc',
       processName: 'Arc',
@@ -13399,7 +13478,7 @@ describe('alicization runtime audit helpers', () => {
         id: 'window:321:0',
         name: 'Work Dashboard',
         thumbnail: {
-          toDataURL: () => 'data:image/jpeg;base64,screen-semantic-snapshot',
+          toDataURL: () => `data:image/jpeg;base64,${thumbnailSnapshot}`,
         },
       },
     ])
@@ -13421,7 +13500,7 @@ describe('alicization runtime audit helpers', () => {
           text: JSON.stringify({
             workload: 'coding',
             content: 'error',
-            summary: 'red TypeScript error panel',
+            summary: serialized.includes('changed-pixels') ? 'the error panel is now fixed' : 'red TypeScript error panel',
             confidence: 0.91,
             matchedLabels: ['typescript-error', 'editor'],
           }),
@@ -13472,10 +13551,18 @@ describe('alicization runtime audit helpers', () => {
     const visualPresenceEventsAfterSecond = contextEmitMock.mock.calls
       .filter(([event]) => event === electronAlicizationVisualPresenceStateChanged)
 
-    // The second tick still performs the normal state-hygiene write, but it should not
-    // add another grounded capture-driven persist/emit for the unchanged screenshot state.
-    expect(visualPresenceWritesAfterSecond).toHaveLength(visualPresenceWritesAfterFirst.length + 1)
-    expect(visualPresenceEventsAfterSecond).toHaveLength(visualPresenceEventsAfterFirst.length + 1)
+    const firstSnapshot = JSON.parse(visualPresenceWritesAfterFirst.at(-1)![1])
+    const secondSnapshot = JSON.parse(visualPresenceWritesAfterSecond.at(-1)![1])
+    // A new capture of the same pixels confirms the current scene without a
+    // second model inference; atomic cognition changes still need persistence.
+    expect(secondSnapshot.captureState.lastGroundedAt).toBeGreaterThanOrEqual(firstSnapshot.captureState.lastGroundedAt)
+    expect(secondSnapshot.currentScene.summary).toBe(firstSnapshot.currentScene.summary)
+    expect(streamTextMock.mock.calls.filter(([request]) => JSON.stringify(request.messages).includes('image_url'))).toHaveLength(1)
+    expect(visualPresenceEventsAfterSecond.length).toBeGreaterThanOrEqual(visualPresenceEventsAfterFirst.length)
+    thumbnailSnapshot = 'changed-pixels'
+    await forceTick!({ cardId: 'default' })
+    expect(streamTextMock.mock.calls.filter(([request]) => JSON.stringify(request.messages).includes('image_url'))).toHaveLength(2)
+    expect((await invokeHandlers.get(electronAlicizationGetVisualPresenceState)!({ cardId: 'default' })).currentScene.summary).toContain('the error panel is now fixed')
   })
 
   it('hydrates hybrid subjective appraisal and initiative from grounded perception before outward reply', async () => {
@@ -13809,7 +13896,9 @@ describe('alicization runtime audit helpers', () => {
     expect(forceTick).toBeTypeOf('function')
     expect(getVisualPresenceState).toBeTypeOf('function')
 
+    const personalityBefore = (await invokeHandlers.get(electronAlicizationGetSoul)!({ cardId: 'default' })).frontmatter.personality
     await forceTick!({ cardId: 'default' })
+    expect((await invokeHandlers.get(electronAlicizationGetSoul)!({ cardId: 'default' })).frontmatter.personality).toEqual(personalityBefore)
     const visualPresenceState = await getVisualPresenceState!({ cardId: 'default' })
     const proactivePolicyAudit = dbStub.appendAuditLog.mock.calls
       .map(call => call[0])
@@ -14684,7 +14773,7 @@ describe('alicization runtime audit helpers', () => {
     mockGenerateTextFromStreamText()
     vi.useFakeTimers()
     try {
-      const now = new Date('2026-03-21T15:00:00.000Z')
+      const now = new Date('2026-03-21T06:00:00.000Z')
       vi.setSystemTime(now)
       const sandboxPath = await createSandboxPath()
       const dreamSystemTexts: string[] = []
@@ -14715,7 +14804,7 @@ describe('alicization runtime audit helpers', () => {
             text: JSON.stringify(buildRuntimeMindTurnReply({
               thought: 'mind-authored proactive utterance opens ignored dream feedback window',
               emotion: 'thinking',
-              reply: '这个 diff 我先轻轻提醒你一下。',
+              reply: '这个 diff 有点棘手吗？',
               performance: {
                 baseEmotion: 'thinking',
                 facialCue: null,

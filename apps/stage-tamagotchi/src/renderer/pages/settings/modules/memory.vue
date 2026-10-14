@@ -388,23 +388,23 @@ const qualityGoldReasonOptions = computed<Array<{
 }>>(() => [
   {
     value: 'wrong-thread',
-    label: t('memory-workbench.quality.reasons.wrong-thread.label'),
-    description: t('memory-workbench.quality.reasons.wrong-thread.description'),
+    label: t('stage.memory-workbench.quality.reasons.wrong-thread.label'),
+    description: t('stage.memory-workbench.quality.reasons.wrong-thread.description'),
   },
   {
     value: 'expired',
-    label: t('memory-workbench.quality.reasons.expired.label'),
-    description: t('memory-workbench.quality.reasons.expired.description'),
+    label: t('stage.memory-workbench.quality.reasons.expired.label'),
+    description: t('stage.memory-workbench.quality.reasons.expired.description'),
   },
   {
     value: 'not-needed',
-    label: t('memory-workbench.quality.reasons.not-needed.label'),
-    description: t('memory-workbench.quality.reasons.not-needed.description'),
+    label: t('stage.memory-workbench.quality.reasons.not-needed.label'),
+    description: t('stage.memory-workbench.quality.reasons.not-needed.description'),
   },
   {
     value: 'should-abstain',
-    label: t('memory-workbench.quality.reasons.should-abstain.label'),
-    description: t('memory-workbench.quality.reasons.should-abstain.description'),
+    label: t('stage.memory-workbench.quality.reasons.should-abstain.label'),
+    description: t('stage.memory-workbench.quality.reasons.should-abstain.description'),
   },
 ])
 
@@ -1850,14 +1850,14 @@ watch(activeCardId, () => {
             </label>
           </div>
           <label :class="['mt-3', 'flex', 'flex-col', 'gap-1', 'text-xs', 'text-neutral-500']">
-            <span>{{ t('memory-workbench.quality.reason_label') }}</span>
+            <span>{{ t('stage.memory-workbench.quality.reason_label') }}</span>
             <select
               v-model="selectedGoldLabelReason"
-              :aria-label="t('memory-workbench.quality.reason_label')"
+              :aria-label="t('stage.memory-workbench.quality.reason_label')"
               :class="['border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'text-neutral-900', 'dark:border-neutral-700', 'dark:bg-neutral-950', 'dark:text-neutral-100']"
             >
               <option :value="null">
-                {{ t('memory-workbench.quality.reason_none') }}
+                {{ t('stage.memory-workbench.quality.reason_none') }}
               </option>
               <option v-for="option in qualityGoldReasonOptions" :key="option.value" :value="option.value">
                 {{ option.label }}

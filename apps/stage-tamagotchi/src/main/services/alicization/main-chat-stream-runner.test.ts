@@ -221,6 +221,27 @@ afterEach(() => {
 })
 
 describe('main chat stream runner', () => {
+  it('transmits the life schema intact and negotiates unsupported response formats before any action', async () => {
+    const fullText = createProviderResponsePayload({ reply: '你好。' })
+    const server = await startProviderHttpFaultServer({ respond: ({ attempt }) => attempt === 1
+      ? { status: 400, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: { message: 'response_format json_schema is not supported', type: 'invalid_request_error', param: 'response_format' } }) }
+      : { status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: encodeOpenAICompatibleSse([{ choices: [{ index: 0, delta: { content: fullText }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }]) } })
+    const emitToolCall = vi.fn()
+    try {
+      const prepared = createPrepared({ chatConfig: { apiKey: 'test-key', baseURL: server.baseUrl, model: 'model-test' }, memoryContext: createProviderMemoryContext() })
+      const result = await runAlicizationMainChatProviderStep({ payload: { cardId: 'card-1', turnId: 'schema-negotiation', providerId: 'openai-compatible', model: 'model-test' } as any, prepared, messages: [{ role: 'user', content: '你好' }], controller: new AbortController(), firstEventTimeoutMs: 1000, providerContinuationTimeoutMs: 1000, isRunActive: () => true, nonProgressEventTypes: new Set(), emitToolCall, appendRuntimeDebugLine: async () => {}, providerRetryPolicy: { maxRetries: 0 } })
+      expect(result).toMatchObject({ kind: 'reply', fullText })
+      expect(server.requests).toHaveLength(2)
+      const requests = server.requests.map(request => JSON.parse(request.body))
+      expect(requests[0].response_format.json_schema.schema.properties.memoryUsage.properties.workingMemoryVersion.const).toBe('working-memory-owner-context-v1')
+      expect(requests[0].response_format.json_schema.schema.properties.interaction.required).toContain('purpose')
+      expect(requests[0].response_format.json_schema.schema.required).toContain('memoryUsage')
+      expect(requests[1].response_format).toBeUndefined()
+      expect(emitToolCall).not.toHaveBeenCalled()
+    }
+    finally { await server.close() }
+  })
+
   it('retries five real HTTP 503 responses and records attempts 1 through 6 before accepting SSE success', async () => {
     const providerText = createProviderResponsePayload({
       reply: '第六次真实 Provider 请求恢复成功。',
@@ -630,6 +651,8 @@ describe('main chat stream runner', () => {
       nonProgressEventTypes: new Set<string>(),
       emitToolCall: vi.fn(),
       streamTextImpl: (input: Record<string, unknown>) => {
+        expect(input.maxTokens).toBe(4096)
+        expect(input.maxCompletionTokens).toBeUndefined()
         providerMessages.push(...(input.messages as Message[]))
         return {
           fullStream: {

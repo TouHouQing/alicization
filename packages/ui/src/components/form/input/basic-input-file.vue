@@ -21,6 +21,16 @@ const firstFile = ref<File>()
 const isDragging = ref(false)
 const isDraggingDebounced = useDebounce(isDragging, 150)
 
+function handleFileDrop(event: DragEvent) {
+  isDragging.value = false
+  const dropped = Array.from(event.dataTransfer?.files ?? [])
+  if (!dropped.length)
+    return
+  files.value = props.multiple ? dropped : dropped.slice(0, 1)
+  firstFile.value = files.value[0]
+  emit('update:modelValue', files.value)
+}
+
 function handleFileChange(e: Event) {
   const input = e.target as HTMLInputElement
   if (!input.files)
@@ -55,8 +65,9 @@ function handleFileChange(e: Event) {
         ? [...Array.isArray(isDraggingClasses) ? isDraggingClasses : [isDraggingClasses]]
         : [...Array.isArray(isNotDraggingClasses) ? isNotDraggingClasses : [isNotDraggingClasses]],
     ]"
-    @dragover="isDragging = true"
+    @dragover.prevent="isDragging = true"
     @dragleave="isDragging = false"
+    @drop.prevent="handleFileDrop"
   >
     <input
       type="file"

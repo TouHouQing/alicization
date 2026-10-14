@@ -20,16 +20,18 @@ const { llamaServerSpawnCalls } = vi.hoisted(() => ({
 
 vi.mock('node:child_process', async () => {
   const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process')
+  const { portableFixtureInvocation } = await import('./test-support/portable-fixture-process')
   return {
     ...actual,
     spawn: vi.fn((command: string, args: readonly string[] = [], options?: object) => {
-      if (command.endsWith('/llama-server')) {
+      if (/[\\/]llama-server$/u.test(command)) {
         llamaServerSpawnCalls.push({
           command,
           args: [...args],
         })
       }
-      return actual.spawn(command, args, options as Parameters<typeof actual.spawn>[2])
+      const invocation = portableFixtureInvocation(command, args)
+      return actual.spawn(invocation.command, invocation.args, options as Parameters<typeof actual.spawn>[2])
     }),
   }
 })
@@ -310,21 +312,31 @@ afterEach(async () => {
 
 describe('llama.cpp Persona runtime', () => {
   it('normalizes a local llama-server configuration', () => {
+    const executable = join(tmpdir(), 'llama-server')
+    const modelPath = join(tmpdir(), 'models', 'base.gguf')
     expect(normalizeAlicizationPersonaRuntimeConfig({
-      executable: '/opt/llama-server',
-      modelPath: '/models/base.gguf',
+      executable,
+      modelPath,
       host: '127.0.0.1',
       port: 18_181,
       modelAlias: 'alice',
       startupTimeoutMs: 5_000,
     })).toEqual({
-      executable: '/opt/llama-server',
-      modelPath: '/models/base.gguf',
+      executable,
+      modelPath,
       host: '127.0.0.1',
       port: 18_181,
       modelAlias: 'alice',
       startupTimeoutMs: 5_000,
     })
+  })
+
+  it('accepts a native absolute path for the Persona process state file', () => {
+    const processStatePath = join(tmpdir(), 'persona-runtime-process.json')
+    const runtime = createLlamaCppPersonaRuntime({ processStatePath })
+    runtimes.push(runtime)
+
+    expect(runtime.getSnapshot().configured).toBe(false)
   })
 
   it('starts llama-server, applies the adapter, exposes a local chat route, and unloads it', async () => {

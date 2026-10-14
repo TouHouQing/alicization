@@ -4,9 +4,10 @@
   * - Define camera behavior
 */
 
+import type { VrmPostureFramingBounds } from '../../composables/vrm/daily-posture-framing'
 import type { Vec3 } from '../../stores/model-store'
 
-import { extend, useTres } from '@tresjs/core'
+import { extend, useLoop, useTres } from '@tresjs/core'
 import { until } from '@vueuse/core'
 import {
   MOUSE,
@@ -18,6 +19,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 // From stage-ui-three package
 import { onMounted, onUnmounted, shallowRef, toRefs, watch } from 'vue'
 
+import { frameVrmPosture } from '../../composables/vrm/daily-posture-framing'
+
 /*
   * Props:
   * - model size
@@ -27,6 +30,7 @@ import { onMounted, onUnmounted, shallowRef, toRefs, watch } from 'vue'
   * - camera distance: camera position - camera target
 */
 const props = defineProps<{
+  focusBounds?: VrmPostureFramingBounds | null
   controlEnable: boolean
   modelSize: Vec3
   cameraPosition: Vec3
@@ -62,6 +66,37 @@ const { camera: cameraTres, renderer } = useTres()
 const controls = shallowRef<OrbitControls>()
 const camera = shallowRef<PerspectiveCamera | null>(null)
 let disposeControlsChange: (() => void) | undefined
+let autoFrameActive = false
+let automaticCameraChange = false
+let userOwnsFraming = false
+let userControlActive = false
+watch(() => Boolean(props.focusBounds), () => {
+  userOwnsFraming = false
+})
+const { onBeforeRender } = useLoop()
+const stopAutoFrame = onBeforeRender(({ delta }) => {
+  if (!camera.value || !controls.value)
+    return
+  if (userOwnsFraming)
+    return
+  const focus = props.focusBounds
+  if (!focus && !autoFrameActive)
+    return
+  const frame = focus ? frameVrmPosture({ bounds: focus, position: props.cameraPosition, target: props.cameraTarget, fov: props.cameraFOV, aspect: camera.value.aspect }) : { position: new Vector3(props.cameraPosition.x, props.cameraPosition.y, props.cameraPosition.z), target: new Vector3(props.cameraTarget.x, props.cameraTarget.y, props.cameraTarget.z), distance: props.cameraDistance }
+  autoFrameActive = Boolean(focus) || camera.value.position.distanceTo(frame.position) > 0.001 || controls.value.target.distanceTo(frame.target) > 0.001
+  controls.value.maxDistance = Math.max(props.modelSize.z * 20, frame.distance * 1.1)
+  const blend = 1 - Math.exp(-Math.min(0.1, Math.max(0, delta)) / 0.18)
+  camera.value.position.lerp(frame.position, blend)
+  controls.value.target.lerp(frame.target, blend)
+  automaticCameraChange = true
+  try {
+    controls.value.update()
+  }
+  finally {
+    automaticCameraChange = false
+  }
+  camera.value.updateMatrixWorld(true)
+})
 
 // Initialisation on onMounted
 function registerInfoFlow() {
@@ -133,7 +168,7 @@ function registerInfoFlow() {
   */
   // send camera update info
   const onChange = () => {
-    if (!controlEnable.value || !camera.value || !controls.value)
+    if (automaticCameraChange || !userControlActive || !controlEnable.value || !camera.value || !controls.value)
       return
 
     emit(
@@ -150,8 +185,21 @@ function registerInfoFlow() {
   }
 
   disposeControlsChange?.()
+  const onUserControl = () => {
+    userOwnsFraming = true
+    userControlActive = true
+  }
+  const onUserControlEnd = () => {
+    userControlActive = false
+  }
   controls.value?.addEventListener('change', onChange)
-  disposeControlsChange = () => controls.value?.removeEventListener('change', onChange)
+  controls.value?.addEventListener('start', onUserControl)
+  controls.value?.addEventListener('end', onUserControlEnd)
+  disposeControlsChange = () => {
+    controls.value?.removeEventListener('change', onChange)
+    controls.value?.removeEventListener('start', onUserControl)
+    controls.value?.removeEventListener('end', onUserControlEnd)
+  }
 }
 
 onMounted(async () => {
@@ -191,6 +239,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  stopAutoFrame.off()
   disposeControlsChange?.()
   disposeControlsChange = undefined
   controls.value?.dispose()

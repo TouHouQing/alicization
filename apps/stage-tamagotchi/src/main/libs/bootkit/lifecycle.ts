@@ -17,8 +17,10 @@ export function onAppBeforeQuit(fn: () => Promise<void> | void) {
 }
 
 export async function emitAppBeforeQuit() {
-  for (const fn of onAppBeforeQuitHooks) {
+  for (const [index, fn] of onAppBeforeQuitHooks.entries()) {
+    console.info(`[bootkit] before-quit hook ${index} started`)
     await fn()
+    console.info(`[bootkit] before-quit hook ${index} completed`)
   }
 }
 

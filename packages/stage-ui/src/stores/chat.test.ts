@@ -13,6 +13,7 @@ import { clearAlicizationBridge, setAlicizationBridge } from './alicization-brid
 import { hasVerifiedToolResult, useChatOrchestratorStore } from './chat'
 
 const hookCapture = vi.hoisted(() => ({
+  speechLiterals: [] as string[],
   beforeSendContexts: [] as any[],
   embodimentMetas: [] as any[],
   contextsSnapshot: {} as Record<string, unknown>,
@@ -259,7 +260,7 @@ vi.mock('./chat/hooks', () => ({
         hookCapture.beforeSendContexts.push(context)
       },
       emitAfterSendHooks: noopAsync,
-      emitTokenLiteralHooks: noopAsync,
+      emitTokenLiteralHooks: async (literal: string) => { hookCapture.speechLiterals.push(literal) },
       emitTokenSpecialHooks: noopAsync,
       emitStreamEndHooks: noopAsync,
       emitEmbodimentMetaHooks: async (meta: any) => {
@@ -507,6 +508,7 @@ describe('chat orchestrator reply authority', () => {
     resumeKillSwitchMock.mockReset()
     chatAbortMock.mockReset()
     hookCapture.beforeSendContexts.length = 0
+    hookCapture.speechLiterals.length = 0
     hookCapture.embodimentMetas.length = 0
     hookCapture.contextsSnapshot = {}
     hookCapture.toolCallError = null
@@ -4006,6 +4008,33 @@ describe('chat orchestrator reply authority', () => {
     }))
   })
 
+  it.each([{ committed: true, valid: true }, { committed: false, valid: true }, { committed: true, valid: false }])('accepts tool-outcome reply speech only with committed=$committed and valid=$valid', async ({ committed, valid }) => {
+    const reply = '这次没有写入，文件没有改变。我会尊重你的决定。'
+    const acceptedProviderReply = JSON.parse(createProviderFullText(reply))
+    if (!valid)
+      acceptedProviderReply.format = 'invalid'
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({ type: 'tool-call', toolCallId: 'denied-write', toolName: 'filesystem_write_file', args: '{}', toolCallType: 'function' })
+      await options.onStreamEvent?.({ type: 'tool-result', toolCallId: 'denied-write', toolName: 'filesystem_write_file', result: { status: 'failed', finalStatus: 'failed', continuationPolicy: 'continue', failureKind: 'tool-execution', toolName: 'filesystem_write_file', errorCode: 'ALICIZATION_TOOL_DENIED_BY_HOST', errorMessage: 'Host declined this exact operation.' } })
+      await options.onStreamEvent?.({ type: 'finish', origin: 'provider', fullText: createProviderFullText(reply), acceptedProviderReply, conversationCommitted: committed })
+    })
+    installAlicizationBridge({ streamChat })
+    const store = useChatOrchestratorStore()
+    await store.ingest('写入文件', { model: 'mock-model', chatProvider: createChatProviderStub(), origin: 'ui-user' })
+    if (committed && valid) {
+      expect(hookCapture.speechLiterals).toEqual([reply])
+      expect(appendConversationTurnMock).not.toHaveBeenCalled()
+      expect(sessionMessagesMap.get(activeSessionId.value)?.some(message => message.role === 'assistant' && message.content === reply)).toBe(true)
+    }
+    else {
+      expect(hookCapture.speechLiterals).toEqual([])
+      if (!committed)
+        expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({ structured: expect.objectContaining({ origin: 'failure-surface' }) }))
+      else
+        expect(appendConversationTurnMock).not.toHaveBeenCalled()
+    }
+  })
+
   it('keeps the first tool failure terminal when a later Provider format failure arrives', async () => {
     const providerFailureSurface = {
       kind: 'provider-output-invalid',
@@ -4838,5 +4867,17 @@ describe('chat orchestrator reply authority', () => {
     expect(ensureSessionMessages(activeSessionId.value)).toEqual([])
     expect(appendConversationTurnMock).not.toHaveBeenCalled()
     expect(streamMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts a main-owned interruption before the local abort signal without speaking a failure reply', async () => {
+    installAlicizationBridge({ streamChat: async () => {
+      throw Object.assign(new DOMException('Paused remotely', 'AbortError'), { alicizationAbort: true })
+    } })
+    const store = useChatOrchestratorStore()
+    await store.ingest('在自己的测试窗口里保存笔记', { model: 'mock-model', chatProvider: createChatProviderStub(), origin: 'ui-user' })
+    expect(ensureSessionMessages(activeSessionId.value)).toEqual([])
+    expect(hookCapture.speechLiterals).toEqual([])
+    expect(appendConversationTurnMock).not.toHaveBeenCalled()
+    expect(store.sending).toBe(false)
   })
 })

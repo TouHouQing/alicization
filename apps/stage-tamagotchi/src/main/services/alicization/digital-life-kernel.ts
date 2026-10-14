@@ -82,6 +82,7 @@ export interface AlicizationDigitalLifeMindStateCommitShape {
   answerPlanner?: AlicizationVisualPresenceStateSnapshot['answerPlanner']
   selfEvolution?: AlicizationVisualPresenceStateSnapshot['selfEvolution']
   emotionalKernel?: AlicizationVisualPresenceStateSnapshot['emotionalKernel']
+  emotionalTemporalState?: AlicizationVisualPresenceStateSnapshot['emotionalTemporalState']
   learningExecutionState?: AlicizationVisualPresenceStateSnapshot['learningExecutionState']
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   privateThought: AlicizationVisualPresenceStateSnapshot['privateThought']
@@ -443,6 +444,7 @@ export function commitAlicizationDigitalLifeMindState<TMindState extends Aliciza
     answerPlanner: input.mindState.answerPlanner,
     selfEvolution: input.mindState.selfEvolution ?? null,
     emotionalKernel: input.mindState.emotionalKernel ?? null,
+    emotionalTemporalState: input.mindState.emotionalTemporalState ?? null,
     learningExecutionState: input.mindState.learningExecutionState ?? null,
     derivedMindStateBundle: input.mindState.derivedMindStateBundle ?? null,
     privateThought: input.mindState.privateThought,

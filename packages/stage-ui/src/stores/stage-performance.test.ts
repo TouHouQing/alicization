@@ -111,13 +111,15 @@ describe('stage performance helpers', () => {
   })
 
   it('ships a builtin vrm action binding as a semantic capability entry', () => {
-    expect(builtinActionBindings).toEqual([
+    expect(builtinActionBindings).toEqual(expect.arrayContaining([
       expect.objectContaining({
         source: 'builtin',
         actionKey: 'settle_idle',
         label: 'Settle',
       }),
-    ])
+    ]))
+    expect(new Set(builtinActionBindings.map(binding => binding.actionKey)).size).toBe(builtinActionBindings.length)
+    expect(builtinActionBindings.every(binding => binding.source === 'builtin' && binding.description.trim())).toBe(true)
   })
 
   it('provides semantic default bindings for Alicization live2d motions', () => {

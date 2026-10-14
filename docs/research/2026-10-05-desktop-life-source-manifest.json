@@ -1,0 +1,211 @@
+{
+  "format": "alicization-source-study-v2",
+  "date": "2026-10-05",
+  "projects": 11,
+  "newCheckouts": 4,
+  "revisitedPinnedCheckouts": 7,
+  "repositories": [
+    {
+      "name": "Open-LLM-VTuber",
+      "repository": "https://github.com/Open-LLM-VTuber/Open-LLM-VTuber",
+      "commit": "992309c0aa19845960228f880013d4685fde93b5",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\Open-LLM-VTuber",
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": false,
+      "files": [
+        {
+          "path": "src/open_llm_vtuber/conversations/single_conversation.py",
+          "sha256": "11f7751ba4d641b0c19d7d20706474c4bfcb7f9ab644072d86ac6ae1e21ff65f",
+          "permalink": "https://github.com/Open-LLM-VTuber/Open-LLM-VTuber/blob/992309c0aa19845960228f880013d4685fde93b5/src/open_llm_vtuber/conversations/single_conversation.py"
+        },
+        {
+          "path": "src/open_llm_vtuber/agent/agents/basic_memory_agent.py",
+          "sha256": "5e05db42741b20439ddb53d42a5dee54f68101c7a64cd4e985cd7e3ceeb83393",
+          "permalink": "https://github.com/Open-LLM-VTuber/Open-LLM-VTuber/blob/992309c0aa19845960228f880013d4685fde93b5/src/open_llm_vtuber/agent/agents/basic_memory_agent.py"
+        }
+      ]
+    },
+    {
+      "name": "graphiti",
+      "repository": "https://github.com/getzep/graphiti",
+      "commit": "3c427640abf909f12f71f963fce15eb514a3c493",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\graphiti",
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": false,
+      "files": [
+        {
+          "path": "graphiti_core/edges.py",
+          "sha256": "6715bbe5763d30aa58134fc601ad21c761aaf4a7b5785809f507146b5f821af2",
+          "permalink": "https://github.com/getzep/graphiti/blob/3c427640abf909f12f71f963fce15eb514a3c493/graphiti_core/edges.py"
+        }
+      ]
+    },
+    {
+      "name": "generative_agents",
+      "repository": "https://github.com/joonspk-research/generative_agents",
+      "commit": "fe05a71d3e4ed7d10bf68aa4eda6dd995ec070f4",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\generative_agents",
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": false,
+      "files": [
+        {
+          "path": "reverie/backend_server/persona/cognitive_modules/plan.py",
+          "sha256": "f037e88b42a3d72a25c312c6019960367a19aedf9fe932066c68b1652b64f963",
+          "permalink": "https://github.com/joonspk-research/generative_agents/blob/fe05a71d3e4ed7d10bf68aa4eda6dd995ec070f4/reverie/backend_server/persona/cognitive_modules/plan.py"
+        }
+      ]
+    },
+    {
+      "name": "letta-code",
+      "repository": "https://github.com/letta-ai/letta-code",
+      "commit": "bc4b97c3185302890cfb511c6d1e49f49fc5300c",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\letta-code",
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": false,
+      "files": [
+        {
+          "path": "src/agent/subagents/memory-worker.ts",
+          "sha256": "f6d3f588399c01afa6d39407df6cd0c8a467a034cb387bdaf4ab856c189fbab8",
+          "permalink": "https://github.com/letta-ai/letta-code/blob/bc4b97c3185302890cfb511c6d1e49f49fc5300c/src/agent/subagents/memory-worker.ts"
+        }
+      ]
+    },
+    {
+      "name": "software-agent-sdk",
+      "repository": "https://github.com/OpenHands/software-agent-sdk",
+      "commit": "1b2b5c850b6a99d8b742bfe20d198d6167165ca2",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\software-agent-sdk",
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": false,
+      "files": [
+        {
+          "path": "openhands-sdk/openhands/sdk/conversation/event_store.py",
+          "sha256": "cc02699b6d27c54172e97b3203641f17d817bf5fe6d1c05567203d1308a20862",
+          "permalink": "https://github.com/OpenHands/software-agent-sdk/blob/1b2b5c850b6a99d8b742bfe20d198d6167165ca2/openhands-sdk/openhands/sdk/conversation/event_store.py"
+        }
+      ]
+    },
+    {
+      "name": "langgraphjs",
+      "repository": "https://github.com/langchain-ai/langgraphjs",
+      "commit": "1cee82d0c48fbaeb2d71433211b03113992cc114",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\langgraphjs",
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": false,
+      "files": [
+        {
+          "path": "libs/checkpoint-sqlite/src/index.ts",
+          "sha256": "e7b80570689b3517bf722a6450c4c6548282e412e4fbf366812ba3921a7c61b5",
+          "permalink": "https://github.com/langchain-ai/langgraphjs/blob/1cee82d0c48fbaeb2d71433211b03113992cc114/libs/checkpoint-sqlite/src/index.ts"
+        }
+      ]
+    },
+    {
+      "name": "SillyTavern",
+      "repository": "https://github.com/SillyTavern/SillyTavern",
+      "commit": "06bde939fb1e9c4c8d8641d810f0a916b5bce127",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\SillyTavern",
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": false,
+      "files": [
+        {
+          "path": "public/scripts/extensions/expressions/index.js",
+          "sha256": "6e234e89e06e670a88e0d869b830ef24a386b70782cdb20fc7aed17863ff4332",
+          "permalink": "https://github.com/SillyTavern/SillyTavern/blob/06bde939fb1e9c4c8d8641d810f0a916b5bce127/public/scripts/extensions/expressions/index.js"
+        }
+      ]
+    },
+    {
+      "name": "pi",
+      "repository": "https://github.com/earendil-works/pi",
+      "commit": "b2b5c42f6138b73ec4b2f49ec0ca468800f88586",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-expression-research-20261005\\pi",
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": true,
+      "files": [
+        {
+          "path": "packages/ai/src/utils/event-stream.ts",
+          "sha256": "147084657f76665ff7d6c8dcd6eb0745149e3aaee3e7b9c272b315a1b5679386",
+          "permalink": "https://github.com/earendil-works/pi/blob/b2b5c42f6138b73ec4b2f49ec0ca468800f88586/packages/ai/src/utils/event-stream.ts"
+        },
+        {
+          "path": "packages/agent/src/agent-loop.ts",
+          "sha256": "e773e822a2587caf314e6bb66ea6370fce3468b7eecd26d6a67afe673f81eabc",
+          "permalink": "https://github.com/earendil-works/pi/blob/b2b5c42f6138b73ec4b2f49ec0ca468800f88586/packages/agent/src/agent-loop.ts"
+        }
+      ]
+    },
+    {
+      "name": "neko",
+      "repository": "https://github.com/Project-N-E-K-O/N.E.K.O",
+      "commit": "f2fea6de7149ef333422e61bafa4102d44f2cf2c",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-expression-research-20261005\\neko",
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": false,
+      "files": [
+        {
+          "path": "static/vrm/motion/player.js",
+          "sha256": "0c3c2e742cf72f441e2e35190ed6bf409ddc0f7c6aff019928fbea2d6d06245b",
+          "permalink": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/f2fea6de7149ef333422e61bafa4102d44f2cf2c/static/vrm/motion/player.js"
+        },
+        {
+          "path": "main_logic/proactive_chat/delivery.py",
+          "sha256": "7be855ac48033e02b45590c0af4d56392ad0fe2066c4b682e7257e013f1166d5",
+          "permalink": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/f2fea6de7149ef333422e61bafa4102d44f2cf2c/main_logic/proactive_chat/delivery.py"
+        },
+        {
+          "path": "main_logic/proactive_chat/contracts.py",
+          "sha256": "3b0125fd5f6145ee690954474e091153c872c16ce78e9bf379906595113a2908",
+          "permalink": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/f2fea6de7149ef333422e61bafa4102d44f2cf2c/main_logic/proactive_chat/contracts.py"
+        }
+      ]
+    },
+    {
+      "name": "hermes",
+      "repository": "https://github.com/NousResearch/hermes-agent",
+      "commit": "93c9360a8da592cee43e8895403e91c7a920b0ce",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-expression-research-20261005\\hermes",
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": false,
+      "files": [
+        {
+          "path": "agent/session_persistence.py",
+          "sha256": "9c6f6bb2e0e785ee53499cbb0997a0e628f91991abd4c2cfb0d51a3afe5d2f4e",
+          "permalink": "https://github.com/NousResearch/hermes-agent/blob/93c9360a8da592cee43e8895403e91c7a920b0ce/agent/session_persistence.py"
+        },
+        {
+          "path": "agent/memory_manager.py",
+          "sha256": "048842c1c3725e6fe6aef8f2b7fe3ea06baec02cebdea1e9ab0e9da06473930d",
+          "permalink": "https://github.com/NousResearch/hermes-agent/blob/93c9360a8da592cee43e8895403e91c7a920b0ce/agent/memory_manager.py"
+        },
+        {
+          "path": "agent/session_activity.py",
+          "sha256": "9ae66b3e98c45406e550a938d76414f74ada03514235143aa672a23f5f4d6b86",
+          "permalink": "https://github.com/NousResearch/hermes-agent/blob/93c9360a8da592cee43e8895403e91c7a920b0ce/agent/session_activity.py"
+        }
+      ]
+    },
+    {
+      "name": "vpet",
+      "repository": "https://github.com/LorisYounger/VPet",
+      "commit": "c3420bb77d6d00ed5fabf975a0945c4f6179bba3",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-expression-research-20261005\\vpet",
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": false,
+      "files": [
+        {
+          "path": "VPet-Simulator.Core/Display/MainDisplay.cs",
+          "sha256": "e252d1c758d7b46a4697f796bb3215da1c1039486d6d11c825fa6849dd0f92f6",
+          "permalink": "https://github.com/LorisYounger/VPet/blob/c3420bb77d6d00ed5fabf975a0945c4f6179bba3/VPet-Simulator.Core/Display/MainDisplay.cs"
+        },
+        {
+          "path": "VPet-Simulator.Core/Display/MainLogic.cs",
+          "sha256": "37e638739068f152aa5c59b21d500e74f67cf986f414492189fc3995c4e45d73",
+          "permalink": "https://github.com/LorisYounger/VPet/blob/c3420bb77d6d00ed5fabf975a0945c4f6179bba3/VPet-Simulator.Core/Display/MainLogic.cs"
+        }
+      ]
+    }
+  ],
+  "copiedModule": "apps/stage-tamagotchi/src/main/services/alicization/third-party/pi-event-stream.ts",
+  "copiedLicense": "MIT; full notice shipped in desktop resources/licenses/pi-license.txt"
+}

@@ -3,6 +3,7 @@ import type { WidgetSnapshot } from '../../shared/eventa'
 
 import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
 import { computed, defineAsyncComponent, defineComponent, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
 import { widgetsClearEvent, widgetsFetch, widgetsRemove, widgetsRemoveEvent, widgetsRenderEvent, widgetsUpdateEvent } from '../../shared/eventa'
@@ -19,6 +20,7 @@ interface WidgetItem {
 interface EventEnvelope<T> { body?: T }
 
 const route = useRoute()
+const { t } = useI18n()
 
 const widgetId = computed(() => {
   const raw = route.query.id
@@ -197,20 +199,25 @@ function handleClose() {
 </script>
 
 <template>
-  <div class="h-full w-full">
+  <div class="relative h-full w-full">
+    <button
+      type="button"
+      class="absolute right-2 top-2 z-10 size-7 rounded-full bg-black/40 text-xs text-white transition hover:bg-black/60"
+      :aria-label="t('tamagotchi.settings.widgets.close')"
+      :title="t('tamagotchi.settings.widgets.close')"
+      @click="handleClose"
+    >
+      ✕
+    </button>
     <div v-if="!widgetId" class="h-full flex items-center justify-center">
       <div class="border border-neutral-200/20 rounded-xl bg-neutral-900/40 px-4 py-3 text-sm text-neutral-200/80 backdrop-blur">
-        Missing widget id. Launch the window via a component call to populate this view.
+        <p>{{ t('tamagotchi.settings.widgets.empty') }}</p>
+        <p class="mt-2">
+          {{ t('tamagotchi.settings.widgets.empty_help') }}
+        </p>
       </div>
     </div>
     <div v-else-if="widget" class="relative h-full">
-      <button
-        class="absolute right-2 top-2 z-10 size-7 rounded-full bg-black/40 text-xs text-white transition hover:bg-black/60"
-        title="Close widget"
-        @click="handleClose"
-      >
-        ✕
-      </button>
       <component
         :is="resolveWidgetComponent(widget.componentName)"
         :key="widget.id"
@@ -222,7 +229,7 @@ function handleClose() {
     </div>
     <div v-else class="h-full flex items-center justify-center">
       <div class="border border-neutral-200/20 rounded-xl bg-neutral-900/40 px-4 py-3 text-sm text-neutral-200/80 backdrop-blur">
-        {{ loading ? 'Loading widget...' : `Waiting for widget data for "${widgetId}"` }}
+        {{ loading ? t('tamagotchi.settings.widgets.loading') : t('tamagotchi.settings.widgets.waiting') }}
       </div>
     </div>
   </div>

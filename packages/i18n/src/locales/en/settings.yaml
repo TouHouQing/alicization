@@ -1,5 +1,15 @@
 common:
   save: Save
+  back: Back to parent page
+model-selector:
+  title: Choose a character model
+  add: Import model
+  loading: Loading character models…
+  options: 'Options for {name}'
+  remove: Remove model
+  name: Model name
+  pick: Use this model
+  confirm: Confirm selection
 animations:
   stage-transitions:
     title: Disable Stage Transitions
@@ -11,7 +21,11 @@ animations:
 dialogs:
   onboarding:
     title: Welcome to ALICIZATION!
-    description: Let's set up your first AI provider to get started.
+    description: Get to know each other, then connect her dialogue model.
+    credentialsTitle: Connect a dialogue service
+    credentialsHelp: Your key connects the service you choose. Conversations are sent to that service, so choose a provider you trust.
+    connectionHelp: Connection failed. Check that the service is running and the address and key are correct, then retry or go back to choose another service.
+    errorDetails: Error details
     selectProvider: Choose an AI Provider
     configureProvider: Configure {provider}
     apiKey: API Key
@@ -46,28 +60,55 @@ dialogs:
       skip: Maybe later
       open: Configure action mapping
     personaWorkshop:
+      back: Go back
+      progress: Persona setup progress
+      adjustLater: This is her starting point. You can adjust it later in settings.
+      steps:
+        identity: First meeting
+        temperament: Temperament
+        style: Together
+        review: Review
       intro:
-        title: Shape her first memory of self
-        lead: This is a guided quick-birth workshop, not a form. We will sketch the feel first, then let the system interpret it back to you before you confirm.
+        title: Start with your names
+        lead: A few simple choices to shape who she will be at first.
+        nameLabel: Her name
+        namePlaceholder: Give her a name
+        hostNameLabel: What should she call you?
+        hostNamePlaceholder: Your name or nickname
+        requiredHint: Fill in both names to continue.
         exampleTitle: Example
         exampleBody: "Instead of asking for a personality label, you can start with: 'gentle, notices small changes, gets shy when praised, and should avoid sounding cold.'"
-        guidance: Start with the kind of presence you want, not the taxonomy. Short phrases are enough.
+        guidance: She will bring her own personality to your time together and grow through your companionship.
       core:
-        title: Give the core feeling
-        description: Pick the broad temperament first, then add a short description that captures how she should feel in conversation.
-        obedience: Obedience
+        title: What do you imagine her to be like?
+        description: Adjust her temperament and add a few words if you like. The defaults work too.
+        obedience: Willingness to cooperate
         liveliness: Liveliness
         sensibility: Sensibility
         summary: 'Current read: {summary}'
-        freeDescription: Short persona description
+        freeDescription: Describe her in a few words (optional)
+        descriptionPlaceholder: Gentle, notices small changes, gets shy when praised, and speaks with a little playfulness.
+        traits:
+          obedience:
+            low: Independent
+            balanced: Talks things through
+            high: Accommodating
+          liveliness:
+            low: Quiet and calm
+            balanced: At ease
+            high: Lively and outgoing
+          sensibility:
+            low: Rational and direct
+            balanced: Warm and thoughtful
+            high: Sensitive and perceptive
         examplesTitle: Helpful prompts
-        examplesBody: Try describing the tone, attachment style, or how she should react under pressure. You can revise it on the next screen.
+        examplesBody: Describe the qualities that matter to you. A full character biography is optional.
       calibration:
-        title: Tune the response style
-        description: Choose how she should reconnect after silence, comfort you, and handle jealousy. These are behavior hints, not hard rules.
-        silenceReconnect: Reconnect after silence
+        title: Find your way of being together
+        description: Choose the responses you enjoy, so she knows how to approach you.
+        silenceReconnect: When you have been quiet
         options:
-          hold: Hold
+          hold: Wait quietly
           lightProbe: Light probe
           directApproach: Direct approach
           quietPresence: Quiet presence
@@ -76,19 +117,38 @@ dialogs:
           maskIt: Mask it
           softAche: Soft ache
           sayIt: Say it
-        comfortStyle: Comfort style
-        jealousyStyle: Jealousy style
+        comfortStyle: When you are feeling low
+        jealousyStyle: When she feels a little jealous
+        hints:
+          hold: Give you space without rushing to speak
+          lightProbe: Gently check if you would like to talk
+          directApproach: Bring up a topic to reconnect
+          quietPresence: Stay close while you take your time
+          gentleCare: Listen and offer gentle reassurance
+          takeCharge: Help untangle the problem together
+          maskIt: Keep it to herself to avoid pressure
+          softAche: Show a little tender vulnerability
+          sayIt: Express her feelings openly
         summary: 'Current calibration: {summary}'
         examplesBody: If you are unsure, choose the softer option first. The preview screen will translate this into a concise system summary.
       preview:
-        title: Review the system interpretation
-        description: We turn your choices into a compact persona draft. Read it like a preview of how the system understood you, then submit if it matches your intent.
+        title: Meet her first self
+        description: Does this feel right? Go back to adjust your choices or add a note here.
+        addressAs: 'She will call you “{name}”'
+        correctionsPlaceholder: For example, avoid lecturing and show care naturally.
+        nextHint: Save her persona, then choose a dialogue model.
+        saving: Saving…
+        savingHint: Saving her persona. Please wait.
+        retry: Try saving again
+        saveError: 'Could not save her persona: {reason}. Your choices are kept. You can retry.'
+        conflictError: The persona file changed during setup. It was preserved. Check its contents before retrying.
+        unavailableError: The desktop runtime is unavailable. Your choices are kept. Please retry shortly.
         summaryPending: Waiting for the draft to be compiled.
-        correctionsTitle: Add small corrections
+        correctionsTitle: Anything else you want her to know? (optional)
         correctionsLabel: Corrections
         notesTitle: What the system inferred
         notesEmpty: No notes yet.
-        emptyDescription: No free-description text yet.
+        emptyDescription: Starting with warm, natural companionship and growing through your time together.
         relationshipPosture: 'Relationship posture: {value}'
         relationshipPostureDefault: 'Relationship posture: companion'
         initiativeStyle: 'Initiative style: {value}'
@@ -111,7 +171,7 @@ dialogs:
           hold: Hold
           lightProbe: Light probe
           directApproach: Direct approach
-        complete: Confirm and birth her
+        complete: Confirm and continue
     permissions:
       title: Notifications
       description: You can allow notifications now or continue and set it up later.
@@ -356,15 +416,14 @@ pages:
     title: Alicization Card
     try_different_search: Try a different search term
     upload: Upload
+    import_error: Could not import this card. Choose a valid character card JSON file and retry.
     upload_desc: Click or drag file to upload
     alicization:
       title: Alicization Hub
       inactive_hint: Activate this Alicization card before editing its persona and memory.
       desktop_only: Alicization panel is only available on desktop.
       architecture_boundary: >-
-        Architecture boundary: the card page only manages card shell and module
-        bindings; persona, memory, and execution fuse are edited in the
-        Alicization Hub.
+        Use a card's edit button to change model bindings, personality, and sleep state.
       runtime:
         title: Executor Kill Switch
         kill_switch:
@@ -594,6 +653,7 @@ pages:
       confirm_tombstone_title: Delete and block this memory?
       confirm_tombstone_description: 'She will stop recalling this memory, and it will not enter persona training. Current content: {summary}'
       states:
+        empty_persona_source_revoke_intents: There are no pending persona source withdrawal tasks.
         empty_working: No working memory snapshot yet. Send one dialogue turn and refresh.
         loading_long_term: Loading long-term memory...
         loading_tombstones: Loading recycle bin...
@@ -850,8 +910,6 @@ pages:
         persona_training_max_seq_length: Maximum Sequence Length
         persona_training_seed: Random Seed
         persona_training_mask_prompt: Mask prompt tokens
-      options:
-        persona_training_external: External Protocol Wrapper
         persona_training_runs: Persona Training Runs
         persona_training_runs_description: Training runs asynchronously. Status, progress, cancellation, and errors come from the local database.
         persona_training_stage: Stage
@@ -955,12 +1013,13 @@ pages:
         quality_findings: Quality Findings
         recommended_actions: Recommended Actions
         recall_reasons: Recall Reasons
-        rank_reasons: Ranking Reasons
         query_matches: Query Matches
         provenance: Provenance
         expected_ids: Expected IDs
         surfaced_ids: Surfaced IDs
         wrong_thread_ids: Wrong Thread IDs
+      options:
+        persona_training_external: External Protocol Wrapper
       skills:
         title: Skills & Capabilities
         description: Inspect discovered Skill versions and control which ones enter the production tool registry.
@@ -1496,6 +1555,10 @@ pages:
           MCP servers restarted. Started {started}, failed {failed}, skipped
           {skipped}
   providers:
+    categories:
+      chat: Dialogue models
+      speech: Speech synthesis
+      transcription: Speech recognition
     catalog_v2:
       title: Provider Catalog
       search_configured: Search configured...
@@ -1742,6 +1805,14 @@ pages:
         title: ElevenLabs
       kokoro-local:
         description: Local text-to-speech using Kokoro-82M.
+        loading:
+          description: The first load downloads and caches model files on this device. Select a model, then load it.
+          start: Load voice model
+          busy: Loading model…
+          retry: Retry loading
+          progress: 'Current file progress: {percent}%'
+          failed: Model loading failed. Check your connection and retry, or choose another speech provider.
+          details: View technical details
         fields:
           field:
             model:
@@ -2804,3 +2875,165 @@ wip:
   description: >-
     This feature is currently under development and not yet publicly available.
     Check back in future updates for this functionality.
+
+life:
+  personal_choices: Things she wants to try
+  personal_choices_description: These are present ideas. A piece becomes an experience only after it is actually completed and verified.
+  withdraw_choice: Withdraw this idea
+  personal_projects: Her shared pieces
+  project_feedback_positive: I like this piece
+  project_feedback_dismiss: Pause this kind of creation
+  project_feedback_received: Your feedback will guide her next creative activity.
+  project_feedback_unpresented: Ask her to show this piece in the conversation before leaving feedback.
+  host_requested_quiet: Ordinary initiative is paused at your request until you speak to her again. Explicitly agreed reminders remain available.
+  activity:
+    rest: Taking a little rest
+    stretch: Stretching a little
+    personal_working: Doing something of my own
+    personal_finished: Finished that little activity
+    orienting: Finding where to begin
+    working: Working on this
+    verifying: Checking the result
+    blocked: Something needs attention first
+    finished: Result verified
+    interrupted: Stopped
+    failed: Could not finish this time
+  backup:
+    recovery_title: Restore did not complete
+    recovery_message: Restore encountered a problem. Exit to retry, or cancel restore and continue with the original data. Both copies will be preserved.
+    recovery_quit: Exit and keep restore pending
+    recovery_original: Cancel restore and use original data
+    title: Local backup and restore
+    description: Save a consistent personality and memory snapshot. Restoring restarts the app, preserves the current data, and pauses activity until task results are checked.
+    create: Create backup
+    list: View backups
+    restore: Restore this backup
+    restarting: Backup verified. Restarting to restore.
+    restored: Personality and memory restored. Previous data is preserved and automatic activity is paused. Check actual task results before resuming. Completed actions will not be replayed automatically.
+    confirm_title: Restore local backup
+    confirm_message: Restore the personality and memory in this backup?
+    confirm_detail: The app will restart. Current data is preserved and execution and reminder records retain their current state. Automatic activity pauses and uncertain actions require result verification.
+    cancel: Cancel
+    confirm: Restore and restart
+  withdrawn_documents: Activity documents with withdrawn sources
+  restore_artifact: Verify and restore document
+  artifact_restored: The document was restored. Its source memory and original activity remain withdrawn.
+  artifact_restore_held: Restoration needs verification. Existing files are preserved.
+  persona_revisions: Persona growth candidates
+  persona_revision_description: Compare actual baseline and candidate responses for identity, truthfulness, companionship, and agency. Evaluations use cleaned, permitted examples. Review the results before adopting a revision.
+  inspect_persona: Inspect revision and paired responses
+  persona_baseline: Baseline persona
+  persona_candidate: Candidate persona
+  persona_invariants: Continuity checks
+  persona_passed: Passed
+  persona_failed: Failed
+  evaluate_persona: Generate paired evaluation
+  approve_persona: I reviewed and accept these results
+  reject_persona: Reject these results
+  adopt_persona: Adopt this persona revision
+  rollback_persona: Restore the previous persona
+  native_visible: Desktop window visible
+  nodes:
+    N00: Inputs and events
+    N01: Current state
+    N02: Attention and decisions
+    N03: Memory retrieval
+    N04: Cognition and facts
+    N05: Emotion and relationships
+    N06: Goals and commitments
+    N07: Initiative and internal activities
+    N08: Dialogue generation
+    N09: State commits
+    N10: Tool execution
+    N11: Outcome verification
+    N12: Body and expression
+    N13: Presentation receipts
+    N14: Memory consolidation
+    N15: Learning and growth
+    N16: Recovery and continuity
+    N17: User governance
+  held_inputs: Interrupted requests
+  held_inputs_description: Review unfinished operations before resubmitting the original input. Operations with uncertain outcomes require verification first.
+  inspect_input: Review original input
+  copy_input: Copy full text
+  discard_input: Discard pending request
+  input_copied: The full original text was copied for resubmission.
+  input_resume: Continue request
+  evaluate_policy: Compare policies
+  inspect_policy: Inspect baseline and candidate answers
+  adopt_policy: Adopt this evaluated policy
+  input_resumed: Continued as a new request. Previous actions will not be replayed.
+  input_discarded: The pending request was discarded. Its original input remains in conversation history.
+  input_source_unavailable: This older version did not retain the original input; its contents cannot be reliably recovered.
+  input_preview_truncated: Preview is limited to 4000 characters. Copy includes the full text.
+  input_has_attachments: Include the original attachments when resubmitting this request.
+  pixel_state: Rendered pixels
+  pixel_status:
+    visible: Detected
+    invisible: Not visible
+    unknown: Unverified
+  closure_title: Evidence for a conversation
+  closure_description: Inspect adopted state, execution and presentation evidence. Not invoked means this turn did not use that node; it does not certify overall capability completion.
+  closure_turn: Turn identity
+  closure_lookup: Inspect evidence
+  closure_evidence: '{count} references and notes'
+  closure_status:
+    recorded: Evidence recorded
+    adopted: Existing state adopted
+    pending: Pending
+    failed: Not accepted
+    not-invoked: Not invoked in this turn
+    unverified: Unverified
+  initiative_preferences: Initiative rhythm
+  initiative_description: These limits apply to ordinary initiative. Explicit reminders have independent delivery rules.
+  maximum_per_day: Maximum per day (0 pauses initiative)
+  minimum_interval: Minimum interval (minutes)
+  quiet_start: Quiet hours start
+  quiet_end: Quiet hours end
+  quiet_enabled: Quiet hours enabled
+  quiet_disabled: Quiet hours disabled
+  save_preferences: Save rhythm
+  manage_memory: Correct or forget memories
+  manage_personality: Personality and initiative settings
+  growth: Growth history
+  rollback: Revoke this change
+  source_withdrawn: Source withdrawn
+  source_count: '{count} supporting sources'
+  sources: Sources and verification
+  growth_consumed: A recent production dialogue adopted this change.
+  expression_health: Body and expression status
+  renderer_state: Renderer state
+  canvas_present: Canvas connected
+  expression_result: Latest presentation result
+  growth_status:
+    shadow: Awaiting evidence and evaluation
+    active: Active
+    rejected: Evaluation rejected
+    rolled-back: Revoked
+  title: Life and commitments
+  description: Review her responsibilities, execution progress, and results awaiting confirmation.
+  refresh: Refresh
+  responsibilities: Active commitments
+  empty: There are no pending commitments.
+  cancel: Cancel
+  reschedule: Reschedule
+  invalid_time: Choose an exact future time.
+  verify: Verify result
+  report_completed: I confirm the goal was achieved
+  awaiting_proof: Execution or generation ended; actual result or delivery proof is still required.
+  history: Recent fulfilled and cancelled commitments
+  diagnostics: Continuity diagnostics
+  revision: Committed life revision
+  uncertain: Operations awaiting verification
+  input_pending: Unsettled inputs
+  status:
+    proposed: Awaiting confirmation
+    accepted: Accepted
+    waiting: Waiting
+    in-progress: In progress
+    verifying: Awaiting proof
+    fulfilled: Fulfilled
+    blocked: Needs attention
+    failed: Incomplete
+    cancelled: Cancelled
+    superseded: Superseded

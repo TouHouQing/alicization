@@ -81,6 +81,7 @@ describe('execution delivery surface', () => {
           status: 'succeeded',
           summary: '构建完成',
           result: {
+            goalVerification: null,
             goal: '构建应用',
             outcome: 'exitCode=0',
           },

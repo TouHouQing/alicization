@@ -225,4 +225,59 @@ describe('airi-card store display model bindings', () => {
     expect(useSettingsStageModel().stageModelSelected).toBe('preset-vrm-1')
     expect(stageModelState.updateCalls.at(-1)).toBe('preset-vrm-1')
   })
+
+  it('persists current body and voice selections so another renderer restores the same bindings', async () => {
+    storageState.cards = new Map([['default', createCard({ displayModelId: 'preset-live2d-1' })]])
+    const store = useAiriCardStore()
+    await flushStoreSync()
+    useSettingsStageModel().stageModelSelected = 'preset-vrm-1'
+    const speech = useSpeechStore()
+    speech.activeSpeechProvider = 'selected-provider'
+    speech.activeSpeechModel = 'selected-model'
+    speech.activeSpeechVoiceId = 'selected-voice'
+    await flushStoreSync()
+    expect(store.getCard('default')?.extensions.airi.modules).toMatchObject({
+      displayModel: { modelId: 'preset-vrm-1' },
+      speech: { provider: 'selected-provider', model: 'selected-model', voice_id: 'selected-voice' },
+    })
+    // A separate Pinia instance reads the saved card, as a settings window does.
+    storageState.cards = cloneValue(store.cards)
+    setActivePinia(createPinia())
+    useAiriCardStore()
+    await flushStoreSync()
+    expect(useSettingsStageModel().stageModelSelected).toBe('preset-vrm-1')
+    expect(useSpeechStore().activeSpeechProvider).toBe('selected-provider')
+    expect(useSpeechStore().activeSpeechVoiceId).toBe('selected-voice')
+  })
+
+  it('keeps an explicitly empty stage selection disabled instead of restoring the saved body', async () => {
+    storageState.cards = new Map([['default', createCard({ displayModelId: 'preset-vrm-1' })]])
+    const store = useAiriCardStore()
+    await flushStoreSync()
+    useSettingsStageModel().stageModelSelected = ''
+    await flushStoreSync()
+    expect(useSettingsStageModel().stageModelSelected).toBe('')
+    expect(store.getCard('default')?.extensions.airi.modules.displayModel.modelId).toBe('preset-vrm-1')
+  })
+
+  it('does not write the previous body or voice into a newly selected card while applying its bindings', async () => {
+    storageState.activeCardId = 'card-a'
+    storageState.cards = new Map([
+      ['card-a', createCard({ displayModelId: 'preset-live2d-2', speechProvider: 'provider-a', speechModel: 'model-a', speechVoiceId: 'voice-a' })],
+      ['card-b', createCard({ displayModelId: 'preset-vrm-1', speechProvider: 'provider-b', speechModel: 'model-b', speechVoiceId: 'voice-b' })],
+    ])
+    const store = useAiriCardStore()
+    await flushStoreSync()
+    const before = cloneValue([...store.cards])
+    store.activeCardId = 'card-b'
+    await flushStoreSync()
+    expect([...store.cards]).toEqual(before)
+    expect(useSettingsStageModel().stageModelSelected).toBe('preset-vrm-1')
+    expect(useSpeechStore().activeSpeechProvider).toBe('provider-b')
+    expect(useSpeechStore().activeSpeechVoiceId).toBe('voice-b')
+    store.activeCardId = 'card-a'
+    await flushStoreSync()
+    expect([...store.cards]).toEqual(before)
+    expect(useSpeechStore().activeSpeechVoiceId).toBe('voice-a')
+  })
 })

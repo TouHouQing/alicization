@@ -11,6 +11,7 @@ describe('runtime proactive feedback', () => {
     const persistOutcomeClosure = vi.fn(async () => {})
     const queueSubconsciousWake = vi.fn()
     const runtime = createAlicizationRuntimeProactiveFeedback({
+      listPresentedTurnIds: async (_cardId, ids) => new Set(ids),
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
       ensureProactiveLoopState: async () => ({
         globalCooldownUntil: 0,
@@ -77,6 +78,7 @@ describe('runtime proactive feedback', () => {
     const persistProactiveLoopState = vi.fn(async (_cardId, state) => state)
     const applyCurrentCardProactiveState = vi.fn(async () => {})
     const runtime = createAlicizationRuntimeProactiveFeedback({
+      listPresentedTurnIds: async (_cardId, ids) => new Set(ids),
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
       ensureProactiveLoopState: async () => ({
         globalCooldownUntil: 0,
@@ -138,6 +140,7 @@ describe('runtime proactive feedback', () => {
     const persistProactiveLoopState = vi.fn(async (_cardId, state) => state)
     const buildProactiveFeedbackOutcomeClosure = vi.fn(input => input as any)
     const runtime = createAlicizationRuntimeProactiveFeedback({
+      listPresentedTurnIds: async (_cardId, ids) => new Set(ids),
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
       ensureProactiveLoopState: async () => ({
         globalCooldownUntil: 0,
@@ -249,6 +252,7 @@ describe('runtime proactive feedback', () => {
     const persistProactiveLoopState = vi.fn(async (_cardId, state) => state)
     const buildProactiveFeedbackOutcomeClosure = vi.fn(input => input as any)
     const runtime = createAlicizationRuntimeProactiveFeedback({
+      listPresentedTurnIds: async (_cardId, ids) => new Set(ids),
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
       ensureProactiveLoopState: async () => ({
         globalCooldownUntil: 0,

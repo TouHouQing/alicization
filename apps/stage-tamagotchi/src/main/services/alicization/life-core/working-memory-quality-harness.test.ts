@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-
 import type { WorkingMemorySnapshot } from './working-memory'
+
+import { describe, expect, it } from 'vitest'
 
 import { createEmptyWorkingMemorySnapshot } from './working-memory'
 import { runWorkingMemoryQualityHarnessFixture } from './working-memory-quality-harness'

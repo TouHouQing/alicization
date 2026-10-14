@@ -9,7 +9,7 @@ import type {
 } from '@intlify/core'
 
 import { useLogg } from '@guiiai/logg'
-import { createCoreContext, translate } from '@intlify/core'
+import { compile, createCoreContext, resolveValue, translate } from '@intlify/core'
 import { effect, signal } from 'alien-signals'
 import { isString } from 'es-toolkit'
 
@@ -141,15 +141,20 @@ export interface I18n<Schema extends Record<string, any> = Record<string, any>> 
 export function createI18n<Schema extends Record<string, any> = Record<string, any>>(options: CoreOptions): I18n<Schema> {
   const log = useLogg('i18n').useGlobalConfig()
 
-  const locale = signal(options.locale)
+  const locale = signal(options.locale ?? 'en')
 
   const context = createCoreContext({
-    fallbackLocale: options.fallbackLocale,
     fallbackWarn: false,
     missingWarn: false,
     warnHtmlMessage: false,
     fallbackFormat: true,
     ...options,
+    locale: options.locale ?? 'en',
+    fallbackLocale: options.fallbackLocale ?? 'en',
+    // NOTICE: The packaged main process tree-shakes Intlify's global registration
+    // side effects. Supply these explicitly so nested tray keys still resolve.
+    messageResolver: options.messageResolver ?? resolveValue,
+    messageCompiler: options.messageCompiler ?? compile,
   })
 
   const t: TranslationFunction<Schema> = (

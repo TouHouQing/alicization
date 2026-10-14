@@ -12,11 +12,12 @@ import type {
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { access, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
-import { basename, dirname, extname } from 'node:path'
-import { kill as killProcess } from 'node:process'
+import { basename, dirname, extname, isAbsolute } from 'node:path'
+import { kill as killProcess, platform } from 'node:process'
 
 import { errorMessageFrom } from '@moeru/std'
 
+import { readPersonaProcessIdentity as readProcessIdentity } from './persona-process-identity'
 import { findAvailablePersonaRuntimePort } from './persona-runtime-common'
 
 const defaultHost = '127.0.0.1'
@@ -60,7 +61,7 @@ function normalizeText(value: unknown, label: string, maxLength: number) {
 
 function normalizeAbsolutePath(value: unknown, label: string) {
   const normalized = normalizeText(value, label, 4_096)
-  if (!normalized.startsWith('/'))
+  if (!isAbsolute(normalized))
     throw new Error(`${label} must be an absolute path`)
   return normalized
 }
@@ -231,52 +232,17 @@ function isLlamaCppPersonaRuntimeProcessState(
     && Number.isFinite(state.updatedAt)
 }
 
-async function readProcessIdentity(pid: number) {
-  const processInspector = spawn('ps', [
-    'e',
-    '-p',
-    String(pid),
-    '-o',
-    'lstart=',
-    '-o',
-    'command=',
-  ], {
-    stdio: ['ignore', 'pipe', 'ignore'],
-  })
-  let output = ''
-  processInspector.stdout?.on('data', (chunk) => {
-    output += String(chunk)
-  })
-  return await new Promise<{ startedAt: string, command: string } | null>((resolve, reject) => {
-    processInspector.once('error', reject)
-    processInspector.once('close', (code) => {
-      if (code !== 0)
-        return resolve(null)
-      const normalized = output.trim()
-      if (!normalized)
-        return resolve(null)
-      const match = normalized.match(/^(.{24})\s+(.+)$/)
-      if (!match)
-        return resolve(null)
-      resolve({
-        startedAt: match[1]!.trim(),
-        command: match[2]!.trim(),
-      })
-    })
-  })
-}
-
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function commandContainsToken(command: string, value: string) {
-  return new RegExp(`(?:^|\\s)${escapeRegExp(value)}(?=\\s|$)`).test(command)
+  return new RegExp(`(?:^|[\\s"])${escapeRegExp(value)}(?=[\\s"]|$)`).test(command)
 }
 
 function commandContainsOption(command: string, option: string, value: string) {
   return new RegExp(
-    `(?:^|\\s)${escapeRegExp(option)}(?:\\s+|=)${escapeRegExp(value)}(?=\\s|$)`,
+    `(?:^|[\\s"])${escapeRegExp(option)}(?:\\s+|=)"?${escapeRegExp(value)}(?=[\\s"]|$)`,
   ).test(command)
 }
 
@@ -294,11 +260,7 @@ function processCommandMatchesState(
     && commandContainsOption(command, '--port', String(state.port))
     && commandContainsOption(command, '--alias', state.modelAlias)
     && commandContainsOption(command, '--lora', state.artifactPath)
-    && commandContainsEnvironment(
-      command,
-      'ALICIZATION_PERSONA_RUNTIME_INSTANCE_ID',
-      state.instanceId,
-    )
+    && (platform === 'win32' ? command.includes(`--alicization-instance=${state.instanceId}`) : commandContainsEnvironment(command, 'ALICIZATION_PERSONA_RUNTIME_INSTANCE_ID', state.instanceId))
 }
 
 function signalProcessByPid(pid: number, signal: NodeJS.Signals) {

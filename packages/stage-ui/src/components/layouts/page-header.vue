@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useMotion } from '@vueuse/motion'
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 const props = withDefaults(defineProps<{
@@ -15,6 +16,17 @@ const props = withDefaults(defineProps<{
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
+
+function goBack() {
+  if (router.options.history.state.back) {
+    router.back()
+    return
+  }
+  // A settings window can be opened directly from onboarding or the tray.
+  const parent = route.path.slice(0, route.path.lastIndexOf('/')) || '/'
+  void router.push(router.resolve(parent).matched.length ? parent : '/settings')
+}
 
 const pageHeaderRef = ref<HTMLElement>()
 const title = ref(props.title)
@@ -63,18 +75,16 @@ watch([() => props.title, () => props.subtitle, route], async () => {
     flex="~ row items-center gap-2"
     bg="$bg-color"
   >
-    <button @click="router.back()">
+    <button v-if="showBackButton && !finalizedDisableBackButton" type="button" :aria-label="t('settings.common.back')" @click="goBack">
       <div
-        v-if="!finalizedDisableBackButton"
         i-solar:alt-arrow-left-line-duotone text-2xl
-        :class="{ 'pointer-events-none op-0': !showBackButton }"
       />
     </button>
-    <h1 relative>
-      <div v-if="subtitle" absolute left-0 top-0 translate-y="[-80%]">
-        <span text="neutral-300 dark:neutral-500" text-nowrap>{{ subtitle }}</span>
+    <h1 relative min-w-0 flex-1>
+      <div v-if="subtitle" absolute left-0 top-0 max-w-full truncate translate-y="[-80%]">
+        <span text="neutral-300 dark:neutral-500">{{ subtitle }}</span>
       </div>
-      <div text-nowrap text-3xl font-normal>
+      <div class="break-words" text-3xl font-normal>
         {{ title }}
       </div>
     </h1>

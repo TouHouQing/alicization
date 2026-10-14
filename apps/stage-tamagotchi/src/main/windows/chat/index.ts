@@ -19,6 +19,7 @@ export function setupChatWindowReusableFunc(params: {
   serverChannel: ServerChannel
   mcpStdioManager: McpStdioManager
   i18n: I18n
+  onWindowCreated?: (window: BrowserWindow) => void
 }) {
   return createReusableWindow(async () => {
     const window = new BrowserWindow({
@@ -32,6 +33,7 @@ export function setupChatWindowReusableFunc(params: {
         sandbox: false,
       },
     })
+    params.onWindowCreated?.(window)
     promoteUtilityWindowAboveStage(window)
 
     window.on('ready-to-show', () => window.show())

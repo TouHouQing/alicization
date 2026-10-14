@@ -40,8 +40,17 @@ export function useElectronMouseInElement(
       return
 
     const el = unrefElement(targetRef)
-    if (!el || !(el instanceof Element))
+    if (!el || !(el instanceof Element) || !isReady.value) {
+      // NOTICE: An unmounted overlay must release its previous hit region immediately.
+      isOutside.value = true
+      elementX.value = 0
+      elementY.value = 0
+      elementPositionX.value = 0
+      elementPositionY.value = 0
+      elementHeight.value = 0
+      elementWidth.value = 0
       return
+    }
 
     const {
       left,
@@ -88,7 +97,7 @@ export function useElectronMouseInElement(
     })
 
     const stopWatch = watch(
-      [targetRef, x, y],
+      [targetRef, x, y, isReady],
       update,
     )
 

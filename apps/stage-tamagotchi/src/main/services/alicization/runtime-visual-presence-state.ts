@@ -2,8 +2,13 @@ import type {
   AlicizationMindHeadKey,
   AlicizationVisualPresenceStateSnapshot,
 } from '../../../shared/eventa'
+import type { LifeCommitInput, LifeCommitReceipt } from '../../../shared/life-contracts'
 import type { AlicizationPerceptionState } from './attention-anchor'
 import type { CardScopeOptions } from './runtime-soul'
+
+import { createHash, randomUUID } from 'node:crypto'
+
+import { lifeEmotionParameterVersion } from './life-appraisal-repository'
 
 interface CreateAlicizationRuntimeVisualPresenceStateOptions {
   now: () => number
@@ -11,6 +16,7 @@ interface CreateAlicizationRuntimeVisualPresenceStateOptions {
   getActiveCardId: () => string
   withCardScope: <T>(nextCardIdRaw: unknown, task: () => Promise<T>, options?: CardScopeOptions) => Promise<T>
   alicizationDb: {
+    commitLifeState: (input: LifeCommitInput, options?: { signal?: AbortSignal }) => Promise<LifeCommitReceipt>
     getMetaValue: (key: string, options?: { signal?: AbortSignal }) => Promise<string | undefined>
     setMetaValue: (key: string, value: string, options?: { signal?: AbortSignal }) => Promise<void>
     upsertMindHead: (cardId: string, key: AlicizationMindHeadKey, value: unknown, options?: { signal?: AbortSignal }) => Promise<void>
@@ -41,10 +47,6 @@ function assertVisualPresencePersistenceNotAborted(signal?: AbortSignal) {
   if (!signal?.aborted)
     return
   throw signal.reason ?? new DOMException('Visual presence persistence was aborted', 'AbortError')
-}
-
-function isAbortError(error: unknown) {
-  return error instanceof Error && error.name === 'AbortError'
 }
 
 function toComparableJsonValue(value: unknown): unknown {
@@ -105,20 +107,14 @@ export function createAlicizationRuntimeVisualPresenceState(
     assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     const cardId = normalizeCardId(cardIdRaw)
     if (cardId === getActiveCardId()) {
-      await alicizationDb.setMetaValue(perceptionMetaKey, JSON.stringify(state), persistOptions).catch((error) => {
-        if (persistOptions.signal?.aborted || isAbortError(error))
-          throw persistOptions.signal?.reason ?? error
-      })
+      await alicizationDb.commitLifeState({ cardId, operationKey: `perception:${randomUUID()}`, changes: [{ owner: 'cognition', key: perceptionMetaKey, value: JSON.stringify(state) }] }, persistOptions)
       assertVisualPresencePersistenceNotAborted(persistOptions.signal)
       perceptionStateByCard.set(cardId, state)
       return
     }
     await withCardScope(cardId, async () => {
       assertVisualPresencePersistenceNotAborted(persistOptions.signal)
-      await alicizationDb.setMetaValue(perceptionMetaKey, JSON.stringify(state), persistOptions).catch((error) => {
-        if (persistOptions.signal?.aborted || isAbortError(error))
-          throw persistOptions.signal?.reason ?? error
-      })
+      await alicizationDb.commitLifeState({ cardId, operationKey: `perception:${randomUUID()}`, changes: [{ owner: 'cognition', key: perceptionMetaKey, value: JSON.stringify(state) }] }, persistOptions)
       assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     }, {
       label: `perception.persist:${cardId}`,
@@ -167,7 +163,7 @@ export function createAlicizationRuntimeVisualPresenceState(
 
     if (cardId !== getActiveCardId()) {
       await withCardScope(cardId, async () => {
-        const raw = await alicizationDb.getMetaValue(perceptionMetaKey, persistOptions).catch(() => undefined)
+        const raw = await alicizationDb.getMetaValue(perceptionMetaKey, persistOptions)
         assertVisualPresencePersistenceNotAborted(persistOptions.signal)
         if (!raw) {
           setState(createDefaultPerceptionState(currentTs))
@@ -176,8 +172,8 @@ export function createAlicizationRuntimeVisualPresenceState(
         try {
           setState(normalizePerceptionState(JSON.parse(raw), currentTs))
         }
-        catch {
-          setState(createDefaultPerceptionState(currentTs))
+        catch (error) {
+          throw new Error('Persisted cognition is invalid; recovery is required', { cause: error })
         }
       }, {
         label: `perception.restore:${cardId}`,
@@ -187,15 +183,15 @@ export function createAlicizationRuntimeVisualPresenceState(
       return perceptionStateByCard.get(cardId) ?? createDefaultPerceptionState(currentTs)
     }
 
-    const raw = await alicizationDb.getMetaValue(perceptionMetaKey, persistOptions).catch(() => undefined)
+    const raw = await alicizationDb.getMetaValue(perceptionMetaKey, persistOptions)
     assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     if (!raw)
       return setState(createDefaultPerceptionState(currentTs))
     try {
       return setState(normalizePerceptionState(JSON.parse(raw), currentTs))
     }
-    catch {
-      return setState(createDefaultPerceptionState(currentTs))
+    catch (error) {
+      throw new Error('Persisted cognition is invalid; recovery is required', { cause: error })
     }
   }
 
@@ -217,46 +213,21 @@ export function createAlicizationRuntimeVisualPresenceState(
     persistOptions: { signal?: AbortSignal } = {},
   ) {
     const cardId = normalizeCardId(cardIdRaw)
-    const task = async () => {
-      const mindHeads: Array<[AlicizationMindHeadKey, unknown]> = [
-        ['autobiographical-self', state.autobiographicalSelf ?? null],
-        ['reflection-ledger', state.reflectionLedger ?? null],
-        ['motive-engine', state.motiveEngine ?? null],
-        ['habit-policy', state.habitPolicy ?? null],
-      ]
-      for (const [key, value] of mindHeads) {
-        assertVisualPresencePersistenceNotAborted(persistOptions.signal)
-        await alicizationDb.upsertMindHead(cardId, key, value, {
-          signal: persistOptions.signal,
-        })
-        assertVisualPresencePersistenceNotAborted(persistOptions.signal)
-      }
-    }
-
-    if (cardId === getActiveCardId()) {
-      try {
-        await task()
-      }
-      catch (error) {
-        if (persistOptions.signal?.aborted || isAbortError(error))
-          throw persistOptions.signal?.reason ?? error
-      }
-      return
-    }
-
-    await withCardScope(cardId, async () => {
-      try {
-        await task()
-      }
-      catch (error) {
-        if (persistOptions.signal?.aborted || isAbortError(error))
-          throw persistOptions.signal?.reason ?? error
-      }
-    }, {
-      label: `mind-heads.persist:${cardId}`,
-    })
+    const commit = () => alicizationDb.commitLifeState({
+      cardId,
+      operationKey: `mind-heads:${randomUUID()}`,
+      changes: [
+        { owner: 'self', key: `mind-head:${cardId}:autobiographical-self`, value: JSON.stringify(state.autobiographicalSelf ?? null) },
+        { owner: 'reflection', key: `mind-head:${cardId}:reflection-ledger`, value: JSON.stringify(state.reflectionLedger ?? null) },
+        { owner: 'motivation', key: `mind-head:${cardId}:motive-engine`, value: JSON.stringify(state.motiveEngine ?? null) },
+        { owner: 'habit', key: `mind-head:${cardId}:habit-policy`, value: JSON.stringify(state.habitPolicy ?? null) },
+      ],
+    }, persistOptions)
+    if (cardId === getActiveCardId())
+      await commit()
+    else
+      await withCardScope(cardId, commit, { label: `mind-heads.persist:${cardId}`, signal: persistOptions.signal })
   }
-
   async function persistVisualPresenceState(
     cardIdRaw: unknown,
     state: AlicizationVisualPresenceStateSnapshot,
@@ -274,51 +245,42 @@ export function createAlicizationRuntimeVisualPresenceState(
     if (previousState && serializeComparableJson(previousState) === nextComparableSerialized) {
       return
     }
-    const fingerprint = persistOptions.fingerprint ?? buildVisualPresenceCapturePersistFingerprint(canonicalState)
-    const debounceWindowMs = Number.isFinite(persistOptions.debounceWindowMs) ? Math.max(0, Math.floor(persistOptions.debounceWindowMs!)) : 0
-    const previousPersistMeta = visualPresenceCapturePersistMetaByCard.get(cardId)
     const currentTs = now()
-    if (
-      debounceWindowMs > 0
-      && previousPersistMeta?.fingerprint === fingerprint
-      && currentTs - previousPersistMeta.persistedAt < debounceWindowMs
-    ) {
-      assertVisualPresencePersistenceNotAborted(persistOptions.signal)
-      visualPresenceStateByCard.set(cardId, canonicalState)
-      return
-    }
-
-    await persistMindHeadsFromVisualState(cardId, canonicalState, {
-      signal: persistOptions.signal,
-    })
-    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
-    if (cardId === getActiveCardId()) {
-      try {
-        await alicizationDb.setMetaValue(visualPresenceMetaKey, nextSerialized, {
-          signal: persistOptions.signal,
-        })
-      }
-      catch (error) {
-        if (persistOptions.signal?.aborted || isAbortError(error))
-          throw persistOptions.signal?.reason ?? error
-      }
-    }
-    else {
-      await withCardScope(cardId, async () => {
-        assertVisualPresencePersistenceNotAborted(persistOptions.signal)
-        try {
-          await alicizationDb.setMetaValue(visualPresenceMetaKey, nextSerialized, {
-            signal: persistOptions.signal,
-          })
+    const emotion = canonicalState.emotionalKernel
+    const transition = canonicalState.derivedMindStateBundle?.emotionalTransitionLedger
+    const appraisal = emotion
+      ? {
+          causeKey: transition ? `transition:${transition.turnId ?? cardId}:${transition.createdAt}` : `projection:${cardId}:${createHash('sha256').update(JSON.stringify(emotion)).digest('hex')}`,
+          turnId: transition?.turnId ?? null,
+          occurredAt: transition?.createdAt ?? currentTs,
+          parameterVersion: lifeEmotionParameterVersion,
+          dimensions: { valence: emotion.valence, arousal: emotion.arousal, guardedness: emotion.guardedness, closenessDrive: emotion.closenessDrive, repairNeed: emotion.repairNeed, initiativePressure: emotion.initiativePressure },
+          snapshot: { ...emotion },
+          baseline: previousState?.emotionalKernel ? { ...previousState.emotionalKernel } : null,
+          evidence: [],
+          relationship: {
+            snapshot: { relationshipModel: canonicalState.relationshipModel ?? null, personStateProjection: canonicalState.personStateProjection ?? null },
+            baseline: previousState ? { relationshipModel: previousState.relationshipModel ?? null, personStateProjection: previousState.personStateProjection ?? null } : null,
+          },
         }
-        catch (error) {
-          if (persistOptions.signal?.aborted || isAbortError(error))
-            throw persistOptions.signal?.reason ?? error
-        }
-      }, {
-        label: `visual-presence.persist:${cardId}`,
-      })
-    }
+      : null
+    const commit = () => alicizationDb.commitLifeState({
+      cardId,
+      operationKey: `mind-state:${randomUUID()}`,
+      source: 'mind-state',
+      mutations: appraisal ? [{ type: 'appraisal-apply', appraisal }] : [],
+      changes: [
+        { owner: 'presence', key: visualPresenceMetaKey, value: nextSerialized },
+        { owner: 'self', key: `mind-head:${cardId}:autobiographical-self`, value: JSON.stringify(canonicalState.autobiographicalSelf ?? null) },
+        { owner: 'reflection', key: `mind-head:${cardId}:reflection-ledger`, value: JSON.stringify(canonicalState.reflectionLedger ?? null) },
+        { owner: 'motivation', key: `mind-head:${cardId}:motive-engine`, value: JSON.stringify(canonicalState.motiveEngine ?? null) },
+        { owner: 'habit', key: `mind-head:${cardId}:habit-policy`, value: JSON.stringify(canonicalState.habitPolicy ?? null) },
+      ],
+    }, { signal: persistOptions.signal })
+    if (cardId === getActiveCardId())
+      await commit()
+    else
+      await withCardScope(cardId, commit, { label: `life-state.persist:${cardId}`, signal: persistOptions.signal })
     assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     visualPresenceStateByCard.set(cardId, canonicalState)
     rememberVisualPresencePersistMeta(cardId, canonicalState, currentTs)
@@ -341,7 +303,7 @@ export function createAlicizationRuntimeVisualPresenceState(
     assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     if (cardId !== getActiveCardId()) {
       await withCardScope(cardId, async () => {
-        const raw = await alicizationDb.getMetaValue(visualPresenceMetaKey).catch(() => undefined)
+        const raw = await alicizationDb.getMetaValue(visualPresenceMetaKey)
         assertVisualPresencePersistenceNotAborted(persistOptions.signal)
         if (!raw) {
           setState(createDefaultVisualPresenceState(currentTs))
@@ -350,8 +312,8 @@ export function createAlicizationRuntimeVisualPresenceState(
         try {
           setState(normalizeVisualPresenceState(JSON.parse(raw), currentTs))
         }
-        catch {
-          setState(createDefaultVisualPresenceState(currentTs))
+        catch (error) {
+          throw new Error('Persisted life state is invalid; recovery is required', { cause: error })
         }
       }, {
         label: `visual-presence.restore:${cardId}`,
@@ -360,15 +322,15 @@ export function createAlicizationRuntimeVisualPresenceState(
       return visualPresenceStateByCard.get(cardId) ?? createDefaultVisualPresenceState(currentTs)
     }
 
-    const raw = await alicizationDb.getMetaValue(visualPresenceMetaKey).catch(() => undefined)
+    const raw = await alicizationDb.getMetaValue(visualPresenceMetaKey)
     assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     if (!raw)
       return setState(createDefaultVisualPresenceState(currentTs))
     try {
       return setState(normalizeVisualPresenceState(JSON.parse(raw), currentTs))
     }
-    catch {
-      return setState(createDefaultVisualPresenceState(currentTs))
+    catch (error) {
+      throw new Error('Persisted life state is invalid; recovery is required', { cause: error })
     }
   }
 

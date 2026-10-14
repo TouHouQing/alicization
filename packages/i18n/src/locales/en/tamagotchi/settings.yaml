@@ -34,6 +34,12 @@ about:
       available_title: Update available
       available_description: 'Version {version} is ready to download. Review the release notes first.'
       no_release_notes: No release notes were provided for this release.
+widgets:
+  empty: This window has no widget yet.
+  empty_help: Widgets she opens during a conversation appear in separate windows.
+  close: Close window
+  loading: Loading widget…
+  waiting: Waiting for widget content…
 hitl:
   actions:
     allow: Allow
@@ -53,7 +59,24 @@ hitl:
     danger: High risk
     safe: Safe
     sensitive: Sensitive
-  title: Safety interception confirmation (HitL)
+  title: Confirm this action
+  details: View action details
+  operations:
+    create: Create a file
+    replace: Replace the contents of an existing file
+    read: Read a file or information
+    write: Write content
+    delete: Delete content
+    execute: Run an action
+    network: Send or retrieve content over the network
+    unknown: Perform this action
+  reasons:
+    read: This read is outside the allowed scope. Confirm to allow this read.
+    write: Check the target and content before allowing this file write.
+    delete: Deletion may be irreversible. Check the target first.
+    execute: This action needs your confirmation before it can run.
+    network: This action involves network communication. Check its details first.
+    unknown: The scope of this action is unclear. Check its details first.
 pages:
   modules:
     mcp-server:

@@ -189,7 +189,7 @@ export function buildVrmExecutionDiagnosticsSnapshot(input: {
   const currentEmotionResolvedExpressionNames = normalizeResolvedExpressionNames(input.currentEmotionResolvedExpressionNames)
   const currentFacialCue = normalizeText(input.currentFacialCue)
   const currentMotionCue = normalizeText(input.currentMotion?.cue)
-  const currentMotionSegmentId = normalizeText(input.currentMotion?.segmentId) || segmentId
+  const currentMotionSegmentId = input.currentMotion && 'segmentId' in input.currentMotion ? normalizeText(input.currentMotion.segmentId) : segmentId
   const currentLipSync = input.currentLipSync
   const speechVoicePhase = normalizeText(
     input.speechRenderState?.playbackPhase

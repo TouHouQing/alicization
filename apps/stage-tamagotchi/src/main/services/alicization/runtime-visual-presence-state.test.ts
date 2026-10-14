@@ -1,9 +1,32 @@
-import type { AlicizationVisualPresenceStateSnapshot } from '../../../shared/eventa'
+import type { AlicizationMindHeadKey, AlicizationVisualPresenceStateSnapshot } from '../../../shared/eventa'
+import type { LifeCommitInput } from '../../../shared/life-contracts'
 
 import { describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationBodyKernel } from './body-kernel'
 import { createAlicizationRuntimeVisualPresenceState } from './runtime-visual-presence-state'
+
+function withAtomicLifeDb(db: {
+  getMetaValue: (key: string) => Promise<string | undefined>
+  setMetaValue: (key: string, value: string, options?: { signal?: AbortSignal }) => Promise<void>
+  upsertMindHead: (cardId: string, key: AlicizationMindHeadKey, value: unknown, options?: { signal?: AbortSignal }) => Promise<void>
+}) {
+  return {
+    ...db,
+    commitLifeState: async (input: LifeCommitInput, options?: { signal?: AbortSignal }) => {
+      for (const change of input.changes.filter(change => change.key.startsWith('mind-head:'))) {
+        if (options?.signal?.aborted)
+          throw options.signal.reason
+        await db.upsertMindHead(input.cardId, change.key.split(':').at(-1) as AlicizationMindHeadKey, JSON.parse(change.value), options)
+      }
+      if (options?.signal?.aborted)
+        throw options.signal.reason
+      for (const change of input.changes.filter(change => !change.key.startsWith('mind-head:')))
+        await db.setMetaValue(change.key, change.value, options)
+      return { status: 'committed' as const, cardId: input.cardId, commitId: 'test', revision: 1, owners: [], committedAt: 5000 }
+    },
+  }
+}
 
 function createVisualPresenceState(updatedAt: number): AlicizationVisualPresenceStateSnapshot {
   return {
@@ -300,13 +323,13 @@ describe('runtime visual presence state', () => {
       normalizeCardId: raw => String(raw ?? '').trim() || 'default',
       getActiveCardId: () => 'default',
       withCardScope: async (_cardId, task) => await task(),
-      alicizationDb: {
+      alicizationDb: withAtomicLifeDb({
         getMetaValue: async key => meta.get(key),
         setMetaValue: async (key, value) => {
           meta.set(key, value)
         },
         upsertMindHead,
-      },
+      }),
       perceptionStateByCard: new Map(),
       visualPresenceStateByCard: new Map(),
       visualPresenceCapturePersistMetaByCard: new Map(),
@@ -348,11 +371,11 @@ describe('runtime visual presence state', () => {
       normalizeCardId: raw => String(raw ?? '').trim() || 'default',
       getActiveCardId: () => 'default',
       withCardScope: async (_cardId, task) => await task(),
-      alicizationDb: {
+      alicizationDb: withAtomicLifeDb({
         getMetaValue: async () => undefined,
         setMetaValue,
         upsertMindHead,
-      },
+      }),
       perceptionStateByCard: new Map(),
       visualPresenceStateByCard,
       visualPresenceCapturePersistMetaByCard: new Map(),
@@ -399,13 +422,13 @@ describe('runtime visual presence state', () => {
       normalizeCardId: raw => String(raw ?? '').trim() || 'default',
       getActiveCardId: () => 'default',
       withCardScope: async (_cardId, task) => await task(),
-      alicizationDb: {
+      alicizationDb: withAtomicLifeDb({
         getMetaValue: async key => meta.get(key),
         setMetaValue: async (key, value) => {
           meta.set(key, value)
         },
         upsertMindHead,
-      },
+      }),
       perceptionStateByCard: new Map(),
       visualPresenceStateByCard: new Map(),
       visualPresenceCapturePersistMetaByCard: new Map(),
@@ -534,11 +557,11 @@ describe('runtime visual presence state', () => {
       normalizeCardId: raw => String(raw ?? '').trim() || 'default',
       getActiveCardId: () => 'default',
       withCardScope: async (_cardId, task) => await task(),
-      alicizationDb: {
+      alicizationDb: withAtomicLifeDb({
         getMetaValue: async key => meta.get(key),
         setMetaValue,
         upsertMindHead,
-      },
+      }),
       perceptionStateByCard: new Map(),
       visualPresenceStateByCard: new Map(),
       visualPresenceCapturePersistMetaByCard: new Map(),
@@ -572,11 +595,11 @@ describe('runtime visual presence state', () => {
       normalizeCardId: raw => String(raw ?? '').trim() || 'default',
       getActiveCardId: () => 'default',
       withCardScope: async (_cardId, task) => await task(),
-      alicizationDb: {
+      alicizationDb: withAtomicLifeDb({
         getMetaValue: async key => meta.get(key),
         setMetaValue,
         upsertMindHead: async () => {},
-      },
+      }),
       perceptionStateByCard: new Map(),
       visualPresenceStateByCard: new Map(),
       visualPresenceCapturePersistMetaByCard: new Map(),
@@ -631,14 +654,14 @@ describe('runtime visual presence state', () => {
       normalizeCardId: raw => String(raw ?? '').trim() || 'default',
       getActiveCardId: () => 'default',
       withCardScope: async (_cardId, task) => await task(),
-      alicizationDb: {
+      alicizationDb: withAtomicLifeDb({
         getMetaValue: async () => {
           await pendingRead
           return JSON.stringify(createVisualPresenceState(8_000))
         },
         setMetaValue: async () => {},
         upsertMindHead: async () => {},
-      },
+      }),
       perceptionStateByCard: new Map(),
       visualPresenceStateByCard,
       visualPresenceCapturePersistMetaByCard,
@@ -685,11 +708,11 @@ describe('runtime visual presence state', () => {
           activeScope = previous
         }
       },
-      alicizationDb: {
+      alicizationDb: withAtomicLifeDb({
         getMetaValue: async key => scopedMeta.get(activeScope)?.get(key),
         setMetaValue: async () => {},
         upsertMindHead: async () => {},
-      },
+      }),
       perceptionStateByCard: new Map(),
       visualPresenceStateByCard: new Map(),
       visualPresenceCapturePersistMetaByCard: new Map(),
@@ -723,7 +746,7 @@ describe('runtime visual presence state', () => {
       normalizeCardId: raw => String(raw ?? '').trim() || 'default',
       getActiveCardId: () => 'default',
       withCardScope: async (_cardId, task) => await task(),
-      alicizationDb: {
+      alicizationDb: withAtomicLifeDb({
         getMetaValue: async key => meta.get(key),
         setMetaValue: async (key, value) => {
           persistCallCount += 1
@@ -732,7 +755,7 @@ describe('runtime visual presence state', () => {
           meta.set(key, value)
         },
         upsertMindHead: async () => {},
-      },
+      }),
       perceptionStateByCard: new Map(),
       visualPresenceStateByCard: new Map(),
       visualPresenceCapturePersistMetaByCard: new Map(),

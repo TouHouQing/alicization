@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-04",
+  "localProjectCommit": "7880afc29ab33a4cf4de89f7a6610664278494c3",
+  "localProjectHasExistingUncommittedFixes": true,
+  "commercialProductHandsOnTrials": false,
+  "clonedRepositories": [
+    {
+      "name": "Open-LLM-VTuber",
+      "repository": "https://github.com/Open-LLM-VTuber/Open-LLM-VTuber",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\Open-LLM-VTuber",
+      "commit": "992309c0aa19845960228f880013d4685fde93b5",
+      "commitDate": "2026-05-15",
+      "analysis": "Static source inspection; dependencies not installed; project not executed",
+      "inspectedFiles": [
+        "src/open_llm_vtuber/agent/agents/basic_memory_agent.py",
+        "src/open_llm_vtuber/agent/agents/letta_agent.py",
+        "src/open_llm_vtuber/conversations/single_conversation.py"
+      ],
+      "licenseNote": "MIT backend; frontend and model assets require separate inspection"
+    },
+    {
+      "name": "graphiti",
+      "repository": "https://github.com/getzep/graphiti",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\graphiti",
+      "commit": "3c427640abf909f12f71f963fce15eb514a3c493",
+      "commitDate": "2026-09-30",
+      "analysis": "Static source inspection; dependencies not installed; project not executed",
+      "inspectedFiles": [
+        "graphiti_core/edges.py",
+        "graphiti_core/utils/maintenance/edge_operations.py"
+      ],
+      "licenseNote": "Apache-2.0"
+    },
+    {
+      "name": "generative_agents",
+      "repository": "https://github.com/joonspk-research/generative_agents",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\generative_agents",
+      "commit": "fe05a71d3e4ed7d10bf68aa4eda6dd995ec070f4",
+      "commitDate": "2023-08-11",
+      "analysis": "Static source inspection; dependencies not installed; project not executed",
+      "inspectedFiles": [
+        "reverie/backend_server/persona/cognitive_modules/retrieve.py",
+        "reverie/backend_server/persona/cognitive_modules/reflect.py"
+      ],
+      "licenseNote": "Apache-2.0"
+    },
+    {
+      "name": "letta-code",
+      "repository": "https://github.com/letta-ai/letta-code",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\letta-code",
+      "commit": "bc4b97c3185302890cfb511c6d1e49f49fc5300c",
+      "commitDate": "2026-10-03",
+      "analysis": "Static source inspection; dependencies not installed; project not executed",
+      "inspectedFiles": [
+        "README.md",
+        "src/agent/memory-filesystem.ts",
+        "src/agent/memory-git.ts",
+        "src/agent/memory-constraints.ts",
+        "src/memory-confinement.ts"
+      ],
+      "licenseNote": "Apache-2.0"
+    },
+    {
+      "name": "letta",
+      "repository": "https://github.com/letta-ai/letta",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\letta",
+      "commit": "5bcdd177d70fa2b31a754cfcd801e77b2e1ab16a",
+      "commitDate": "2026-09-10",
+      "analysis": "Static source inspection; dependencies not installed; project not executed",
+      "inspectedFiles": [
+        "README.md"
+      ],
+      "licenseNote": "Migration pointer; historical server not analyzed as current implementation"
+    }
+  ],
+  "comparativeProjectCount": 14,
+  "report": "2026-10-04-digital-life-closed-loop-research.md"
+}

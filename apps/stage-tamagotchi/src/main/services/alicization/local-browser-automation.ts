@@ -1,5 +1,8 @@
 import type { AlicizationChannelCapability } from '@proj-alicization/stage-shared'
 
+import type { createLifeWindowsBrowserRuntime } from './life-windows-browser-runtime'
+import type { createLifeWindowsDesktopRuntime } from './life-windows-desktop-runtime'
+
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { platform } from 'node:process'
@@ -43,6 +46,7 @@ export interface AlicizationLocalBrowserSearchWebInput {
 }
 
 export interface AlicizationLocalBrowserReadPageInput {
+  expectedText?: string
   abortSignal?: AbortSignal
   browser?: string
   format?: string
@@ -124,12 +128,14 @@ export interface AlicizationLocalBrowserWaitInput {
 }
 
 export interface AlicizationLocalDesktopListInteractablesInput {
+  windowTitle?: string
   abortSignal?: AbortSignal
   maxItems?: number
   role?: string
 }
 
 export interface AlicizationLocalDesktopClickElementInput {
+  windowTitle?: string
   abortSignal?: AbortSignal
   autoContinueSuggestedActions?: boolean
   exactText?: boolean
@@ -144,6 +150,7 @@ export interface AlicizationLocalDesktopClickElementInput {
 }
 
 export interface AlicizationLocalDesktopTypeTextInput {
+  windowTitle?: string
   abortSignal?: AbortSignal
   autoContinueSuggestedActions?: boolean
   clearExisting?: boolean
@@ -197,6 +204,8 @@ type AlicizationSupportedBrowser = Exclude<AlicizationLocalBrowser, 'default'>
 
 interface AlicizationLocalBrowserAutomationServiceOptions {
   errorMessageFrom: (error: unknown) => string | null | undefined
+  windowsBrowser?: ReturnType<typeof createLifeWindowsBrowserRuntime>
+  windowsDesktop?: ReturnType<typeof createLifeWindowsDesktopRuntime>
 }
 
 const localBrowserCapabilityChannels = ['browser', 'software', 'desktop'] as const
@@ -636,6 +645,8 @@ export function createAlicizationLocalBrowserAutomationService(
       : null
     const url = requestedUrl || resolvedSite?.url || 'about:blank'
     const browser = normalizeBrowserToolResultBrowser(input.browser)
+    if (platform === 'win32' && options.windowsBrowser)
+      return options.windowsBrowser.openUrl({ ...input, url })
     if (platform !== 'darwin')
       return buildUnsupportedPlatformResult('browser_open_url')
 
@@ -792,6 +803,8 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function readPage(input: AlicizationLocalBrowserReadPageInput) {
+    if (platform === 'win32' && options.windowsBrowser)
+      return options.windowsBrowser.readPage(input)
     if (platform !== 'darwin')
       return buildUnsupportedPlatformResult('browser_read_page')
 
@@ -907,6 +920,8 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function clickElement(input: AlicizationLocalBrowserClickElementInput) {
+    if (platform === 'win32' && options.windowsBrowser)
+      return options.windowsBrowser.clickElement(input)
     const selector = sanitizeText(input.selector)
     const text = sanitizeText(input.text)
     const exactText = input.exactText === true
@@ -1071,6 +1086,8 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function typeBrowserText(input: AlicizationLocalBrowserTypeTextInput) {
+    if (platform === 'win32' && options.windowsBrowser)
+      return options.windowsBrowser.typeBrowserText(input)
     const text = sanitizeText(input.text)
     const selector = sanitizeText(input.selector)
     const targetText = sanitizeText(input.targetText)
@@ -1335,6 +1352,8 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function navigateBrowser(input: AlicizationLocalBrowserNavigateInput) {
+    if (platform === 'win32' && options.windowsBrowser)
+      return options.windowsBrowser.navigateBrowser(input)
     const action = normalizeBrowserNavigateAction(input.action)
     if (!action)
       return buildNotConfiguredResult('browser_navigate', 'action must be back, forward, or reload.')
@@ -1397,6 +1416,8 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function scrollBrowser(input: AlicizationLocalBrowserScrollInput) {
+    if (platform === 'win32' && options.windowsBrowser)
+      return options.windowsBrowser.scrollBrowser(input)
     const action = normalizeBrowserScrollAction(input.action)
     if (!action)
       return buildNotConfiguredResult('browser_scroll', 'action must be down, up, top, or bottom.')
@@ -1512,6 +1533,8 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function waitForBrowser(input: AlicizationLocalBrowserWaitInput) {
+    if (platform === 'win32' && options.windowsBrowser)
+      return options.windowsBrowser.waitForBrowser(input)
     if (platform !== 'darwin')
       return buildUnsupportedPlatformResult('browser_wait')
 
@@ -1903,6 +1926,8 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function listDesktopInteractables(input: AlicizationLocalDesktopListInteractablesInput) {
+    if (platform === 'win32' && options.windowsDesktop)
+      return options.windowsDesktop.listDesktopInteractables(input)
     if (platform !== 'darwin')
       return buildUnsupportedPlatformResult('desktop_list_interactables')
 
@@ -1950,6 +1975,10 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function clickDesktopElement(input: AlicizationLocalDesktopClickElementInput) {
+    if (platform === 'win32' && options.windowsDesktop)
+      return options.windowsDesktop.clickDesktopElement(input)
+    if (input.windowTitle)
+      return { channel: 'desktop', operation: 'desktop_click_element', status: 'failed', errorCode: 'DESKTOP_WINDOW_SCOPE_NOT_SUPPORTED', sideEffectState: 'none', errorMessage: 'This backend cannot enforce an explicit window-title scope.' }
     const role = normalizeDesktopRole(input.role) || null
     const text = sanitizeText(input.text)
     const ordinal = normalizeOrdinal(input.ordinal)
@@ -2027,6 +2056,10 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function typeDesktopText(input: AlicizationLocalDesktopTypeTextInput) {
+    if (platform === 'win32' && options.windowsDesktop)
+      return options.windowsDesktop.typeDesktopText(input)
+    if (input.windowTitle)
+      return { channel: 'desktop', operation: 'desktop_type_text', status: 'failed', errorCode: 'DESKTOP_WINDOW_SCOPE_NOT_SUPPORTED', sideEffectState: 'none', errorMessage: 'This backend cannot enforce an explicit window-title scope.' }
     const text = sanitizeText(input.text)
     const targetText = sanitizeText(input.targetText)
     const ordinal = normalizeOrdinal(input.ordinal)
@@ -2156,6 +2189,8 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function openApplication(input: AlicizationLocalDesktopOpenApplicationInput) {
+    if (platform === 'win32' && options.windowsDesktop)
+      return options.windowsDesktop.openApplication(input)
     const appName = sanitizeText(input.appName)
     const path = sanitizeText(input.path)
     const args = Array.isArray(input.args)
@@ -2210,11 +2245,11 @@ export function createAlicizationLocalBrowserAutomationService(
 
     return localBrowserCapabilityChannels.map(channel => ({
       channel,
-      available: capability.available,
-      enabled: capability.enabled,
-      ready: capability.ready,
+      available: capability.available || (channel === 'browser' ? Boolean(options.windowsBrowser) : Boolean(options.windowsDesktop)),
+      enabled: capability.enabled || (channel === 'browser' ? Boolean(options.windowsBrowser) : Boolean(options.windowsDesktop)),
+      ready: capability.ready || (channel === 'browser' ? Boolean(options.windowsBrowser) : Boolean(options.windowsDesktop)),
       sessionAffinity: channel !== 'desktop',
-      reason: capability.reason,
+      reason: (channel === 'browser' ? options.windowsBrowser : options.windowsDesktop) ? null : capability.reason,
     }))
   }
 

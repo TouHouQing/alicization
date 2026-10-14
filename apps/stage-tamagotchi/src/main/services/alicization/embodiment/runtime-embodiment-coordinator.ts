@@ -22,6 +22,8 @@ import {
   normalizeAlicizationEmbodimentScript,
 } from '@proj-alicization/stage-shared'
 
+import { projectInteractionPerformance } from './interaction-performance'
+
 function areDialoguePerformancesEqual(
   left: AlicizationDialoguePerformancePayload,
   right: AlicizationDialoguePerformancePayload,
@@ -1245,6 +1247,7 @@ function buildRuntimeEmbodimentScript(input: {
     rendererTarget,
     replyText: input.seed.replyText,
     state: {
+      ...(input.seed.interactionIntent ? { interactionIntent: input.seed.interactionIntent } : {}),
       baseEmotion: input.embodiment.performance.baseEmotion,
       delivery: input.embodiment.performance.delivery,
       emphasis: residentMode === 'repair-before-closeness'
@@ -1923,10 +1926,10 @@ export function coordinateAlicizationRuntimeEmbodiment(
     digitalLife: alignedRendererNativeDigitalLife,
   })
 
-  return {
+  return projectInteractionPerformance({ seed: input.seed, manifest: input.manifest, now: Date.now(), authority: {
     embodiment: alignedRendererNativeEmbodiment,
     speechTimeline: rendererNativeSpeechTimeline,
     embodimentScript: rendererNativeEmbodimentScript,
     digitalLife: alignedRendererNativeDigitalLife,
-  }
+  } })
 }

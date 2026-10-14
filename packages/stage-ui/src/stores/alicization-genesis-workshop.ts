@@ -1,6 +1,8 @@
 import type { AlicizationPersonaWorkshopSubmission } from '@proj-alicization/stage-shared'
 
-import { defaultAlicizationPersonaWorkshopSubmission } from '@proj-alicization/stage-shared'
+import type { AlicizationGenesisInput } from './alicization-bridge'
+
+import { defaultAlicizationPersonality, defaultAlicizationPersonaWorkshopSubmission, defaultAlicizationProfile } from '@proj-alicization/stage-shared'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
@@ -22,6 +24,11 @@ function createWorkshopDraft(): AlicizationPersonaWorkshopSubmission {
 
 export const useAlicizationGenesisWorkshopStore = defineStore('alicization-genesis-workshop', () => {
   const draft = ref<AlicizationPersonaWorkshopSubmission>(createWorkshopDraft())
+  const identity = ref({
+    alicizationName: String(defaultAlicizationProfile.alicizationName),
+    hostName: '',
+  })
+  const hasValidIdentity = computed(() => Boolean(identity.value.alicizationName.trim() && identity.value.hostName.trim()))
 
   const hasDraftContent = computed(() => {
     return Boolean(
@@ -32,6 +39,7 @@ export const useAlicizationGenesisWorkshopStore = defineStore('alicization-genes
 
   function resetDraft() {
     draft.value = createWorkshopDraft()
+    identity.value = { alicizationName: defaultAlicizationProfile.alicizationName, hostName: '' }
   }
 
   function snapshotDraft() {
@@ -46,10 +54,44 @@ export const useAlicizationGenesisWorkshopStore = defineStore('alicization-genes
     } satisfies AlicizationPersonaWorkshopSubmission
   }
 
+  function buildGenesisPayload(): AlicizationGenesisInput {
+    if (!hasValidIdentity.value)
+      throw new Error('Her name and your preferred name are required.')
+
+    return {
+      ...defaultAlicizationProfile,
+      ownerName: identity.value.hostName.trim(),
+      hostName: identity.value.hostName.trim(),
+      alicizationName: identity.value.alicizationName.trim(),
+      personality: {
+        ...defaultAlicizationPersonality,
+        identityKernel: {
+          ...defaultAlicizationPersonality.identityKernel,
+          temperament: { ...defaultAlicizationPersonality.identityKernel.temperament },
+          valueBias: [...defaultAlicizationPersonality.identityKernel.valueBias],
+        },
+        expressionProfile: { ...defaultAlicizationPersonality.expressionProfile },
+        initiativeBaseline: { ...defaultAlicizationPersonality.initiativeBaseline },
+        evolutionSeed: {
+          ...defaultAlicizationPersonality.evolutionSeed,
+          fastLayers: [...defaultAlicizationPersonality.evolutionSeed.fastLayers],
+          slowLayers: [...defaultAlicizationPersonality.evolutionSeed.slowLayers],
+          unlockTracks: [...defaultAlicizationPersonality.evolutionSeed.unlockTracks],
+        },
+        identityAnchors: [...defaultAlicizationPersonality.identityAnchors],
+        antiPersonaConstraints: [...(draft.value.antiPersonaConstraints ?? [])],
+      },
+      personaWorkshop: snapshotDraft(),
+    }
+  }
+
   return {
     draft,
+    identity,
+    hasValidIdentity,
     hasDraftContent,
     resetDraft,
     snapshotDraft,
+    buildGenesisPayload,
   }
 })

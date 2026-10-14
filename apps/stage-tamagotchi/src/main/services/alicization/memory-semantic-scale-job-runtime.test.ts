@@ -1255,8 +1255,10 @@ describe('memory semantic scale job runtime', () => {
       releaseExecution = resolve
     })
     const executions: string[] = []
+    let heartbeatNow = 1000
     const { harness, runtime, tempRootDir, writeQueue } = await createRuntimeHarness({
       leaseMs: 30,
+      now: () => heartbeatNow,
       retryBaseMs: 1,
       executeJob: async ({ corpusSize }) => {
         executions.push('runtime-a')
@@ -1269,9 +1271,13 @@ describe('memory semantic scale job runtime', () => {
     const firstWorker = runtime.runJob(job.jobId)
     await executionStartedPromise
 
-    await new Promise(resolve => setTimeout(resolve, 80))
+    heartbeatNow += 80
+    await vi.waitFor(async () => {
+      expect((await runtime.getJob(job.jobId, 'card-a'))?.leaseExpiresAt).toBe(heartbeatNow + 30)
+    })
     const restarted = attachRuntime(harness, {
       leaseMs: 30,
+      now: () => heartbeatNow,
       retryBaseMs: 1,
       tempRootDir,
       writeQueue,

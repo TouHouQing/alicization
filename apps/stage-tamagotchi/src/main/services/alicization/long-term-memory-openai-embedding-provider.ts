@@ -9,6 +9,8 @@ import { createHash } from 'node:crypto'
 
 import { errorMessageFrom } from '@moeru/std'
 
+import { providerFetch } from './provider-fetch'
+
 const OPENAI_COMPATIBLE_EMBEDDING_BATCH_SIZE = 32
 const DEFAULT_EMBEDDING_TIMEOUT_MS = 30_000
 const DEFAULT_EMBEDDING_MAX_RETRIES = 5
@@ -335,7 +337,7 @@ export async function listOpenAICompatibleLongTermMemoryEmbeddingModels(input: {
   if (!baseUrl)
     return { error: 'embedding baseUrl is required', items: [], query }
 
-  const fetchImpl = input.fetch ?? globalThis.fetch
+  const fetchImpl = input.fetch ?? providerFetch
   if (typeof fetchImpl !== 'function')
     return { error: 'fetch is not available for embedding provider', items: [], query }
 
@@ -402,7 +404,7 @@ export async function testOpenAICompatibleLongTermMemoryEmbeddingConnection(inpu
     if (!modelId)
       throw new Error('embedding model is required')
 
-    const fetchImpl = input.fetch ?? globalThis.fetch
+    const fetchImpl = input.fetch ?? providerFetch
     if (typeof fetchImpl !== 'function')
       throw new Error('fetch is not available for embedding provider')
 

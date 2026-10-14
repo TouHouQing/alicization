@@ -1,8 +1,10 @@
 import type {
   PlaybackEndEvent,
+  PlaybackFailureEvent,
   PlaybackInterruptEvent,
   PlaybackItem,
   PlaybackRejectEvent,
+  PlaybackResult,
   PlaybackStartEvent,
 } from '../types'
 
@@ -10,7 +12,7 @@ export type OverflowPolicy = 'queue' | 'reject' | 'steal-oldest' | 'steal-lowest
 export type OwnerOverflowPolicy = 'reject' | 'steal-oldest'
 
 export interface PlaybackManagerOptions<TAudio> {
-  play: (item: PlaybackItem<TAudio>, signal: AbortSignal) => Promise<void>
+  play: (item: PlaybackItem<TAudio>, signal: AbortSignal) => Promise<PlaybackResult>
   maxVoices?: number
   maxVoicesPerOwner?: number
   overflowPolicy?: OverflowPolicy
@@ -30,12 +32,14 @@ export function createPlaybackManager<TAudio>(options: PlaybackManagerOptions<TA
   }>()
 
   const waiting: Array<{ item: PlaybackItem<TAudio>, enqueuedAt: number }> = []
+  const cancelled = new Map<AbortController, string>()
 
   const listeners = {
     start: [] as Array<(event: PlaybackStartEvent<TAudio>) => void>,
     end: [] as Array<(event: PlaybackEndEvent<TAudio>) => void>,
     interrupt: [] as Array<(event: PlaybackInterruptEvent<TAudio>) => void>,
     reject: [] as Array<(event: PlaybackRejectEvent<TAudio>) => void>,
+    failure: [] as Array<(event: PlaybackFailureEvent<TAudio>) => void>,
   }
 
   function onStart(listener: (event: PlaybackStartEvent<TAudio>) => void) {
@@ -54,19 +58,27 @@ export function createPlaybackManager<TAudio>(options: PlaybackManagerOptions<TA
     listeners.reject.push(listener)
   }
 
+  function onFailure(listener: (event: PlaybackFailureEvent<TAudio>) => void) {
+    listeners.failure.push(listener)
+  }
+
   function emitStart(item: PlaybackItem<TAudio>) {
     const event = { item, startedAt: Date.now() }
     listeners.start.forEach(listener => listener(event))
   }
 
-  function emitEnd(item: PlaybackItem<TAudio>) {
-    const event = { item, endedAt: Date.now() }
+  function emitEnd(item: PlaybackItem<TAudio>, result: PlaybackResult) {
+    const event = { item, endedAt: Date.now(), result }
     listeners.end.forEach(listener => listener(event))
   }
 
-  function emitInterrupt(item: PlaybackItem<TAudio>, reason: string) {
-    const event = { item, reason, interruptedAt: Date.now() }
+  function emitInterrupt(item: PlaybackItem<TAudio>, reason: string, result: PlaybackResult = { status: 'interrupted', playedMs: 0, errorCode: reason }) {
+    const event = { item, reason, interruptedAt: Date.now(), result }
     listeners.interrupt.forEach(listener => listener(event))
+  }
+
+  function emitFailure(item: PlaybackItem<TAudio>, result: PlaybackResult) {
+    listeners.failure.forEach(listener => listener({ item, result, failedAt: Date.now() }))
   }
 
   function emitReject(item: PlaybackItem<TAudio>, reason: string) {
@@ -108,9 +120,9 @@ export function createPlaybackManager<TAudio>(options: PlaybackManagerOptions<TA
   }
 
   function stopActive(entry: { item: PlaybackItem<TAudio>, controller: AbortController }, reason: string) {
+    cancelled.set(entry.controller, reason)
     entry.controller.abort(reason)
     active.delete(entry.item.id)
-    emitInterrupt(entry.item, reason)
   }
 
   function canStart(item: PlaybackItem<TAudio>) {
@@ -130,18 +142,35 @@ export function createPlaybackManager<TAudio>(options: PlaybackManagerOptions<TA
     emitStart(item)
 
     void options.play(item, controller.signal)
-      .then(() => {
-        if (!active.has(item.id))
+      .then((result) => {
+        const cancellation = cancelled.get(controller)
+        if (cancellation) {
+          cancelled.delete(controller)
+          emitInterrupt(item, cancellation, { ...result, status: 'interrupted', errorCode: cancellation })
+          return
+        }
+        if (active.get(item.id)?.controller !== controller)
           return
         active.delete(item.id)
-        emitEnd(item)
+        if (result.status === 'completed')
+          emitEnd(item, result)
+        else if (result.status === 'interrupted')
+          emitInterrupt(item, result.errorCode ?? 'interrupted', result)
+        else
+          emitFailure(item, result)
         void tryStartWaiting()
       })
       .catch((err) => {
-        if (!active.has(item.id))
+        const cancellation = cancelled.get(controller)
+        if (cancellation) {
+          cancelled.delete(controller)
+          emitInterrupt(item, cancellation)
+          return
+        }
+        if (active.get(item.id)?.controller !== controller)
           return
         active.delete(item.id)
-        emitInterrupt(item, err instanceof Error ? err.message : 'playback-error')
+        emitFailure(item, { status: 'failed', playedMs: 0, errorCode: err instanceof Error ? err.message : 'playback-error' })
         void tryStartWaiting()
       })
   }
@@ -222,6 +251,10 @@ export function createPlaybackManager<TAudio>(options: PlaybackManagerOptions<TA
   }
 
   function schedule(item: PlaybackItem<TAudio>) {
+    if (active.has(item.id) || waiting.some(entry => entry.item.id === item.id)) {
+      emitReject(item, 'duplicate-playback-item')
+      return
+    }
     const { ok, reason } = canStart(item)
     if (ok) {
       start(item)
@@ -235,6 +268,8 @@ export function createPlaybackManager<TAudio>(options: PlaybackManagerOptions<TA
     for (const entry of active.values()) {
       stopActive(entry, reason)
     }
+    for (const entry of waiting)
+      emitReject(entry.item, `cancelled:${reason}`)
     waiting.length = 0
   }
 
@@ -246,8 +281,10 @@ export function createPlaybackManager<TAudio>(options: PlaybackManagerOptions<TA
     }
 
     for (let i = waiting.length - 1; i >= 0; i -= 1) {
-      if (waiting[i]?.item.intentId === intentId)
+      if (waiting[i]?.item.intentId === intentId) {
+        emitReject(waiting[i].item, `cancelled:${reason}`)
         waiting.splice(i, 1)
+      }
     }
   }
 
@@ -259,8 +296,10 @@ export function createPlaybackManager<TAudio>(options: PlaybackManagerOptions<TA
     }
 
     for (let i = waiting.length - 1; i >= 0; i -= 1) {
-      if (waiting[i]?.item.ownerId === ownerId)
+      if (waiting[i]?.item.ownerId === ownerId) {
+        emitReject(waiting[i].item, `cancelled:${reason}`)
         waiting.splice(i, 1)
+      }
     }
   }
 
@@ -273,5 +312,6 @@ export function createPlaybackManager<TAudio>(options: PlaybackManagerOptions<TA
     onEnd,
     onInterrupt,
     onReject,
+    onFailure,
   }
 }

@@ -12,6 +12,7 @@ import type {
   AlicizationEmotionalKernelSnapshot,
   AlicizationVisibleReplyExecution,
 } from '../../../shared/eventa'
+import type { LifeProviderRequestLimits } from './life-provider-budget'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type {
   AlicizationProviderRetryDecision,
@@ -32,13 +33,11 @@ import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 
 import { errorMessageFrom } from '@moeru/std'
-import {
-  createAlicizationProviderVisibleArtifact,
-  extractAlicizationToolExecutionFailure,
-  isAlicizationToolExecutionFailureResult,
-} from '@proj-alicization/stage-shared'
+import { createAlicizationProviderVisibleArtifact, extractAlicizationToolExecutionFailure, isAlicizationProviderSchemaUnsupportedError, isAlicizationToolExecutionFailureResult } from '@proj-alicization/stage-shared'
 import { streamText } from '@xsai/stream-text'
 
+import { buildLifeExpressionResponseFormat } from './life-expression-output-contract'
+import { lifeProviderOutputOptions, resolveLifeProviderRequestLimits } from './life-provider-budget'
 import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-policy'
 import {
   awaitAlicizationPromiseWithAbort,
@@ -49,6 +48,7 @@ import {
   sanitizeText,
 } from './main-chat-stream-primitives'
 import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
+import { withProviderFetch } from './provider-fetch'
 import {
   alicizationProviderEmptyCompletionErrorCode,
   resolveAlicizationProviderRetryDeadline,
@@ -268,6 +268,7 @@ function assertProviderToolArguments(
     if (validate(input))
       return
 
+    const unknownFields = (validate.errors ?? []).filter(error => error.keyword === 'additionalProperties').map(error => String(error.params.additionalProperty).slice(0, 80)).slice(0, 8)
     throw createProviderToolProtocolError(
       'chat-provider-tool-arguments-invalid',
       `Provider arguments for tool "${tool.function.name}" failed schema validation: ${
@@ -275,7 +276,7 @@ function assertProviderToolArguments(
           dataVar: 'arguments',
           separator: '; ',
         })
-      }`,
+      }${unknownFields.length ? `; unknown fields: ${unknownFields.join(', ')}` : ''}`,
     )
   }
   catch (error) {
@@ -389,6 +390,8 @@ export type AlicizationMainChatProviderStepResult
   }
 
 export interface RunAlicizationMainChatProviderStepOptions {
+  useResponseSchema?: boolean
+  providerBudget?: LifeProviderRequestLimits
   payload: AlicizationChatStartPayload
   prepared: AlicizationPreparedMainChatExecutionResult
   messages: Message[]
@@ -1001,8 +1004,10 @@ async function runAlicizationMainChatProviderAttempt(
     })
     const result = await awaitAlicizationPromiseWithAbort(
       Promise.resolve(invokeStreamText({
-        ...input.prepared.chatConfig,
+        ...withProviderFetch(input.prepared.chatConfig),
+        ...lifeProviderOutputOptions(input.providerBudget ?? resolveLifeProviderRequestLimits(input.payload.providerConfig)),
         maxSteps: 1,
+        ...(input.useResponseSchema === false ? {} : { responseFormat: buildLifeExpressionResponseFormat({ workingMemoryVersion: input.prepared.memoryContext?.workingMemory.version ?? null, evidenceIds: input.prepared.memoryContext?.availableLongTermEvidenceIds ?? [] }) }),
         messages: input.messages,
         headers: input.headers,
         abortSignal: providerController.signal,
@@ -1240,6 +1245,15 @@ async function runAlicizationMainChatProviderAttempt(
     input.attemptReplayState.hasToolCall = pendingAction !== null
     input.attemptReplayState.hasToolSideEffect = false
     input.attemptReplayState.hasVisibleProgress = false
+    const cause = error instanceof Error ? error.cause : null
+    appendDebugLine('chat-provider-request.error', {
+      errorName: error instanceof Error ? error.name : 'unknown',
+      causeCode: cause && typeof cause === 'object' && 'code' in cause ? String(cause.code).slice(0, 120) : null,
+      // Codes diagnose DNS/TLS/connect failures without logging endpoints or headers.
+      nestedCauseCodes: cause && typeof cause === 'object' && 'errors' in cause && Array.isArray(cause.errors)
+        ? cause.errors.map(item => item && typeof item === 'object' && 'code' in item ? String(item.code).slice(0, 120) : 'unknown').slice(0, 8)
+        : [],
+    })
     const retryDecision = resolveAlicizationProviderRetryDecision(error, {
       attempt: providerRetryAttempt,
       options: {
@@ -1327,6 +1341,7 @@ export async function runAlicizationMainChatProviderStep(
         timeoutMs: input.firstEventTimeoutMs,
       })
   let providerRetryAttempt = initialAttempt
+  let useResponseSchema = input.useResponseSchema !== false
 
   try {
     while (true) {
@@ -1347,11 +1362,18 @@ export async function runAlicizationMainChatProviderStep(
           ...input,
           signal: retrySignal,
           providerRetryAttempt,
+          useResponseSchema,
           providerRetryDeadlineAt,
           attemptReplayState,
         })
       }
       catch (error) {
+        if (useResponseSchema && isAlicizationProviderSchemaUnsupportedError(error)
+          && !attemptReplayState.hasToolCall && !attemptReplayState.hasToolSideEffect && !attemptReplayState.hasVisibleProgress) {
+          useResponseSchema = false
+          await input.appendRuntimeDebugLine?.('chat-provider-step.schema-unsupported', { cardId: input.payload.cardId, turnId: input.payload.turnId, fallback: 'validated-json-or-plain-reply', toolReplayed: false })
+          continue
+        }
         const retryDecision = attemptReplayState.retryDecision
           ?? resolveAlicizationProviderRetryDecision(error, {
             attempt: providerRetryAttempt,
@@ -2636,7 +2658,8 @@ export async function runAlicizationMainChatStream(
       }
 
       void Promise.resolve(invokeStreamText({
-        ...input.prepared.chatConfig,
+        ...withProviderFetch(input.prepared.chatConfig),
+        ...lifeProviderOutputOptions(resolveLifeProviderRequestLimits(input.payload.providerConfig)),
         maxSteps: 10,
         messages: providerMessages,
         headers: input.headers,

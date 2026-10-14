@@ -1,6 +1,8 @@
 import type { MemorySemanticScaleSoakReport } from './memory-semantic-scale-soak-harness'
 import type { MemorySemanticScaleOperationalProbeReport } from './memory-semantic-scale-soak-runtime'
 
+import { resolve } from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -112,10 +114,10 @@ describe('memory embedding soak CLI', () => {
       '--max-p99-ms',
       '240',
     ])).toEqual({
-      userDataPath: '/tmp/alicization',
+      userDataPath: resolve('/tmp/alicization'),
       cardId: 'card-a',
       tier: '100k',
-      reportPath: '/tmp/embedding-soak.json',
+      reportPath: resolve('/tmp/embedding-soak.json'),
       dimensions: null,
       maxP95LatencyMs: 120,
       maxP99LatencyMs: 240,
@@ -140,10 +142,10 @@ describe('memory embedding soak CLI', () => {
     const writeOutput = vi.fn()
     const result = await runMemoryEmbeddingSoakCli({
       args: {
-        userDataPath: '/tmp/alicization',
+        userDataPath: resolve('/tmp/alicization'),
         cardId: 'default',
         tier: '10k',
-        reportPath: '/tmp/embedding-soak.json',
+        reportPath: resolve('/tmp/embedding-soak.json'),
         dimensions: null,
         maxP95LatencyMs: 3_000,
         maxP99LatencyMs: 5_000,
@@ -183,17 +185,17 @@ describe('memory embedding soak CLI', () => {
       },
     })
     expect(JSON.stringify(result.report)).not.toContain('secret')
-    expect(writeReport).toHaveBeenCalledWith('/tmp/embedding-soak.json', expect.stringContaining('"embedding"'))
+    expect(writeReport).toHaveBeenCalledWith(resolve('/tmp/embedding-soak.json'), expect.stringContaining('"embedding"'))
     expect(writeOutput).toHaveBeenCalledOnce()
   })
 
   it('returns a transparent non-zero report when no embedding provider is configured', async () => {
     const result = await runMemoryEmbeddingSoakCli({
       args: {
-        userDataPath: '/tmp/alicization',
+        userDataPath: resolve('/tmp/alicization'),
         cardId: 'default',
         tier: '10k',
-        reportPath: '/tmp/embedding-soak.json',
+        reportPath: resolve('/tmp/embedding-soak.json'),
         dimensions: null,
         maxP95LatencyMs: 3_000,
         maxP99LatencyMs: 5_000,
@@ -230,10 +232,10 @@ describe('memory embedding soak CLI', () => {
   it('fails the report gate when operational probes are missing instead of treating unexecuted coverage as passed', async () => {
     const result = await runMemoryEmbeddingSoakCli({
       args: {
-        userDataPath: '/tmp/alicization',
+        userDataPath: resolve('/tmp/alicization'),
         cardId: 'default',
         tier: '100k',
-        reportPath: '/tmp/embedding-soak.json',
+        reportPath: resolve('/tmp/embedding-soak.json'),
         dimensions: null,
         maxP95LatencyMs: 100,
         maxP99LatencyMs: 200,

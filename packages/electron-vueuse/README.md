@@ -11,6 +11,8 @@ VueUse-like composables and helpers shared across Alicization Electron apps.
 
 For IPC contract definitions, use `@proj-alicization/electron-eventa`.
 
+Mouse hit testing treats an unmounted element or unavailable native cursor sample as outside the element. This releases transparent desktop overlays when their dialogue or controls disappear. Rebuild this package after changing composables so desktop apps consume the updated `dist` exports.
+
 ## Usage
 
 ```ts

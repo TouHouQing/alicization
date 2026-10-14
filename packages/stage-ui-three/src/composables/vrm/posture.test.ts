@@ -32,6 +32,33 @@ function readBoneEulerY(node: Object3D) {
 }
 
 describe('vrm posture motor bridge', () => {
+  it('keeps an unanimated head bounded over a long idle and releases its additive offset', () => {
+    const { bones, vrm } = createMockVrm()
+    const idle = createIdleStageEmbodimentMotorState()
+    const motor = { ...idle, head: { ...idle.head, yaw: 0.7 } }
+    for (let index = 0; index < 3600; index++)
+      applyStageEmbodimentVrmPosture({ delta: 1 / 60, motor, posture: null, vrm: vrm as never })
+    expect(Math.abs(readBoneEulerY(bones.head))).toBeGreaterThan(0.005)
+    expect(Math.abs(readBoneEulerY(bones.head))).toBeLessThan(0.15)
+    for (let index = 0; index < 180; index++)
+      applyStageEmbodimentVrmPosture({ delta: 1 / 60, motor: idle, posture: null, vrm: vrm as never })
+    expect(bones.head.quaternion.angleTo(new Object3D().quaternion)).toBeLessThan(0.001)
+  })
+  it('keeps the same pose across frame rates and preserves a newly animated baseline', () => {
+    const slow = createMockVrm()
+    const fast = createMockVrm()
+    const idle = createIdleStageEmbodimentMotorState()
+    const motor = { ...idle, head: { ...idle.head, yaw: 0.5 } }
+    for (const [fixture, rate] of [[slow, 30], [fast, 120]] as const) {
+      for (let frame = 0; frame < rate; frame++)
+        applyStageEmbodimentVrmPosture({ delta: 1 / rate, motor, posture: null, vrm: fixture.vrm as never })
+    }
+    expect(slow.bones.head.quaternion.angleTo(fast.bones.head.quaternion)).toBeLessThan(0.00001)
+    slow.bones.head.quaternion.setFromEuler(new Euler(0, 0.6, 0))
+    applyStageEmbodimentVrmPosture({ delta: 1 / 60, motor, posture: null, vrm: slow.vrm as never })
+    expect(readBoneEulerY(slow.bones.head)).toBeGreaterThan(0.6)
+    expect(readBoneEulerY(slow.bones.head)).toBeLessThan(0.75)
+  })
   it('applies motor-authored posture even when presence posture is idle', () => {
     const { bones, vrm } = createMockVrm()
     const idleMotor = createIdleStageEmbodimentMotorState()

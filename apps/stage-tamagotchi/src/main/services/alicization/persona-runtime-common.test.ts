@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createPersonaRuntimeLifecycle,
+  normalizePersonaRuntimeAbsolutePath,
   waitForPersonaRuntimePidExit,
 } from './persona-runtime-common'
 
@@ -25,6 +26,14 @@ const testBackend = {
 }
 
 describe('persona runtime process helpers', () => {
+  it('accepts native absolute paths and rejects relative paths', () => {
+    const absolutePath = join(tmpdir(), 'persona-runtime-process.json')
+
+    expect(normalizePersonaRuntimeAbsolutePath(absolutePath, 'persona runtime process state path')).toBe(absolutePath)
+    expect(() => normalizePersonaRuntimeAbsolutePath('relative/persona-runtime-process.json', 'persona runtime process state path'))
+      .toThrow('persona runtime process state path must be an absolute path')
+  })
+
   it('returns when a recovered process exits instead of sleeping for the full timeout', async () => {
     const child = spawn(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 50)'], {
       stdio: 'ignore',

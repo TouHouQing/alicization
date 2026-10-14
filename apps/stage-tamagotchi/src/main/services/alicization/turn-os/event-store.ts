@@ -75,6 +75,7 @@ interface AlicizationRuntimeEventStoreOptions {
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
   enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
+  onPersistedInside?: (event: AlicizationRuntimeEventEnvelope) => Promise<void>
 }
 
 function parseRequiredScopeId(value: unknown, label: keyof AlicizationRuntimeEventScope) {
@@ -449,6 +450,7 @@ export function createAlicizationRuntimeEventStore(
           ],
         )
 
+        await options.onPersistedInside?.(persisted)
         return persisted
       })
     })

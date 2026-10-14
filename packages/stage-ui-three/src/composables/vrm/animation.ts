@@ -14,6 +14,7 @@ import { randFloat } from 'three/src/math/MathUtils.js'
 import { ref } from 'vue'
 
 import { useVRMLoader } from './loader'
+import { createOneEuroFilter } from './one-euro-filter'
 import { randomSaccadeInterval } from './utils/eye-motions'
 
 function clampUnit(value: number, fallback: number = 0) {
@@ -338,6 +339,9 @@ export function useIdleEyeSaccades() {
   let nextSaccadeAfter = -1
   const fixationOffset = new Vector3()
   const fixationTarget = new Vector3()
+  const currentFixationTarget = new Vector3()
+  const gazeFilters = Array.from({ length: 3 }, () => createOneEuroFilter({ minCutoff: 6, beta: 0.45, derivativeCutoff: 1 }))
+  let trackedVrm: VRMCore | undefined
   let timeSinceLastSaccade = 0
 
   // Keep the saccade as a relative offset so continuity hints can hold the same gaze line across frames.
@@ -454,10 +458,18 @@ export function useIdleEyeSaccades() {
       vrm.lookAt.target = new Object3D() as unknown as Object3D
     }
 
-    vrm.lookAt.target?.position.lerp(fixationTarget!, 1)
-    vrm.lookAt?.update(delta)
+    const boundedDelta = Math.min(0.1, Math.max(0, Number.isFinite(delta) ? delta : 0))
+    if (trackedVrm !== vrm) {
+      trackedVrm = vrm
+      for (const filter of gazeFilters) filter.reset()
+    }
+    // Eyes acquire a target quickly but continuously. A cursor sample or
+    // saccade must not teleport the gaze, including after background suspension.
+    currentFixationTarget.set(gazeFilters[0].filter(fixationTarget.x, boundedDelta), gazeFilters[1].filter(fixationTarget.y, boundedDelta), gazeFilters[2].filter(fixationTarget.z, boundedDelta))
+    vrm.lookAt.target?.position.copy(currentFixationTarget)
+    vrm.lookAt?.update(boundedDelta)
 
-    timeSinceLastSaccade += delta
+    timeSinceLastSaccade += boundedDelta
   }
 
   function instantUpdate(vrm: VRMCore | undefined, lookAtTarget: { x: number, y: number, z: number }) {
@@ -469,6 +481,9 @@ export function useIdleEyeSaccades() {
     )
     timeSinceLastSaccade = 0
     nextSaccadeAfter = randomSaccadeInterval() / 1000
+    trackedVrm = vrm
+    for (const filter of gazeFilters) filter.reset()
+    currentFixationTarget.copy(fixationTarget)
     if (!vrm?.expressionManager || !vrm.lookAt)
       return
     if (!vrm.lookAt.target) {

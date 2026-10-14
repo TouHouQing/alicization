@@ -1,0 +1,96 @@
+{
+  "format": "alicization-interaction-source-study-v1",
+  "documentationOnly": [
+    "https://smartbody.ict.usc.edu/",
+    "https://smartbody.ict.usc.edu/faq",
+    "https://ict.usc.edu/research/projects/vhtoolkit/"
+  ],
+  "previousManifest": "2026-10-05-desktop-life-source-manifest.json",
+  "cumulativeProjects": 13,
+  "newCheckouts": 2,
+  "date": "2026-10-06",
+  "revisitedPinnedCheckouts": 2,
+  "repositories": [
+    {
+      "repository": "https://github.com/met4citizen/TalkingHead",
+      "files": [
+        {
+          "path": "modules/talkinghead.mjs",
+          "permalink": "https://github.com/met4citizen/TalkingHead/blob/b3e277b3b46f88e557bf28a2c5612a5b04e075c3/modules/talkinghead.mjs",
+          "sha256": "cd62257f96ebc1fb4a6895e1e519a6e86321f2a34bb014b82c1d50e30aee417e"
+        },
+        {
+          "path": "LICENSE",
+          "permalink": "https://github.com/met4citizen/TalkingHead/blob/b3e277b3b46f88e557bf28a2c5612a5b04e075c3/LICENSE",
+          "sha256": "8a8de7f52f650e7260067f96017c83c22f596c63babc62d0052d1b7be1b1b7a9"
+        }
+      ],
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-intent-research-20261006\\talkinghead",
+      "name": "TalkingHead",
+      "copyScope": "sigmoidFactory numeric core adapted to packages/stage-shared/src/interaction-transition.ts; full license shipped; no model, animation assets or whole engine copied",
+      "sourceCopied": true,
+      "commit": "b3e277b3b46f88e557bf28a2c5612a5b04e075c3",
+      "inspection": "Static source reading; no external application executed"
+    },
+    {
+      "repository": "https://github.com/lhupyn/motion-engine",
+      "files": [
+        {
+          "path": "src/MotionEngine.js",
+          "permalink": "https://github.com/lhupyn/motion-engine/blob/bd780a19e10d1cc5736a77946b04e08d658d5bf8/src/MotionEngine.js",
+          "sha256": "183f22d01fe7d42f8aceabcd2cbbec6ad2b0da7483921055b2b37b562077bc0f"
+        },
+        {
+          "path": "src/utils.js",
+          "permalink": "https://github.com/lhupyn/motion-engine/blob/bd780a19e10d1cc5736a77946b04e08d658d5bf8/src/utils.js",
+          "sha256": "9d49522e8efc4a17178eb7c3cef99b4a6ebe09c70663c6417078ed403071537d"
+        },
+        {
+          "path": "LICENSE",
+          "permalink": "https://github.com/lhupyn/motion-engine/blob/bd780a19e10d1cc5736a77946b04e08d658d5bf8/LICENSE",
+          "sha256": "3e962e2651d6f768106e560395e8997d281eb451946e0fdb7a2cf8983dc5062a"
+        }
+      ],
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": false,
+      "name": "Motion Engine",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-intent-research-20261006\\motion-engine",
+      "commit": "bd780a19e10d1cc5736a77946b04e08d658d5bf8"
+    },
+    {
+      "repository": "https://github.com/joonspk-research/generative_agents",
+      "files": [
+        {
+          "path": "reverie/backend_server/persona/cognitive_modules/reflect.py",
+          "permalink": "https://github.com/joonspk-research/generative_agents/blob/fe05a71d3e4ed7d10bf68aa4eda6dd995ec070f4/reverie/backend_server/persona/cognitive_modules/reflect.py",
+          "sha256": "46eb3bdb33d05438a4a98601b318d77438e2e297b74454fc09915031b754fbd5"
+        },
+        {
+          "path": "reverie/backend_server/persona/cognitive_modules/plan.py",
+          "permalink": "https://github.com/joonspk-research/generative_agents/blob/fe05a71d3e4ed7d10bf68aa4eda6dd995ec070f4/reverie/backend_server/persona/cognitive_modules/plan.py",
+          "sha256": "f037e88b42a3d72a25c312c6019960367a19aedf9fe932066c68b1652b64f963"
+        }
+      ],
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": false,
+      "name": "Generative Agents",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\generative_agents",
+      "commit": "fe05a71d3e4ed7d10bf68aa4eda6dd995ec070f4"
+    },
+    {
+      "repository": "https://github.com/Open-LLM-VTuber/Open-LLM-VTuber",
+      "files": [
+        {
+          "path": "src/open_llm_vtuber/conversations/tts_manager.py",
+          "permalink": "https://github.com/Open-LLM-VTuber/Open-LLM-VTuber/blob/992309c0aa19845960228f880013d4685fde93b5/src/open_llm_vtuber/conversations/tts_manager.py",
+          "sha256": "e5f071dd1642684e94954bccd1349ec27135e5baa0a7f42365217bd5dc99dc0a"
+        }
+      ],
+      "inspection": "Static source reading; no external application executed",
+      "sourceCopied": false,
+      "name": "Open-LLM-VTuber",
+      "checkoutPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\alicization-life-research-20261004\\Open-LLM-VTuber",
+      "commit": "992309c0aa19845960228f880013d4685fde93b5"
+    }
+  ]
+}

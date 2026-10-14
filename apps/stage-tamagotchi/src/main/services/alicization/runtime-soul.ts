@@ -35,6 +35,7 @@ import type {
   AlicizationSubconsciousNeedsState,
 } from '../../../shared/eventa'
 import type { AlicizationExecutionPayoffStructured } from './execution-delivery-surface'
+import type { LifeProviderRequestLimits } from './life-provider-budget'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type {
@@ -149,6 +150,7 @@ export const dialogueDeliveryRetryMaxMs = 60_000
 export const dialogueDeliveryRetryMaxAttempts = 8
 
 export interface SubconsciousCardState extends AlicizationSubconsciousNeedsState {
+  appliedDailyNeedsEffects?: string[]
   updatedAt: number
   lastDreamedAt: number
 }
@@ -183,6 +185,7 @@ export interface MainGatewayResolvedConfig {
   headers?: Record<string, string>
   probeHeaders?: Record<string, string>
   provider: ReturnType<typeof createOpenAI>
+  providerBudget?: LifeProviderRequestLimits
 }
 
 export interface ResolvedCardCustomDirectives {

@@ -6,7 +6,7 @@ import process, { env, platform } from 'node:process'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, join, resolve, sep } from 'node:path'
+import { dirname, join, posix, resolve, sep, win32 } from 'node:path'
 
 import { alicizationPrimaryConversationSessionId } from '@proj-alicization/stage-shared'
 
@@ -129,6 +129,7 @@ export function resolveDefaultMemoryQualityTrialUserDataPath(input: {
   pathExists?: (path: string) => boolean
 } = {}) {
   const currentPlatform = input.platform ?? platform
+  const { join } = currentPlatform === 'win32' ? win32 : posix
   const currentHomeDir = input.homeDir ?? homedir()
   const currentEnv = input.env ?? env
   const pathExists = input.pathExists ?? existsSync

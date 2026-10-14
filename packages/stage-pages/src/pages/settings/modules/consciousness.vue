@@ -29,6 +29,8 @@ watch(activeProvider, async (provider, oldProvider) => {
   if (!provider)
     return
 
+  providersStore.markProviderAdded(provider)
+
   // Reset model when switching providers (but not on initial load)
   if (oldProvider !== undefined && oldProvider !== provider) {
     activeModel.value = ''

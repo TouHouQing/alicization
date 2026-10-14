@@ -248,7 +248,7 @@ export function compilePersonaWorkshopAuthority(input: CompilePersonaWorkshopAut
     fastLayers: dedupe([
       ...normalizeTextList([
         workshop?.freeDescription,
-        workshop?.previewCorrections?.[0],
+        ...(workshop?.previewCorrections ?? []),
       ]),
       ...normalizeTextList(personality.evolutionSeed?.fastLayers),
     ]),

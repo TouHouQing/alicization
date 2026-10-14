@@ -110,6 +110,29 @@ describe('mcp safety gate', () => {
     vi.useRealTimers()
   })
 
+  it('binds observed interface approval to the card and honors a human refusal', async () => {
+    const { createMcpServersService, requestAlicizationInterfaceApprovalFromMain } = await import('./index')
+    createMcpServersService({ context: { emit: contextEmitMock } as any, manager: createManager() })
+    const pending = requestAlicizationInterfaceApprovalFromMain({ cardId: 'card-a', operation: 'browser_click_element', targetId: 'http://127.0.0.1/payment', label: '付款', riskLevel: 'danger', actionCategory: 'network', reason: 'An observed payment button' })
+    await vi.waitFor(() => expect(getSafetyRequests()).toHaveLength(1))
+    const request = getSafetyRequests()[0]
+    const resolvePermission = invokeHandlers.get(electronAlicizationSafetyResolvePermission)!
+    expect(await resolvePermission({ cardId: 'card-b', token: request.token, requestId: request.requestId, allow: true })).toMatchObject({ accepted: false })
+    await resolvePermission({ cardId: 'card-a', token: request.token, requestId: request.requestId, allow: false, reason: 'user-denied' })
+    expect(await pending).toEqual({ allow: false, reason: 'host-denied' })
+    expect(request).toMatchObject({ serverName: 'local-interface', supportsRememberSession: false, resourceLabel: '付款' })
+  })
+
+  it('interrupts a pending interface permission without reporting a human refusal', async () => {
+    const { createMcpServersService, requestAlicizationInterfaceApprovalFromMain } = await import('./index')
+    createMcpServersService({ context: { emit: contextEmitMock } as any, manager: createManager() })
+    const controller = new AbortController()
+    const pending = requestAlicizationInterfaceApprovalFromMain({ cardId: 'card-a', operation: 'desktop_click_element', targetId: 'owned-test-window', label: '删除', riskLevel: 'danger', actionCategory: 'delete', reason: 'An observed delete button' }, controller.signal)
+    await vi.waitFor(() => expect(getSafetyRequests()).toHaveLength(1))
+    controller.abort()
+    expect(await pending).toEqual({ allow: false, reason: 'suspended-or-aborted' })
+  })
+
   it('blocks reads to alicization internal root by absolute blacklist', async () => {
     const { createMcpServersService } = await import('./index')
     const manager = createManager()
@@ -776,7 +799,8 @@ describe('mcp safety gate', () => {
       status: 'error',
       code: 'ALICIZATION_TOOL_DENIED_BY_HOST',
     }))
-    expect(String(result.errorMessage)).toContain('Host (User) explicitly INTERCEPTED')
+    expect(String(result.errorMessage)).toContain('The user declined this operation')
+    expect(String(result.errorMessage)).not.toContain('They do not trust you')
     expect(manager.callTool).not.toBeCalled()
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
       action: 'alicization.safety.permission.denied',

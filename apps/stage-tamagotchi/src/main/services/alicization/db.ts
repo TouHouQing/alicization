@@ -98,6 +98,7 @@ import type {
   AlicizationWorkingMemoryCleaningQueueItem,
   AlicizationWorkingMemoryCleaningQueueResult,
 } from '../../../shared/eventa'
+import type { LifeCommitInput, LifeCommitReceipt, LifeFactVersion, LifeOwner, LifeStateView } from '../../../shared/life-contracts'
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
 import type {
   WorkingMemoryLongTermCleaningStatus,
@@ -105,6 +106,7 @@ import type {
 } from './life-core/working-memory-long-term-cleaning'
 import type { WorkingMemoryLongTermQueueItem } from './life-core/working-memory-long-term-queue'
 import type { WorkingMemoryQualityFixture } from './life-core/working-memory-quality-harness'
+import type { LifeFactVersionRow } from './life-memory-query'
 import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
 import type {
   LongTermMemoryEvidenceBundle,
@@ -200,6 +202,7 @@ import sqlite3 from './sqlite3-runtime'
 
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
 import { createAlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
+import { conversationPreferenceAllowsClaim } from './life-conversation-preferences'
 import { normalizeWorkingMemoryLongTermEvidence } from './life-core/working-memory'
 import {
   parseWorkingMemoryCheckpoint,
@@ -214,6 +217,19 @@ import {
 } from './life-core/working-memory-long-term-cleaning'
 import { createWorkingMemoryLongTermCleaningStoreRuntime } from './life-core/working-memory-long-term-cleaning-store'
 import { projectWorkingMemoryLongTermCandidate } from './life-core/working-memory-long-term-projection'
+import { parseLifeFactValidity } from './life-fact-validity'
+import { retrieveLifeHistoricalFacts } from './life-historical-recall'
+import { readLifeQuietBoundary, readLifeQuietInterval } from './life-interaction-boundary'
+import { filterLifeRecallFacts, mapLifeFactVersion } from './life-memory-query'
+import { lifePredicateCardinality } from './life-memory-repository'
+import { allowProjectExperienceWrite } from './life-project-experience-fence'
+import { lifeReadOnlyTurnScope } from './life-read-only-turn-scope'
+import { createLifeDialogueReadSet } from './life-read-set'
+import { boundLifeRecallBundle } from './life-recall-budget'
+import { readSupportedLifeSchemaVersion } from './life-schema-version'
+import { createLifeStateStore } from './life-state-store'
+import { planLifeTemporalQuery } from './life-temporal-query'
+import { activeLifeTransaction, withLifeTransactionHandle } from './life-transaction'
 import {
   resolveLongTermMemoryVectorSpaceId,
   safeEmbedLongTermMemoryTexts,
@@ -286,8 +302,10 @@ import {
   resolveAlicizationAutonomousDialogueFamilyClassification,
   resolveAlicizationAutonomousDialogueOrigin,
 } from './runtime-structured-format'
+import { initializeSqliteWal, withSqliteStartupLockWait } from './sqlite-wal-initialization'
 import { createAlicizationRuntimeCheckpointStore } from './turn-os/checkpoint-store'
 import { createAlicizationRuntimeEventStore } from './turn-os/event-store'
+import { createAlicizationTurnRuntimeState, reduceAlicizationRuntimeEvent, restoreAlicizationTurnRuntimeState, toAlicizationRuntimeCheckpoint } from './turn-os/runtime-state'
 
 export type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 const legacyMigrationMarker = 'legacy_memory_migrated_v1'
@@ -319,6 +337,7 @@ interface SqliteStatementResult {
 }
 
 interface LongTermMemoryEvidenceRetrievalDiagnostics {
+  budget: ReturnType<typeof boundLifeRecallBundle>['budget']
   bundle: LongTermMemoryEvidenceBundle
   degradedChannels: Array<{
     channel: 'index' | 'episodic' | 'semantic'
@@ -456,6 +475,7 @@ interface PersonaTrainingSourceRevokeIntentRow {
 }
 
 interface PreparedMemoryFactWrite {
+  validity?: AlicizationMemoryFactInput['validity']
   id: string
   cardId: string
   subject: string
@@ -720,6 +740,7 @@ interface AlicizationMemoryConsolidationSearchInput {
 type AlicizationScheduledTaskStatus = 'pending' | 'running' | 'completed' | 'failed'
 
 export interface AlicizationScheduledTaskRecord {
+  obligationGeneration: number
   id: string
   taskId: string
   triggerAt: number
@@ -734,6 +755,7 @@ export interface AlicizationScheduledTaskRecord {
 }
 
 interface DbScheduledTaskRow {
+  obligation_generation?: number
   id: string
   task_id: string
   trigger_at: number
@@ -792,6 +814,9 @@ export interface AlicizationConversationSessionMigrationResult {
 
 interface AlicizationDbConversationTurnInput extends AlicizationConversationTurnInput {
   cardId?: string
+  reminder?: { taskId: string, generation: number }
+  outreach?: { evidenceKey: string }
+  lifeReplyFence?: { reviewId: string, owners: NonNullable<LifeCommitInput['expectedOwners']> }
 }
 
 const executionChannels = new Set<AlicizationExecutionChannel>([
@@ -1490,6 +1515,7 @@ function clampRelationshipDelta(value: number, maxAbs = 0.08) {
 
 function mapScheduledTaskRow(row: DbScheduledTaskRow): AlicizationScheduledTaskRecord {
   return {
+    obligationGeneration: row.obligation_generation ?? 1,
     id: row.id,
     taskId: row.task_id,
     triggerAt: row.trigger_at,
@@ -1802,15 +1828,17 @@ function chunkValues<T>(values: T[], chunkSize = 180) {
 
 async function runInTransaction<T>(database: sqlite3Types.Database, task: () => Promise<T>) {
   await run(database, 'BEGIN IMMEDIATE')
-  try {
-    const result = await task()
-    await run(database, 'COMMIT')
-    return result
-  }
-  catch (error) {
-    await run(database, 'ROLLBACK').catch(() => {})
-    throw error
-  }
+  return withLifeTransactionHandle(database, async () => {
+    try {
+      const result = await task()
+      await run(database, 'COMMIT')
+      return result
+    }
+    catch (error) {
+      await run(database, 'ROLLBACK').catch(() => {})
+      throw error
+    }
+  })
 }
 
 async function supportsRuntimeCheckpointSchemaV3(database: sqlite3Types.Database) {
@@ -1912,6 +1940,20 @@ async function loadLatestEpisodicReconsolidationOverlayByEventId(
 }
 
 export interface AlicizationDbService {
+  snapshotLifeDatabase: (path: string) => Promise<void>
+  commitLifeState: (input: LifeCommitInput, options?: DbWriteOptions) => Promise<LifeCommitReceipt>
+  readLifeClosure: (turnId: string) => Promise<import('../../../shared/life-closure-contracts').LifeClosureRecord>
+  readLifeTurnExecutionEffects: (turnId: string) => Promise<import('../../../shared/life-contracts').LifeEffect[]>
+  readLifeState: () => Promise<LifeStateView>
+  getLifeIngress: (id: string) => Promise<import('../../../shared/life-contracts').LifeIngress | null>
+  getLifeSurface: (id: string) => Promise<import('./life-body-repository').LifeSurfaceRegistration | null>
+  getLifeUserInput: (id: string) => Promise<Record<string, unknown> | null>
+  getLifeEffect: (id: string) => Promise<import('../../../shared/life-contracts').LifeEffect | null>
+  onLifeCommitted: (listener: (receipt: LifeCommitReceipt) => void) => () => boolean
+  resumeLifeEvidenceCleanup: (limit?: number) => Promise<{ resumed: number, remaining: number }>
+  hasPublishedLifeTurn: (cardId: string, turnId: string) => Promise<boolean>
+  listPresentedLifeTurnIds: (cardId: string, turnIds: string[]) => Promise<ReadonlySet<string>>
+  readLifeFactVersions: (input: { cardId: string, factIds?: string[], history?: boolean, limit?: number }) => Promise<LifeFactVersion[]>
   dbPath: string
   close: () => Promise<void>
   appendRuntimeEvent: (
@@ -2272,6 +2314,7 @@ export interface AlicizationDbService {
     sourceIds: string[]
     source?: string
     reason?: string | null
+    mode?: 'correction' | 'forget'
     signal?: AbortSignal
   }) => Promise<void>
   upsertMemoryReflections: (
@@ -2366,9 +2409,9 @@ export interface AlicizationDbService {
     sourceTurnId?: string
   }, options?: DbWriteOptions) => Promise<AlicizationScheduledTaskRecord>
   claimDueScheduledTasks: (nowMs: number, limit: number, options?: DbWriteOptions) => Promise<AlicizationScheduledTaskRecord[]>
-  requeueScheduledTask: (taskId: string, reason?: string, nextTriggerAt?: number, options?: DbWriteOptions) => Promise<void>
-  completeScheduledTask: (taskId: string, firedTurnId: string, completedAt?: number, options?: DbWriteOptions) => Promise<void>
-  failScheduledTask: (taskId: string, error: string, completedAt?: number, options?: DbWriteOptions) => Promise<void>
+  requeueScheduledTask: (taskId: string, reason?: string, nextTriggerAt?: number, options?: DbWriteOptions & { expectedGeneration?: number }) => Promise<void>
+  completeScheduledTask: (taskId: string, firedTurnId: string, completedAt?: number, options?: DbWriteOptions & { expectedGeneration?: number }) => Promise<void>
+  failScheduledTask: (taskId: string, error: string, completedAt?: number, options?: DbWriteOptions & { expectedGeneration?: number }) => Promise<void>
   listPendingScheduledTasks: (limit?: number, options?: DbWriteOptions) => Promise<AlicizationScheduledTaskRecord[]>
   insertLearningTask: (input: {
     cardId: string
@@ -2471,6 +2514,23 @@ export async function setupAlicizationDb(
     await mkdir(rootDir, { recursive: true })
 
   const database = await openDatabase(dbPath, options?.sqliteDriver, { readOnly })
+  try {
+    // Reject an unknown future life schema before generic migrations or PRAGMA
+    // writes can touch a database owned by a newer runtime.
+    await withSqliteStartupLockWait(database, async () => {
+      const meta = await get<{ present: number }>(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'alicization_meta'`)
+      if (meta) {
+        const version = await get<{ value: string }>(database, `SELECT value FROM alicization_meta WHERE key = 'life.schema.version'`)
+        readSupportedLifeSchemaVersion(version?.value)
+      }
+    })
+  }
+  catch (error) {
+    await new Promise<void>((resolve, reject) => database.close(closeError => closeError ? reject(closeError) : resolve()))
+    throw error
+  }
+  let lifeReader: sqlite3Types.Database | undefined
+  let lifeWritesReady = false
 
   const sqliteWriteQueue = acquireSqliteWriteQueue(dbPath)
   let databaseClosing = false
@@ -2502,12 +2562,41 @@ export async function setupAlicizationDb(
     )
   }
 
+  const lifeStateStore = createLifeStateStore({
+    database,
+    readDatabase: () => lifeReader ?? database,
+    cardId: boundCardId,
+    now,
+    run,
+    get,
+    all,
+    backupMigration: async (from, to) => {
+      const directory = join(rootDir, 'backups')
+      await mkdir(directory, { recursive: true })
+      const backupPath = join(directory, `life-schema-${from}-to-${to}-${randomUUID()}.db`)
+      // SQLite takes a consistent snapshot including WAL pages. Copying only the
+      // database file would lose committed data still resident in the WAL.
+      await run(database, 'VACUUM INTO ?', [backupPath])
+    },
+    transaction: runInTransaction,
+    enqueue: enqueueWrite,
+  })
+
   async function applyMemoryIngestPayload(
     payload: AlicizationMemoryIngestPayload,
     writeOptions: DbWriteOptions = {},
+    ingestSource?: { id: string, cardId: string | null },
   ) {
     if (payload.kind === 'upsert-memory-facts') {
       await applyPreparedMemoryFacts(payload.facts, writeOptions)
+      const rows = await all<DbMemoryFactRow>(database, `SELECT * FROM memory_facts WHERE card_id = ? AND dedupe_key IN (${payload.facts.map(() => '?').join(',')})`, [boundCardId, ...payload.facts.map(fact => fact.dedupeKey)])
+      for (const [index, chunk] of chunkValues(rows, 64).entries()) {
+        const sourceId = ingestSource?.id ?? createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+        await lifeStateStore.commitInside({ cardId: boundCardId, operationKey: `memory-ingest:${sourceId}:${index}`, changes: [{ owner: 'memory', key: 'life:memory-head', value: JSON.stringify({ journalId: sourceId, factIds: chunk.map(fact => fact.id) }) }], mutations: chunk.map((fact) => {
+          const validity = parseLifeFactValidity(payload.facts.find(item => item.dedupeKey === fact.dedupe_key)?.validity)
+          return { type: 'memory-fact-version' as const, factId: fact.id, provenance: ['llm', 'async-llm'].includes(fact.source) ? 'inferred' as const : fact.source === 'rule-shadow' ? 'imagined' as const : 'reported' as const, cardinality: lifePredicateCardinality(fact.predicate), validFrom: validity?.validFrom ?? null, validTo: validity?.validTo ?? null, temporalPrecision: validity?.precision ?? 'unknown', evidence: [{ cardId: boundCardId, kind: 'memory-ingest', id: sourceId, version: 'applied' }] }
+        }) }, writeOptions)
+      }
       return
     }
     if (payload.kind === 'append-episodic-events') {
@@ -2556,6 +2645,36 @@ export async function setupAlicizationDb(
     all,
     runInTransaction,
     enqueueWrite,
+    onPersistedInside: async (event) => {
+      if (hasBoundCardScope && event.cardId !== boundCardId)
+        throw new Error('Runtime event write crossed the bound card')
+      if (event.cardId === boundCardId) {
+        const context = event.eventType === 'assistant.reply.committed'
+          ? await get<{ payload_ref_json: string }>(database, `SELECT payload_ref_json FROM life_ingress WHERE card_id = ? AND source = 'provider-context' AND json_extract(payload_ref_json, '$.turnId') = ? ORDER BY observed_at DESC, rowid DESC LIMIT 1`, [boundCardId, event.turnId])
+          : null
+        const readSet = context ? (JSON.parse(context.payload_ref_json) as { readSet: LifeCommitInput['expectedOwners'] }).readSet : []
+        const published = event.eventType === 'assistant.reply.committed'
+          ? await get<{ text_hash: string }>(database, `SELECT json_extract(payload_ref_json, '$.textHash') AS text_hash FROM life_ingress WHERE card_id=? AND source='reply-publication' AND status='settled' AND json_extract(payload_ref_json, '$.turnId')=?`, [boundCardId, event.turnId])
+          : undefined
+        const alreadyPublished = Boolean(published?.text_hash) && `sha256:${published?.text_hash}` === (event.payload as { contentHash?: string })?.contentHash
+        // Exact reviewed publication already passed the read-set fence in its
+        // archive transaction. Later outcome projection is historical receipt,
+        // not a second permission to speak from a changed identity snapshot.
+        await lifeStateStore.commitInside({ cardId: boundCardId, operationKey: `runtime-event:${event.eventId}`, ...(context && !alreadyPublished ? createLifeDialogueReadSet(readSet ?? []) : {}), changes: [], mutations: [{ type: 'runtime-event-link', eventId: event.eventId, turnId: event.turnId }] })
+        const scope = { cardId: event.cardId, turnId: event.turnId, userId: event.userId, conversationId: event.conversationId }
+        const checkpoint = await runtimeCheckpointStore.load(scope)
+        let state = checkpoint ? restoreAlicizationTurnRuntimeState(checkpoint) : null
+        const tail = await runtimeEventStore.list(scope, { afterSequence: checkpoint?.sequence ?? 0 })
+        if (!state) {
+          const accepted = tail.find(item => item.eventType === 'turn.accepted')
+          const owner = (accepted?.payload as { deliveryOwner?: string } | undefined)?.deliveryOwner === 'callback' ? 'callback' : 'inline'
+          state = createAlicizationTurnRuntimeState(scope, owner)
+        }
+        for (const persisted of tail)
+          state = reduceAlicizationRuntimeEvent(state, persisted)
+        await runtimeCheckpointStore.saveInside(toAlicizationRuntimeCheckpoint(state, Math.max(event.occurredAt, checkpoint?.updatedAt ?? 0)))
+      }
+    },
   })
   const runtimeCheckpointStore = createAlicizationRuntimeCheckpointStore({
     database,
@@ -2600,10 +2719,9 @@ export async function setupAlicizationDb(
   }
 
   async function initializeSchema() {
-    await run(database, 'PRAGMA busy_timeout = 2000;')
-    await run(database, 'PRAGMA journal_mode = WAL;')
+    await initializeSqliteWal(database)
     await run(database, 'PRAGMA foreign_keys = ON;')
-    await run(database, 'PRAGMA synchronous = NORMAL;')
+    await run(database, 'PRAGMA synchronous = FULL;')
 
     const tableExists = async (
       tableName:
@@ -4027,6 +4145,21 @@ export async function setupAlicizationDb(
   }
 
   async function upsertMeta(key: string, value: string) {
+    if (lifeWritesReady) {
+      const authority = await get<{ owner: LifeOwner }>(database, 'SELECT owner FROM life_owner_versions WHERE card_id = ? AND json_extract(payload_ref_json, \'$.metaKey\') = ?', [boundCardId, key])
+      const known = new Map<string, LifeOwner>([['visual_presence_state_v1', 'presence'], ['perception_state_v1', 'cognition'], [`mind-head:${boundCardId}:autobiographical-self`, 'self'], [`mind-head:${boundCardId}:reflection-ledger`, 'reflection'], [`mind-head:${boundCardId}:motive-engine`, 'motivation'], [`mind-head:${boundCardId}:habit-policy`, 'habit'], [`mind-head:${boundCardId}:person-state-update-surface`, 'relationship']])
+      const owner = authority?.owner ?? known.get(key)
+      if (owner) {
+        if (['growth', 'soul'].includes(owner))
+          throw new Error('Growth and SOUL writes require their dedicated lifecycle protocol')
+        const apply = () => lifeStateStore.commitInside({ cardId: boundCardId, operationKey: `owner-meta:${randomUUID()}`, changes: [{ owner, key, value }] })
+        if (activeLifeTransaction(database))
+          await apply()
+        else
+          await runInTransaction(database, apply)
+        return
+      }
+    }
     const ts = now()
     await run(
       database,
@@ -4042,7 +4175,7 @@ export async function setupAlicizationDb(
 
   async function getMetaValue(key: string, options?: DbWriteOptions) {
     assertWriteNotAborted(options)
-    const row = await get<MetaRow>(database, 'SELECT value FROM alicization_meta WHERE key = ? LIMIT 1', [key])
+    const row = await get<MetaRow>(lifeReader ?? database, 'SELECT value FROM alicization_meta WHERE key = ? LIMIT 1', [key])
     assertWriteNotAborted(options)
     return row?.value
   }
@@ -4054,8 +4187,8 @@ export async function setupAlicizationDb(
     options?: DbWriteOptions,
   ) {
     return await enqueueWrite(async () => await runInTransaction(database, async () => {
-      const current = await getMetaValue(key)
-      if (current !== expectedValue)
+      const current = await get<MetaRow>(database, 'SELECT value FROM alicization_meta WHERE key = ? LIMIT 1', [key])
+      if (current?.value !== expectedValue)
         return false
       await upsertMeta(key, nextValue)
       return true
@@ -4340,8 +4473,57 @@ export async function setupAlicizationDb(
     const assistantText = typeof input.assistantText === 'string' ? input.assistantText : null
     const structuredJson = input.structured ? JSON.stringify(input.structured) : null
 
-    await enqueueWrite(async () => {
+    await enqueueWrite(async () => runInTransaction(database, async () => {
       assertWriteNotAborted(options)
+      if (input.lifeReplyFence) {
+        if (!turnId || !assistantText)
+          throw new Error('Reviewed publication needs an exact turn and text')
+        const audit = await get<{ payload_ref_json: string, payload_hash: string }>(database, `SELECT payload_ref_json, payload_hash FROM life_ingress WHERE card_id = ? AND ingress_id = ? AND source = 'reply-grounding' AND status = 'settled'`, [cardId, input.lifeReplyFence.reviewId])
+        if (!audit || createHash('sha256').update(audit.payload_ref_json).digest('hex') !== audit.payload_hash)
+          throw new Error('Reply publication has no intact grounding audit')
+        const reviewed = JSON.parse(audit.payload_ref_json) as { accepted: boolean, turnId: string, textHash: string, requestedIntervalHash?: string | null, readOnlyTurnScopeHash?: string | null, claims: Array<{ kind: string, quote: string, binding: { kind: string, id: string, version: string } | null, meaningMatchesBinding: boolean }> }
+        const textHash = createHash('sha256').update(assistantText).digest('hex')
+        if (reviewed.accepted !== true || reviewed.turnId !== turnId || reviewed.textHash !== textHash)
+          throw new Error('Reply publication differs from its accepted semantic review')
+        if (reviewed.readOnlyTurnScopeHash) {
+          const scope = lifeReadOnlyTurnScope(await lifeStateStore.getTurnExecutionEffectsInside(turnId), turnId)
+          if (!scope || scope.fingerprint !== reviewed.readOnlyTurnScopeHash)
+            throw new Error('Execution scope changed before reply publication')
+        }
+        if (reviewed.requestedIntervalHash) {
+          const stored = await get<{ value: string }>(database, `SELECT value FROM alicization_meta WHERE key = 'life:initiative'`)
+          const interval = readLifeQuietInterval({ 'life:initiative': stored?.value ?? '{}' })
+          if (!interval || interval.endedByTurnId !== turnId || createHash('sha256').update(JSON.stringify(interval)).digest('hex') !== reviewed.requestedIntervalHash)
+            throw new Error('Requested activity interval changed before reply publication')
+        }
+        const id = `publication:${createHash('sha256').update(JSON.stringify({ cardId, turnId })).digest('hex')}`
+        const sharedProjects: NonNullable<LifeCommitInput['mutations']> = []
+        const conversationPreferences = reviewed.claims?.some(claim => claim.kind === 'interaction-boundary')
+          ? await lifeStateStore.readConversationPreferencesInside(turnId)
+          : []
+        for (const claim of reviewed.claims ?? []) {
+          if (claim.kind === 'interaction-boundary') {
+            const stored = await get<{ value: string }>(database, `SELECT value FROM alicization_meta WHERE key = 'life:initiative'`)
+            const boundary = readLifeQuietBoundary({ 'life:initiative': stored?.value ?? '{}' })
+            const quietMatches = boundary && claim.binding?.id === boundary.id && claim.binding.version === boundary.inputHash
+            const preferenceMatches = conversationPreferences.some(preference => claim.binding?.id === `conversation-preference:${preference.kind}:${preference.sourceId}` && claim.binding.version === preference.inputHash && conversationPreferenceAllowsClaim(claim.quote, preference))
+            if (!claim.meaningMatchesBinding || claim.binding?.kind !== 'boundary' || !quietMatches && !preferenceMatches)
+              throw new Error('Interaction boundary changed before reply publication')
+          }
+          if (claim.kind !== 'task-complete' || !claim.meaningMatchesBinding || claim.binding?.kind !== 'obligation')
+            continue
+          if (await get(database, 'SELECT 1 FROM life_obligations WHERE card_id = ? AND obligation_id = ? AND kind = \'personal-project\'', [cardId, claim.binding.id]))
+            sharedProjects.push({ type: 'project-share', goalId: claim.binding.id, generation: Number(claim.binding.version), turnId, reviewId: input.lifeReplyFence.reviewId })
+        }
+        await lifeStateStore.commitInside({ cardId, operationKey: id, ...createLifeDialogueReadSet(input.lifeReplyFence.owners), changes: [], mutations: [{ type: 'ingress-accept', ingress: { id, kind: 'system', source: 'reply-publication', sourceKey: id, occurredAt: createdAt, payload: { turnId, textHash, reviewId: input.lifeReplyFence.reviewId } } }, { type: 'ingress-settle', id, status: 'settled' }, ...sharedProjects] }, options)
+      }
+      if (input.outreach && turnId)
+        await lifeStateStore.commitInside({ cardId, operationKey: `outreach:${turnId}`, changes: [], mutations: [{ type: 'outreach-reserve', evidenceKey: input.outreach.evidenceKey, turnId }] }, options)
+      if (input.reminder) {
+        const current = await get<{ generation: number, status: string }>(database, `SELECT o.generation, s.status FROM life_obligations o JOIN scheduled_tasks s ON s.id = o.scheduled_task_id WHERE o.card_id = ? AND s.task_id = ?`, [cardId, input.reminder.taskId])
+        if (!current || current.generation !== input.reminder.generation || current.status !== 'running')
+          throw new Error('Reminder generation was cancelled or superseded before publication')
+      }
       await run(
         database,
         `
@@ -4363,7 +4545,7 @@ export async function setupAlicizationDb(
           AND turn_id IS NOT NULL
           AND TRIM(turn_id) != ''
         DO UPDATE SET
-          user_text = excluded.user_text,
+          user_text = COALESCE(excluded.user_text, conversation_turns.user_text),
           assistant_text = excluded.assistant_text,
           structured_json = excluded.structured_json,
           created_at = excluded.created_at
@@ -4379,7 +4561,9 @@ export async function setupAlicizationDb(
           createdAt,
         ],
       )
-    }, options)
+      if (input.reminder && turnId)
+        await lifeStateStore.commitInside({ cardId, operationKey: `reminder-generated:${input.reminder.taskId}:${input.reminder.generation}`, changes: [], mutations: [{ type: 'reminder-generated', taskId: input.reminder.taskId, turnId, expectedGeneration: input.reminder.generation }] }, options)
+    }), options)
   }
 
   async function getLatestConversationSessionId(cardIdRaw?: string, options?: { signal?: AbortSignal }) {
@@ -5606,7 +5790,12 @@ export async function setupAlicizationDb(
     prepared: PreparedEpisodicEventWrite[],
     writeOptions: DbWriteOptions = {},
   ) {
+    const accepted: PreparedEpisodicEventWrite[] = []
     for (const event of prepared) {
+      if (await allowProjectExperienceWrite(event, (sql, params) => get(database, sql, params)))
+        accepted.push(event)
+    }
+    for (const event of accepted) {
       assertWriteNotAborted(writeOptions)
       await run(
         database,
@@ -5703,9 +5892,9 @@ export async function setupAlicizationDb(
       )
     }
     await memoryEventGraphRuntime.upsertGraphForEpisodicEvents(
-      prepared.map(mapPreparedEventToEventGraphSource),
+      accepted.map(mapPreparedEventToEventGraphSource),
     )
-    for (const cardId of new Set(prepared.map(event => event.cardId)))
+    for (const cardId of new Set(accepted.map(event => event.cardId)))
       await rebuildMemoryConsolidationsFromEvents(cardId)
   }
 
@@ -5871,8 +6060,14 @@ export async function setupAlicizationDb(
 
     assertWriteNotAborted(options)
     let writeResult: SqliteStatementResult | undefined
-    await enqueueWrite(async () => {
+    await lifeStateStore.commitWith({ cardId: boundCardId, operationKey: expectedUpdatedAt == null ? `task-write:${randomUUID()}` : `task-write:${id}:${expectedUpdatedAt}`, changes: [], mutations: [{ type: 'task-thread-project', threadId: id, requestHash: createHash('sha256').update(JSON.stringify(input)).digest('hex') }] }, options, async () => {
       assertWriteNotAborted(options)
+      if (input.metadata !== undefined) {
+        const previous = await get<{ metadata_json: string | null }>(database, 'SELECT metadata_json FROM task_threads WHERE id = ?', [id])
+        const previousSeries = previous?.metadata_json ? (JSON.parse(previous.metadata_json) as Record<string, unknown>).personalSeries : undefined
+        if (previousSeries && JSON.stringify(previousSeries) !== JSON.stringify(input.metadata?.personalSeries))
+          throw new Error('An accepted personal project plan cannot be rewritten; cancel it and create a new project')
+      }
       if (expectedUpdatedAt !== null && !createOnly) {
         const existing = await get<{ id: string }>(
           database,
@@ -5881,7 +6076,9 @@ export async function setupAlicizationDb(
         )
         if (!existing) {
           writeResult = { changes: 0, lastID: 0 }
-          return
+          const error = new Error(`Task thread ${id} changed before this update could be applied.`)
+          Object.assign(error, { code: 'TASK_THREAD_VERSION_CONFLICT', threadId: id, expectedUpdatedAt })
+          throw error
         }
       }
       writeResult = await run(
@@ -5951,7 +6148,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           ...(createOnly ? [] : [expectedUpdatedAt, expectedUpdatedAt]),
         ],
       )
-    }, options)
+      if (writeResult.changes === 0) {
+        const error = new Error(createOnly ? `Task thread ${id} already exists.` : `Task thread ${id} changed before this update could be applied.`)
+        Object.assign(error, { code: createOnly ? 'TASK_THREAD_ALREADY_EXISTS' : 'TASK_THREAD_VERSION_CONFLICT', threadId: id, expectedUpdatedAt })
+        throw error
+      }
+    })
 
     if (createOnly && writeResult?.changes === 0) {
       const error = new Error(`Task thread ${id} already exists.`)
@@ -6225,6 +6427,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             eventCreatedAt,
           ],
         )
+        await lifeStateStore.commitInside({ cardId: boundCardId, operationKey: `task-resume:${threadId}:${nextAttemptId}`, changes: [], mutations: [{ type: 'task-thread-project', threadId, requestHash: createHash('sha256').update(JSON.stringify(input)).digest('hex') }] }, options)
       })
     }, options)
 
@@ -7009,6 +7212,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         )
       }
 
+      // An explicit conversation reset also clears experience-derived life state.
+      // SOUL identity and the commit audit remain; dependent rows precede FK roots.
+      for (const table of ['life_surface_sessions', 'life_obligations', 'life_effect_intents', 'life_ingress', 'life_expression_receipts', 'life_appraisals', 'life_evidence_dependencies', 'life_evidence_cleanup_visits', 'life_evidence_cleanup_jobs', 'life_memory_source_withdrawals', 'memory_entity_aliases', 'memory_entities'])
+        await deleteCardScoped(table)
+      await run(database, `DELETE FROM life_owner_versions WHERE card_id = ? AND owner != 'soul'`, [boundCardId])
+      await run(database, `DELETE FROM alicization_meta WHERE (key LIKE 'life:%' AND key != 'life:soul-active') OR key IN ('visual_presence_state_v1','perception_state_v1','self_evolution_version_runtime_v1')`)
       await deleteCardScoped('memory_facts')
       await deleteCardScoped('memory_archive')
       await deleteCardScoped('long_term_memory_tombstones')
@@ -7085,6 +7294,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             : 'persona_candidate_projection_v1:%',
         ],
       )
+      await lifeStateStore.commitInside({ cardId: boundCardId, operationKey: `life-reset:${randomUUID()}`, changes: [{ owner: 'memory', key: 'life:memory-head', value: JSON.stringify({ resetAt: now(), retainedSoulIdentity: true }) }] })
     }))
     resetPersonaTrainingPipelineState()
   }
@@ -7104,26 +7314,15 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
     const createdAt = now()
     const triggerAt = Number.isFinite(input.triggerAt) ? Math.floor(input.triggerAt) : createdAt
-    const id = randomUUID()
+    const id = `reminder:${taskId}`
     const sourceTurnId = input.sourceTurnId?.trim() || null
-    await enqueueWrite(async () => {
-      assertWriteNotAborted(options)
-      await run(
-        database,
-        `
-        INSERT INTO scheduled_tasks (
-          id,
-          task_id,
-          trigger_at,
-          message,
-          status,
-          created_at,
-          source_turn_id
-        ) VALUES (?, ?, ?, ?, 'pending', ?, ?)
-        `,
-        [id, taskId, triggerAt, message, createdAt, sourceTurnId],
-      )
-    }, options)
+    const previous = await get<DbScheduledTaskRow>(database, 'SELECT * FROM scheduled_tasks WHERE task_id = ?', [taskId])
+    if (previous) {
+      if (previous.trigger_at !== triggerAt || previous.message !== message || previous.source_turn_id !== sourceTurnId)
+        throw new Error('Reminder task identifier was reused with different content')
+      return mapScheduledTaskRow(previous)
+    }
+    await lifeStateStore.commit({ cardId: boundCardId, operationKey: `schedule:${taskId}`, changes: [], mutations: [{ type: 'obligation-create', dedupeKey: id, schedule: { taskId, message }, obligation: { cardId: boundCardId, id, generation: 1, revision: 0, kind: 'reminder', summary: message, status: 'waiting', sourceTurnId, deliveryTurnId: null, dueAt: triggerAt, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, threadId: null, scheduledTaskId: id, proof: { kind: 'reminder', channel: 'text-rendered' }, receiptId: null, createdAt, updatedAt: createdAt } }] }, options)
 
     return {
       id,
@@ -7131,6 +7330,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       triggerAt,
       message,
       status: 'pending',
+      obligationGeneration: 1,
       createdAt,
       claimedAt: null,
       completedAt: null,
@@ -7148,14 +7348,14 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       const dueRows = await all<DbScheduledTaskRow>(
         database,
         `
-        SELECT *
-        FROM scheduled_tasks
+        SELECT s.*, (SELECT generation FROM life_obligations o WHERE o.scheduled_task_id = s.id AND o.card_id = ?) AS obligation_generation
+        FROM scheduled_tasks s
         WHERE status = 'pending'
           AND trigger_at <= ?
         ORDER BY trigger_at ASC
         LIMIT ?
         `,
-        [safeNow, safeLimit],
+        [boundCardId, safeNow, safeLimit],
       )
       const claimed: AlicizationScheduledTaskRecord[] = []
       for (const row of dueRows) {
@@ -7174,7 +7374,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         )
         if (result.changes < 1)
           continue
-
+        const dueId = `due:${row.task_id}:${row.obligation_generation ?? 1}:${claimAt}`
+        await lifeStateStore.commitInside({ cardId: boundCardId, operationKey: dueId, changes: [], mutations: [{ type: 'ingress-accept', ingress: { id: dueId, kind: 'due', source: 'reminder-clock', sourceKey: dueId, occurredAt: row.trigger_at, payload: { taskId: row.task_id, generation: row.obligation_generation ?? 1, triggerAt: row.trigger_at, claimAt } } }] }, options)
         claimed.push({
           ...mapScheduledTaskRow(row),
           status: 'running',
@@ -7187,7 +7388,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     }), options)
   }
 
-  async function completeScheduledTask(taskIdRaw: string, firedTurnIdRaw: string, completedAtRaw?: number, options?: DbWriteOptions) {
+  async function completeScheduledTask(taskIdRaw: string, firedTurnIdRaw: string, completedAtRaw?: number, options?: DbWriteOptions & { expectedGeneration?: number }) {
     const taskId = taskIdRaw.trim()
     const firedTurnId = firedTurnIdRaw.trim()
     if (!taskId)
@@ -7198,24 +7399,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       ? Math.floor(completedAtRaw)
       : now()
 
-    await enqueueWrite(async () => {
-      assertWriteNotAborted(options)
-      await run(
-        database,
-        `
-        UPDATE scheduled_tasks
-        SET status = 'completed',
-            fired_turn_id = ?,
-            completed_at = ?,
-            last_error = NULL
-        WHERE task_id = ?
-        `,
-        [firedTurnId, completedAt, taskId],
-      )
-    }, options)
+    await lifeStateStore.commit({ cardId: boundCardId, operationKey: `reminder-generated:${taskId}:${options?.expectedGeneration ?? 1}`, changes: [], mutations: [{ type: 'reminder-generated', taskId, turnId: firedTurnId, expectedGeneration: options?.expectedGeneration ?? 1 }] }, options)
+    void completedAt
   }
 
-  async function requeueScheduledTask(taskIdRaw: string, reasonRaw?: string, nextTriggerAtRaw?: number, options?: DbWriteOptions) {
+  async function requeueScheduledTask(taskIdRaw: string, reasonRaw?: string, nextTriggerAtRaw?: number, options?: DbWriteOptions & { expectedGeneration?: number }) {
     const taskId = taskIdRaw.trim()
     if (!taskId)
       throw new Error('taskId is required')
@@ -7224,48 +7412,15 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       ? Math.max(0, Math.floor(Number(nextTriggerAtRaw)))
       : null
 
-    await enqueueWrite(async () => {
-      assertWriteNotAborted(options)
-      await run(
-        database,
-        `
-        UPDATE scheduled_tasks
-        SET status = 'pending',
-            trigger_at = COALESCE(?, trigger_at),
-            claimed_at = NULL,
-            completed_at = NULL,
-            fired_turn_id = NULL,
-            last_error = ?
-        WHERE task_id = ?
-        `,
-        [nextTriggerAt, reason, taskId],
-      )
-    }, options)
+    await lifeStateStore.commit({ cardId: boundCardId, operationKey: `reminder-requeue:${taskId}:${options?.expectedGeneration ?? 1}:${randomUUID()}`, changes: [], mutations: [{ type: 'reminder-attempt-settle', taskId, expectedGeneration: options?.expectedGeneration ?? 1, status: 'pending', nextTriggerAt, reason }] }, options)
   }
 
-  async function failScheduledTask(taskIdRaw: string, errorRaw: string, completedAtRaw?: number, options?: DbWriteOptions) {
+  async function failScheduledTask(taskIdRaw: string, errorRaw: string, _completedAtRaw?: number, options?: DbWriteOptions & { expectedGeneration?: number }) {
     const taskId = taskIdRaw.trim()
     if (!taskId)
       throw new Error('taskId is required')
     const message = errorRaw.trim() || 'unknown reminder error'
-    const completedAt = typeof completedAtRaw === 'number' && Number.isFinite(completedAtRaw)
-      ? Math.floor(completedAtRaw)
-      : now()
-
-    await enqueueWrite(async () => {
-      assertWriteNotAborted(options)
-      await run(
-        database,
-        `
-        UPDATE scheduled_tasks
-        SET status = 'failed',
-            completed_at = ?,
-            last_error = ?
-        WHERE task_id = ?
-        `,
-        [completedAt, message, taskId],
-      )
-    }, options)
+    await lifeStateStore.commit({ cardId: boundCardId, operationKey: `reminder-failed:${taskId}:${options?.expectedGeneration ?? 1}:${randomUUID()}`, changes: [], mutations: [{ type: 'reminder-attempt-settle', taskId, expectedGeneration: options?.expectedGeneration ?? 1, status: 'failed', nextTriggerAt: null, reason: message }] }, options)
   }
 
   async function listPendingScheduledTasks(limit = 200, options?: DbWriteOptions) {
@@ -7741,6 +7896,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           subject,
           predicate,
           object,
+          validity: parseLifeFactValidity(fact.validity),
           confidence: clamp01(fact.confidence),
           source,
           dedupeKey: buildDedupeKey(subject, predicate, object),
@@ -7958,6 +8114,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
               correction.targetFactId,
             ],
           )
+          if (cardId === boundCardId) {
+            // Validation changes knowledge confidence, not when the reported
+            // preference actually applies. Preserve its original evidence too.
+            const version = await get<LifeFactVersionRow & { temporal_precision: 'day' | 'unknown' }>(database, 'SELECT * FROM memory_fact_versions WHERE card_id = ? AND fact_id = ? ORDER BY version DESC LIMIT 1', [cardId, row.id])
+            await lifeStateStore.commitInside({ cardId, operationKey: `fact-correction:${randomUUID()}`, changes: [{ owner: 'memory', key: 'life:memory-head', value: JSON.stringify({ correctedFactId: row.id, validationStatus: correction.nextValidationStatus }) }], mutations: [{ type: 'memory-fact-version', factId: row.id, cardinality: lifePredicateCardinality(row.predicate), provenance: ['llm', 'async-llm'].includes(row.source) ? 'inferred' : row.source === 'rule-shadow' ? 'imagined' : 'reported', validFrom: version?.valid_from ?? null, validTo: version?.valid_to ?? null, temporalPrecision: version?.temporal_precision ?? 'unknown', evidence: version ? mapLifeFactVersion(version).evidence : [] }, ...(['superseded', 'disputed'].includes(correction.nextValidationStatus) ? [{ type: 'evidence-invalidate' as const, source: { cardId, kind: 'memory_facts', id: row.id, version: version ? String(version.version) : '*' }, mode: 'correction' as const, reason: correction.sourceLabel ?? 'fact-corrected' }] : [])] }, writeOptions)
+          }
         }
       })
     }, writeOptions)
@@ -8145,7 +8307,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     })
     assertWriteNotAborted(options)
 
-    return prepared.map(event => mapEpisodicEventRow({
+    const published: PreparedEpisodicEventWrite[] = []
+    for (const event of prepared) {
+      if (!event.id.startsWith('project-experience:') || await get(lifeReader ?? database, 'SELECT 1 FROM episodic_events WHERE card_id = ? AND id = ?', [event.cardId, event.id]))
+        published.push(event)
+    }
+    return published.map(event => mapEpisodicEventRow({
       id: event.id,
       card_id: event.cardId,
       decision_trace_id: event.decisionTraceId,
@@ -8234,6 +8401,14 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     runInTransaction,
   })
   const memoryRelationshipRuntime = createAlicizationMemoryRelationshipRuntime({
+    onOutcomePersistedInside: async (entry) => {
+      if (hasBoundCardScope && entry.cardId !== boundCardId)
+        throw new Error('Relationship feedback crossed the card boundary')
+      if (entry.cardId === boundCardId) {
+        const id = `feedback:${entry.id}`
+        await lifeStateStore.commitInside({ cardId: boundCardId, operationKey: id, changes: [], mutations: [{ type: 'ingress-accept', ingress: { id, kind: 'feedback', source: entry.sourceKind, sourceKey: entry.id, occurredAt: entry.createdAt, payload: { outcomeId: entry.id, turnId: entry.turnId, summary: entry.summary, sourceKind: entry.sourceKind } } }, { type: 'ingress-settle', id, status: 'settled' }] })
+      }
+    },
     database,
     now,
     randomUUID,
@@ -11455,7 +11630,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             sourceIds,
           },
         })
-        void memoryEmbeddingReindexRuntime.runJob(progress.jobId).catch(() => {})
+        startMemoryEmbeddingReindex(progress.jobId, cardId)
       }
       catch (error) {
         void appendAuditLog({
@@ -11701,6 +11876,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
                 .filter(item => item.source === source)
                 .map(item => item.sourceId),
               reason: 'superseded-by-user-correction',
+              mode: 'correction',
               signal: options.signal,
             })
           }
@@ -12021,6 +12197,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     sourceIds: string[]
     source?: string
     reason?: string | null
+    mode?: 'correction' | 'forget'
     signal?: AbortSignal
   }) {
     assertReadNotAborted(input.signal)
@@ -12065,6 +12242,10 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
               createdAt,
             ],
           )
+          await run(database, `INSERT INTO life_memory_source_withdrawals(card_id, source, source_id, mode, recorded_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(card_id, source, source_id) DO UPDATE SET mode = CASE WHEN life_memory_source_withdrawals.mode = 'forget' THEN 'forget' ELSE excluded.mode END, recorded_at = excluded.recorded_at`, [cardId, source, sourceId, input.mode ?? 'forget', createdAt])
+          const withdrawal = await get<{ mode: 'correction' | 'forget' }>(database, 'SELECT mode FROM life_memory_source_withdrawals WHERE card_id = ? AND source = ? AND source_id = ?', [cardId, source, sourceId])
+          if (cardId === boundCardId)
+            await lifeStateStore.commitInside({ cardId, operationKey: `withdraw-source:${source}:${sourceId}:${withdrawal!.mode}:${createdAt}:${randomUUID()}`, changes: [], mutations: [{ type: 'evidence-invalidate', source: { cardId, kind: source, id: sourceId, version: '*' }, mode: withdrawal!.mode, reason: reason ?? 'source-withdrawn' }] }, { signal: input.signal })
         }
       })
     }, { signal: input.signal })
@@ -12482,10 +12663,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       currentThreadTitle: input.currentThreadTitle,
       activeTask: input.activeTask,
     })
+    const temporal = planLifeTemporalQuery(input.currentUserText, now())
     const safeLimit = Math.max(1, Math.min(8, Math.floor(input.limit ?? 5)))
     if (!intent.shouldRecall) {
       return {
-        bundle: buildLongTermMemoryEvidenceBundle({
+        ...boundLifeRecallBundle(buildLongTermMemoryEvidenceBundle({
           intent,
           plan,
           candidates: [],
@@ -12495,7 +12677,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             userId: input.userId ?? 'local-user',
             cardId: input.cardId,
           },
-        }),
+        })),
         degradedChannels: [],
       }
     }
@@ -12611,24 +12793,27 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       { signal: input.signal },
     )
     assertReadNotAborted(input.signal)
+    const historicalCandidates = await retrieveLifeHistoricalFacts({ cardId: input.cardId, temporal, query: plan.normalizedQuery, terms: [...plan.keywordQueries, ...plan.charGramQueries], now: now(), all: (sql, params) => all(lifeReader ?? database, sql, params) })
+    assertReadNotAborted(input.signal)
     const mergedCandidates = [
       ...visibleCandidates,
       ...semanticCandidates.filter(candidate => !semanticTombstoned.has(candidate.id)),
-    ]
+      ...historicalCandidates,
+    ].filter((candidate, index, values) => values.findIndex(other => other.id === candidate.id && other.source === candidate.source) === index)
 
     return {
-      bundle: buildLongTermMemoryEvidenceBundle({
+      ...boundLifeRecallBundle(buildLongTermMemoryEvidenceBundle({
         intent,
         plan,
         now: now(),
         limit: safeLimit,
-        candidates: mergedCandidates,
+        candidates: filterLifeRecallFacts(mergedCandidates, await readLifeFactVersions({ cardId: input.cardId, factIds: mergedCandidates.filter(candidate => candidate.source === 'memory_facts').map(candidate => candidate.id), history: true, limit: 500 }), { historical: temporal.historical, recordedRange: temporal.recordedRange, validRange: temporal.validRange, now: now() }),
         semanticScores: semantic.scores,
         scope: {
           userId: input.userId ?? 'local-user',
           cardId: input.cardId,
         },
-      }),
+      })),
       degradedChannels,
     }
   }
@@ -12833,11 +13018,26 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     if (affectsPersonaProjection)
       await memoryWorkbenchPersonaCandidateRuntime.markProjectionDirty([cardId])
     await enqueueWrite(async () => {
-      await run(
-        database,
-        'DELETE FROM long_term_memory_tombstones WHERE card_id = ? AND id = ?',
-        [cardId, tombstoneId],
-      )
+      await runInTransaction(database, async () => {
+        await run(database, 'DELETE FROM long_term_memory_tombstones WHERE card_id = ? AND id = ?', [cardId, tombstoneId])
+        await run(database, 'DELETE FROM life_memory_source_withdrawals WHERE card_id = ? AND source = ? AND source_id = ?', [cardId, tombstone.source, tombstone.source_id])
+        if (cardId !== boundCardId)
+          return
+        const restoreId = `source-restore:${randomUUID()}`
+        const mutations: NonNullable<LifeCommitInput['mutations']> = [{ type: 'ingress-accept', ingress: { id: restoreId, kind: 'system', source: 'human-memory-governance', sourceKey: restoreId, occurredAt: now(), payload: { source: tombstone.source, sourceId: tombstone.source_id, action: 'restore-source-only', derivedActivitiesRemainWithdrawn: true } } }, { type: 'ingress-settle', id: restoreId, status: 'settled' }]
+        if (['memory_facts', 'long_term_memory'].includes(tombstone.source)) {
+          const latest = await get<{ fact_id: string, lifecycle: string, provenance: LifeFactVersion['provenance'], valid_from: number | null, valid_to: number | null }>(database, 'SELECT fact_id, lifecycle, provenance, valid_from, valid_to FROM memory_fact_versions WHERE card_id = ? AND stream_id IN (SELECT stream_id FROM memory_fact_versions WHERE card_id = ? AND fact_id = ?) ORDER BY version DESC LIMIT 1', [cardId, cardId, tombstone.source_id])
+          // Restoring an old preference cannot replace a newer preference. A
+          // restored current fact gets a fresh evidence generation, so old
+          // growth and tasks remain invalidated until separately reconsidered.
+          if (latest?.fact_id === tombstone.source_id && latest.lifecycle === 'revoked') {
+            const fact = await get<{ predicate: string }>(database, 'SELECT predicate FROM memory_facts WHERE card_id = ? AND id = ?', [cardId, tombstone.source_id])
+            if (fact)
+              mutations.push({ type: 'memory-fact-version', factId: tombstone.source_id, provenance: latest.provenance, cardinality: lifePredicateCardinality(fact.predicate), validFrom: latest.valid_from, validTo: latest.valid_to, evidence: [{ cardId, kind: 'memory-restore', id: restoreId, version: '1' }] })
+          }
+        }
+        await lifeStateStore.commitInside({ cardId, operationKey: restoreId, changes: [{ owner: 'memory', key: 'life:memory-head', value: JSON.stringify({ restoredSource: { kind: tombstone.source, id: tombstone.source_id }, restoreId }) }], mutations })
+      })
     })
     if (tombstone.source === 'memory_reflections' || tombstone.source === 'long_term_memory') {
       await memoryWorkbenchPersonaCandidateRuntime.refreshProjectionForCandidateId(
@@ -15174,7 +15374,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           limit: requestedLimit ?? undefined,
         },
       })
-      void memoryEmbeddingReindexRuntime.runJob(progress.jobId).catch(() => {})
+      startMemoryEmbeddingReindex(progress.jobId, cardId)
       return memoryEmbeddingReindexResult(progress)
     }
     catch (error) {
@@ -15183,7 +15383,47 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   }
 
   async function resumePendingMemoryEmbeddingReindexJobs() {
-    return await memoryEmbeddingReindexRuntime.resumePendingJobs(8, boundCardId)
+    const resumed = await memoryEmbeddingReindexRuntime.resumePendingJobs(8, boundCardId)
+    for (const jobId of resumed)
+      startMemoryEmbeddingReindex(jobId, boundCardId)
+    return resumed
+  }
+
+  const watchedEmbeddingJobs = new Set<string>()
+  function startMemoryEmbeddingReindex(jobId: string, cardId: string) {
+    if (watchedEmbeddingJobs.has(jobId))
+      return
+    watchedEmbeddingJobs.add(jobId)
+    void memoryEmbeddingReindexRuntime.runJob(jobId).then(async () => {
+      // A job's corpus is fixed at scheduling time. Source updates while it is
+      // running must be rechecked after its leases settle, or a stale batch can
+      // leave new canonical text permanently without a vector.
+      const progress = await memoryEmbeddingReindexRuntime.getReindexJob(jobId)
+      if (progress.status !== 'completed')
+        return
+      const provider = resolveLongTermMemoryEmbeddingProvider()
+      if (!provider || resolveLongTermMemoryVectorSpaceId(provider) !== progress.vectorSpaceId)
+        return
+      // Repair only changed items from this job. A completed incremental job
+      // must not schedule the whole corpus while unrelated batches are running.
+      while (true) {
+        const changed = await all<{ source: string, sourceId: string, text: string, textHash: string }>(database, `
+          SELECT DISTINCT doc.source, doc.source_id AS sourceId, doc.embedding_text AS text, doc.text_hash AS textHash
+          FROM memory_embedding_reindex_items item
+          JOIN long_term_memory_search_documents doc ON doc.card_id = item.card_id AND doc.source = item.source AND doc.source_id = item.source_id
+          LEFT JOIN long_term_memory_vectors vector ON vector.card_id = doc.card_id AND vector.source = doc.source AND vector.source_id = doc.source_id AND vector.vector_space_id = ?
+          WHERE item.job_id = ? AND doc.tombstoned = 0 AND doc.text_hash != item.text_hash
+            AND (vector.id IS NULL OR vector.text_hash != doc.text_hash OR vector.status != 'indexed')
+            AND NOT EXISTS (SELECT 1 FROM long_term_memory_tombstones t WHERE t.card_id = doc.card_id AND t.source_id = doc.source_id AND (t.source = doc.source OR t.source = 'long_term_memory'))
+          ORDER BY doc.source, doc.source_id LIMIT 128`, [progress.vectorSpaceId, jobId])
+        if (!changed.length)
+          break
+        const repair = await memoryEmbeddingReindexRuntime.scheduleReindexJob({ cardId, modelId: progress.modelId, dimensions: progress.dimensions, vectorSpaceId: progress.vectorSpaceId, entries: changed })
+        await memoryEmbeddingReindexRuntime.runJob(repair.jobId)
+        if ((await memoryEmbeddingReindexRuntime.getReindexJob(repair.jobId)).status !== 'completed')
+          break
+      }
+    }).catch(() => {}).finally(() => watchedEmbeddingJobs.delete(jobId))
   }
 
   async function scheduleRequiredMemoryEmbeddingReindex(cardIdRaw: string) {
@@ -15215,7 +15455,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       vectorSpaceId,
       projection: {},
     })
-    void memoryEmbeddingReindexRuntime.runJob(progress.jobId).catch(() => {})
+    startMemoryEmbeddingReindex(progress.jobId, cardId)
     return progress
   }
 
@@ -15937,6 +16177,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     }
     else {
       await initializeSchema()
+      await lifeStateStore.initialize()
+      lifeWritesReady = true
       await memoryWorkbenchPersonaCandidateRuntime.backfillLegacyProjections(
         hasBoundCardScope ? boundCardId : null,
       )
@@ -15963,8 +16205,57 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     throw error
   }
 
+  async function resumeLifeEvidenceCleanup(limit = 8) {
+    const safeLimit = Math.max(1, Math.min(32, Math.floor(limit)))
+    const jobs = await all<{ job_id: string }>(lifeReader ?? database, `SELECT job_id FROM life_evidence_cleanup_jobs WHERE card_id = ? AND status = 'pending' ORDER BY created_at LIMIT ?`, [boundCardId, safeLimit])
+    for (const job of jobs)
+      await lifeStateStore.commit({ cardId: boundCardId, operationKey: `evidence-resume:${job.job_id}:${randomUUID()}`, changes: [], mutations: [{ type: 'evidence-cleanup-resume', jobId: job.job_id }] })
+    const count = await get<{ total: number }>(lifeReader ?? database, `SELECT COUNT(*) AS total FROM life_evidence_cleanup_jobs WHERE card_id = ? AND status = 'pending'`, [boundCardId])
+    return { resumed: jobs.length, remaining: count?.total ?? 0 }
+  }
+
+  async function readLifeFactVersions(input: { cardId: string, factIds?: string[], history?: boolean, limit?: number }) {
+    if (input.cardId !== boundCardId && hasBoundCardScope)
+      throw new Error('Fact version query crossed the card boundary')
+    const ids = input.factIds ? normalizeStringArray(input.factIds, 500) : null
+    if (ids?.length === 0)
+      return []
+    const limit = Math.max(1, Math.min(500, Math.floor(input.limit ?? 100)))
+    const rows = await all<LifeFactVersionRow>(lifeReader ?? database, `SELECT * FROM memory_fact_versions WHERE card_id = ? ${ids ? `AND fact_id IN (${ids.map(() => '?').join(',')})` : ''} ${input.history ? '' : 'AND recorded_to IS NULL AND lifecycle = \'active\''} ORDER BY ROW_NUMBER() OVER (PARTITION BY fact_id ORDER BY recorded_from DESC, version DESC), recorded_from DESC, version DESC LIMIT ?`, [input.cardId, ...ids ?? [], limit])
+    return rows.map(mapLifeFactVersion)
+  }
+
+  if (!readOnly)
+    lifeReader = await openDatabase(dbPath, options?.sqliteDriver, { readOnly: true })
   return {
     dbPath,
+    snapshotLifeDatabase: (path: string) => enqueueWrite(async () => { await run(database, 'VACUUM INTO ?', [path]) }),
+    commitLifeState: lifeStateStore.commit,
+    readLifeState: lifeStateStore.read,
+    readLifeTurnExecutionEffects: lifeStateStore.getTurnExecutionEffects,
+    readLifeClosure: lifeStateStore.readClosure,
+    getLifeIngress: lifeStateStore.getIngress,
+    getLifeEffect: lifeStateStore.getEffect,
+    getLifeUserInput: lifeStateStore.getUserInput,
+    getLifeSurface: lifeStateStore.getSurface,
+    resumeLifeEvidenceCleanup,
+    onLifeCommitted: lifeStateStore.subscribe,
+    readLifeFactVersions,
+    listPresentedLifeTurnIds: async (cardId, turnIds) => {
+      if (cardId !== boundCardId)
+        throw new Error('Expression proof lookup crossed the card boundary')
+      const ids = normalizeStringArray(turnIds, 500)
+      if (!ids.length)
+        return new Set<string>()
+      const rows = await all<{ turn_id: string }>(lifeReader ?? database, `SELECT DISTINCT turn_id FROM life_expression_receipts WHERE card_id = ? AND presentation_verified = 1 AND (state = 'rendered' OR (state = 'audio-ended' AND segment_id = 'utterance')) AND turn_id IN (${ids.map(() => '?').join(',')})`, [cardId, ...ids])
+      return new Set(rows.map(row => row.turn_id))
+    },
+    hasPublishedLifeTurn: async (cardId, turnId) => {
+      if (cardId !== boundCardId)
+        throw new Error('Published turn lookup crossed the card boundary')
+      const row = await get<{ published: number }>(lifeReader ?? database, `SELECT 1 AS published FROM conversation_turns WHERE card_id = ? AND turn_id = ? AND LENGTH(assistant_text) > 0 LIMIT 1`, [cardId, turnId])
+      return row?.published === 1
+    },
     close: async () => {
       if (databaseClosePromise)
         return await databaseClosePromise
@@ -15978,7 +16269,10 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         }
         finally {
           databaseClosing = true
+          await lifeStateStore.stopReads()
           try {
+            if (lifeReader)
+              await close(lifeReader)
             await close(database)
           }
           finally {

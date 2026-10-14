@@ -1,3 +1,5 @@
+import type { AlicizationInteractionIntent } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationChatMetaEvent,
   AlicizationDialoguePerformancePayload,
@@ -241,6 +243,7 @@ export function buildAlicizationChatMetaSignature(
 export { shouldEmitAlicizationChatMetaUpdate }
 
 export function createAlicizationChatStreamMetaEmitter(input: {
+  getInteractionIntent?: () => AlicizationInteractionIntent | null | undefined
   cardId: string
   turnId: string
   getGovernance: () => AlicizationMindTurnGovernance | null | undefined
@@ -256,7 +259,8 @@ export function createAlicizationChatStreamMetaEmitter(input: {
   let lastSignature: string | null = null
   let lastReply = ''
 
-  function emit(reply: string, options?: { force?: boolean }) {
+  function compose(reply: string, options?: { turnId?: string }) {
+    const turnId = options?.turnId ?? input.turnId
     const digitalLifeSpine = sanitizeDigitalLifeSpine(
       input.getDigitalLifeSpine?.() ?? null,
     )
@@ -264,6 +268,7 @@ export function createAlicizationChatStreamMetaEmitter(input: {
       input.getRuntimeDigest?.() ?? null,
     )
     const meta = buildAlicizationChatStreamEmbodimentMeta({
+      interactionIntent: input.getInteractionIntent?.(),
       governance: sanitizeChatMetaGovernance(input.getGovernance() ?? null),
       digitalLifeSpine,
       affectiveResidue: runtimeDigest?.affectiveResidue
@@ -276,11 +281,11 @@ export function createAlicizationChatStreamMetaEmitter(input: {
       explicitPerformance: input.getExplicitPerformance?.() ?? null,
       reply,
       thought: input.getThought?.() ?? undefined,
-      turnId: input.turnId,
+      turnId,
     })
     const emittedMeta = buildAlicizationChatMetaPayload({
       cardId: input.cardId,
-      turnId: input.turnId,
+      turnId,
       governance: meta.governance,
       visibleReplyExecution: input.getVisibleReplyExecution?.() ?? null,
       embodiment: meta.embodiment,
@@ -291,6 +296,11 @@ export function createAlicizationChatStreamMetaEmitter(input: {
       residentPerformance: input.getResidentPerformance?.() ?? null,
       runtimeDigest,
     })
+    return emittedMeta
+  }
+
+  function emit(reply: string, options?: { force?: boolean, turnId?: string }) {
+    const emittedMeta = compose(reply, options)
     const signature = JSON.stringify({
       reply,
       meta: buildAlicizationChatMetaSignature(emittedMeta),
@@ -299,11 +309,12 @@ export function createAlicizationChatStreamMetaEmitter(input: {
       return
 
     lastSignature = signature
-    lastReply = meta.speechTimeline?.reply ?? reply.trim()
+    lastReply = emittedMeta.speechTimeline?.reply ?? reply.trim()
     input.emit(emittedMeta)
   }
 
   return {
+    compose,
     emit,
     getLastReply: () => lastReply,
     snapshot: () => ({

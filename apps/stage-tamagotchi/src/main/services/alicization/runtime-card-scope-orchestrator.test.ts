@@ -3,6 +3,149 @@ import { describe, expect, it, vi } from 'vitest'
 import { createAlicizationRuntimeCardScopeOrchestrator } from './runtime-card-scope-orchestrator'
 
 describe('runtime card scope orchestrator', () => {
+  it('retains a new foreground handoff when the previous detached generation releases a completed background owner', async () => {
+    let active = 'card-a'
+    const started = Promise.withResolvers<void>()
+    const backgroundGate = Promise.withResolvers<void>()
+    const nextStarted = Promise.withResolvers<void>()
+    const nextGate = Promise.withResolvers<void>()
+    const orchestrator = createAlicizationRuntimeCardScopeOrchestrator({ scopeLifecycleQueueState: { queue: Promise.resolve() }, now: Date.now, getActiveCardId: () => active, normalizeCardId: String, sanitizeText: value => String(value), appendRuntimeDebugLine: async () => {}, switchCardScopeInner: async (value) => { active = String(value) } })
+    const background = orchestrator.withCardScope('card-a', async () => {
+      started.resolve()
+      await backgroundGate.promise
+    }, { lane: 'background', label: 'subconscious:card-a' })
+    let releaseOld: (() => void) | undefined
+    let releaseNew: (() => void) | undefined
+    let next: Promise<unknown> | undefined
+    let other: Promise<unknown> | undefined
+    try {
+      await started.promise
+      await orchestrator.withCardScope('card-a', async () => {
+        releaseOld = orchestrator.retainCurrentForegroundScope()
+      }, { lane: 'foreground', label: 'first-chat' })
+      backgroundGate.resolve()
+      await background
+      next = orchestrator.withCardScope('card-a', async () => {
+        nextStarted.resolve()
+        await nextGate.promise
+        releaseNew = orchestrator.retainCurrentForegroundScope()
+      }, { lane: 'foreground', label: 'next-chat' })
+      void next.catch(() => {})
+      await nextStarted.promise
+      other = orchestrator.withCardScope('card-b', async () => active)
+      releaseOld!()
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(active).toBe('card-a')
+      nextGate.resolve()
+      await next
+      releaseNew!()
+      expect(await other).toBe('card-b')
+    }
+    finally {
+      backgroundGate.resolve()
+      nextGate.resolve()
+      await next?.catch(() => {})
+      releaseOld?.()
+      releaseNew?.()
+      await Promise.allSettled([background, other].filter(Boolean))
+    }
+  })
+
+  it.each(['foreground', 'background'] as const)('keeps an externally shared %s task in its card after the original callback ends', async (lane) => {
+    let activeCardId = 'card-a'
+    const parentStarted = Promise.withResolvers<void>()
+    const parentGate = Promise.withResolvers<void>()
+    const sharedStarted = Promise.withResolvers<void>()
+    const sharedGate = Promise.withResolvers<void>()
+    const orchestrator = createAlicizationRuntimeCardScopeOrchestrator({
+      scopeLifecycleQueueState: { queue: Promise.resolve() },
+      now: Date.now,
+      getActiveCardId: () => activeCardId,
+      normalizeCardId: String,
+      sanitizeText: value => String(value),
+      appendRuntimeDebugLine: async () => {},
+      switchCardScopeInner: async (value) => { activeCardId = String(value) },
+    })
+    let releaseGeneration: (() => void) | undefined
+    let shared: Promise<unknown> | undefined
+    let next: Promise<unknown> | undefined
+    const parent = orchestrator.withCardScope('card-a', async () => {
+      parentStarted.resolve()
+      await parentGate.promise
+    }, { lane: 'foreground', label: 'expression-receipt:card-a' })
+    try {
+      await parentStarted.promise
+      shared = orchestrator.withCardScope('card-a', async () => {
+        sharedStarted.resolve()
+        await sharedGate.promise
+        expect(activeCardId).toBe('card-a')
+        if (lane === 'foreground')
+          releaseGeneration = orchestrator.retainCurrentForegroundScope()
+      }, { lane, skipQueueWhenScopeAlreadyActive: true, label: 'chat-preparation:card-a' })
+      void shared.catch(() => {})
+      await sharedStarted.promise
+      next = orchestrator.withCardScope('card-b', async () => activeCardId)
+      parentGate.resolve()
+      await parent
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(activeCardId).toBe('card-a')
+      sharedGate.resolve()
+      await shared
+      if (lane === 'foreground') {
+        await new Promise(resolve => setTimeout(resolve, 0))
+        expect(activeCardId).toBe('card-a')
+        releaseGeneration!()
+        releaseGeneration!()
+      }
+      expect(await next).toBe('card-b')
+    }
+    finally {
+      parentGate.resolve()
+      sharedGate.resolve()
+      await shared?.catch(() => {})
+      releaseGeneration?.()
+      await Promise.allSettled([parent, next].filter(Boolean))
+    }
+  })
+
+  it('keeps an already-started inherited callback in its card after its caller returns', async () => {
+    let activeCardId = 'card-a'
+    const childStarted = Promise.withResolvers<void>()
+    const childGate = Promise.withResolvers<void>()
+    const orchestrator = createAlicizationRuntimeCardScopeOrchestrator({
+      scopeLifecycleQueueState: { queue: Promise.resolve() },
+      now: Date.now,
+      getActiveCardId: () => activeCardId,
+      normalizeCardId: String,
+      sanitizeText: value => String(value),
+      appendRuntimeDebugLine: async () => {},
+      switchCardScopeInner: async (value) => { activeCardId = String(value) },
+    })
+    let child: Promise<unknown> | undefined
+    let next: Promise<unknown> | undefined
+    try {
+      await orchestrator.withCardScope('card-a', async () => {
+        child = orchestrator.withCardScope('card-a', async () => {
+          childStarted.resolve()
+          await childGate.promise
+          expect(activeCardId).toBe('card-a')
+        }, { label: 'late-feedback:card-a' })
+        void child.catch(() => {})
+        await childStarted.promise
+      }, { lane: 'foreground', label: 'chat-start:card-a' })
+      next = orchestrator.withCardScope('card-b', async () => activeCardId)
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(activeCardId).toBe('card-a')
+      childGate.resolve()
+      await child
+      expect(await next).toBe('card-b')
+    }
+    finally {
+      childGate.resolve()
+      await Promise.allSettled([child, next].filter(Boolean))
+    }
+  })
+
   it('serializes card-scope switches through the shared queue', async () => {
     let activeCardId = 'default'
     const steps: string[] = []

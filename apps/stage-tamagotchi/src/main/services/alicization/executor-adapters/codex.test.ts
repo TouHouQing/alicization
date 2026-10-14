@@ -34,6 +34,7 @@ vi.mock('node:process', async (importOriginal) => {
   return {
     ...actual,
     kill: processKillMock,
+    platform: 'darwin',
   }
 })
 vi.mock('node:os', async (importOriginal) => {
@@ -380,6 +381,33 @@ describe('codex executor adapter', () => {
     })
   })
 
+  it('authenticates the selected custom provider without exposing its configured bearer token through argv, files or generated shell environments', async () => {
+    const codexHome = await mkdtemp(resolve(tmpdir(), 'alicization-codex-private-provider-'))
+    createdCodexHomes.push(codexHome)
+    process.env.CODEX_HOME = codexHome
+    const token = 'private-qa-provider-credential'
+    await writeFile(resolve(codexHome, 'config.toml'), ['model_provider = "private-provider"', 'model = "private-model"', '[model_providers.private-provider]', 'name = "private-provider"', 'wire_api = "responses"', 'base_url = "https://provider.example/v1"', 'requires_openai_auth = false', `experimental_bearer_token = "${token}"`].join('\n'))
+    spawnMock.mockImplementation(() => {
+      const child = createMockCodexChild()
+      queueMicrotask(() => {
+        emitCodexAssistantResult(child, 'authenticated result')
+        child.emit('close', 0, null)
+      })
+      return child
+    })
+    const result = await executeCodexTaskThread({ thread: createThread(), command: { prompt: 'Read the owned QA probe.' }, workspaceRoot: process.cwd() })
+    expect(result.ok).toBe(true)
+    const [, args, options] = spawnMock.mock.calls[0]
+    expect(options.env.ALICIZATION_CODEX_PROVIDER_TOKEN).toBe(token)
+    expect(args).toContain('model_providers.private-provider.env_key="ALICIZATION_CODEX_PROVIDER_TOKEN"')
+    expect(args.join(' ')).toContain('shell_environment_policy.exclude=')
+    expect(args.join(' ')).toContain('ALICIZATION_CODEX_PROVIDER_TOKEN')
+    expect(args.join(' ')).not.toContain(token)
+    expect(JSON.stringify(result)).not.toContain(token)
+    await expect(access(resolve(options.env.CODEX_HOME, 'auth.json'))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await readFile(resolve(codexHome, 'config.toml'), 'utf8')).toContain(token)
+  })
+
   it('dispatches codex execution and records dispatch, step, and result events', async () => {
     let child: ReturnType<typeof createMockCodexChild> | undefined
     spawnMock.mockImplementation((_command: string, _args: string[]) => {
@@ -452,7 +480,7 @@ describe('codex executor adapter', () => {
         'workspace-write',
       ]),
       expect.objectContaining({
-        detached: process.platform !== 'win32',
+        detached: true,
         stdio: ['pipe', 'pipe', 'pipe'],
       }),
     )
@@ -2164,6 +2192,7 @@ describe('codex executor adapter', () => {
 
   it('bounds progress callback drain when an observer never settles', async () => {
     vi.useFakeTimers()
+    const timer = vi.spyOn(globalThis, 'setTimeout')
     let child: ReturnType<typeof createMockCodexChild> | undefined
     let settled = false
 
@@ -2197,6 +2226,11 @@ describe('codex executor adapter', () => {
     await flushNativeIo()
     expect(settled).toBe(false)
 
+    // Real temporary-file cleanup finishes before the observer deadline starts.
+    // Advancing its clock earlier does not advance a timer that does not exist yet.
+    for (let attempt = 0; attempt < 100 && !timer.mock.calls.some(call => call[1] === 10); attempt++)
+      await flushNativeIo()
+    expect(timer.mock.calls.some(call => call[1] === 10)).toBe(true)
     await advanceFakeTimersAndFlush(10)
     const result = await resultPromise
     expect(result).toMatchObject({
@@ -2490,6 +2524,8 @@ describe('codex executor adapter', () => {
       'stream_max_retries = 3',
       'stream_idle_timeout_ms = 45000',
       'api_key = "must-not-leak-either"',
+      '[windows]',
+      'sandbox = "elevated"',
       '',
       '[mcp_servers.serena]',
       'command = "uvx"',
@@ -2535,6 +2571,7 @@ describe('codex executor adapter', () => {
       'approval_policy="never"',
       '-c',
       'disable_response_storage=true',
+      'windows.sandbox="elevated"',
       '-c',
       'model_providers.custom.name="custom"',
       '-c',

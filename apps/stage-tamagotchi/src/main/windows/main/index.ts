@@ -11,7 +11,7 @@ import type { SettingsWindowManager } from '../settings'
 import type { WidgetsWindowManager } from '../widgets'
 
 import { dirname, join, resolve } from 'node:path'
-import { env } from 'node:process'
+import { env, platform } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import clickDragPlugin from 'electron-click-drag-plugin'
@@ -32,6 +32,7 @@ import { createConfig } from '../../libs/electron/persistence'
 import { ensureStageWindowVisible, promoteStageWindowAboveDesktop, transparentWindowConfig } from '../shared'
 import { setupMainWindowBeforeRendererLoad } from './main-window-startup'
 import { setupMainWindowElectronInvokes } from './rpc/index.electron'
+import { createInitialStageSurfaceBinding } from './stage-surface-binding'
 import { resolveRendererStartupWatchdogDecision } from './startup-watchdog'
 
 const appConfigSchema = object({
@@ -89,6 +90,9 @@ export async function setupMainWindow(params: {
     webPreferences: {
       preload: join(dirname(fileURLToPath(import.meta.url)), '../preload/index.mjs'),
       sandbox: false,
+      // NOTICE: A desktop companion remains visible while another app has focus.
+      // Keep its transparent surface painting; explicit hide/minimize events pause the stage.
+      backgroundThrottling: false,
     },
     // Thanks to [@HeartArmy](https://github.com/HeartArmy) for the tip implementation.
     //
@@ -96,6 +100,16 @@ export async function setupMainWindow(params: {
     // https://stackoverflow.com/questions/39835282/set-browserwindow-always-on-top-even-other-app-is-in-fullscreen-electron-mac
     type: 'panel',
     ...transparentWindowConfig(),
+  })
+
+  const bindInitialStageSurface = createInitialStageSurfaceBinding({
+    platform,
+    window,
+    restoreUtilityOrder: () => {
+      const focused = BrowserWindow.getFocusedWindow()
+      if (focused && focused !== window && !focused.isDestroyed() && focused.isVisible() && focused.isAlwaysOnTop())
+        focused.moveTop()
+    },
   })
 
   const forceShowFallbackDelayMs = 3500
@@ -238,6 +252,8 @@ export async function setupMainWindow(params: {
       case 'stage-mounted':
         rendererStageMounted = true
         clearStageStartupWatchdogTimer()
+        bindInitialStageSurface()
+        window.webContents.invalidate()
         console.info('[main-window] renderer stage mounted', payload)
         return
       case 'stage-unmounted':
@@ -298,9 +314,9 @@ export async function setupMainWindow(params: {
   // https://stackoverflow.com/questions/39835282/set-browserwindow-always-on-top-even-other-app-is-in-fullscreen-electron-mac
   promoteStageWindowAboveDesktop(window)
   window.setFullScreenable(false)
-  // Keep the window interactive until the renderer has a valid cursor and bounds sample.
-  // The renderer then enables click-through only after hit testing is ready.
-  window.setIgnoreMouseEvents(false, { forward: false })
+  // NOTICE: A loading or failed transparent renderer must never block the desktop.
+  // The renderer captures input only over visible controls and rendered character pixels.
+  window.setIgnoreMouseEvents(true, { forward: true })
   if (isMacOS) {
     window.setWindowButtonVisibility(false)
   }
@@ -309,6 +325,7 @@ export async function setupMainWindow(params: {
     clearForceShowFallbackTimer()
     syncWindowToDesktopBounds()
     ensureStageWindowVisible(window, app)
+    window.webContents.invalidate()
   })
   ipcMain.on(electronMainStageStartupStatusChannel, handleMainWindowStageStartupStatus)
   window.webContents.on('did-finish-load', () => {

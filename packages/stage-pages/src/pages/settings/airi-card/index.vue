@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import type { ccv3 } from '@proj-alicization/ccc'
-
 import { Alert } from '@proj-alicization/stage-ui/components'
 import { useAiriCardStore } from '@proj-alicization/stage-ui/stores/modules/airi-card'
+import { parseImportedCard } from '@proj-alicization/stage-ui/stores/modules/card-import'
 import { InputFile } from '@proj-alicization/ui'
 import { Select } from '@proj-alicization/ui/components/form'
 import { storeToRefs } from 'pinia'
@@ -31,6 +30,7 @@ const searchQuery = ref('')
 const sortOption = ref('nameAsc')
 
 const inputFiles = ref<File[]>([])
+const importError = ref('')
 
 // Card list data structure
 interface CardItem {
@@ -46,15 +46,18 @@ watch(inputFiles, async (newFiles) => {
   if (!file)
     return
 
+  importError.value = ''
+
   try {
     const content = await file.text()
-    const cardJSON = JSON.parse(content) as ccv3.CharacterCardV3
+    const cardJSON = parseImportedCard(JSON.parse(content))
 
     const createdCardId = addCard(cardJSON)
     editingCardId.value = createdCardId
     isCardCreationDialogOpen.value = true
   }
   catch (error) {
+    importError.value = t('settings.pages.card.import_error')
     console.error('Error processing card file:', error)
   }
 })
@@ -229,7 +232,7 @@ function getModuleShortName(id: string, module: 'consciousness' | 'voice') {
       :class="{ 'grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 grid-auto-rows-[minmax(min-content,max-content)] grid-auto-flow-dense sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))] sm:gap-5 md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] lg:grid-cols-[repeat(auto-fill,minmax(250px,1fr))]': cards.size > 0 }"
     >
       <!-- Upload card -->
-      <InputFile v-model="inputFiles" accept="*.json">
+      <InputFile v-model="inputFiles" accept=".json">
         <template #default="{ isDragging }">
           <template v-if="!isDragging">
             <div flex flex-col items-center>
@@ -308,6 +311,9 @@ function getModuleShortName(id: string, module: 'consciousness' | 'voice') {
     </div>
   </div>
 
+  <p v-if="importError" role="alert" class="text-sm text-red-600">
+    {{ importError }}
+  </p>
   <!-- Delete confirmation dialog -->
   <DeleteCardDialog
     v-model="showDeleteConfirm"

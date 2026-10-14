@@ -7,10 +7,12 @@ import type { WorkingMemoryLongTermQueueItem } from '../life-core/working-memory
 import type { AlicizationLongTermMemoryRecallProviderEvidence } from '../main-chat-memory-context'
 import type { AlicizationRuntimeEventScope } from './event-store'
 
+import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 
 import { sanitizeAlicizationMemoryEvidenceText } from '@proj-alicization/stage-shared'
 
+import { parseLifeRecallTemporalMetadata } from '../life-recall-temporal-metadata'
 import { longTermMemoryEvidenceVersion } from '../long-term-memory-recall'
 
 export interface AlicizationMemoryRuntimeEventInput {
@@ -75,6 +77,8 @@ const longTermRecallEvidenceFields = new Set([
   'rankReasons',
   'evidenceVersion',
   'version',
+  'sourceVersion',
+  'temporalScope',
 ])
 
 const longTermRecallEvidenceKinds = new Set([
@@ -250,13 +254,17 @@ function parseLongTermRecallEvidence(
     record.evidenceVersion,
     `${label} evidenceVersion`,
   )
-  if (evidenceVersion !== longTermMemoryEvidenceVersion)
-    throw new TypeError(`${label} evidenceVersion is unsupported`)
   const version = requiredText(record.version, `${label} version`)
-  if (version !== longTermMemoryEvidenceVersion)
-    throw new TypeError(`${label} version is unsupported`)
+  const temporalMetadata = parseLifeRecallTemporalMetadata(record)
+  const lifeFactRef = evidenceVersion.match(/^life-fact:[a-f\d]{64}:([1-9]\d*)$/u)
+  const validVersionedFact = record.source === 'memory_facts' && lifeFactRef && 'sourceVersion' in temporalMetadata && lifeFactRef[1] === temporalMetadata.sourceVersion && version === temporalMetadata.sourceVersion
+  if (!validVersionedFact && evidenceVersion !== longTermMemoryEvidenceVersion)
+    throw new TypeError(`${label} evidenceVersion is unsupported or inconsistent`)
+  if (!validVersionedFact && version !== longTermMemoryEvidenceVersion)
+    throw new TypeError(`${label} version is unsupported or inconsistent`)
 
   return {
+    ...temporalMetadata,
     id: requiredBoundedText(record.id, `${label} id`, 240),
     kind: kind as AlicizationLongTermMemoryRecallProviderEvidence['kind'],
     summary: requiredCleanMemoryText(record.summary, `${label} summary`, 720),
@@ -484,20 +492,23 @@ export function createAlicizationMemoryParticipant(options: {
       const sessionId = requiredText(input.sessionId, 'memory sessionId')
       const evidence = input.evidence.map((item, index) =>
         parseLongTermRecallEvidence(item, index, scope))
+      // Replanning can recall different versions or rankings in the same turn.
+      // Identical snapshots deduplicate; changed evidence remains traceable.
+      const recallKey = `${scope.turnId}:long-term-recall:${createHash('sha256').update(JSON.stringify({ sessionId, status: input.status, confidence: input.confidence, evidence })).digest('hex')}`
       await appendSafely(
         'long_term_memory.recall.started',
         {
           sessionId,
           scope,
         },
-        `${scope.turnId}:long-term-recall:started`,
+        `${recallKey}:started`,
       )
       if (evidence.length > 0) {
         for (const [index, item] of evidence.entries()) {
           await appendSafely(
             'long_term_memory.recall.evidence',
             item,
-            `${scope.turnId}:long-term-recall:evidence:${index}`,
+            `${recallKey}:evidence:${index}`,
           )
         }
       }
@@ -509,7 +520,7 @@ export function createAlicizationMemoryParticipant(options: {
             scope,
             status: input.status,
           },
-          `${scope.turnId}:long-term-recall:abstained`,
+          `${recallKey}:abstained`,
         )
       }
       return await appendSafely(
@@ -521,7 +532,7 @@ export function createAlicizationMemoryParticipant(options: {
           evidenceCount: evidence.length,
           confidence: input.confidence,
         },
-        `${scope.turnId}:long-term-recall:completed`,
+        `${recallKey}:completed`,
       )
     },
 

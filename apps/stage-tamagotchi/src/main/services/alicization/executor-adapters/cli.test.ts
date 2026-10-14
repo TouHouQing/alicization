@@ -4,13 +4,13 @@ import type {
 } from '@proj-alicization/stage-shared'
 
 import { readFileSync } from 'node:fs'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { executeCliTaskThread } from './cli'
+import { executeCliTaskThread, inspectCliTaskCommand } from './cli'
 
 function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): AlicizationTaskThreadRecord {
   return {
@@ -40,6 +40,68 @@ function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): Ali
 }
 
 describe('cli executor adapter', () => {
+  it('keeps raw life databases and withdrawn artifacts behind private inspection approval', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'life-cli-database-boundary-'))
+    const path = join(root, 'alicizations', 'cards', 'alice', 'alicization.db')
+    try {
+      await mkdir(join(root, 'alicizations', 'cards', 'alice'), { recursive: true })
+      await writeFile(path, 'withdrawn-private-source')
+      const result = await executeCliTaskThread({ thread: createThread(), command: { command: 'cat', args: [path] }, workspaceRoot: root })
+      expect(result.ok).toBe(false)
+      expect(result.errorCode).toBe('CLI_PERMISSION_REQUIRED')
+      expect(JSON.stringify(result)).not.toContain('withdrawn-private-source')
+    }
+    finally { await rm(root, { recursive: true, force: true }) }
+  })
+  it('gates credential reads before a process starts while preserving ordinary local reads', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'life-cli-private-'))
+    try {
+      await writeFile(join(root, '.env'), 'QA_SECRET=fixture-only')
+      await writeFile(join(root, 'note.txt'), 'ordinary note')
+      const blocked = await executeCliTaskThread({ thread: createThread(), command: { command: 'cat', args: ['.env'] }, workspaceRoot: root })
+      expect(blocked).toMatchObject({ ok: false, errorCode: 'CLI_PERMISSION_REQUIRED' })
+      expect(JSON.stringify(blocked)).not.toContain('QA_SECRET=fixture-only')
+      expect(blocked.events.some(event => event.kind === 'dispatch')).toBe(false)
+      expect(inspectCliTaskCommand({ thread: createThread(), command: { command: 'cat', args: ['note.txt'] }, workspaceRoot: root })).toMatchObject({ riskLevel: 'safe', actionCategory: 'read' })
+      const ordinary = await executeCliTaskThread({ thread: createThread(), command: { command: 'cat', args: ['note.txt'] }, workspaceRoot: root })
+      expect(ordinary.ok, JSON.stringify(ordinary)).toBe(true)
+      expect(ordinary.output).toContain('ordinary note')
+      for (const args of [['--hidden', 'secret', '.'], ['--no-ignore', 'secret', '.'], ['-uuu', 'secret', '.'], ['secret', '../.ssh/id_ed25519']])
+        expect(inspectCliTaskCommand({ thread: createThread(), command: { command: 'rg', args }, workspaceRoot: root })).toMatchObject({ riskLevel: 'danger', actionCategory: 'read' })
+      expect(inspectCliTaskCommand({ thread: createThread(), command: { command: 'printenv' }, workspaceRoot: root })).toMatchObject({ riskLevel: 'danger' })
+    }
+    finally { await rm(root, { recursive: true, force: true }) }
+  })
+  it('blocks a shell overwrite and a destructive Node program before either can change a real file', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'life-cli-danger-'))
+    const path = join(root, 'keep.txt')
+    try {
+      await writeFile(path, 'keep this data')
+      const overwrite = await executeCliTaskThread({ thread: createThread(), command: { command: 'echo replaced > keep.txt' }, workspaceRoot: root })
+      expect(overwrite).toMatchObject({ ok: false, errorCode: 'CLI_PERMISSION_REQUIRED' })
+      const script = await executeCliTaskThread({ thread: createThread(), command: { command: 'node', args: ['-e', `require('node:fs').unlinkSync(${JSON.stringify(path)})`] }, workspaceRoot: root })
+      expect(script).toMatchObject({ ok: false, errorCode: 'CLI_PERMISSION_REQUIRED' })
+      expect(await readFile(path, 'utf8')).toBe('keep this data')
+    }
+    finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('keeps code and shell-looking text in explicit argv literal, without running another command', async () => {
+    const literal = '中文; $(echo should-not-run) `hidden` > no-file & still-data'
+    const result = await executeCliTaskThread({ thread: createThread(), command: { command: 'node', args: ['-e', 'process.stdout.write(process.argv[1])', literal] }, workspaceRoot: process.cwd() })
+    expect(result.ok).toBe(true)
+    expect(result.output).toBe(literal)
+    expect(result.events.find(event => event.kind === 'dispatch')?.payload).toMatchObject({ executionMode: 'exec-file' })
+  })
+
+  it('executes ordinary echo on the host and preserves Unicode and literal arguments', async () => {
+    const literal = '中文 $(ignored) "quotes" %PATH%'
+    const result = await executeCliTaskThread({ thread: createThread(), command: { command: 'echo', args: [literal] }, workspaceRoot: process.cwd() })
+    expect(result.ok).toBe(true)
+    expect(result.output?.trim()).toBe(literal)
+    expect(result.events.find(event => event.kind === 'dispatch')?.payload).toMatchObject({ riskLevel: 'safe', actionCategory: 'read' })
+  })
+
   it('does not retain an unbounded duplicate buffer of live execution events', () => {
     const source = readFileSync(new URL('./cli.ts', import.meta.url), 'utf8')
 
@@ -219,7 +281,7 @@ describe('cli executor adapter', () => {
     const result = await executeCliTaskThread({
       thread: createThread(),
       command: {
-        command: 'node -e "process.stdout.write(\'abc\')" | wc -c',
+        command: 'node -e "process.stdout.write(\'abc\')" | node -e "process.stdin.on(\'data\',chunk=>process.stdout.write(String(chunk.length)))"',
       },
       workspaceRoot: process.cwd(),
     })
@@ -230,7 +292,7 @@ describe('cli executor adapter', () => {
     expect(result.events.at(0)).toEqual(expect.objectContaining({
       kind: 'dispatch',
       payload: expect.objectContaining({
-        command: expect.stringContaining('| wc -c'),
+        command: expect.stringContaining('| node -e'),
       }),
     }))
   })

@@ -16,6 +16,7 @@ import type {
 import type { TresContext } from '@tresjs/core'
 import type { DirectionalLight, Scene, SphericalHarmonics3, Texture, WebGLRenderer, WebGLRenderTarget } from 'three'
 
+import type { VrmPostureFramingBounds } from '../composables/vrm/daily-posture-framing'
 import type { SceneBootstrap, ScenePhase, Vec3 } from '../stores/model-store'
 import type {
   VrmActionBinding,
@@ -73,9 +74,11 @@ const props = withDefaults(defineProps<{
   performanceState?: StageEmbodimentPerformanceState | null
   presencePosture?: StageEmbodimentPresencePostureState | null
   speechRenderState?: StageEmbodimentSpeechRenderState | null
+  dailyPosture?: import('../composables/vrm/daily-posture-driver').VrmDailyPosture
+  dailyAction?: { id: string, sequence: number, cue: 'stretch' | 'rest_settle' } | null
 }>(), {
   showAxes: false,
-  idleAnimation: new URL('../assets/vrm/animations/idle_loop.vrma', import.meta.url).href,
+  idleAnimation: new URL('../assets/vrm/neko-motion/stand.vrma', import.meta.url).href,
   paused: false,
 })
 
@@ -150,6 +153,8 @@ const {
 const modelRef = ref<InstanceType<typeof VRMModel>>()
 
 const camera = shallowRef(new PerspectiveCamera())
+const dailyPostureFraming = shallowRef<VrmPostureFramingBounds | null>(null)
+const renderedBodyBounds = shallowRef<VrmPostureFramingBounds | null>(null)
 const controlsRef = shallowRef<InstanceType<typeof OrbitControls>>()
 const tresCanvasRef = shallowRef<TresContext>()
 const skyBoxEnvRef = ref<InstanceType<typeof SkyBox>>()
@@ -675,7 +680,10 @@ function characterFrame() {
   if (!bounds.width || !bounds.height)
     return null
 
-  const box = new Box3().setFromObject(sceneObject as any)
+  const actualBounds = renderedBodyBounds.value
+  const box = actualBounds
+    ? new Box3().setFromCenterAndSize(new Vector3(actualBounds.center.x, actualBounds.center.y, actualBounds.center.z), new Vector3(actualBounds.size.x, actualBounds.size.y, actualBounds.size.z))
+    : new Box3().setFromObject(sceneObject as any)
   if (box.isEmpty())
     return null
 
@@ -715,13 +723,19 @@ function characterFrame() {
   if (height <= 0 || right <= left)
     return null
 
+  const head = actualBounds?.head
+  const projectedHead = head ? new Vector3(head.center.x, head.center.y, head.center.z).project(camera.value) : null
+  const headCenter = projectedHead ? { x: bounds.left + ((projectedHead.x + 1) / 2) * bounds.width, y: bounds.top + (1 - ((projectedHead.y + 1) / 2)) * bounds.height } : null
+  const headRadius = head ? new Vector3(head.center.x, head.center.y, head.center.z).add(new Vector3(1, 0, 0).applyQuaternion(camera.value.quaternion).multiplyScalar(head.radius)).project(camera.value) : null
+  const radius = projectedHead && headRadius ? Math.max(16, Math.abs(headRadius.x - projectedHead.x) * bounds.width / 2) : 0
   return {
     left,
     right,
     top,
     bottom,
     centerX: (left + right) / 2,
-    anchorY: top + height * 0.18,
+    anchorY: headCenter?.y ?? top + height * 0.18,
+    ...(headCenter ? { head: { x: headCenter.x - radius, y: headCenter.y - radius, width: radius * 2, height: radius * 2 } } : {}),
   }
 }
 
@@ -734,6 +748,7 @@ function hitTestClientPoint(clientX: number, clientY: number) {
 }
 
 defineExpose({
+  bodyFrame: () => modelRef.value?.bodyFrame() ?? null,
   setExpression: (expression: string, intensity = 1) => {
     modelRef.value?.setExpression(expression, intensity)
   },
@@ -790,6 +805,7 @@ defineExpose({
         :model-size="modelSize"
         :camera-position="cameraPosition"
         :camera-target="modelOrigin"
+        :focus-bounds="dailyPostureFraming"
         :camera-f-o-v="cameraFOV"
         :camera-distance="cameraDistance"
         @orbit-controls-camera-changed="onOrbitControlsCameraChanged"
@@ -833,6 +849,8 @@ defineExpose({
         :speech-render-state="props.speechRenderState"
         :idle-action-preference="props.idleActionPreference"
         :presence-posture="props.presencePosture"
+        :daily-posture="props.dailyPosture"
+        :daily-action="props.dailyAction"
         :base-expression-overrides="props.baseExpressionOverrides"
         :custom-expression-bindings="props.customExpressionBindings"
         :action-bindings="props.actionBindings"
@@ -854,6 +872,8 @@ defineExpose({
         @loading-progress="(val: number) => emit('loadModelProgress', val)"
         @load-start="onVRMModelLoadStart"
         @scene-bootstrap="onVRMSceneBootstrap"
+        @daily-pose-framing="dailyPostureFraming = $event"
+        @body-framing-bounds="renderedBodyBounds = $event"
         @look-at-target="onVRMModelLookAtTarget"
         @custom-expressions-resolved="emit('customExpressionsResolved', $event)"
         @runtime-capabilities-resolved="emit('runtimeCapabilitiesResolved', $event)"

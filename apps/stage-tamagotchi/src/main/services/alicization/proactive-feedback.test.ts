@@ -14,6 +14,15 @@ import {
 } from './proactive-feedback'
 
 describe('proactive feedback loop state', () => {
+  it('does not turn an unconfirmed delivery into a negative relationship signal', () => {
+    const initial = createDefaultProactiveLoopState(100)
+    const state = registerProactiveDelivery(initial, { turnId: 'not-shown', scenario: 'general', deliveredAt: 100, feedbackWindowMs: 120_000 })
+    const settled = settleExpiredProactiveOutcomes(state, 100 + 11 * 60_000)
+    expect(settled.appliedOutcomes).toHaveLength(0)
+    expect(settled.state.pendingOutcomes).toHaveLength(0)
+    expect(settled.state.initiativeTrust).toBe(initial.initiativeTrust)
+    expect(settled.state.consecutiveIgnored.general).toBe(0)
+  })
   const emotionalTransitionLedger = {
     version: 'emotional-transition-ledger-v1',
     createdAt: 1_000,
@@ -121,7 +130,7 @@ describe('proactive feedback loop state', () => {
         summary: 'Measured return remains the right proactive cadence.',
       },
     })
-    const settled = settleProactiveOutcomesOnUserTurnStart(state, 20_000)
+    const settled = settleProactiveOutcomesOnUserTurnStart(state, 20_000, null, new Set(state.pendingOutcomes.map(item => item.turnId)))
 
     expect(settled.appliedOutcomes[0]?.outcome).toBe('reply-within-120s')
     expect(settled.appliedOutcomes[0]).toEqual(expect.objectContaining({
@@ -160,7 +169,7 @@ describe('proactive feedback loop state', () => {
         deliveredAt: index * 1_000,
         feedbackWindowMs: 120_000,
       })
-      state = settleExpiredProactiveOutcomes(state, index * 1_000 + 11 * 60_000).state
+      state = settleExpiredProactiveOutcomes(state, index * 1_000 + 11 * 60_000, new Set(state.pendingOutcomes.map(item => item.turnId))).state
     }
 
     expect(state.consecutiveIgnored.coding).toBe(3)

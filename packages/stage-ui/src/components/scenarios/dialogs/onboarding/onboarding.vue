@@ -102,6 +102,7 @@ async function saveProviderConfiguration(data: ProviderConfigData) {
   }
 
   activeProvider.value = selectedProvider.value.id
+  providersStore.markProviderAdded(selectedProvider.value.id)
   await nextTick()
 
   try {
@@ -201,10 +202,12 @@ const currentStep = computed(() => allSteps.value[step.value] ?? null)
 const isLastStep = computed(() => step.value === allSteps.value.length - 1)
 const currentStepProps = computed(() => currentStep.value?.props?.() ?? {})
 const wasOpen = ref(false)
+const hasNavigated = ref(false)
 
 watch(() => props.isOpen, (open) => {
   if (!open) {
     wasOpen.value = false
+    hasNavigated.value = false
     step.value = 0
     return
   }
@@ -215,6 +218,11 @@ watch(() => props.isOpen, (open) => {
   }
 }, { immediate: true })
 
+watch(preferredEntryStepIndex, (index) => {
+  if (props.isOpen && !hasNavigated.value)
+    step.value = index
+})
+
 async function canPassGuard(guard?: OnboardingStepGuard) {
   if (!guard)
     return true
@@ -223,6 +231,7 @@ async function canPassGuard(guard?: OnboardingStepGuard) {
 }
 
 async function navigateNext() {
+  hasNavigated.value = true
   if (!currentStep.value)
     return
 

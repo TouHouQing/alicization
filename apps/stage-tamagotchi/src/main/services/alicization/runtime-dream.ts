@@ -78,9 +78,7 @@ interface CreateAlicizationDreamRuntimeOptions {
     },
   ) => Array<{ text: string }>
   sanitizeBriefText: (raw: string, maxChars?: number) => string
-  queueSoulMutation: (
-    task: (current: AlicizationSoulSnapshot) => Promise<AlicizationSoulSnapshot>,
-  ) => Promise<AlicizationSoulSnapshot | void>
+  stageSoulProposal: (input: { cardId: string, turnId: string, baseContent: string, targetContent: string, sourceIds: string[] }) => Promise<unknown>
   snapshotFromContent: (content: string) => AlicizationSoulSnapshot
   persistSubconsciousState: (cardId: string, state: SubconsciousCardState) => Promise<void>
   persistProactiveLoopState: (cardIdRaw: unknown, state: AlicizationProactiveLoopState) => Promise<void>
@@ -120,7 +118,7 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     normalizeOrganicMemoryItemText,
     normalizeOrganicMemoryItemArray,
     sanitizeBriefText,
-    queueSoulMutation,
+    stageSoulProposal,
     snapshotFromContent,
     persistSubconsciousState,
     persistProactiveLoopState,
@@ -350,11 +348,11 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     }
 
     await getAlicizationDb().appendRelationshipDynamics({
-      hostAttitude,
+      hostAttitude: normalizedPreviousHostAttitude,
       previousHostAttitude: normalizedPreviousHostAttitude,
-      obedienceDelta,
-      livelinessDelta,
-      sensibilityDelta,
+      obedienceDelta: 0,
+      livelinessDelta: 0,
+      sensibilityDelta: 0,
       source: 'dream-llm',
       createdAt: Date.now(),
     }).catch(async (error: unknown) => {
@@ -370,7 +368,8 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     })
 
     const previousCoreIncarnation = normalizeCoreIncarnation(dreamSoul.frontmatter.core_incarnation)
-    const nextCoreIncarnation = reforgedCoreIncarnation || previousCoreIncarnation
+    const proposedCoreIncarnation = reforgedCoreIncarnation || previousCoreIncarnation
+    const nextCoreIncarnation = previousCoreIncarnation
     const dreamEventText = shatteringEventText
       || newSedimentFragments[0]?.text
       || nextActiveThoughts[0]?.text
@@ -528,24 +527,18 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
       || livelinessDelta !== 0
       || sensibilityDelta !== 0
       || hostAttitude !== normalizedPreviousHostAttitude
-      || nextCoreIncarnation !== previousCoreIncarnation
+      || proposedCoreIncarnation !== previousCoreIncarnation
     ) {
-      await queueSoulMutation(async (current) => {
-        const parsed = parseSoul(current.content)
-        const nextPersonality: AlicizationPersonalityState = {
-          obedience: clamp01(parsed.frontmatter.personality.obedience + obedienceDelta),
-          liveliness: clamp01(parsed.frontmatter.personality.liveliness + livelinessDelta),
-          sensibility: clamp01(parsed.frontmatter.personality.sensibility + sensibilityDelta),
-        }
-        const nextFrontmatter: AlicizationSoulFrontmatter = {
-          ...parsed.frontmatter,
-          host_attitude: hostAttitude,
-          core_incarnation: nextCoreIncarnation,
-          personality: nextPersonality,
-        }
-        const syncedBody = syncPersonalityBaselineInBody(parsed.body, nextPersonality)
-        return snapshotFromContent(toSoulContent(nextFrontmatter, syncedBody))
-      })
+      const parsed = parseSoul(dreamSoul.content)
+      const nextPersonality: AlicizationPersonalityState = {
+        ...parsed.frontmatter.personality,
+        obedience: clamp01(parsed.frontmatter.personality.obedience + obedienceDelta),
+        liveliness: clamp01(parsed.frontmatter.personality.liveliness + livelinessDelta),
+        sensibility: clamp01(parsed.frontmatter.personality.sensibility + sensibilityDelta),
+      }
+      const nextFrontmatter: AlicizationSoulFrontmatter = { ...parsed.frontmatter, host_attitude: hostAttitude, core_incarnation: proposedCoreIncarnation, personality: nextPersonality }
+      const syncedBody = syncPersonalityBaselineInBody(parsed.body, nextPersonality)
+      await stageSoulProposal({ cardId: dreamCardId, turnId: dreamTurnId, baseContent: dreamSoul.content, targetContent: snapshotFromContent(toSoulContent(nextFrontmatter, syncedBody)).content, sourceIds: sourceConsolidations.map(source => source.id) })
     }
 
     await getAlicizationDb().replaceActiveThoughts(nextActiveThoughts).catch(async (error: unknown) => {
@@ -563,11 +556,6 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     const subconsciousFragments = [
       ...explicitDemotedThoughts.map(item => ({ text: item.text, sourceKind: 'active-demotion' as const })),
       ...newSedimentFragments.map(item => ({ text: item.text, sourceKind: 'dream-fragment' as const })),
-      ...(
-        reforgedCoreIncarnation && previousCoreIncarnation && previousCoreIncarnation !== reforgedCoreIncarnation
-          ? [{ text: previousCoreIncarnation, sourceKind: 'former-core-incarnation' as const }]
-          : []
-      ),
       ...(
         shatteringEventText && !reforgedCoreIncarnation
           ? [{ text: shatteringEventText, sourceKind: 'unforged-shattering-event' as const }]
@@ -594,8 +582,8 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
         await appendAuditLog({
           level: 'notice',
           category: 'alicization.dream',
-          action: 'core-incarnation-reforged',
-          message: 'Successfully reforged core incarnation after shattering event.',
+          action: 'core-incarnation-revision-proposed',
+          message: 'Dream proposed an identity revision; the current SOUL remains adopted pending evaluation.',
           payload: {
             hadPreviousCoreIncarnation: Boolean(previousCoreIncarnation),
             shatteringEventText,

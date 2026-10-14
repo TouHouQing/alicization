@@ -11,6 +11,7 @@ import {
   electronAlicizationSetPerformanceManifest,
   electronAlicizationSubconsciousForceTick,
 } from '../../../shared/eventa'
+import { createLifeDatabaseTestPort } from './test-support/life-database-port'
 
 const invokeHandlers = new Map<unknown, (payload?: any, options?: any) => Promise<any>>()
 const sandboxDirs: string[] = []
@@ -154,7 +155,7 @@ vi.mock('../../libs/bootkit/lifecycle', () => ({
 }))
 
 vi.mock('./db', () => ({
-  setupAlicizationDb: vi.fn(async () => dbStub),
+  setupAlicizationDb: vi.fn(async (_path: string, options?: { cardId?: string }) => ({ ...dbStub, ...createLifeDatabaseTestPort({ cardId: options?.cardId ?? 'default', values: metaStore, writeMeta: dbStub.setMetaValue }) })),
 }))
 
 vi.mock('@proj-alicization/electron-screen-capture/main', () => ({
@@ -225,7 +226,7 @@ vi.mock('@xsai/stream-text', () => ({
 }))
 
 vi.mock('@xsai/generate-text', () => ({
-  generateText: (...args: any[]) => generateTextMock(...args),
+  generateText: (...args: any[]) => args[0]?.responseFormat?.json_schema?.name === 'life_reply_grounding' ? Promise.resolve({ text: '{"claims":[]}', finishReason: 'stop' }) : generateTextMock(...args),
 }))
 
 const { setupAlicizationRuntime } = await import('./runtime')

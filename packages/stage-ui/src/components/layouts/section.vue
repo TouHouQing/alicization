@@ -1,19 +1,17 @@
 <script setup lang="ts">
 import { Collapsible } from '@proj-alicization/ui'
 
-withDefaults(defineProps<{
+defineProps<{
   title: string
   icon: string
   innerClass?: string
-  expand?: boolean
   size?: 'sm' | 'md'
-}>(), {
-  expand: true,
-})
+}>()
+const expand = defineModel<boolean>('expand', { default: true })
 </script>
 
 <template>
-  <Collapsible :default="expand">
+  <Collapsible v-model="expand">
     <template #trigger="slotProps">
       <button
         class="w-full flex items-center justify-between rounded-lg px-3 py-2 outline-none transition-all duration-250 ease-in-out sm:px-4 sm:py-3"

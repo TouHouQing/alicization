@@ -24,6 +24,7 @@ describe('speech pipeline', () => {
       onEnd: vi.fn(),
       onInterrupt: vi.fn(),
       onReject: vi.fn(),
+      onFailure: vi.fn(),
     }
     const startedIntentIds: string[] = []
     const pipeline = createSpeechPipeline<string>({
@@ -73,6 +74,7 @@ describe('speech pipeline', () => {
       onEnd: vi.fn(),
       onInterrupt: vi.fn(),
       onReject: vi.fn(),
+      onFailure: vi.fn(),
     }
 
     let resolveFirstSegment: ((value: string) => void) | undefined
@@ -160,6 +162,7 @@ describe('speech pipeline', () => {
       onEnd: vi.fn(),
       onInterrupt: vi.fn(),
       onReject: vi.fn(),
+      onFailure: vi.fn(),
     }
 
     const pipeline = createSpeechPipeline<string>({
@@ -221,6 +224,7 @@ describe('speech pipeline', () => {
       onEnd: vi.fn(),
       onInterrupt: vi.fn(),
       onReject: vi.fn(),
+      onFailure: vi.fn(),
     }
 
     const segmenter = vi.fn((_tokens: ReadableStream<TextToken>, meta: { streamId: string, intentId: string, metadata?: Record<string, unknown> | null }) => {
@@ -291,6 +295,7 @@ describe('speech pipeline', () => {
       onEnd: vi.fn(),
       onInterrupt: vi.fn(),
       onReject: vi.fn(),
+      onFailure: vi.fn(),
     }
 
     const segmenter = vi.fn((_tokens: ReadableStream<TextToken>, meta: { streamId: string, intentId: string, metadata?: Record<string, unknown> | null }) => {
@@ -405,6 +410,7 @@ describe('speech pipeline', () => {
       onEnd: vi.fn(),
       onInterrupt: vi.fn(),
       onReject: vi.fn(),
+      onFailure: vi.fn(),
     }
 
     const segmenter = vi.fn((_tokens: ReadableStream<TextToken>, meta: { streamId: string, intentId: string, metadata?: Record<string, unknown> | null }) => {
@@ -496,6 +502,7 @@ describe('speech pipeline', () => {
       onEnd: vi.fn(),
       onInterrupt: vi.fn(),
       onReject: vi.fn(),
+      onFailure: vi.fn(),
     }
 
     const segmenter = vi.fn((_tokens: ReadableStream<TextToken>, meta: { streamId: string, intentId: string, metadata?: Record<string, unknown> | null }) => {
@@ -600,6 +607,7 @@ describe('speech pipeline', () => {
       onEnd: vi.fn(),
       onInterrupt: vi.fn(),
       onReject: vi.fn(),
+      onFailure: vi.fn(),
     }
 
     const segmenter = vi.fn((_tokens: ReadableStream<TextToken>, meta: { streamId: string, intentId: string, metadata?: Record<string, unknown> | null }) => {

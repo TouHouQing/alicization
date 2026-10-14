@@ -1,5 +1,6 @@
 import type {
   PlaybackEndEvent,
+  PlaybackFailureEvent,
   PlaybackInterruptEvent,
   PlaybackRejectEvent,
   PlaybackStartEvent,
@@ -7,6 +8,7 @@ import type {
   TtsRequest,
   TtsResult,
   TtsSkipped,
+  UtterancePlaybackResultEvent,
 } from './types'
 
 import { defineEventa } from '@moeru/eventa'
@@ -18,6 +20,8 @@ export const speechTtsResultEvent = defineEventa<TtsResult<any>>('proj-alicizati
 export const speechTtsSkippedEvent = defineEventa<TtsSkipped>('proj-alicization:pipelines:output:speech:tts-skipped')
 export const speechPlaybackStartEvent = defineEventa<PlaybackStartEvent<any>>('proj-alicization:pipelines:output:speech:playback-start')
 export const speechPlaybackEndEvent = defineEventa<PlaybackEndEvent<any>>('proj-alicization:pipelines:output:speech:playback-end')
+export const speechPlaybackFailureEvent = defineEventa<PlaybackFailureEvent<any>>('proj-alicization:pipelines:output:speech:playback-failure')
+export const speechUtterancePlaybackResultEvent = defineEventa<UtterancePlaybackResultEvent>('proj-alicization:pipelines:output:speech:utterance-playback-result')
 export const speechPlaybackInterruptEvent = defineEventa<PlaybackInterruptEvent<any>>('proj-alicization:pipelines:output:speech:playback-interrupt')
 export const speechPlaybackRejectEvent = defineEventa<PlaybackRejectEvent<any>>('proj-alicization:pipelines:output:speech:playback-reject')
 export const speechIntentStartEvent = defineEventa<string>('proj-alicization:pipelines:output:speech:intent-start')
@@ -32,6 +36,8 @@ export const speechPipelineEventMap = {
   onTtsSkipped: speechTtsSkippedEvent,
   onPlaybackStart: speechPlaybackStartEvent,
   onPlaybackEnd: speechPlaybackEndEvent,
+  onPlaybackFailure: speechPlaybackFailureEvent,
+  onUtterancePlaybackResult: speechUtterancePlaybackResultEvent,
   onPlaybackInterrupt: speechPlaybackInterruptEvent,
   onPlaybackReject: speechPlaybackRejectEvent,
   onIntentStart: speechIntentStartEvent,

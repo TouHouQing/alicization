@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-
 import type { WorkingMemoryLongTermCleaningTransaction } from './life-core/working-memory-long-term-cleaning'
+
+import { describe, expect, it } from 'vitest'
 
 import {
   applyLongTermMemoryReviewDecision,

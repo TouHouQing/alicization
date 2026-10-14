@@ -2,15 +2,16 @@ import type { FileLoggerHandle } from './app/file-logger'
 
 import process, { env, platform } from 'node:process'
 
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import messages from '@proj-alicization/i18n/locales'
 
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { Format, LogLevel, setGlobalFormat, setGlobalHookPostLog, setGlobalLogLevel, useLogg } from '@guiiai/logg'
+import { errorMessageFrom } from '@moeru/std'
 import { initScreenCaptureForMain } from '@proj-alicization/electron-screen-capture/main'
-import { app, BrowserWindow, ipcMain, powerMonitor, webContents } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, powerMonitor, shell, webContents } from 'electron'
 import { noop } from 'es-toolkit'
 import { createLoggLogger, injeca, lifecycle } from 'injeca'
 import { isLinux } from 'std-env'
@@ -22,6 +23,7 @@ import { registerAppExitSignalHandlers } from './app-exit-signal-handlers'
 import { openDebugger, setupDebugger } from './app/debugger'
 import { nullFileLoggerHandle, setupFileLogger } from './app/file-logger'
 import { createScreenLockWindowLifecycle } from './app/screen-lock'
+import { createStartupFailureHandler } from './app/startup-failure'
 import { createGlobalAppConfig } from './configs/global'
 import { emitAppBeforeQuit, emitAppReady, emitAppWindowAllClosed, onAppBeforeQuit } from './libs/bootkit/lifecycle'
 import { setElectronMainDirname } from './libs/electron/location'
@@ -29,6 +31,8 @@ import { createI18n } from './libs/i18n'
 import { setupServerChannel } from './services/airi/channel-server'
 import { setupMcpStdioManager } from './services/airi/mcp-servers'
 import { setupPluginHost } from './services/airi/plugins'
+import { applyPendingLifeRestore, cancelPendingLifeRestore } from './services/alicization/life-backup-runtime'
+import { createDesktopProviderTransport, setProviderTransport } from './services/alicization/provider-fetch'
 import { setupAlicizationRuntime } from './services/alicization/runtime'
 import { setupAutoUpdater } from './services/electron/auto-updater'
 import { setupTray } from './tray'
@@ -57,6 +61,20 @@ if (configuredUserDataPath)
 setupDebugger()
 
 const log = useLogg('main').useGlobalConfig()
+let startupFailureI18n: ReturnType<typeof createI18n> | null = null
+const showStartupFailure = createStartupFailureHandler({
+  translate: key => (startupFailureI18n ??= createI18n({ messages, locale: app.getLocale().startsWith('zh') ? 'zh-Hans' : 'en' })).t(key),
+  userDataPath: app.getPath('userData'),
+  logsPath: join(app.getPath('userData'), 'logs'),
+  hideWindows: () => {
+    for (const window of BrowserWindow.getAllWindows())
+      window.hide()
+  },
+  showMessage: input => dialog.showMessageBox(input),
+  openPath: path => shell.openPath(path),
+  quit: () => app.quit(),
+  report: error => log.withError(error).error('Error during app initialization'),
+})
 
 // Thanks to [@blurymind](https://github.com/blurymind),
 //
@@ -110,8 +128,21 @@ let skipFileLogging = false
 
 if (hasSingleInstanceLock) {
   app.whenReady().then(async () => {
-  // Initialize file logger and register the hook
+    setProviderTransport(createDesktopProviderTransport((input, init) => net.fetch(input instanceof URL ? input.href : input, init), globalThis.fetch))
+    // Initialize file logger and register the hook
     fileLogger = await setupFileLogger()
+    try {
+      await applyPendingLifeRestore(app.getPath('userData'))
+    }
+    catch (error) {
+      const t = (startupFailureI18n ??= createI18n({ messages, locale: app.getLocale().startsWith('zh') ? 'zh-Hans' : 'en' })).t
+      const choice = await dialog.showMessageBox({ type: 'warning', title: t('settings.life.backup.recovery_title'), message: t('settings.life.backup.recovery_message'), detail: errorMessageFrom(error), buttons: [t('settings.life.backup.recovery_quit'), t('settings.life.backup.recovery_original')], defaultId: 0, cancelId: 0, noLink: true })
+      if (choice.response !== 1) {
+        app.quit()
+        return
+      }
+      await cancelPendingLifeRestore(app.getPath('userData'))
+    }
 
     // Register the global hook for file logging
     setGlobalHookPostLog((_, formatted) => {
@@ -188,8 +219,8 @@ if (hasSingleInstanceLock) {
     const devtoolsMarkdownStressWindow = injeca.provide('windows:devtools:markdown-stress', () => setupDevtoolsWindow())
 
     const onboardingWindowManager = injeca.provide('windows:onboarding', {
-      dependsOn: { serverChannel, i18n },
-      build: ({ dependsOn }) => setupOnboardingWindowManager(dependsOn),
+      dependsOn: { serverChannel, i18n, alicizationRuntime },
+      build: ({ dependsOn }) => setupOnboardingWindowManager({ ...dependsOn, onWindowCreated: window => dependsOn.alicizationRuntime.attachPersonaWindow(window) }),
     })
 
     const noticeWindow = injeca.provide('windows:notice', {
@@ -209,17 +240,17 @@ if (hasSingleInstanceLock) {
 
     const chatWindow = injeca.provide('windows:chat', {
       dependsOn: { alicizationRuntime, widgetsManager, serverChannel, mcpStdioManager, i18n },
-      build: ({ dependsOn }) => setupChatWindowReusableFunc(dependsOn),
+      build: ({ dependsOn }) => setupChatWindowReusableFunc({ ...dependsOn, onWindowCreated: window => dependsOn.alicizationRuntime.attachPersonaWindow(window) }),
     })
 
     const settingsWindow = injeca.provide('windows:settings', {
       dependsOn: { alicizationRuntime, widgetsManager, beatSync, autoUpdater, devtoolsMarkdownStressWindow, serverChannel, mcpStdioManager, i18n },
-      build: async ({ dependsOn }) => setupSettingsWindowReusableFunc(dependsOn),
+      build: async ({ dependsOn }) => setupSettingsWindowReusableFunc({ ...dependsOn, onWindowCreated: window => dependsOn.alicizationRuntime.attachPersonaWindow(window) }),
     })
 
     const mainWindow = injeca.provide('windows:main', {
       dependsOn: { alicizationRuntime, settingsWindow, chatWindow, widgetsManager, noticeWindow, beatSync, autoUpdater, serverChannel, mcpStdioManager, i18n, onboardingWindowManager },
-      build: async ({ dependsOn }) => setupMainWindow(dependsOn),
+      build: async ({ dependsOn }) => setupMainWindow({ ...dependsOn, onWindowCreated: window => dependsOn.alicizationRuntime.attachPresenceWindow(window) }),
     })
 
     const captionWindow = injeca.provide('windows:caption', {
@@ -245,16 +276,14 @@ if (hasSingleInstanceLock) {
       callback: noop,
     })
 
-    injeca.start().catch(err => console.error(err))
+    injeca.start().catch(showStartupFailure)
 
     // Lifecycle
     emitAppReady()
 
     // Extra
     openDebugger()
-  }).catch((err) => {
-    log.withError(err).error('Error during app initialization')
-  })
+  }).catch(showStartupFailure)
 }
 
 // Quit when all windows are closed, except on macOS. There, it's common
@@ -309,10 +338,13 @@ async function handleAppExit() {
     }
   }
 
-  await Promise.all([
-    logIfError('execute onAppBeforeQuit hooks', () => emitAppBeforeQuit()),
-    logIfError('stop injeca', () => injeca.stop()),
-  ])
+  // NOTICE: Life and window hooks still use services while flushing their state.
+  // Disposing those dependencies concurrently can leave shutdown waiting forever.
+  log.log('[app-exit] Saving life and window state')
+  await logIfError('execute onAppBeforeQuit hooks', () => emitAppBeforeQuit())
+  log.log('[app-exit] State hooks completed; stopping services')
+  await logIfError('stop injeca', () => injeca.stop())
+  log.log('[app-exit] Services stopped; draining file logs')
 
   // Prevent the global log hook from trying to write to the file after close() is called,
   // which would cause a recursive failure if close() itself throws.

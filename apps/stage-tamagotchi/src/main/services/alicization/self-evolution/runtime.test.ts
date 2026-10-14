@@ -125,6 +125,15 @@ describe('self evolution runtime facade', () => {
     expect(candidate.status).toBe('shadow')
 
     await runtime.validateAllShadowVersions({
+      evaluatedCandidateIds: [],
+      replayPassed: true,
+      finalReplayGatePassed: true,
+      productionGoldSampleCount: 6,
+      productionGoldCoverage: 1,
+    })
+    expect(await runtime.getActiveCandidate()).toBeNull()
+    await runtime.validateAllShadowVersions({
+      evaluatedCandidateIds: [candidate.id],
       replayPassed: true,
       finalReplayGatePassed: true,
       productionGoldSampleCount: 6,

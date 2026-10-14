@@ -1,0 +1,70 @@
+{
+  "sourceRepository": "https://github.com/Project-N-E-K-O/N.E.K.O",
+  "assets": [
+    {
+      "file": "stand.vrma",
+      "upstreamAssetId": "idle_02",
+      "upstreamCommit": "f2fea6de7149ef333422e61bafa4102d44f2cf2c",
+      "source": [
+        "static/vrm/motion/01_base/自然呼吸地安静站着.vrma.gz"
+      ],
+      "origin": "VSWQH",
+      "license": "Apache-2.0",
+      "sha256": "fa98fe6324d7abf5c919b1dbef9be348247aadc7247e575c6825969d0f8d98c8",
+      "bytes": 94396,
+      "mode": "loop"
+    },
+    {
+      "file": "lie.vrma",
+      "upstreamAssetId": "lie_01",
+      "upstreamCommit": "f2fea6de7149ef333422e61bafa4102d44f2cf2c",
+      "source": [
+        "static/vrm/motion/05_pose/侧着身子慵懒地躺下.vrma.gz"
+      ],
+      "origin": "VSWQH",
+      "license": "Apache-2.0",
+      "sha256": "4b8eb3b14cec38c2298df631edb1644ae5c66b3b12519f391db82755be26d3b2",
+      "bytes": 28560,
+      "mode": "hold"
+    },
+    {
+      "file": "sit.vrma",
+      "upstreamAssetId": "sit_02",
+      "upstreamCommit": "f2fea6de7149ef333422e61bafa4102d44f2cf2c",
+      "source": [
+        "static/vrm/motion/05_pose/休闲地盘着腿坐.vrma.gz"
+      ],
+      "origin": "VSWQH",
+      "license": "Apache-2.0",
+      "sha256": "25a70caef60ada1f173e769ad46664def217aaefd5ab986d7cfe46d52ae7d545",
+      "bytes": 246280,
+      "mode": "loop"
+    },
+    {
+      "file": "sleep.vrma",
+      "upstreamAssetId": "sleep_02",
+      "upstreamCommit": "f2fea6de7149ef333422e61bafa4102d44f2cf2c",
+      "source": [
+        "static/vrm/motion/05_pose/趴着安静熟睡轻微呼吸.vrma.gz"
+      ],
+      "origin": "VSWQH",
+      "license": "Apache-2.0",
+      "sha256": "b88124b0f643bea06bfb6768b5cf13f94241bba2d99b52c0274786738bd97841",
+      "bytes": 167400,
+      "mode": "loop"
+    },
+    {
+      "file": "work.vrma",
+      "upstreamAssetId": "typing_01",
+      "upstreamCommit": "f2fea6de7149ef333422e61bafa4102d44f2cf2c",
+      "source": [
+        "static/vrm/motion/06_activity/坐着用双手敲击键盘.vrma.gz"
+      ],
+      "origin": "VSWQH",
+      "license": "Apache-2.0",
+      "sha256": "8937029399abb8d189845d4f32008da36cf1fd15ee77165deb5a7cf01730ea31",
+      "bytes": 357592,
+      "mode": "loop"
+    }
+  ]
+}

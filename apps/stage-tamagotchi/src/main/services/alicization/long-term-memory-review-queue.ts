@@ -1,18 +1,18 @@
-import type { WorkingMemoryLongTermCleaningTransaction } from './life-core/working-memory-long-term-cleaning'
 import type { WorkingMemoryLongTermCandidate } from './life-core/working-memory'
+import type { WorkingMemoryLongTermCleaningTransaction } from './life-core/working-memory-long-term-cleaning'
 
-export type LongTermMemoryReviewStatus =
-  | 'needs-user-review'
-  | 'approved'
-  | 'rejected'
-  | 'tombstoned'
-  | 'superseded'
+export type LongTermMemoryReviewStatus
+  = | 'needs-user-review'
+    | 'approved'
+    | 'rejected'
+    | 'tombstoned'
+    | 'superseded'
 
-export type LongTermMemoryReviewDecision =
-  | 'approve'
-  | 'reject'
-  | 'tombstone'
-  | 'supersede'
+export type LongTermMemoryReviewDecision
+  = | 'approve'
+    | 'reject'
+    | 'tombstone'
+    | 'supersede'
 
 export interface LongTermMemoryReviewItem {
   id: string

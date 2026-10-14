@@ -2,7 +2,11 @@
 
 Three.js runtime components, stores, composables, and diagnostics used by Alicization stage surfaces.
 
+Procedural gestures include close listening, settling into rest and stretching. Rig checks assert the joints associated with each action and an actual raised hand for waving/stretching, separately from contextual action selection. A speech-inactive lip-sync driver releases analyser energy, smoothed visemes and prior segment cues, avoiding a stale open mouth during quiet life. Cancellation restores the additive pose and preserves the base animation owner.
+
 ## What It Does
+
+Animation playback keeps native Three.js mixers and actions in shallow Vue references. Completion events therefore release the exact owned action. A bounded frame step preserves short gesture poses after a renderer stall; life events retain their independent wall-clock timing.
 
 - Hosts the shared Three scene root used by stage pages.
 - Loads, mounts, reuses, and disposes VRM models.
@@ -19,7 +23,21 @@ Three.js runtime components, stores, composables, and diagnostics used by Aliciz
 - `@proj-alicization/stage-ui-three/utils/vrm-preview`: one-off VRM preview rendering.
 - `composables/hit-test` and `composables/render-target`: renderer readback helpers.
 
+## Persistent Daily Postures
+
+The default stand, sit, lie, sleep and work tracks use five VRM humanoid animations from N.E.K.O., pinned to commit `f2fea6de7149ef333422e61bafa4102d44f2cf2c`. Each upstream asset is marked Apache-2.0 and originated from VSWQH. The decoded files remain unmodified; exact hashes, source paths, LICENSE and NOTICE are under `src/assets/vrm/neko-motion`. The desktop also ships these license and source records.
+
+A persistent base posture and a short additive gesture have distinct owners. Asynchronous loading is fenced by model and generation; cancellation restores the prior base and releases the exact mixer action. A procedural fallback supports low poses when an asset cannot load, respecting the rig and world support plane. Actual frame diagnostics distinguish the active motion owner from a finished action, so daily-life completion is based on rendered movement instead of elapsed wall time.
+
+Low postures and leg gestures frame the actual rendered skeleton through the scene camera, including the head, hands and feet. Framing eases between poses and returns to the saved standing view without persisting automatic camera changes. A real user camera gesture takes ownership until the low-pose framing session ends. Native calibration checks actual camera projections as well as motion geometry and screenshots on two bundled rigs.
+
+The renderer also publishes actual skeleton bounds and a protected head region at a bounded rate. Dialogue placement follows low poses and camera movement instead of a cached standing mesh box. Default dialogue protects the face and minimizes body overlap; manually dragged offsets remain relative to the current anchor. Side selection retains a small center tolerance to avoid switching sides during breathing.
+
+Completed gestures hold their final pose while fading into the persistent base. Their clip release is queued until the next render step before `AnimationMixer.update`, because Three.js emits `finished` while iterating its active action array. Removing an earlier action from that callback can invalidate a later working posture. Teardown flushes queued releases even when rendering has stopped.
+
 ## VRM Lifecycle
+
+Default bindings include eighteen bounded procedural gestures in addition to the base animation. The four interaction gestures (`open_palm`, `thoughtful_pause`, `reassuring_nod`, `gentle_boundary`) use preparation, hold and release phases. Their easing adapts TalkingHead's MIT sigmoid implementation; the desktop ships its complete license. Gestures animate actual normalized humanoid bones using additive clips, preserving the existing pose and idle timing. Missing required bones remove the corresponding runtime capability. Pause/cancellation clears transient gestures; ordinary idle preference refresh does not truncate them. Real `AnimationMixer` tests verify movement, cancellation and pose restoration in `composables/vrm/procedural-gestures.test.ts`.
 
 VRM runtime management is explicit in this package.
 
@@ -64,6 +82,16 @@ Whichever signal arrives second completes the binding. The first signal to arriv
 ### Subtree Watch
 
 `ThreeScene` watches `modelRef` and `controlsRef` with `flush: 'sync'` to detect immediate detach events within the same tick. When `controlsRef` goes null (e.g. TresJS internal remount), `controlsReady` resets and a new binding transaction opens. When `modelRef` goes null, `scenePhase` reverts to `loading` without opening a new transaction, since the next `loadStart` event from `VRMModel` will open one.
+
+## Continuous gaze and posture
+
+Speech adds a separate bounded layer driven by the actual audio-bound segment and its energy, cadence and prosody. Head, neck, chest, spine, wrists and supported fingers move together. This layer removes its previous bone offsets before the animation mixer runs; unbound, cancelled and waiting audio produces no speech motion. Capability lookup skips unbound expression aliases before resolving supported standard expressions. A post-update observer can inspect actual rendered bones without replacing the existing animation hook.
+
+VRM gaze targets use an adaptive One Euro filter to approach a new focus continuously. The numerical core is adapted from N.E.K.O.; source attribution is in `src/composables/vrm/one-euro-filter.ts`, and its Apache-2.0 license ships with the desktop resources. Model switches and explicit instant positioning reset the filter.
+
+The posture layer tracks only its own additive bone offset. It removes that offset before applying the next frame, preserves animation-mixer changes, and releases smoothly. Its bounds remain stable when an idle animation does not contain head or neck tracks. Hidden-stage timing is bounded rather than replaying missed time.
+
+Audio-bound speech also owns transient gesture cancellation. Before the mixer updates, `speech-motion-ownership` stops an action owned by an earlier utterance and clears its retiring fade. It never rewrites a stale action's segment ID. Asynchronous clip loads recheck speech ownership before activation, and short-term gesture deduplication includes the owner so the same cue can play for a new utterance. Real Three.js tests check bone restoration and preservation of the current gesture and independent base.
 
 ## `trace` Submodule
 

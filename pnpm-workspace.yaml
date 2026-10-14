@@ -70,10 +70,10 @@ catalog:
   '@xsai/stream-text': ^0.4.3
   '@xsai/tool': ^0.4.3
   '@xsai/utils-chat': 0.4.0-beta.13
+  acorn: 8.16.0
   alien-signals: ^3.1.2
   async-mutex: 0.5.0
   better-auth: ^1.4.19
-  bindings: ^1.5.0
   builder-util-runtime: ^9.5.1
   capacitor-native-settings: ^8.0.0
   copy-anything: ^3.0.5
@@ -83,7 +83,6 @@ catalog:
   embla-carousel-vue: ^9.0.0-rc01
   error-stack-parser: ^2.1.4
   es-toolkit: 1.43.0
-  file-uri-to-path: ^2.0.0
   histoire: 1.0.0-beta.1
   hono: 4.11.3
   idb-keyval: ^6.2.2
@@ -103,7 +102,6 @@ catalog:
   smol-toml: ^1.6.0
   splitpanes: ^4.0.4
   sqlite-vec: 0.1.6
-  sqlite3: ^5.1.7
   std-env: ^4.0.0-rc.1
   superjson: ^2.2.6
   tsdown: ^0.20.3

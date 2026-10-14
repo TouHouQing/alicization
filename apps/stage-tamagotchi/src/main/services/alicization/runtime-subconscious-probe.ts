@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { kill as processKill } from 'node:process'
 
 export function createAlicizationSubconsciousProbeRuntime(options: any) {
   const {
@@ -34,13 +35,14 @@ export function createAlicizationSubconsciousProbeRuntime(options: any) {
   async function probeForegroundPidLiveness(pidValue: number | null | undefined) {
     const pid = Number(pidValue)
     if (!Number.isFinite(pid) || pid <= 0)
-      return false
+      return null
     try {
-      const output = await runCommandWithTimeout('/bin/ps', ['-p', String(Math.floor(pid)), '-o', 'pid='], subconsciousInterruptionProbeTimeoutMs)
-      return /\d+/.test(output)
+      processKill(Math.floor(pid), 0)
+      return true
     }
-    catch {
-      return false
+    catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? error.code : null
+      return code === 'ESRCH' ? false : code === 'EPERM' ? true : null
     }
   }
 
