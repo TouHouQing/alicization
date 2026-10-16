@@ -1,4 +1,4 @@
-import { resolveStageEmbodimentLive2DMotionAliases } from '@proj-alicization/stage-shared'
+import { defaultAlicizationStageModelId, resolveStageEmbodimentLive2DMotionAliases } from '@proj-alicization/stage-shared'
 import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
 import { useBroadcastChannel } from '@vueuse/core'
 import { defineStore } from 'pinia'
@@ -8,9 +8,18 @@ import { Emotion, EMOTION_EmotionMotionName_value } from '../constants/emotions'
 
 type BroadcastChannelEvents
   = | BroadcastChannelEventShouldUpdateView
+    | Live2DPreviewMotionRequest
 
 interface BroadcastChannelEventShouldUpdateView {
   type: 'live2d-should-update-view'
+}
+
+export interface Live2DPreviewMotionRequest {
+  type: 'live2d-preview-motion'
+  modelId: string
+  group: string
+  index: number
+  requestId: string
 }
 
 export const defaultModelParameters = {
@@ -81,6 +90,7 @@ function dedupeMotionCandidates(candidates: Live2DAvailableMotion[]) {
 export const useLive2d = defineStore('live2d', () => {
   const { post, data } = useBroadcastChannel<BroadcastChannelEvents, BroadcastChannelEvents>({ name: 'airi-stores-stage-ui-live2d' })
   const shouldUpdateViewHooks = ref(new Set<() => void>())
+  const previewMotionHooks = new Set<(request: Live2DPreviewMotionRequest) => void>()
   const emotionMotionSelectionState = new Map<string, { lastSignature: string, rotationIndex: number }>()
 
   const onShouldUpdateView = (hook: () => void) => {
@@ -95,9 +105,36 @@ export const useLive2d = defineStore('live2d', () => {
     shouldUpdateViewHooks.value.forEach(hook => hook())
   }
 
+  function onPreviewMotion(hook: (request: Live2DPreviewMotionRequest) => void) {
+    previewMotionHooks.add(hook)
+    return () => previewMotionHooks.delete(hook)
+  }
+
+  function previewMotion(modelId: string, motion: Live2DAvailableMotion) {
+    if (!getAvailableMotionsForModel(modelId).some(candidate => candidate.fileName === motion.fileName && candidate.motionName === motion.motionName && candidate.motionIndex === motion.motionIndex))
+      return
+    const request: Live2DPreviewMotionRequest = {
+      type: 'live2d-preview-motion',
+      modelId,
+      group: motion.motionName,
+      index: motion.motionIndex,
+      requestId: globalThis.crypto.randomUUID(),
+    }
+    post(request)
+    previewMotionHooks.forEach(hook => hook(request))
+  }
+
   watch(data, (event) => {
     if (event?.type === 'live2d-should-update-view') {
       shouldUpdateViewHooks.value.forEach(hook => hook())
+    }
+    else if (event?.type === 'live2d-preview-motion'
+      && typeof event.modelId === 'string'
+      && typeof event.group === 'string'
+      && Number.isInteger(event.index) && event.index >= 0
+      && typeof event.requestId === 'string' && event.requestId.length > 0
+      && getAvailableMotionsForModel(event.modelId).some(motion => motion.motionName === event.group && motion.motionIndex === event.index)) {
+      previewMotionHooks.forEach(hook => hook(event))
     }
   })
 
@@ -107,6 +144,19 @@ export const useLive2d = defineStore('live2d', () => {
     y: `${position.value.y}%`,
   }))
   const currentMotion = useLocalStorageManualReset<{ group: string, index?: number }>('settings/live2d/current-motion', () => ({ group: 'Idle', index: 0 }))
+  const preferredRuntimeMotions = useLocalStorageManualReset<Record<string, Live2DAvailableMotion>>('settings/live2d/preferred-runtime-motions', () => {
+    // NOTICE: Migrate the former global selector only to its known active model.
+    const storage = globalThis.localStorage
+    const fileName = storage?.getItem('selected-runtime-motion')
+    const motionName = storage?.getItem('selected-runtime-motion-group')
+    const motionIndex = Number.parseInt(storage?.getItem('selected-runtime-motion-index') ?? '', 10)
+    if (!fileName || motionName == null || !Number.isInteger(motionIndex) || motionIndex < 0)
+      return {}
+    const modelId = storage.getItem('settings/stage/model') || defaultAlicizationStageModelId
+    for (const key of ['selected-runtime-motion', 'selected-runtime-motion-name', 'selected-runtime-motion-group', 'selected-runtime-motion-index'])
+      storage.removeItem(key)
+    return { [modelId]: { fileName, motionName, motionIndex } }
+  })
   const availableMotions = useLocalStorageManualReset<Live2DAvailableMotion[]>('settings/live2d/available-motions', () => [])
   const availableMotionsByModel = useLocalStorageManualReset<Record<string, Live2DAvailableMotion[]>>('settings/live2d/available-motions-by-model', () => ({}))
   const motionMap = useLocalStorageManualReset<Record<string, string>>('settings/live2d/motion-map', {})
@@ -136,6 +186,17 @@ export const useLive2d = defineStore('live2d', () => {
     if (!normalizedModelId)
       return availableMotions.value
     return availableMotionsByModel.value[normalizedModelId] ?? []
+  }
+
+  function selectPreferredRuntimeMotion(modelId: string, motion: Live2DAvailableMotion) {
+    preferredRuntimeMotions.value = { ...preferredRuntimeMotions.value, [modelId]: { ...motion } }
+    currentMotion.value = { group: motion.motionName, index: motion.motionIndex }
+  }
+
+  function clearPreferredRuntimeMotion(modelId: string) {
+    const next = { ...preferredRuntimeMotions.value }
+    delete next[modelId]
+    preferredRuntimeMotions.value = next
   }
 
   function resolveEmotionMotionCandidates(
@@ -244,6 +305,7 @@ export const useLive2d = defineStore('live2d', () => {
   function resetState() {
     position.reset()
     currentMotion.reset()
+    preferredRuntimeMotions.value = {}
     availableMotions.reset()
     availableMotionsByModel.reset()
     motionMap.reset()
@@ -257,6 +319,9 @@ export const useLive2d = defineStore('live2d', () => {
     position,
     positionInPercentageString,
     currentMotion,
+    preferredRuntimeMotions,
+    selectPreferredRuntimeMotion,
+    clearPreferredRuntimeMotion,
     availableMotions,
     availableMotionsByModel,
     motionMap,
@@ -267,6 +332,8 @@ export const useLive2d = defineStore('live2d', () => {
     resolveEmotionMotionSelection,
 
     onShouldUpdateView,
+    onPreviewMotion,
+    previewMotion,
     shouldUpdateView,
     resetState,
   }

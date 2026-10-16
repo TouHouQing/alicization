@@ -109,7 +109,15 @@ try {
   $qaDeadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
   while ([AlicizationPrivateDesktop]::WaitForSingleObject($qaInfo.process,1000) -eq 258) {
     if ([IO.File]::Exists($qaRegistry)) {
-      foreach ($qaLine in [IO.File]::ReadAllLines($qaRegistry)) {
+      # The native child can append its identity at this exact moment. Read
+      # with write sharing and defer an incomplete final NDJSON line.
+      $qaRegistryStream = [IO.File]::Open($qaRegistry, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+      $qaRegistryReader = New-Object IO.StreamReader($qaRegistryStream)
+      try { $qaRegistryText = $qaRegistryReader.ReadToEnd() }
+      finally { $qaRegistryReader.Dispose() }
+      $qaRegistryLines = @($qaRegistryText -split '\r?\n')
+      if (!$qaRegistryText.EndsWith("`n")) { $qaRegistryLines = @($qaRegistryLines | Select-Object -SkipLast 1) }
+      foreach ($qaLine in $qaRegistryLines) {
         if (!$qaLine.Trim()) { continue }
         $qaRuntime = $qaLine | ConvertFrom-Json
         if ($qaRegistered.Contains([int]$qaRuntime.pid)) { continue }

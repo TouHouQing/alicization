@@ -1,6 +1,6 @@
-import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ref } from 'vue'
+import { createPinia, disposePinia, setActivePinia } from 'pinia'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick, ref } from 'vue'
 
 vi.stubGlobal('navigator', {
   locks: {
@@ -21,6 +21,9 @@ const mocks = vi.hoisted(() => {
   }
 
   return {
+    channels: [] as Array<{ data: { value: any } }>,
+    streamEndMock: vi.fn(),
+    assistantEndMock: vi.fn(),
     sendMock: vi.fn(),
     ingestMock: vi.fn(),
     getProviderConfigMock: vi.fn(() => ({ apiKey: 'test-key' })),
@@ -68,10 +71,11 @@ function createContext(text: string) {
 vi.mock('@vueuse/core', async () => {
   const { ref } = await import('vue')
   return {
-    useBroadcastChannel: () => ({
-      post: mocks.getNextBroadcastPostMock(),
-      data: ref(undefined),
-    }),
+    useBroadcastChannel: () => {
+      const channel = { post: mocks.getNextBroadcastPostMock(), data: ref(undefined) }
+      mocks.channels.push(channel)
+      return channel
+    },
   }
 })
 
@@ -85,8 +89,8 @@ vi.mock('../../chat', () => ({
     emitAfterSendHooks: vi.fn(),
     emitTokenLiteralHooks: vi.fn(),
     emitTokenSpecialHooks: vi.fn(),
-    emitStreamEndHooks: vi.fn(),
-    emitAssistantResponseEndHooks: vi.fn(),
+    emitStreamEndHooks: mocks.streamEndMock,
+    emitAssistantResponseEndHooks: mocks.assistantEndMock,
     onBeforeMessageComposed: vi.fn(() => () => {}),
     onAfterMessageComposed: vi.fn(() => () => {}),
     onBeforeSend: vi.fn((handler) => {
@@ -162,19 +166,81 @@ vi.mock('./channel-server', () => ({
 }))
 
 describe('context bridge store', () => {
+  let testPinia: ReturnType<typeof createPinia>
+  beforeAll(async () => {
+    // Cold module transformation is fixture setup, outside event-delivery time.
+    await import('./context-bridge')
+  }, 15000)
+
   beforeEach(() => {
-    setActivePinia(createPinia())
+    testPinia = createPinia()
+    setActivePinia(testPinia)
     mocks.sendMock.mockReset()
     mocks.ingestMock.mockReset()
     mocks.getProviderConfigMock.mockClear()
     mocks.getProviderInstanceMock.mockClear()
     mocks.resetBroadcastMocks()
+    mocks.channels.length = 0
+    mocks.streamEndMock.mockReset()
+    mocks.assistantEndMock.mockReset()
     mocks.eventListeners.clear()
     mocks.chatHooks.onBeforeSend.length = 0
     mocks.chatHooks.onAssistantMessage.length = 0
     mocks.chatHooks.onToolCall.length = 0
     mocks.chatHooks.onChatTurnComplete.length = 0
     consoleErrorSpy.mockClear()
+  })
+
+  afterEach(async () => {
+    const { useContextBridgeStore } = await import('./context-bridge')
+    await useContextBridgeStore(testPinia).dispose()
+    disposePinia(testPinia)
+  })
+
+  it('delivers assistant completion after stream completion so the desktop speech intent can end', async () => {
+    const { useContextBridgeStore } = await import('./context-bridge')
+    await useContextBridgeStore().initialize()
+    const context = { ...createContext('你好'), message: { id: 'turn-a', role: 'user', content: '你好' } }
+    const channel = mocks.channels[1]
+    const receive = async (event: object) => {
+      channel.data.value = { sessionId: 'session-test', context, ...event }
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    }
+    await receive({ type: 'before-send', message: '你好' })
+    await receive({ type: 'stream-end' })
+    await receive({ type: 'assistant-end', message: '我在。' })
+    expect(mocks.streamEndMock).toHaveBeenCalledOnce()
+    expect(mocks.assistantEndMock).toHaveBeenCalledWith('我在。', context)
+  })
+
+  it('does not lose a burst of terminal events or let an older turn close a newer speech intent', async () => {
+    const { useContextBridgeStore } = await import('./context-bridge')
+    await useContextBridgeStore().initialize()
+    const context = (id: string) => ({ ...createContext('你好'), message: { id, role: 'user', content: '你好' } })
+    for (const [type, id] of [['before-send', 'a'], ['stream-end', 'a'], ['before-send', 'b'], ['assistant-end', 'a'], ['stream-end', 'b'], ['assistant-end', 'b']])
+      mocks.channels[1].data.value = { type, sessionId: 'session-test', context: context(id), message: id }
+    await vi.waitFor(() => expect(mocks.assistantEndMock).toHaveBeenCalledOnce())
+    expect(mocks.assistantEndMock).toHaveBeenCalledWith('b', context('b'))
+    expect(mocks.streamEndMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('continues completion after a hook error and drops queued events when the receiver is disposed', async () => {
+    const { useContextBridgeStore } = await import('./context-bridge')
+    const store = useContextBridgeStore()
+    await store.initialize()
+    const context = { ...createContext('你好'), message: { id: 'turn-a', role: 'user', content: '你好' } }
+    mocks.streamEndMock.mockRejectedValueOnce(new Error('failed stream observer'))
+    for (const type of ['before-send', 'stream-end', 'assistant-end'])
+      mocks.channels[1].data.value = { type, sessionId: 'session-test', context, message: '我在。' }
+    await vi.waitFor(() => expect(mocks.assistantEndMock).toHaveBeenCalledOnce())
+    expect(consoleErrorSpy).toHaveBeenCalled()
+    const completed = mocks.assistantEndMock.mock.calls.length
+    for (const type of ['before-send', 'assistant-end'])
+      mocks.channels[1].data.value = { type, sessionId: 'session-test', context, message: '晚到的回复' }
+    await store.dispose()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(mocks.assistantEndMock).toHaveBeenCalledTimes(completed)
   })
 
   it('forwards outgoing tool-call, chat message, and complete server events', async () => {

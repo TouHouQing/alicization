@@ -20,6 +20,8 @@ const settings = useSettings()
     <TooltipProvider v-for="{ hex, name } in colors" :key="hex || 'default'">
       <TooltipRoot>
         <TooltipTrigger
+          :aria-label="name"
+          :title="name"
           transition="all ease-in-out duration-250"
           size-8 cursor-pointer rounded-full bg-primary-500
           :style="hex ? { background: hex } : { '--chromatic-hue': DEFAULT_THEME_COLORS_HUE }"

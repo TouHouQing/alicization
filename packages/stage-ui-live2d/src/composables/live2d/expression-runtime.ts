@@ -14,6 +14,8 @@ import {
   resolveStageEmbodimentLive2DMotionAliases,
 } from '@proj-alicization/stage-shared'
 
+import { listLive2DProceduralActions } from './procedural-gesture'
+
 export interface Live2DRuntimeCapabilitySnapshot {
   supportedExpressionNames: string[]
   supportedBaseEmotions: AlicizationEmotion[]
@@ -332,19 +334,59 @@ export function resolveLive2DExpressionSelection(
 
 export function buildLive2DRuntimeCapabilitySnapshot(
   expressionNames: string[],
+  parameterIds: readonly string[],
 ): Live2DRuntimeCapabilitySnapshot {
   const catalog = createExpressionCatalog(expressionNames)
+  const ids = new Set(parameterIds)
+  const has = (...parameters: string[]) => parameters.some(parameter => ids.has(parameter))
+  const named = (aliases: string[]) => (resolveBestExpressionMatch({ aliases, catalog })?.score ?? 0) >= 2.6
+  const eyes = has('ParamEyeLOpen', 'ParamEyeROpen')
+  const brows = has('ParamBrowLY', 'ParamBrowRY', 'ParamBrowLAngle', 'ParamBrowRAngle')
+  const gaze = has('ParamEyeBallX', 'ParamEyeBallY', 'ParamAngleX', 'ParamAngleY')
+  const mouth = has('ParamMouthForm', 'ParamMouthSmile')
+  const smile = mouth || has('ParamEyeSmile', 'ParamEyeLSmile', 'ParamEyeRSmile', 'ParamCheek')
+  const facialParameters: Record<string, boolean> = {
+    'blink': eyes,
+    'slow-blink': eyes,
+    'half-lid': eyes,
+    'wide-eye': eyes,
+    'brow-furrow': brows,
+    'focus': brows || eyes,
+    'glance': brows || gaze,
+    'smile': smile,
+    'bright-smile': smile,
+    'soft-gaze': eyes || smile,
+    'frown': brows || mouth,
+    'glare': brows || eyes,
+    'downcast': eyes || mouth || brows,
+    'relaxed': eyes || mouth || brows,
+    'pout': mouth,
+    'shock': eyes || has('ParamMouthOpenY', 'ParamMouthOpen'),
+  }
   const supportedExpressionNames = catalog
     .map(item => item.name)
     .sort((left, right) => left.localeCompare(right))
 
   return {
     supportedExpressionNames,
-    // Live2D can synthesize the core emotional/facial dialect through the runtime
-    // motion/expression layer even when the scanned model exposes only sparse named expressions.
-    supportedBaseEmotions: [...alicizationEmotionWhitelist],
-    supportedFacialCues: listStageEmbodimentLive2DFacialCapabilities(),
-    supportedActions: listLive2DBuiltinActionCapabilities(),
+    // Compiled channels, not Cubism's virtual fallback indices, determine what
+    // this body can express. Named expressions remain valid on custom rigs.
+    supportedBaseEmotions: alicizationEmotionWhitelist.filter((emotion) => {
+      if (emotion === 'neutral' || named(resolveEmotionExpressionSearchAliases(normalizeStageEmbodimentEmotion(emotion))))
+        return true
+      if (emotion === 'happy')
+        return smile
+      if (emotion === 'surprised')
+        return eyes || has('ParamMouthOpenY', 'ParamMouthOpen')
+      return eyes || brows || mouth
+    }),
+    supportedFacialCues: listStageEmbodimentLive2DFacialCapabilities().filter(item => facialParameters[item.key] || named(resolveFacialCueExpressionSearchAliases(item.key))),
+    supportedActions: [
+      ...listLive2DBuiltinActionCapabilities().filter(item => item.key === 'idle_settle'
+        ? has('ParamBodyAngleX', 'ParamBodyAngleY', 'ParamBodyAngleZ', 'ParamBreath', 'ParamAngleZ')
+        : gaze),
+      ...listLive2DProceduralActions(parameter => ids.has(parameter)),
+    ],
   }
 }
 

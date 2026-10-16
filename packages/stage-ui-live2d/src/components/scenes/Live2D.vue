@@ -12,8 +12,8 @@ import type {
   Live2DRuntimeCapabilitySnapshot,
 } from '../../composables/live2d'
 
-import { useWindowSize } from '@vueuse/core'
-import { onBeforeMount, onErrorCaptured, onMounted, ref, watch } from 'vue'
+import { useElementSize } from '@vueuse/core'
+import { computed, onBeforeMount, onErrorCaptured, onMounted, ref, watch } from 'vue'
 
 import Live2DCanvas from './live2d/Canvas.vue'
 import Live2DModel from './live2d/Model.vue'
@@ -107,7 +107,10 @@ onErrorCaptured((error, instance, info) => {
 const componentState = defineModel<'pending' | 'loading' | 'mounted'>('state', { default: 'pending' })
 const componentStateCanvas = defineModel<'pending' | 'loading' | 'mounted'>('canvasState', { default: 'pending' })
 const componentStateModel = defineModel<'pending' | 'loading' | 'mounted'>('modelState', { default: 'pending' })
-const { width: viewportWidth, height: viewportHeight } = useWindowSize()
+const sceneRootRef = ref<HTMLElement>()
+const { width: sceneWidth, height: sceneHeight } = useElementSize(sceneRootRef, { width: 1, height: 1 })
+const viewportWidth = computed(() => Math.max(1, sceneWidth.value))
+const viewportHeight = computed(() => Math.max(1, sceneHeight.value))
 
 const live2dCanvasRef = ref<InstanceType<typeof Live2DCanvas>>()
 const live2dModelRef = ref<{
@@ -148,6 +151,7 @@ onBeforeMount(() => {
 })
 
 defineExpose({
+  captureFrame: () => live2dCanvasRef.value?.captureFrame() ?? Promise.resolve(null),
   canvasElement: () => {
     return live2dCanvasRef.value?.canvasElement()
   },
@@ -167,7 +171,7 @@ defineExpose({
 </script>
 
 <template>
-  <div relative h-full w-full>
+  <div ref="sceneRootRef" relative h-full w-full>
     <Live2DCanvas
       ref="live2dCanvasRef"
       v-slot="{ app }"

@@ -33,6 +33,7 @@ import { useStageDialogueStore } from '@proj-alicization/stage-ui/stores/stage-d
 import { refDebounced, useFocusWithin, useIntervalFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import ControlsIsland from '../components/stage-islands/controls-island/index.vue'
 import ResourceStatusIsland from '../components/stage-islands/resource-status-island/index.vue'
@@ -62,6 +63,7 @@ import {
 } from './index.speech-embodiment-diagnostics'
 
 const controlsIslandRef = ref<InstanceType<typeof ControlsIsland>>()
+const { t } = useI18n()
 const widgetStageRef = ref<InstanceType<typeof WidgetStage>>()
 const { activeCardId } = storeToRefs(useAiriCardStore())
 const lifeExpressionReporter = useLifeExpressionReporter(() => activeCardId.value)
@@ -789,7 +791,7 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
             'animate-flash animate-duration-5s animate-count-infinite',
           ]"
         >
-          Loading...
+          {{ t('tamagotchi.stage.resources.loading.preparing') }}
         </div>
       </div>
     </div>

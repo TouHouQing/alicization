@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { DisplayModel } from '../../../../stores/display-models'
 
+import { errorMessageFrom } from '@moeru/std'
 import { Button } from '@proj-alicization/ui'
 import { useFileDialog } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
@@ -22,8 +23,34 @@ const displayModelStore = useDisplayModelsStore()
 const { t } = useI18n()
 const { displayModelsFromIndexedDBLoading, displayModels } = storeToRefs(displayModelStore)
 
-function handleRemoveModel(model: DisplayModel) {
-  displayModelStore.removeDisplayModel(model.id)
+const importing = ref(false)
+const modelOperationError = ref('')
+
+async function handleRemoveModel(model: DisplayModel) {
+  modelOperationError.value = ''
+  try {
+    await displayModelStore.removeDisplayModel(model.id)
+  }
+  catch (error) {
+    console.warn('[model-selector] Removal failed:', errorMessageFrom(error))
+    modelOperationError.value = t('settings.model-selector.operation-failed')
+  }
+}
+
+async function handleRenameModel(model: DisplayModel, name: string | null | undefined) {
+  modelOperationError.value = ''
+  const trimmed = name?.trim() ?? ''
+  if (!trimmed) {
+    modelOperationError.value = t('settings.model-selector.name-required')
+    return
+  }
+  try {
+    await displayModelStore.renameDisplayModel(model.id, trimmed)
+  }
+  catch (error) {
+    console.warn('[model-selector] Rename failed:', errorMessageFrom(error))
+    modelOperationError.value = t('settings.model-selector.operation-failed')
+  }
 }
 
 const highlightDisplayModelCard = ref<string | undefined>(props.selectedModel?.id)
@@ -32,14 +59,30 @@ watch(() => props.selectedModel?.id, (modelId) => {
   highlightDisplayModelCard.value = modelId
 }, { immediate: true })
 
-function handleAddLive2DModel(file: FileList | null) {
+async function importModel(file: FileList | null, format: DisplayModelFormat, extension: string) {
   if (file === null || file.length === 0)
     return
-  if (!file[0].name.endsWith('.zip'))
+  if (importing.value)
     return
-
-  displayModelStore.addDisplayModel(DisplayModelFormat.Live2dZip, file[0])
+  modelOperationError.value = ''
+  if (!file[0].name.toLowerCase().endsWith(extension)) {
+    modelOperationError.value = t('settings.model-selector.import-failed')
+    return
+  }
+  importing.value = true
+  try {
+    await displayModelStore.addDisplayModel(format, file[0])
+  }
+  catch (error) {
+    console.warn('[model-selector] Import failed:', errorMessageFrom(error))
+    modelOperationError.value = t('settings.model-selector.import-failed')
+  }
+  finally {
+    importing.value = false
+  }
 }
+
+const handleAddLive2DModel = (file: FileList | null) => importModel(file, DisplayModelFormat.Live2dZip, '.zip')
 
 function handlePick(m: DisplayModel) {
   highlightDisplayModelCard.value = m.id
@@ -52,14 +95,7 @@ function handleMobilePick() {
   emits('close', undefined)
 }
 
-function handleAddVRMModel(file: FileList | null) {
-  if (file === null || file.length === 0)
-    return
-  if (!file[0].name.endsWith('.vrm'))
-    return
-
-  displayModelStore.addDisplayModel(DisplayModelFormat.VRM, file[0])
-}
+const handleAddVRMModel = (file: FileList | null) => importModel(file, DisplayModelFormat.VRM, '.vrm')
 
 const mapFormatRenderer: Record<DisplayModelFormat, string> = {
   [DisplayModelFormat.Live2dZip]: 'Live2D',
@@ -86,6 +122,7 @@ vrmDialog.onChange(handleAddVRMModel)
       <div>
         <DropdownMenuRoot>
           <DropdownMenuTrigger
+            :disabled="importing"
             bg="neutral-400/20 hover:neutral-400/45 active:neutral-400/60 dark:neutral-700/50 hover:dark:neutral-700/65 active:dark:neutral-700/90"
             flex items-center justify-center gap-1 rounded-lg px-2 py-1 backdrop-blur-sm
             transition="colors duration-200 ease-in-out"
@@ -135,6 +172,12 @@ vrmDialog.onChange(handleAddVRMModel)
     <div v-if="displayModelsFromIndexedDBLoading">
       {{ t('settings.model-selector.loading') }}
     </div>
+    <p v-if="importing" role="status" :class="['text-sm text-neutral-600 dark:text-neutral-400']">
+      {{ t('settings.model-selector.importing') }}
+    </p>
+    <p v-if="modelOperationError" role="alert" :class="['text-sm text-red-600 dark:text-red-400']">
+      {{ modelOperationError }}
+    </p>
     <div class="min-h-0 w-full flex-1 overflow-y-auto">
       <div class="grid grid-cols-2 w-full gap-4">
         <div
@@ -148,6 +191,7 @@ vrmDialog.onChange(handleAddVRMModel)
           <div absolute left-3 top-4 z-1>
             <DropdownMenuRoot>
               <DropdownMenuTrigger
+                v-if="model.type === 'file'"
                 :class="[
                   'bg-neutral-900/20 hover:bg-neutral-900/45 active:bg-neutral-900/60 dark:bg-neutral-950/50 hover:dark:bg-neutral-900/65 active:dark:bg-neutral-900/90',
                 ]"
@@ -211,38 +255,43 @@ vrmDialog.onChange(handleAddVRMModel)
           <div w-full flex flex-col>
             <div w-full flex-1 p-2>
               <EditableRoot
+                v-if="model.type === 'file'"
                 v-slot="{ isEditing }"
                 :default-value="model.name"
                 :placeholder="t('settings.model-selector.name')"
                 class="flex gap-2"
                 auto-resize
+                @submit="handleRenameModel(model, $event)"
               >
                 <EditableArea class="w-[calc(100%-8px-1rem)] dark:text-white">
                   <EditablePreview class="line-clamp-1 w-[calc(100%-8px)] overflow-hidden text-ellipsis" />
                   <EditableInput class="w-[calc(100%-8px)]! placeholder:text-neutral-700 dark:placeholder:text-neutral-600" />
                 </EditableArea>
-                <EditableEditTrigger v-if="!isEditing">
+                <EditableEditTrigger v-if="!isEditing" :aria-label="t('settings.model-selector.rename')">
                   <div i-solar:pen-2-line-duotone opacity-50 />
                 </EditableEditTrigger>
                 <div v-else class="flex gap-2">
-                  <EditableSubmitTrigger>
+                  <EditableSubmitTrigger :aria-label="t('settings.common.save')">
                     <div i-solar:check-read-line-duotone opacity-50 />
                   </EditableSubmitTrigger>
                 </div>
               </EditableRoot>
+              <div v-else :class="['line-clamp-1 min-w-0 break-words dark:text-white']">
+                {{ model.name }}
+              </div>
               <div flex items-center gap-1 text="neutral-400 dark:neutral-600">
                 <div i-solar:tag-horizontal-bold />
                 <div>{{ mapFormatRenderer[model.format] }}</div>
               </div>
             </div>
-            <Button class="hidden md:block" variant="secondary" @click="handlePick(model)">
+            <Button :disabled="importing" class="hidden md:block" variant="secondary" @click="handlePick(model)">
               {{ t('settings.model-selector.pick') }}
             </Button>
           </div>
         </div>
       </div>
     </div>
-    <Button class="block shrink-0 md:hidden" @click="handleMobilePick()">
+    <Button :disabled="importing" class="block shrink-0 md:hidden" @click="handleMobilePick()">
       {{ t('settings.model-selector.confirm') }}
     </Button>
   </div>

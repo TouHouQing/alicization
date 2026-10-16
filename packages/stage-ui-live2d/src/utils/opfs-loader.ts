@@ -13,14 +13,11 @@ declare global {
 
 export class OPFSCache {
   static async clearAll(): Promise<void> {
-    try {
-      const root = await navigator.storage.getDirectory()
-      for await (const entry of root.values()) {
+    const root = await navigator.storage.getDirectory()
+    for await (const entry of root.values()) {
+      // Only catalogue-owned Live2D caches belong to this action.
+      if (entry.kind === 'directory' && /^(?:preset-live2d-|display-model-)/.test(entry.name))
         await root.removeEntry(entry.name, { recursive: true })
-      }
-    }
-    catch (e) {
-      console.error('[OPFS] Failed to clear cache:', e)
     }
   }
 

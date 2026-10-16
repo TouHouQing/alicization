@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Application } from '@pixi/app'
+import type { Renderer } from '@pixi/core'
 import type {
   StageEmbodimentIdleMotionPreference,
   StageEmbodimentPerformanceState,
@@ -39,10 +40,16 @@ import {
   useMotionUpdatePluginBeatSync,
   useMotionUpdatePluginIdleDisable,
   useMotionUpdatePluginIdleFocus,
+  useMotionUpdatePluginIdleMouth,
   useMotionUpdatePluginPerformanceLayers,
 } from '../../../composables/live2d'
+import { hitLive2DRenderedPoint, mapLive2DClientPoint } from '../../../composables/live2d/canvas-point'
+import { createLive2DGazeInput } from '../../../composables/live2d/gaze-input'
+import { supportsLive2DParameter } from '../../../composables/live2d/parameter-support'
+import { createLive2DProceduralGesture } from '../../../composables/live2d/procedural-gesture'
 import { Emotion, EmotionNeutralMotionName } from '../../../constants/emotions'
 import { useLive2d } from '../../../stores/live2d'
+import { disposeLive2DModel, loadCurrentLive2DInstance } from '../../../utils/live2d-model-load'
 
 const props = withDefaults(defineProps<{
   modelSrc?: string
@@ -175,6 +182,8 @@ const model = ref<Live2DModel<PixiLive2DInternalModel>>()
 const initialModelWidth = ref<number>(0)
 const initialModelHeight = ref<number>(0)
 const lastUpdateTime = ref(0)
+const gazeInput = createLive2DGazeInput()
+const pointerFocusUntil = ref(Number.NEGATIVE_INFINITY)
 
 const { isDark: dark } = useTheme()
 const breakpoints = useBreakpoints(breakpointsTailwind)
@@ -199,7 +208,7 @@ function getCoreModel() {
 
 function updateCoreModelParameter(parameterId: string, value: number) {
   const coreModel = getCoreModel()
-  if (!coreModel)
+  if (!coreModel || !supportsLive2DParameter(coreModel, parameterId))
     return
 
   coreModel.setParameterValueById(parameterId, value)
@@ -260,7 +269,13 @@ const live2dExecutionDiagnostics = ref<Live2DExecutionDiagnosticsSnapshot>(
   createIdleLive2DExecutionDiagnosticsSnapshot(),
 )
 const lastAppliedActionPulseRevision = ref(0)
+const proceduralGesture = createLive2DProceduralGesture()
+let proceduralGestureExecution: ReturnType<typeof proceduralGesture.sample> = null
 const preferredIdleMotionSelection = computed<MotionSelection | null>(() => {
+  const selected = props.modelId ? live2dStore.preferredRuntimeMotions[props.modelId] : undefined
+  if (selected && live2dStore.getAvailableMotionsForModel(props.modelId).some(motion => motion.fileName === selected.fileName && motion.motionName === selected.motionName && motion.motionIndex === selected.motionIndex)) {
+    return { group: selected.motionName, index: selected.motionIndex }
+  }
   if (props.idleMotionPreference) {
     return {
       group: props.idleMotionPreference.motionName,
@@ -268,19 +283,7 @@ const preferredIdleMotionSelection = computed<MotionSelection | null>(() => {
     }
   }
 
-  const selectedMotionGroup = localStorage.getItem('selected-runtime-motion-group')
-  const selectedMotionIndex = localStorage.getItem('selected-runtime-motion-index')
-  if (selectedMotionGroup === null || !selectedMotionIndex)
-    return null
-
-  const parsedIndex = Number.parseInt(selectedMotionIndex, 10)
-  if (!Number.isFinite(parsedIndex))
-    return null
-
-  return {
-    group: selectedMotionGroup,
-    index: parsedIndex,
-  }
+  return null
 })
 const preferredIdleMotionKey = computed(() => buildMotionKey(preferredIdleMotionSelection.value))
 const beatSync = createBeatSyncController({
@@ -293,7 +296,8 @@ const beatSync = createBeatSyncController({
 })
 
 function emitRuntimeCapabilitiesResolved(expressionNames: string[] = availableExpressionNames.value) {
-  emits('runtimeCapabilitiesResolved', buildLive2DRuntimeCapabilitySnapshot(expressionNames))
+  const parameterIds = isUnmounted ? [] : getInternalModel()?.coreModel.getModel().parameters.ids ?? []
+  emits('runtimeCapabilitiesResolved', buildLive2DRuntimeCapabilitySnapshot(expressionNames, parameterIds))
 }
 
 function resolveExpressionDefinitionName(definition: Record<string, unknown> | null | undefined) {
@@ -486,7 +490,7 @@ function requestIdleMotionRestart(options: {
   force?: boolean
   reason: string
 }) {
-  if (!model.value)
+  if (isUnmounted || !model.value)
     return false
   if (!live2dIdleAnimationEnabled.value)
     return false
@@ -502,6 +506,8 @@ function requestIdleMotionRestart(options: {
 
   configureLoopingMotion(getInternalModel()?.motionManager as MotionManagerLike | undefined, target)
   requestAnimationFrame(() => {
+    if (isUnmounted || !model.value || preferredIdleMotionKey.value !== targetKey)
+      return
     currentMotion.value = {
       group: target.group,
       index: target.index,
@@ -514,6 +520,10 @@ function requestIdleMotionRestart(options: {
 const disposeShouldUpdateView = live2dStore.onShouldUpdateView(() => {
   loadModel()
 })
+const disposePreviewMotion = live2dStore.onPreviewMotion((request) => {
+  if (!isUnmounted && !paused.value && request.modelId === props.modelId)
+    void setMotionWithReplayKey(request.group, request.index, `preview:${request.requestId}`)
+})
 
 async function loadModel() {
   await until(modelLoading).not.toBeTruthy()
@@ -524,6 +534,9 @@ async function loadModel() {
     modelLoading.value = true
     componentState.value = 'loading'
     motionRequestId += 1
+    proceduralGesture.cancel()
+    proceduralGestureExecution = null
+    lastAppliedActionPulseRevision.value = 0
     lastMotionRequestKey = ''
     inFlightMotionRequestKey = ''
 
@@ -563,14 +576,25 @@ async function loadModel() {
       return
     }
 
-    const live2DModel = new Live2DModel<PixiLive2DInternalModel>()
-    await Live2DFactory.setupLive2DModel(live2DModel, { url: modelSrcRef.value, id: props.modelId }, { autoInteract: false })
+    const loadApp = pixiApp.value!
+    const loadStage = loadApp.stage
+    const loadSource = modelSrcRef.value
+    const loadModelId = props.modelId
+    const live2DModel = await loadCurrentLive2DInstance({
+      create: () => new Live2DModel<PixiLive2DInternalModel>(),
+      setup: candidate => Live2DFactory.setupLive2DModel(candidate, { url: loadSource, id: loadModelId }, { autoInteract: false }),
+      isCurrent: () => !isUnmounted && pixiApp.value === loadApp && loadApp.stage === loadStage && !!loadStage && modelSrcRef.value === loadSource && props.modelId === loadModelId,
+      dispose: disposeLive2DModel,
+    })
+    if (!live2DModel)
+      return
 
     // --- Scene
 
     model.value = live2DModel
-    // REVIEW: pixiApp and stage are guaranteed to be valid here due to the until(...) above.
-    pixiApp.value!.stage.addChild(model.value)
+    gazeInput.reset()
+    pointerFocusUntil.value = Number.NEGATIVE_INFINITY
+    loadStage.addChild(model.value)
     initialModelWidth.value = model.value.width
     initialModelHeight.value = model.value.height
     model.value.anchor.set(0.5, 0.5)
@@ -589,8 +613,20 @@ async function loadModel() {
     if (!internalModel)
       return
 
-    const coreModel = internalModel.coreModel
     const motionManager = internalModel.motionManager
+    // SDK completion must choose the resolved idle before a random idle reserves
+    // the same priority and rejects the user's selection.
+    const startRandomMotion = motionManager.startRandomMotion
+    motionManager.startRandomMotion = function (this: typeof motionManager, group, priority) {
+      if (priority === MotionPriority.IDLE) {
+        if (isUnmounted || !live2dIdleAnimationEnabled.value)
+          return Promise.resolve(false)
+        const preferred = preferredIdleMotionSelection.value
+        if (preferred && this.definitions[preferred.group]?.[preferred.index])
+          return this.startMotion(preferred.group, preferred.index, priority)
+      }
+      return startRandomMotion.call(this, group, priority)
+    }
     syncAvailableExpressions(internalModel)
     const discoveredMotions = Object
       .entries(motionManager.definitions)
@@ -618,20 +654,7 @@ async function loadModel() {
       }, 300)
     }
 
-    // Remove eye ball movements from idle motion group to prevent conflicts.
-    // Auto-blink fallback continues to run through the motion-manager hook for idle-only models.
-    if (motionManager.groups.idle) {
-      motionManager.motionGroups[motionManager.groups.idle]?.forEach((motion) => {
-        motion._motionData.curves.forEach((curve: any) => {
-        // TODO: After emotion mapper, stage editor, eye related parameters should be take cared to be dynamical instead of hardcoding
-          if (curve.id === 'ParamEyeBallX' || curve.id === 'ParamEyeBallY') {
-            curve.id = `_${curve.id}`
-          }
-        })
-      })
-    }
-
-    // This is hacky too
+    // Keep authored motion curves intact; final expression overlays have one owner.
     const motionManagerUpdate = useLive2DMotionManagerUpdate({
       internalModel,
       motionManager,
@@ -643,14 +666,28 @@ async function loadModel() {
       presencePosture: live2dPresencePosture,
       speechRenderState: live2dSpeechRenderState,
       lastUpdateTime,
+      pointerFocusUntil,
     })
     motionManagerUpdateRef.value = motionManagerUpdate
 
-    motionManagerUpdate.register(useMotionUpdatePluginBeatSync(beatSync), 'pre')
+    motionManagerUpdate.register(useMotionUpdatePluginBeatSync(beatSync), 'render')
     motionManagerUpdate.register(useMotionUpdatePluginIdleDisable(), 'pre')
     motionManagerUpdate.register(useMotionUpdatePluginIdleFocus(), 'post')
+    motionManagerUpdate.register(useMotionUpdatePluginIdleMouth(), 'post')
     motionManagerUpdate.register(useMotionUpdatePluginAutoEyeBlink(), 'post')
-    motionManagerUpdate.register(useMotionUpdatePluginPerformanceLayers(), 'post')
+    motionManagerUpdate.register(useMotionUpdatePluginPerformanceLayers(), 'render')
+    motionManagerUpdate.register((ctx) => {
+      if (!ctx.isIdleMotion)
+        proceduralGesture.cancel()
+      proceduralGestureExecution = proceduralGesture.sample(ctx.now)
+      if (proceduralGestureExecution) {
+        const { parameter, offset } = proceduralGestureExecution
+        ctx.model.setParameterValueById(parameter, ctx.model.getParameterValueById(parameter) + offset)
+      }
+    }, 'render')
+    // Cubism saves motion parameters, applies expressions/focus/physics, draws,
+    // then restores the saved values. Emotion overlays belong to the draw phase.
+    internalModel.on('beforeModelUpdate', motionManagerUpdate.beforeModelUpdate)
 
     const hookedUpdate = motionManager.update as (model: Live2DCoreModel, now: number) => boolean
     motionManager.update = function (model: Live2DCoreModel, now: number) {
@@ -676,22 +713,24 @@ async function loadModel() {
     void applyLatestActionPulse()
 
     // Apply all stored parameters to the model
-    coreModel.setParameterValueById('ParamAngleX', modelParameters.value.angleX)
-    coreModel.setParameterValueById('ParamAngleY', modelParameters.value.angleY)
-    coreModel.setParameterValueById('ParamAngleZ', modelParameters.value.angleZ)
-    coreModel.setParameterValueById('ParamEyeLOpen', modelParameters.value.leftEyeOpen)
-    coreModel.setParameterValueById('ParamEyeROpen', modelParameters.value.rightEyeOpen)
-    coreModel.setParameterValueById('ParamEyeSmile', modelParameters.value.leftEyeSmile)
-    coreModel.setParameterValueById('ParamBrowLX', modelParameters.value.leftEyebrowLR)
-    coreModel.setParameterValueById('ParamBrowRX', modelParameters.value.rightEyebrowLR)
-    coreModel.setParameterValueById('ParamBrowLY', modelParameters.value.leftEyebrowY)
-    coreModel.setParameterValueById('ParamBrowRY', modelParameters.value.rightEyebrowY)
-    coreModel.setParameterValueById('ParamBrowLAngle', modelParameters.value.leftEyebrowAngle)
-    coreModel.setParameterValueById('ParamBrowRAngle', modelParameters.value.rightEyebrowAngle)
-    coreModel.setParameterValueById('ParamBrowLForm', modelParameters.value.leftEyebrowForm)
-    coreModel.setParameterValueById('ParamBrowRForm', modelParameters.value.rightEyebrowForm)
-    coreModel.setParameterValueById('ParamMouthOpenY', modelParameters.value.mouthOpen)
-    coreModel.setParameterValueById('ParamBodyAngleZ', modelParameters.value.bodyAngleZ)
+    updateCoreModelParameter('ParamAngleX', modelParameters.value.angleX)
+    updateCoreModelParameter('ParamAngleY', modelParameters.value.angleY)
+    updateCoreModelParameter('ParamAngleZ', modelParameters.value.angleZ)
+    updateCoreModelParameter('ParamEyeLOpen', modelParameters.value.leftEyeOpen)
+    updateCoreModelParameter('ParamEyeROpen', modelParameters.value.rightEyeOpen)
+    updateCoreModelParameter('ParamEyeLSmile', modelParameters.value.leftEyeSmile)
+    updateCoreModelParameter('ParamEyeRSmile', modelParameters.value.rightEyeSmile)
+    updateCoreModelParameter('ParamEyeSmile', (modelParameters.value.leftEyeSmile + modelParameters.value.rightEyeSmile) / 2)
+    updateCoreModelParameter('ParamBrowLX', modelParameters.value.leftEyebrowLR)
+    updateCoreModelParameter('ParamBrowRX', modelParameters.value.rightEyebrowLR)
+    updateCoreModelParameter('ParamBrowLY', modelParameters.value.leftEyebrowY)
+    updateCoreModelParameter('ParamBrowRY', modelParameters.value.rightEyebrowY)
+    updateCoreModelParameter('ParamBrowLAngle', modelParameters.value.leftEyebrowAngle)
+    updateCoreModelParameter('ParamBrowRAngle', modelParameters.value.rightEyebrowAngle)
+    updateCoreModelParameter('ParamBrowLForm', modelParameters.value.leftEyebrowForm)
+    updateCoreModelParameter('ParamBrowRForm', modelParameters.value.rightEyebrowForm)
+    updateCoreModelParameter('ParamMouthOpenY', modelParameters.value.mouthOpen)
+    updateCoreModelParameter('ParamBodyAngleZ', modelParameters.value.bodyAngleZ)
 
     void applyResolvedExpression({ force: true })
     emits('modelLoaded')
@@ -737,21 +776,23 @@ function resolveRendererPointFromClientPoint(clientX: number, clientY: number) {
   if (!bounds.width || !bounds.height)
     return null
 
-  return {
-    x: ((clientX - bounds.left) / bounds.width) * renderer.width,
-    y: ((clientY - bounds.top) / bounds.height) * renderer.height,
-  }
+  return mapLive2DClientPoint(clientX, clientY, bounds, renderer)
 }
 
 function isCharacterHoveredAtPoint(x: number, y: number) {
   if (!model.value)
     return false
 
-  const hitAreas = model.value.hitTest(x, y)
-  if (hitAreas.length > 0)
-    return true
-
-  return model.value.containsPoint({ x, y } as any)
+  // The Cubism canvas can contain large transparent margins inside getBounds().
+  const renderer = pixiApp.value?.renderer as Renderer | undefined
+  if (!renderer)
+    return false
+  const gl = renderer.gl
+  return hitLive2DRenderedPoint({ x, y }, renderer, { width: gl.drawingBufferWidth, height: gl.drawingBufferHeight }, (px, py) => {
+    const pixel = new Uint8Array(4)
+    gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel)
+    return pixel[3]
+  })
 }
 
 function hitTestClientPoint(clientX: number, clientY: number) {
@@ -822,6 +863,17 @@ function handleCanvasPointerMove(event: PointerEvent) {
   }
 
   emitCharacterHoverChange(isCharacterHoveredAtPoint(point.x, point.y))
+  requestPointerFocus(event.clientX, event.clientY, 'local')
+}
+
+function requestPointerFocus(clientX: number, clientY: number, source: 'local' | 'external') {
+  if (!model.value || props.disableFocusAt || props.paused)
+    return
+  const point = resolveRendererPointFromClientPoint(clientX, clientY)
+  if (!point || !gazeInput.observe({ x: clientX, y: clientY }, lastUpdateTime.value, source))
+    return
+  model.value.focus(point.x, point.y)
+  pointerFocusUntil.value = gazeInput.holdUntil
 }
 
 function attachCanvasHoverListeners(canvas: HTMLCanvasElement) {
@@ -861,9 +913,11 @@ async function setMotion(motionName: string, index?: number) {
     : MotionPriority.FORCE
 
   try {
-    await activeModel.motion(motionName, normalizedIndex, priority)
+    const started = await activeModel.motion(motionName, normalizedIndex, priority)
     if (requestId !== motionRequestId)
       return 'skipped' as const
+    if (!started)
+      return 'deferred' as const
 
     lastMotionRequestKey = requestKey
     return 'started' as const
@@ -901,18 +955,12 @@ async function setMotionWithReplayKey(
   const normalizedIndex = Number.isFinite(index)
     ? Math.max(0, Math.floor(Number(index)))
     : undefined
-  const preferredIdle = preferredIdleMotionSelection.value
-  const isPreferredIdleMotion = preferredIdle
-    && preferredIdle.group === motionName
-    && preferredIdle.index === normalizedIndex
-  const priority = isPreferredIdleMotion
-    ? MotionPriority.IDLE
-    : MotionPriority.FORCE
-
   try {
-    await activeModel.motion(motionName, normalizedIndex, priority)
+    const started = await activeModel.motion(motionName, normalizedIndex, MotionPriority.FORCE)
     if (requestId !== motionRequestId)
       return 'skipped' as const
+    if (!started)
+      return 'deferred' as const
 
     lastMotionRequestKey = requestKey
     return 'started' as const
@@ -937,6 +985,7 @@ async function applyActionPulseRevision(revision: number) {
 
   const actionCue = live2dPerformanceState.value?.actionPulse.cue?.trim()
   if (!actionCue) {
+    proceduralGesture.cancel()
     lastAppliedActionPulseRevision.value = revision
     return
   }
@@ -947,16 +996,21 @@ async function applyActionPulseRevision(revision: number) {
     motionMap: motionMap.value,
   })
   if (!binding) {
+    const coreModel = getInternalModel()?.coreModel
+    if (!coreModel)
+      return
+    proceduralGesture.start({ cue: actionCue, revision, now: lastUpdateTime.value, intensity: live2dPerformanceState.value?.actionIntensity ?? 0.5 }, parameter => supportsLive2DParameter(coreModel, parameter))
     lastAppliedActionPulseRevision.value = revision
     return
   }
 
+  proceduralGesture.cancel()
   const replayKey = buildLive2DActionPulseReplayKey({
     binding,
     state: live2dPerformanceState.value,
   })
   const result = await setMotionWithReplayKey(binding.motionName, binding.motionIndex, replayKey)
-  if (result !== 'deferred')
+  if (result !== 'deferred' && revision === live2dPerformanceState.value?.actionPulse.revision)
     lastAppliedActionPulseRevision.value = revision
 }
 
@@ -1055,7 +1109,16 @@ watch(
   },
   { immediate: true },
 )
-watch(paused, value => value ? pixiApp.value?.stop() : pixiApp.value?.start())
+watch(paused, (value) => {
+  if (value) {
+    proceduralGesture.cancel()
+    proceduralGestureExecution = null
+    pixiApp.value?.stop()
+  }
+  else {
+    pixiApp.value?.start()
+  }
+})
 watch(() => pixiApp.value?.view, (canvas, previousCanvas) => {
   detachCanvasHoverListeners(previousCanvas)
 
@@ -1085,7 +1148,8 @@ watch(live2dIdleAnimationEnabled, (enabled) => {
   if (!enabled && model.value) {
     const internalModel = model.value.internalModel
     if (internalModel?.motionManager) {
-      internalModel.motionManager.stopAllMotions()
+      if (internalModel.motionManager.state.currentPriority <= MotionPriority.IDLE)
+        internalModel.motionManager.stopAllMotions()
     }
     return
   }
@@ -1098,18 +1162,18 @@ watch(preferredIdleMotionKey, (nextKey, previousKey) => {
     return
 
   const currentKey = buildMotionKey(live2dMotionExecution.state.value)
+  const motionManager = getInternalModel()?.motionManager
+  if (motionManager && currentKey !== nextKey && motionManager.state.currentPriority <= MotionPriority.IDLE) {
+    motionManager.stopAllMotions()
+    lastMotionRequestKey = ''
+  }
   if (!currentKey || currentKey === previousKey || currentKey === nextKey) {
     requestIdleMotionRestart({ force: true, reason: 'idle-preference-change' })
   }
 })
 
 watch(focusAt, (value) => {
-  if (!model.value)
-    return
-  if (props.disableFocusAt)
-    return
-
-  model.value.focus(value.x, value.y)
+  requestPointerFocus(value.x, value.y, 'external')
 })
 
 watch(componentState, (state) => {
@@ -1185,6 +1249,9 @@ onBeforeMount(() => {
 
 onUnmounted(() => {
   isUnmounted = true
+  proceduralGesture.cancel()
+  proceduralGestureExecution = null
+  motionRequestId += 1
   availableExpressionNames.value = []
   live2dMotionExecution.reset()
   motionManagerUpdateRef.value = null
@@ -1192,6 +1259,7 @@ onUnmounted(() => {
   syncLive2DExecutionDiagnostics(null)
   emitRuntimeCapabilitiesResolved([])
   disposeShouldUpdateView?.()
+  disposePreviewMotion()
 })
 
 function listMotionGroups() {
@@ -1199,7 +1267,7 @@ function listMotionGroups() {
 }
 
 defineExpose({
-  executionDiagnostics: () => live2dExecutionDiagnostics.value,
+  executionDiagnostics: () => ({ ...live2dExecutionDiagnostics.value, proceduralGesture: proceduralGestureExecution }),
   characterFrame,
   dragAnchorClientPoint,
   hitTestClientPoint,

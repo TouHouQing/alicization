@@ -25,10 +25,90 @@ exports.registerPrivateRuntime = async function (application) {
   return identity
 }
 
-exports.closePrivateRuntime = async function (application, identity) {
+exports.closePrivateRuntime = async function (application, identity, { viaUi = false } = {}) {
   const startedAt = Date.now()
   const nativeProcess = application.process()
-  const close = application.close()
+  const stderr = []
+  const observeStderr = (bytes) => {
+    stderr.push(bytes.toString())
+    if (stderr.length > 20)
+      stderr.shift()
+  }
+  nativeProcess.stderr?.on('data', observeStderr)
+  // Initiate quit once and observe the actual application's resource lifecycle.
+  // A second Playwright close() can re-enter quit during asynchronous teardown.
+  // Native exit owns success; log markers never substitute for process exit.
+  let fileFlushObserved = false
+  let windowTeardownObserved = false
+  let debuggerDetachedAfterTeardown = false
+  let debuggerDetachedBeforeUiQuit = false
+  const exitMessages = []
+  let stdoutPending = ''
+  const observeStdout = (bytes) => {
+    stdoutPending += bytes.toString()
+    const lines = stdoutPending.split(/\r?\n/)
+    stdoutPending = lines.pop()
+    for (const line of lines) {
+      if (!line.includes('[app-exit]') && !line.startsWith('[FileLogger]'))
+        continue
+      exitMessages.push(line)
+      fileFlushObserved ||= line.startsWith('[FileLogger] Session log file:')
+      windowTeardownObserved ||= line.includes('[app-exit] Desktop windows closed; exiting')
+    }
+  }
+  nativeProcess.stdout?.on('data', observeStdout)
+  // Playwright 1.58 exposes no public detach operation. Its close() first
+  // evaluates app.quit(), which cannot finish while Electron is inside exit().
+  // Detach this harness's inspector before native UI quit, or after teardown
+  // for older probes. Never inject an exit or substitute a process result.
+  const nodeConnection = application._connection?.toImpl?.(application)?._nodeConnection
+  if (typeof nodeConnection?.close !== 'function')
+    throw new Error('This Playwright version does not expose the QA inspector detach adapter')
+  const observeFlush = (message) => {
+    const text = message.text()
+    if (text.startsWith('[FileLogger] Session log file:'))
+      fileFlushObserved = true
+    if (!windowTeardownObserved && text.includes('[app-exit] Desktop windows closed; exiting')) {
+      windowTeardownObserved = true
+      if (!viaUi) {
+        nodeConnection.close()
+        debuggerDetachedAfterTeardown = true
+      }
+    }
+  }
+  application.on('console', observeFlush)
+  let onExit
+  const exited = new Promise((resolve) => {
+    onExit = resolve
+    nativeProcess.once('exit', onExit)
+  })
+  const requestQuit = async () => {
+    if (!viaUi) {
+      await application.evaluate(({ app }) => {
+        setImmediate(() => app.quit())
+      })
+      return
+    }
+    const stage = application.windows().find(page => page.url().endsWith('#/'))
+    if (!stage)
+      throw new Error('Live2D stage required for native UI shutdown')
+    const closeButton = stage.getByRole('button', { name: '关闭', exact: true })
+    if (!await closeButton.count())
+      await stage.getByRole('button', { name: '展开', exact: true }).evaluate(node => node.click())
+    await closeButton.waitFor({ timeout: 10000 })
+    // Use the application's real close button with no Node debugger attached
+    // during its asynchronous shutdown, matching the separate raw native probe.
+    nodeConnection.close()
+    debuggerDetachedBeforeUiQuit = true
+    await closeButton.evaluate(node => node.click()).catch((error) => {
+      if (!/closed/i.test(error.message))
+        throw error
+    })
+  }
+  const close = requestQuit().catch((error) => {
+    if (nativeProcess.exitCode === null)
+      throw error
+  }).then(() => exited)
   let deadline
   let failure
   try {
@@ -45,8 +125,12 @@ exports.closePrivateRuntime = async function (application, identity) {
   }
   finally {
     clearTimeout(deadline)
+    nativeProcess.removeListener('exit', onExit)
+    nativeProcess.stderr?.removeListener('data', observeStderr)
+    nativeProcess.stdout?.removeListener('data', observeStdout)
+    application.removeListener('console', observeFlush)
   }
-  return { completed: !failure, elapsedMs: Date.now() - startedAt, exitCode: nativeProcess.exitCode, ...(failure ? { failure, forcedQaCleanup: true } : {}) }
+  return { completed: !failure, elapsedMs: Date.now() - startedAt, exitCode: nativeProcess.exitCode, fileFlushObserved, windowTeardownObserved, debuggerDetachedAfterTeardown, debuggerDetachedBeforeUiQuit, exitMessages, ...(failure ? { failure, forcedQaCleanup: true, stderr: stderr.join('').slice(-4000) } : {}) }
 }
 
 exports.packageIdentity = async function () {
@@ -56,7 +140,10 @@ exports.packageIdentity = async function () {
   const hash = createHash('sha256')
   for await (const bytes of createReadStream(path.join(path.dirname(executable), 'resources/app.asar')))
     hash.update(bytes)
-  return { executable, packagedAsarSha256: hash.digest('hex') }
+  const executableHash = createHash('sha256')
+  for await (const bytes of createReadStream(executable))
+    executableHash.update(bytes)
+  return { executable, packagedAsarSha256: hash.digest('hex'), portableExecutableSha256: executableHash.digest('hex') }
 }
 
 exports.launchOptions = function (userData) {

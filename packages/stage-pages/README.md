@@ -13,6 +13,7 @@ Pages compose the existing persona, provider, model, memory, and chat stores. Th
 - Data management displays completion or error feedback for export, import, and reset operations.
 - Translations live in `packages/i18n`; provider labels use `settings.pages.providers` and memory quality labels use the `stage` namespace.
 - Browsing Kokoro settings reads the local model catalogue. Explicit loading downloads model files, reports progress, and exposes failure/retry feedback. Changing the selected model requires loading it before synthesis can run.
+- Model settings give the rendered preview and scrolling form separate responsive areas. Live2D theme extraction captures the loaded preview's actual canvas, reports errors, and releases its temporary image URL. Changing the model while extraction is pending invalidates that capture.
 
 ## Verification
 

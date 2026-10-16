@@ -1,9 +1,12 @@
 <script setup lang="ts">
-const props = defineProps<{ buttonStyle?: string }>()
+const props = defineProps<{ buttonStyle?: string, label?: string }>()
 </script>
 
 <template>
   <button
+    type="button"
+    :aria-label="label"
+    :title="label"
     :class="[
       'border-2 border-solid border-neutral-200/60 dark:border-neutral-800/10',
       'bg-neutral-50/80 dark:bg-neutral-800/70',

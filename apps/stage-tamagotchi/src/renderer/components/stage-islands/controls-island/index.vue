@@ -122,7 +122,7 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
         <div v-if="expanded" border="1 neutral-200 dark:neutral-800" mb-2 flex flex-col gap-1 rounded-2xl p-2 backdrop-blur-xl class="bg-neutral-100/80 shadow-2xl shadow-black/20 dark:bg-neutral-900/80">
           <div grid grid-cols-3 gap-2>
             <ControlButtonTooltip disable-hoverable-content>
-              <ControlButton :button-style="adjustStyleClasses.button" @click="runMenuAction(() => openSettings({ route: '/settings' }))">
+              <ControlButton :label="t('tamagotchi.stage.controls-island.open-settings')" :button-style="adjustStyleClasses.button" @click="runMenuAction(() => openSettings({ route: '/settings' }))">
                 <div i-solar:settings-minimalistic-outline :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
               </ControlButton>
               <template #tooltip>
@@ -133,7 +133,7 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
             <ControlButtonTooltip disable-hoverable-content>
               <ControlsIslandProfilePicker @navigated="collapseExpandedMenu">
                 <template #default="{ toggle }">
-                  <ControlButton :button-style="adjustStyleClasses.button" @click="toggle">
+                  <ControlButton :label="t('tamagotchi.stage.controls-island.switch-profile')" :button-style="adjustStyleClasses.button" @click="toggle">
                     <div i-solar:emoji-funny-square-broken :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
                   </ControlButton>
                 </template>
@@ -144,7 +144,7 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
             </ControlButtonTooltip>
 
             <ControlButtonTooltip disable-hoverable-content>
-              <ControlButton :button-style="adjustStyleClasses.button" @click="runMenuAction(openChat)">
+              <ControlButton :label="t('tamagotchi.stage.controls-island.open-chat')" :button-style="adjustStyleClasses.button" @click="runMenuAction(openChat)">
                 <div i-solar:chat-line-line-duotone :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
               </ControlButton>
               <template #tooltip>
@@ -153,7 +153,7 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
             </ControlButtonTooltip>
 
             <ControlButtonTooltip disable-hoverable-content>
-              <ControlButton :button-style="adjustStyleClasses.button" @click="runMenuAction(refreshWindow)">
+              <ControlButton :label="t('tamagotchi.stage.controls-island.refresh')" :button-style="adjustStyleClasses.button" @click="runMenuAction(refreshWindow)">
                 <div i-solar:refresh-linear :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
               </ControlButton>
               <template #tooltip>
@@ -162,7 +162,7 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
             </ControlButtonTooltip>
 
             <ControlButtonTooltip disable-hoverable-content>
-              <ControlButton :button-style="adjustStyleClasses.button" @click="runMenuAction(toggleDark)">
+              <ControlButton :label="isDark ? t('tamagotchi.stage.controls-island.switch-to-light-mode') : t('tamagotchi.stage.controls-island.switch-to-dark-mode')" :button-style="adjustStyleClasses.button" @click="runMenuAction(toggleDark)">
                 <Transition name="fade" mode="out-in">
                   <div v-if="isDark" i-solar:moon-outline :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
                   <div v-else i-solar:sun-2-outline :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
@@ -176,7 +176,7 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
             <ControlButtonTooltip disable-hoverable-content>
               <ControlsIslandHearingConfig v-model:show="hearingDialogOpen">
                 <div class="relative">
-                  <ControlButton :button-style="adjustStyleClasses.button" @click="collapseExpandedMenu">
+                  <ControlButton :label="t('tamagotchi.stage.controls-island.open-hearing-controls')" :button-style="adjustStyleClasses.button" @click="collapseExpandedMenu">
                     <Transition name="fade" mode="out-in">
                       <IndicatorMicVolume v-if="enabled" :class="adjustStyleClasses.icon" />
                       <div v-else i-ph:microphone-slash :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
@@ -190,7 +190,7 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
             </ControlButtonTooltip>
 
             <ControlButtonTooltip disable-hoverable-content>
-              <ControlButton :button-style="adjustStyleClasses.button" @click="runMenuAction(toggleAlwaysOnTop)">
+              <ControlButton :label="alwaysOnTop ? t('tamagotchi.stage.controls-island.unpin-from-top') : t('tamagotchi.stage.controls-island.pin-on-top')" :button-style="adjustStyleClasses.button" @click="runMenuAction(toggleAlwaysOnTop)">
                 <div v-if="alwaysOnTop" i-solar:pin-bold :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
                 <div v-else i-solar:pin-linear :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300 opacity-50" />
               </ControlButton>
@@ -202,7 +202,7 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
             <ControlsIslandFadeOnHover :icon-class="adjustStyleClasses.icon" :button-style="adjustStyleClasses.button" @clicked="collapseExpandedMenu" />
 
             <ControlButtonTooltip disable-hoverable-content>
-              <ControlButton :button-style="adjustStyleClasses.button" hover:bg-red-500 hover:text-white @click="runMenuAction(closeWindow)">
+              <ControlButton :label="t('tamagotchi.stage.controls-island.close')" :button-style="adjustStyleClasses.button" hover:bg-red-500 hover:text-white @click="runMenuAction(closeWindow)">
                 <div i-solar:close-circle-outline :class="adjustStyleClasses.icon" />
               </ControlButton>
               <template #tooltip>
@@ -216,7 +216,7 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
       <!-- Main Controls -->
       <div flex flex-col gap-1>
         <ControlButtonTooltip side="left">
-          <ControlButton :button-style="adjustStyleClasses.button" @click="runMenuAction(() => openSettings({ route: '/settings' }))">
+          <ControlButton :label="t('tamagotchi.stage.controls-island.open-settings')" :button-style="adjustStyleClasses.button" @click="runMenuAction(() => openSettings({ route: '/settings' }))">
             <div i-solar:settings-minimalistic-outline :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
           </ControlButton>
           <template #tooltip>
@@ -225,7 +225,7 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
         </ControlButtonTooltip>
 
         <ControlButtonTooltip side="left">
-          <ControlButton :button-style="adjustStyleClasses.button" @click="expanded = !expanded">
+          <ControlButton :label="expanded ? t('tamagotchi.stage.controls-island.collapse') : t('tamagotchi.stage.controls-island.expand')" :button-style="adjustStyleClasses.button" @click="expanded = !expanded">
             <div
 
               :class="[adjustStyleClasses.icon, expanded ? 'rotate-180' : 'rotate-0']"
@@ -240,7 +240,7 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
         </ControlButtonTooltip>
 
         <ControlButtonTooltip side="left">
-          <ControlButton :button-style="adjustStyleClasses.button" @click="emit('resetDesktopLayout')">
+          <ControlButton :label="t('tamagotchi.stage.controls-island.drag-to-move-window')" :button-style="adjustStyleClasses.button" @click="emit('resetDesktopLayout')">
             <div i-ph:arrows-counter-clockwise :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
           </ControlButton>
           <template #tooltip>

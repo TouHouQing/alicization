@@ -1,43 +1,54 @@
 <script setup lang="ts">
-import type { Live2DCanvas } from '@proj-alicization/stage-ui/components/scenes'
-
+import { errorMessageFrom } from '@moeru/std'
 import { ModelSettings } from '@proj-alicization/stage-ui/components/scenarios/settings/model-settings'
 import { Vibrant } from 'node-vibrant/browser'
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
-const live2dCanvasRef = ref<InstanceType<typeof Live2DCanvas>>()
+const { t } = useI18n()
+const modelSettingsRef = ref<InstanceType<typeof ModelSettings>>()
 
 const palette = ref<string[]>([])
+const extractingColors = ref(false)
+const colorExtractionError = ref('')
 
 async function extractColorsFromModel() {
-  if (!live2dCanvasRef.value)
+  if (extractingColors.value)
     return
-
-  const frame = await live2dCanvasRef.value.captureFrame()
-  if (!frame) {
-    console.error('No frame captured')
-    return
-  }
-
-  const frameUrl = URL.createObjectURL(frame)
+  extractingColors.value = true
+  colorExtractionError.value = ''
+  let frameUrl: string | undefined
   try {
+    const frame = await modelSettingsRef.value?.captureModelFrame()
+    if (!frame)
+      throw new Error('No loaded model frame is available')
+    frameUrl = URL.createObjectURL(frame)
     const vibrant = new Vibrant(frameUrl)
 
     const paletteFromVibrant = await vibrant.getPalette()
     palette.value = Object.values(paletteFromVibrant).map(color => color?.hex).filter(it => typeof it === 'string')
   }
+  catch (error) {
+    console.warn('[model-settings] Color extraction failed:', errorMessageFrom(error))
+    colorExtractionError.value = t('settings.live2d.theme-color-from-model.capture-failed')
+  }
   finally {
-    URL.revokeObjectURL(frameUrl)
+    if (frameUrl)
+      URL.revokeObjectURL(frameUrl)
+    extractingColors.value = false
   }
 }
 </script>
 
 <template>
-  <div flex class="relative h-full flex-col-reverse md:flex-row">
+  <div :class="['relative grid h-full min-h-0 gap-4', 'grid-rows-[minmax(14rem,2fr)_minmax(0,3fr)]', 'lg:grid-cols-[minmax(18rem,2fr)_minmax(22rem,3fr)] lg:grid-rows-1']">
     <ModelSettings
-      settings-class="w-100% md:w-40% lg:w-40% xl:w-25% 2xl:w-30% h-fit sm:max-h-80dvh overflow-y-scroll relative"
-      live-2d-scene-class="absolute max-h-[calc(100dvh-100px-56px)] w-full h-full"
-      vrm-scene-class="absolute max-h-[calc(100dvh-100px-56px)] w-full h-full"
+      ref="modelSettingsRef"
+      settings-class="order-2 min-h-0 overflow-y-auto relative"
+      live-2d-scene-class="order-1 relative min-h-0 h-full w-full overflow-hidden rounded-xl bg-neutral-100/40 dark:bg-neutral-900/40"
+      vrm-scene-class="order-1 relative min-h-0 h-full w-full overflow-hidden rounded-xl bg-neutral-100/40 dark:bg-neutral-900/40"
+      :extracting-colors="extractingColors"
+      :color-extraction-error="colorExtractionError"
       :palette="palette" @extract-colors-from-model="extractColorsFromModel"
     />
   </div>

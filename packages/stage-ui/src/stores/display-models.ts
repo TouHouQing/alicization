@@ -112,12 +112,12 @@ export const useDisplayModelsStore = defineStore('display-models', () => {
     let ignoreIterateResults = false
 
     try {
-      await withTimeout('localforage.iterate', localforage.iterate<{ format: DisplayModelFormat, file: File, importedAt: number, previewImage?: string }, void>((val, key) => {
+      await withTimeout('localforage.iterate', localforage.iterate<DisplayModelFile, void>((val, key) => {
         if (ignoreIterateResults)
           return
 
         if (key.startsWith('display-model-')) {
-          models.push({ id: key, format: val.format, type: 'file', file: val.file, name: val.file.name, importedAt: val.importedAt, previewImage: val.previewImage })
+          models.push({ id: key, format: val.format, type: 'file', file: val.file, name: val.name, importedAt: val.importedAt, previewImage: val.previewImage })
         }
       }))
     }
@@ -174,6 +174,8 @@ export const useDisplayModelsStore = defineStore('display-models', () => {
 
     if (format === DisplayModelFormat.Live2dZip) {
       const previewImage = await loadLive2DModelPreview(file)
+      if (!previewImage)
+        throw new Error('Live2D model preview could not be generated')
       newDisplayModel.previewImage = previewImage
     }
     else if (format === DisplayModelFormat.VRM) {
@@ -181,10 +183,19 @@ export const useDisplayModelsStore = defineStore('display-models', () => {
       newDisplayModel.previewImage = previewImage
     }
 
+    const persist = localforage.setItem<DisplayModelFile>(newDisplayModel.id, newDisplayModel)
+    try {
+      await withTimeout('localforage.setItem(import)', persist)
+    }
+    catch (error) {
+      // A timeout cannot cancel IndexedDB's transaction. If this unpublished
+      // import commits late, remove only its newly generated record.
+      void persist.then(() => localforage.removeItem(newDisplayModel.id), () => {}).catch((cleanupError) => {
+        console.error('[display-models] failed to remove an unpublished import:', cleanupError)
+      })
+      throw error
+    }
     displayModels.value.unshift(newDisplayModel)
-
-    localforage.setItem<DisplayModelFile>(newDisplayModel.id, newDisplayModel)
-      .catch(err => console.error(err))
   }
 
   async function renameDisplayModel(id: string, name: string) {

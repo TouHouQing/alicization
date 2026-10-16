@@ -63,7 +63,7 @@ function createFakeSettings(files: string[]): ModelSettings {
       Pose: pose,
       Motions: motions.length
         ? {
-            '': motions.map(motion => ({ File: motion })),
+            Idle: motions.map(motion => ({ File: motion })),
           }
         : undefined,
     },

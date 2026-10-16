@@ -29,10 +29,16 @@ beforeEach(() => {
 })
 
 function createMockModel(initial: Record<string, number>) {
-  const values = new Map<string, number>(Object.entries(initial))
+  const baseline = new Map<string, number>(Object.entries(initial))
+  const values = new Map(baseline)
 
   return {
     values,
+    getModel: () => ({ parameters: { ids: [...baseline.keys()] } }),
+    beginFrame() {
+      values.clear()
+      baseline.forEach((value, key) => values.set(key, value))
+    },
     getParameterIndex(parameterId: string) {
       return values.has(parameterId) ? 0 : -1
     },
@@ -192,7 +198,7 @@ function createMotorProfile(overrides?: StageEmbodimentMotorOverrides) {
 }
 
 function createPerformanceState(input: {
-  baseEmotion: 'happy' | 'angry' | 'thinking' | 'neutral'
+  baseEmotion: 'happy' | 'angry' | 'thinking' | 'neutral' | 'surprised'
   delivery: 'energetic' | 'firm' | 'calm'
   facialCue: string
   preferredGazeMode?: 'steady' | 'soften' | 'drift'
@@ -332,10 +338,11 @@ function drivePlugin(
   frames = 12,
 ) {
   for (let frame = 0; frame < frames; frame += 1) {
-    ctx.now = 16 * (frame + 1)
+    ctx.now = 0.016 * (frame + 1)
     ctx.timeDelta = 16
     ctx.timeDeltaSeconds = 0.016
     ctx.handled = false
+    ctx.model.beginFrame()
     plugin(ctx)
   }
 }
@@ -388,10 +395,11 @@ function drivePluginAtTime(
   ctx: any,
   now: number,
 ) {
-  ctx.now = now
+  ctx.now = now / 1000
   ctx.timeDelta = 16
   ctx.timeDeltaSeconds = 0.016
   ctx.handled = false
+  ctx.model.beginFrame()
   plugin(ctx)
 }
 
@@ -400,10 +408,11 @@ function drivePluginWithDelta(
   ctx: any,
   input: { now: number, timeDeltaSeconds: number },
 ) {
-  ctx.now = input.now
+  ctx.now = input.now / 1000
   ctx.timeDelta = input.timeDeltaSeconds * 1000
   ctx.timeDeltaSeconds = input.timeDeltaSeconds
   ctx.handled = false
+  ctx.model.beginFrame()
   plugin(ctx)
 }
 
@@ -421,6 +430,7 @@ async function createIdleAutoBlinkRuntime(
     },
     state: {
       currentGroup: 'Idle',
+      currentPriority: 1,
     },
   } as any
   const ctx = createPluginContext({
@@ -487,6 +497,106 @@ function advanceIdleAutoBlinkFrames(input: {
 }
 
 describe('live2d motion manager performance layers', () => {
+  it('rechecks SDK priority after native update before suppressing idle mouth curves', async () => {
+    const { useLive2DMotionManagerUpdate } = await import('./motion-manager')
+    const { useMotionUpdatePluginIdleMouth } = await import('./mouth-drive')
+    const model = createMockModel(createModelParameterIds())
+    const ctx = createPluginContext({ model, performanceState: createPerformanceState({ baseEmotion: 'neutral', delivery: 'calm', facialCue: 'relaxed' }) })
+    ctx.motionManager.state = { currentGroup: 'Idle', currentPriority: 1 }
+    const runtime = useLive2DMotionManagerUpdate({ ...ctx, lastUpdateTime: ref(0) })
+    runtime.register(useMotionUpdatePluginIdleMouth(), 'post')
+    runtime.hookUpdate(model as never, 0.016, () => {
+      ctx.motionManager.state = { currentGroup: 'Tap', currentPriority: 3 }
+      model.setParameterValueById('ParamMouthOpenY', 0.7)
+      return true
+    })
+    expect(readParameter(model, 'ParamMouthOpenY')).toBe(0.7)
+    runtime.hookUpdate(model as never, 0.032, () => {
+      ctx.motionManager.state = { currentGroup: 'Idle', currentPriority: 1 }
+      model.setParameterValueById('ParamMouthOpenY', 0.7)
+      return true
+    })
+    expect(readParameter(model, 'ParamMouthOpenY')).toBe(0)
+  })
+
+  it('closes an audio-bound mouth during a silent playback gap despite continuing text articulation', async () => {
+    const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
+    const model = createMockModel(createModelParameterIds())
+    const speech = { ...createSpeechRenderState(), audioBound: true, dynamics: { speechEnergy: 0, prosodyIntensity: 0.8, emphasisLevel: 0.4, cadencePulse: 0.7 } }
+    const ctx = createPluginContext({ model, performanceState: createPerformanceState({ baseEmotion: 'neutral', delivery: 'calm', facialCue: 'relaxed' }), speechRenderState: speech })
+    drivePlugin(useMotionUpdatePluginPerformanceLayers(), ctx, 60)
+    expect(readParameter(model, 'ParamMouthOpenY')).toBeLessThan(0.02)
+    expect(readParameter(model, 'ParamA')).toBeLessThan(0.02)
+  })
+
+  it.each([0, 0.4])('preserves the resting mouth form %s without inventing silent speech prosody', async (baseline) => {
+    const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
+    const model = createMockModel({ ...createModelParameterIds(), ParamMouthForm: baseline })
+    const ctx = createPluginContext({ model, performanceState: createPerformanceState({ baseEmotion: 'neutral', delivery: 'calm', facialCue: 'relaxed', motor: createMotorProfile({ facial: { mouthSpread: 0, mouthRound: 0 } }) }), speechRenderState: createIdleStageEmbodimentSpeechRenderState() })
+    drivePlugin(useMotionUpdatePluginPerformanceLayers(), ctx, 60)
+    expect(readParameter(model, 'ParamMouthForm')).toBeCloseTo(baseline, 3)
+  })
+
+  it('does not rearm an expired facial release window while the same cue remains present', async () => {
+    const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
+    const create = (duration: number) => {
+      const model = createMockModel(createModelParameterIds())
+      const ctx = createPluginContext({ model, performanceState: createPerformanceState({ baseEmotion: 'neutral', delivery: 'calm', facialCue: 'relaxed', rendererSettle: { live2dFacialReleaseMs: duration } }), speechRenderState: createIdleStageEmbodimentSpeechRenderState() })
+      ctx.modelParameters.value.cheek = 0.8
+      const plugin = useMotionUpdatePluginPerformanceLayers()
+      drivePlugin(plugin, ctx, 60)
+      ctx.modelParameters.value.cheek = 0
+      drivePluginAtTime(plugin, ctx, 1200)
+      return readParameter(model, 'ParamCheek')
+    }
+    expect(create(220)).toBeCloseTo(create(0), 5)
+  })
+
+  it('allows a wide-eye cue to use openness above the neutral pose', async () => {
+    const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
+    const model = createMockModel(createModelParameterIds())
+    const ctx = createPluginContext({ model, performanceState: createPerformanceState({ baseEmotion: 'surprised', delivery: 'calm', facialCue: 'wide-eye' }), speechRenderState: createIdleStageEmbodimentSpeechRenderState() })
+    drivePlugin(useMotionUpdatePluginPerformanceLayers(), ctx, 40)
+    expect(readParameter(model, 'ParamEyeLOpen')).toBeGreaterThan(1.05)
+    expect(readParameter(model, 'ParamEyeROpen')).toBeGreaterThan(1.05)
+  })
+
+  it('lets a closed phoneme close an authored open mouth, then releases that ownership after speech', async () => {
+    const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
+    const model = createMockModel({ ...createModelParameterIds(), ParamMouthOpenY: 0.7 })
+    const speech = createSpeechRenderState()
+    speech.articulation = { ...speech.articulation, openness: 0, jawOpen: 0, lipClosure: 1, visemes: { A: 0, I: 0, U: 0, E: 0, O: 0, closed: 1 } }
+    const ctx = createPluginContext({ model, performanceState: createPerformanceState({ baseEmotion: 'neutral', delivery: 'calm', facialCue: 'relaxed' }), speechRenderState: speech })
+    const plugin = useMotionUpdatePluginPerformanceLayers()
+    drivePlugin(plugin, ctx, 45)
+    expect(readParameter(model, 'ParamMouthOpenY')).toBeLessThan(0.06)
+    ctx.speechRenderState.value = createPostStopSpeechRenderState(speech)
+    drivePlugin(plugin, ctx, 60)
+    expect(readParameter(model, 'ParamMouthOpenY')).toBeGreaterThan(0.65)
+  })
+
+  it('expresses anger over an authored smile without turning speech energy into smiling eyes', async () => {
+    const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
+    const model = createMockModel({ ...createModelParameterIds(), ParamMouthForm: 0.85, ParamEyeLSmile: 0.4, ParamEyeRSmile: 0.4 })
+    const ctx = createPluginContext({ model, performanceState: createPerformanceState({ baseEmotion: 'angry', delivery: 'firm', facialCue: 'glare' }) })
+    drivePlugin(useMotionUpdatePluginPerformanceLayers(), ctx, 50)
+    expect(readParameter(model, 'ParamMouthForm')).toBeLessThan(-0.1)
+    expect(readParameter(model, 'ParamEyeLSmile')).toBeLessThan(0.16)
+    expect(readParameter(model, 'ParamEyeRSmile')).toBeLessThan(0.16)
+  })
+
+  it('keeps the mouth closed at rest and preserves independent eye smile controls', async () => {
+    const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
+    const model = createMockModel(createModelParameterIds())
+    const ctx = createPluginContext({ model, performanceState: createPerformanceState({ baseEmotion: 'neutral', delivery: 'calm', facialCue: 'relaxed' }), speechRenderState: createIdleStageEmbodimentSpeechRenderState() })
+    ctx.modelParameters.value.leftEyeSmile = 0.6
+    ctx.modelParameters.value.rightEyeSmile = 0.1
+    drivePlugin(useMotionUpdatePluginPerformanceLayers(), ctx, 40)
+    expect(readParameter(model, 'ParamMouthOpenY')).toBe(0)
+    expect(readParameter(model, 'ParamEyeLSmile') - readParameter(model, 'ParamEyeRSmile')).toBeCloseTo(0.5)
+    expect(readParameter(model, 'ParamEyeSmile')).toBeGreaterThan(0.35)
+  })
+
   it('publishes live2d mouth execution proof while speech articulation is active', async () => {
     const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
     const plugin = useMotionUpdatePluginPerformanceLayers()
@@ -1126,7 +1236,7 @@ describe('live2d motion manager performance layers', () => {
     expect(readParameter(quietModel, 'ParamMouthOpen')).toBeGreaterThanOrEqual(0)
   })
 
-  it('keeps scripted live2d mouth continuity alive through post-stop frames when continuityHoldMs extends the continuity state', async () => {
+  it('closes the mouth after stop even when companionship continuity remains held', async () => {
     const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
     const defaultPlugin = useMotionUpdatePluginPerformanceLayers()
     const extendedPlugin = useMotionUpdatePluginPerformanceLayers()
@@ -1184,7 +1294,8 @@ describe('live2d motion manager performance layers', () => {
     drivePluginWithDelta(defaultPlugin, defaultCtx, { now: 380, timeDeltaSeconds: 0.1 })
     drivePluginWithDelta(extendedPlugin, extendedCtx, { now: 380, timeDeltaSeconds: 0.1 })
 
-    expect(readParameter(extendedModel, 'ParamMouthOpen')).toBeGreaterThan(readParameter(defaultModel, 'ParamMouthOpen'))
+    expect(readParameter(defaultModel, 'ParamMouthOpen')).toBeLessThan(0.02)
+    expect(readParameter(extendedModel, 'ParamMouthOpen')).toBeCloseTo(readParameter(defaultModel, 'ParamMouthOpen'), 4)
   })
 
   it('keeps same-thread live2d mouth carry audit neutral', async () => {
@@ -1404,11 +1515,12 @@ describe('live2d motion manager performance layers', () => {
 
   it('keeps long-release companionship facial overlays softer for preview-grade carry than direct segment delivery', async () => {
     const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
-    const plugin = useMotionUpdatePluginPerformanceLayers()
+    const segmentPlugin = useMotionUpdatePluginPerformanceLayers()
+    const previewCarryPlugin = useMotionUpdatePluginPerformanceLayers()
     const segmentModel = createMockModel(createModelParameterIds())
     const previewCarryModel = createMockModel(createModelParameterIds())
 
-    drivePlugin(plugin, createPluginContext({
+    drivePlugin(segmentPlugin, createPluginContext({
       model: segmentModel,
       performanceState: createPerformanceState({
         baseEmotion: 'thinking',
@@ -1436,7 +1548,7 @@ describe('live2d motion manager performance layers', () => {
       }),
     }))
 
-    drivePlugin(plugin, createPluginContext({
+    drivePlugin(previewCarryPlugin, createPluginContext({
       model: previewCarryModel,
       performanceState: createPerformanceState({
         baseEmotion: 'thinking',
@@ -1471,7 +1583,8 @@ describe('live2d motion manager performance layers', () => {
 
   it('keeps durable measured-return facial release steadier than ordinary measured-return when steady gaze pairs with quiet blink cadence', async () => {
     const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
-    const plugin = useMotionUpdatePluginPerformanceLayers()
+    const ordinaryPlugin = useMotionUpdatePluginPerformanceLayers()
+    const durablePlugin = useMotionUpdatePluginPerformanceLayers()
     const ordinaryModel = createMockModel(createModelParameterIds())
     const durableModel = createMockModel(createModelParameterIds())
 
@@ -1487,7 +1600,7 @@ describe('live2d motion manager performance layers', () => {
       },
     })
 
-    drivePlugin(plugin, createPluginContext({
+    drivePlugin(ordinaryPlugin, createPluginContext({
       model: ordinaryModel,
       performanceState: createPerformanceState({
         baseEmotion: 'thinking',
@@ -1509,7 +1622,7 @@ describe('live2d motion manager performance layers', () => {
       speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
     }))
 
-    drivePlugin(plugin, createPluginContext({
+    drivePlugin(durablePlugin, createPluginContext({
       model: durableModel,
       performanceState: createPerformanceState({
         baseEmotion: 'thinking',
@@ -1576,7 +1689,7 @@ describe('live2d motion manager performance layers', () => {
     drivePlugin(plugin, ctx, 1)
     const beforeStopCheek = readParameter(model, 'ParamCheek')
 
-    ctx.now = 260
+    ctx.now = 0.260
     ctx.timeDelta = 16
     ctx.timeDeltaSeconds = 0.016
     ctx.handled = false
@@ -1595,13 +1708,15 @@ describe('live2d motion manager performance layers', () => {
       playbackPhase: 'idle',
       lastEventType: 'playback-stop',
     }
+    ctx.model.beginFrame()
     plugin(ctx)
     const duringExtendedStopCheek = readParameter(model, 'ParamCheek')
 
-    ctx.now = 520
+    ctx.now = 0.520
     ctx.timeDelta = 16
     ctx.timeDeltaSeconds = 0.016
     ctx.handled = false
+    ctx.model.beginFrame()
     plugin(ctx)
     const lateExtendedStopCheek = readParameter(model, 'ParamCheek')
 
@@ -1684,6 +1799,104 @@ describe('live2d motion manager performance layers', () => {
 })
 
 describe('live2d auto blink authority', () => {
+  it('reopens eyes after idle motion is stopped during a blink while retaining manual openness', async () => {
+    const { useMotionUpdatePluginAutoEyeBlink } = await import('./motion-manager')
+    const model = createMockModel({ ...createModelParameterIds(), ParamEyeLOpen: 0.004, ParamEyeROpen: 0.02 })
+    const ctx = createPluginContext({ model, performanceState: createPerformanceState({ baseEmotion: 'neutral', delivery: 'calm', facialCue: 'relaxed' }) })
+    ctx.isIdleMotion = true
+    ctx.live2dIdleAnimationEnabled.value = false
+    ctx.modelParameters.value.rightEyeOpen = 0.6
+    ctx.internalModel.eyeBlink = {
+      updateParameters: () => {
+        model.values.set('ParamEyeLOpen', 1)
+        model.values.set('ParamEyeROpen', 1)
+      },
+    }
+    const plugin = useMotionUpdatePluginAutoEyeBlink()
+    plugin(ctx)
+    expect(readParameter(model, 'ParamEyeLOpen')).toBeCloseTo(1)
+    expect(readParameter(model, 'ParamEyeROpen')).toBeCloseTo(0.6)
+    model.values.set('ParamEyeLOpen', 0)
+    model.values.set('ParamEyeROpen', 0)
+    plugin(ctx)
+    expect(readParameter(model, 'ParamEyeLOpen')).toBeCloseTo(1)
+    expect(readParameter(model, 'ParamEyeROpen')).toBeCloseTo(0.6)
+  })
+
+  it('advances music gestures on their scheduling clock and leaves native head motion alone without music', async () => {
+    const { useMotionUpdatePluginBeatSync } = await import('./motion-manager')
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(2500)
+    try {
+      const model = createMockModel({ ...createModelParameterIds(), ParamAngleY: 12 })
+      const ctx = createPluginContext({ model, performanceState: createPerformanceState({ baseEmotion: 'neutral', delivery: 'calm', facialCue: 'relaxed' }) })
+      ctx.now = 3.5
+      const beatSync = { updateTargets: vi.fn(), debugState: () => ({ primed: false }) }
+      useMotionUpdatePluginBeatSync(beatSync as never)(ctx)
+      expect(beatSync.updateTargets).toHaveBeenCalledWith(2500)
+      expect(readParameter(model, 'ParamAngleY')).toBe(12)
+    }
+    finally { clock.mockRestore() }
+  })
+
+  it('applies final overlays after native expressions and leaves the saved motion baseline intact', async () => {
+    const { useLive2DMotionManagerUpdate, useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
+    const model = createMockModel(createModelParameterIds())
+    const ctx = createPluginContext({
+      model,
+      performanceState: createPerformanceState({ baseEmotion: 'happy', delivery: 'calm', facialCue: 'smile' }),
+    })
+    ctx.lastUpdateTime = ref(0)
+    ctx.motionManager.state = { currentGroup: 'Idle', currentPriority: 1 }
+    const runtime = useLive2DMotionManagerUpdate(ctx)
+    runtime.register(useMotionUpdatePluginPerformanceLayers(), 'render')
+    const cheeks = []
+    for (let frame = 1; frame <= 80; frame++) {
+      model.beginFrame()
+      runtime.hookUpdate(model as any, frame / 60, () => true)
+      expect(model.values.get('ParamCheek')).toBe(0)
+      // Cubism's expression pass runs after motion saveParameters().
+      model.values.set('ParamCheek', 0.2)
+      runtime.beforeModelUpdate()
+      cheeks.push(model.values.get('ParamCheek')!)
+      runtime.beforeModelUpdate()
+      expect(model.values.get('ParamCheek')).toBe(cheeks.at(-1))
+    }
+    expect(cheeks.at(-1)).toBeGreaterThan(0.2)
+    expect(cheeks.at(-1)).toBeLessThan(1)
+    expect(cheeks.at(-1)! - cheeks.at(-2)!).toBeLessThan(0.01)
+    model.beginFrame()
+    expect(model.values.get('ParamCheek')).toBe(0)
+  })
+
+  it('keeps autonomous gaze alive during a playing native idle, with recent pointer attention taking priority', async () => {
+    const { useMotionUpdatePluginIdleFocus } = await import('./motion-manager')
+    const ctx = createPluginContext({ model: createMockModel(createModelParameterIds()), performanceState: createPerformanceState({ baseEmotion: 'neutral', delivery: 'calm', facialCue: 'focus' }) })
+    const plugin = useMotionUpdatePluginIdleFocus()
+    ctx.isIdleMotion = true
+    ctx.handled = true
+    plugin(ctx)
+    expect(idleEyeFocusUpdateSpy).toHaveBeenCalledOnce()
+    ctx.pointerFocusUntil = 2
+    ctx.now = 1
+    plugin(ctx)
+    expect(idleEyeFocusUpdateSpy).toHaveBeenCalledOnce()
+    ctx.now = 3
+    plugin(ctx)
+    expect(idleEyeFocusUpdateSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses actual SDK priority to distinguish custom idle playback from an owned gesture in the Idle group', async () => {
+    const runtime = await createIdleAutoBlinkRuntime('normal')
+    const observe = vi.fn()
+    runtime.motionManagerUpdate.register(observe, 'pre')
+    runtime.ctx.motionManager.state = { currentGroup: 'CustomIdle', currentPriority: 1 }
+    runtime.motionManagerUpdate.hookUpdate(runtime.model as any, 100)
+    expect(observe.mock.calls[0][0].isIdleMotion).toBe(true)
+    runtime.ctx.motionManager.state = { currentGroup: 'Idle', currentPriority: 3 }
+    runtime.motionManagerUpdate.hookUpdate(runtime.model as any, 116)
+    expect(observe.mock.calls[1][0].isIdleMotion).toBe(false)
+  })
+
   it('keeps the first idle fallback blink quieter when quiet cadence is already active', async () => {
     const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
 
@@ -1782,6 +1995,7 @@ describe('live2d auto blink authority', () => {
         },
         state: {
           currentGroup: 'Idle',
+          currentPriority: 1,
         },
       } as any
       const ctx = createPluginContext({
@@ -1888,6 +2102,7 @@ describe('live2d auto blink authority', () => {
       },
     }
 
+    ctx.model.beginFrame()
     plugin(ctx)
 
     expect(idleEyeFocusUpdateSpy).toHaveBeenCalledWith(
@@ -1897,9 +2112,8 @@ describe('live2d auto blink authority', () => {
     )
   })
 
-  it('passes structured idle gaze bias through the idle-disable fallback while ignoring audit metadata', async () => {
+  it('keeps gaze and blink with their post-motion owners when idle animation is disabled', async () => {
     const {
-      resolveLive2DGazeModeBias,
       useMotionUpdatePluginIdleDisable,
     } = await import('./motion-manager')
     const plugin = useMotionUpdatePluginIdleDisable()
@@ -1916,11 +2130,6 @@ describe('live2d auto blink authority', () => {
         residentMode: 'repair-before-closeness',
       }),
       speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
-    })
-    const expectedBias = resolveLive2DGazeModeBias({
-      preferredGazeMode: 'steady',
-      preferredBlinkCadence: 'quiet',
-      residentMode: 'repair-before-closeness',
     })
 
     ctx.isIdleMotion = true
@@ -1941,15 +2150,12 @@ describe('live2d auto blink authority', () => {
       },
     }
 
+    ctx.model.beginFrame()
     plugin(ctx)
 
     expect(stopAllMotions).toHaveBeenCalledTimes(1)
-    expect(idleEyeFocusUpdateSpy).toHaveBeenCalledWith(
-      ctx.internalModel,
-      ctx.now,
-      expect.objectContaining(expectedBias),
-    )
-    expect(updateParameters).toHaveBeenCalledTimes(1)
+    expect(idleEyeFocusUpdateSpy).not.toHaveBeenCalled()
+    expect(updateParameters).not.toHaveBeenCalled()
     expect(ctx.handled).toBe(true)
   })
 })

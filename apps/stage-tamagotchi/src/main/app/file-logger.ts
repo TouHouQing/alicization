@@ -22,8 +22,10 @@
  * ```
  */
 
-import { mkdir, open, stat } from 'node:fs/promises'
+import { appendFile, close, open } from 'node:fs'
+import { mkdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { promisify } from 'node:util'
 
 import { errorMessageFrom } from '@moeru/std'
 import { app } from 'electron'
@@ -33,6 +35,9 @@ import { app } from 'electron'
 // ============================================================================
 
 const LOG_FILE_PREFIX = 'alicization-tamagotchi'
+const openLogFile = promisify(open)
+const appendLogFile = promisify(appendFile)
+const closeLogFile = promisify(close)
 
 // ============================================================================
 // Public Types
@@ -133,8 +138,10 @@ export async function setupFileLogger(): Promise<FileLoggerHandle> {
   const logFilePath = createLogFilePath(logsDir, timestamp)
 
   try {
-    const fileHandle = await open(logFilePath, 'a')
-    const logFileFd = fileHandle.fd
+    // Own one descriptor and drain its serialized writes before closing it.
+    // Electron shutdown has stalled inside FileHandle.close() after this drain;
+    // the callback descriptor API avoids that additional handle reference fence.
+    const logFileFd = await openLogFile(logFilePath, 'a')
     let isFileClosed = false
     let isClosing = false
     let writeQueue = Promise.resolve()
@@ -142,7 +149,7 @@ export async function setupFileLogger(): Promise<FileLoggerHandle> {
 
     // Write initialization message
     const sessionStartMessage = `[FileLogger] Initialized - logging to: ${logFilePath}\n`
-    await fileHandle.appendFile(sessionStartMessage)
+    await appendLogFile(logFileFd, sessionStartMessage)
 
     console.info(`[FileLogger] Session logs: ${logFilePath}`)
 
@@ -157,7 +164,7 @@ export async function setupFileLogger(): Promise<FileLoggerHandle> {
       // Closing a FileHandle concurrently with untracked writes can stall exit.
       writeQueue = writeQueue.then(async () => {
         try {
-          await fileHandle.appendFile(normalizedContent)
+          await appendLogFile(logFileFd, normalizedContent)
         }
         catch (error) {
           const message = errorMessageFrom(error) ?? 'Unknown file error'
@@ -174,7 +181,7 @@ export async function setupFileLogger(): Promise<FileLoggerHandle> {
       closePromise = (async () => {
         await writeQueue
         try {
-          await fileHandle.close()
+          await closeLogFile(logFileFd)
           isFileClosed = true
           console.info('[FileLogger] File closed successfully')
         }

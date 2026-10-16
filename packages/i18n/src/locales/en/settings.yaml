@@ -10,6 +10,11 @@ model-selector:
   name: Model name
   pick: Use this model
   confirm: Confirm selection
+  importing: Importing model…
+  import-failed: Import failed. Check that the archive contains a valid model and its textures, then try again.
+  operation-failed: The change could not be saved. Please try again.
+  rename: Rename model
+  name-required: Enter a model name.
 animations:
   stage-transitions:
     title: Disable Stage Transitions
@@ -220,6 +225,7 @@ live2d:
     title: Switch to 3D Avatar?
     change-to-vrm: Click here to switch to the 3D avatar setting (VRM)
   theme-color-from-model:
+    capture-failed: Unable to extract colors. Wait for the character to finish loading and try again.
     title: Extract colors from model
     button-extract:
       title: Extract
@@ -281,6 +287,8 @@ live2d:
     title: Parameters
     idle-animation: Idle Animation
     motion-selector:
+      auto: Follow her current state
+      pending: This idle motion takes effect after the current motion finishes.
       select: Select Motion
       empty: No motions available
     auto-blink: Auto Blink
@@ -289,6 +297,8 @@ live2d:
     reset-to-default: Reset To Default Parameters
     clearing-cache: Clearing...
     clear-cache: Clear Model Cache
+    cache-cleared: Model cache cleared. The current character stays available.
+    cache-clear-failed: Unable to clear the model cache. Please try again.
     groups:
       head-rotation: Head Rotation
       eyes: Eyes

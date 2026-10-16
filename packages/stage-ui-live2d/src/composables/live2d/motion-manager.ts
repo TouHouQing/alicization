@@ -13,6 +13,8 @@ import { computed, shallowRef } from 'vue'
 import { useLive2DIdleEyeFocus } from './animation'
 import { resolveLive2DFacialCueDrive } from './facial-cue'
 import { normalizeMotionDeltaSeconds } from './motion-time'
+import { resolveLive2DSpeechMouthDrive } from './mouth-drive'
+import { supportsLive2DParameter } from './parameter-support'
 import { createLive2DSpeechContinuityState, resolveLive2DSpeechContinuity } from './performance-continuity'
 
 type CubismModel = Cubism4InternalModel['coreModel']
@@ -26,6 +28,7 @@ export type PixiLive2DInternalModel = InternalModel & {
 
 export interface MotionManagerUpdateContext {
   model: CubismModel
+  /** Cubism motion-manager time, in seconds since model start. */
   now: number
   timeDelta: number
   timeDeltaSeconds: number
@@ -45,6 +48,7 @@ export type MotionManagerPluginContext = MotionManagerUpdateContext & {
   presencePosture: Ref<StageEmbodimentPresencePostureState | null | undefined>
   speechRenderState: Ref<StageEmbodimentSpeechRenderState | null | undefined>
   isIdleMotion: boolean
+  pointerFocusUntil?: number
   handled: boolean
   markHandled: () => void
 }
@@ -74,6 +78,7 @@ export interface UseLive2DMotionManagerUpdateOptions {
   presencePosture: Ref<StageEmbodimentPresencePostureState | null | undefined>
   speechRenderState: Ref<StageEmbodimentSpeechRenderState | null | undefined>
   lastUpdateTime: Ref<number>
+  pointerFocusUntil?: Ref<number>
 }
 
 function clamp01(value: number, fallback = 0) {
@@ -525,16 +530,10 @@ function resolveCurrentMotionGroupId(motionManager: PixiLive2DInternalModel['mot
 
 function resolveIsIdleMotion(motionManager: PixiLive2DInternalModel['motionManager']) {
   const currentGroup = resolveCurrentMotionGroupId(motionManager)
-  const idleGroup = motionManager.groups.idle
-  const selectedRuntimeMotionGroup = typeof localStorage !== 'undefined'
-    ? localStorage.getItem('selected-runtime-motion-group')
-    : null
-  const selectedRuntimeMatch = selectedRuntimeMotionGroup != null
-    && String(currentGroup) === selectedRuntimeMotionGroup
-
-  return currentGroup == null
-    || currentGroup === idleGroup
-    || selectedRuntimeMatch
+  // The pinned SDK defines NONE=0 and IDLE=1. A group can also contain
+  // an owned foreground gesture, so only its actual playback priority
+  // determines whether idle plugins may take over.
+  return currentGroup == null || motionManager.state.currentPriority <= 1
 }
 
 function runPlugins(
@@ -565,6 +564,8 @@ export function useLive2DMotionManagerUpdate(options: UseLive2DMotionManagerUpda
 
   const prePlugins: MotionManagerPlugin[] = []
   const postPlugins: MotionManagerPlugin[] = []
+  const renderPlugins: MotionManagerPlugin[] = []
+  let pendingFrame: MotionManagerPluginContext | undefined
   const bodyExecutionState = shallowRef<Live2DBodyExecutionState>({
     openness: null,
     settle: null,
@@ -576,11 +577,13 @@ export function useLive2DMotionManagerUpdate(options: UseLive2DMotionManagerUpda
     segmentId: null,
   })
 
-  function register(plugin: MotionManagerPlugin, stage: 'pre' | 'post' = 'pre') {
+  function register(plugin: MotionManagerPlugin, stage: 'pre' | 'post' | 'render' = 'pre') {
     if (stage === 'pre')
       prePlugins.push(plugin)
-    else
+    else if (stage === 'post')
       postPlugins.push(plugin)
+    else
+      renderPlugins.push(plugin)
   }
 
   function hookUpdate(model: CubismModel, now: number, hookedUpdate?: (model: CubismModel, now: number) => boolean) {
@@ -606,6 +609,7 @@ export function useLive2DMotionManagerUpdate(options: UseLive2DMotionManagerUpda
       presencePosture,
       speechRenderState,
       isIdleMotion,
+      pointerFocusUntil: options.pointerFocusUntil?.value,
       handled: false,
       markHandled: () => {
         ctx.handled = true
@@ -622,7 +626,9 @@ export function useLive2DMotionManagerUpdate(options: UseLive2DMotionManagerUpda
 
     // NOTICE: post plugins keep running even if a pre plugin handled the core update.
     // This guarantees speech/lipsync and expressive overlays stay alive while idle motions are disabled.
+    ctx.isIdleMotion = resolveIsIdleMotion(motionManager)
     runPlugins(postPlugins, ctx, { stopWhenHandled: false })
+    pendingFrame = ctx
 
     lastUpdateTime.value = now
     return ctx.handled
@@ -633,6 +639,12 @@ export function useLive2DMotionManagerUpdate(options: UseLive2DMotionManagerUpda
     lipSyncExecutionState: computed(() => lipSyncExecutionState.value) as ComputedRef<Live2DLipSyncExecutionState>,
     register,
     hookUpdate,
+    beforeModelUpdate: () => {
+      if (!pendingFrame)
+        return
+      runPlugins(renderPlugins, pendingFrame, { stopWhenHandled: false })
+      pendingFrame = undefined
+    },
   }
 }
 
@@ -640,7 +652,11 @@ export function useLive2DMotionManagerUpdate(options: UseLive2DMotionManagerUpda
 
 export function useMotionUpdatePluginBeatSync(beatSync: BeatSyncController): MotionManagerPlugin {
   return (ctx) => {
-    beatSync.updateTargets(ctx.now)
+    // scheduleBeat() uses the renderer's monotonic millisecond clock, while
+    // Cubism supplies elapsed model seconds to the motion-manager callback.
+    beatSync.updateTargets(performance.now())
+    if (!beatSync.debugState().primed)
+      return
 
     // Semi-implicit Euler approach
     const stiffness = 120 // Higher -> Snappier
@@ -700,18 +716,14 @@ export function useMotionUpdatePluginBeatSync(beatSync: BeatSyncController): Mot
       }
     }
 
-    ctx.model.setParameterValueById('ParamAngleX', paramAngleX)
-    ctx.model.setParameterValueById('ParamAngleY', paramAngleY)
-    ctx.model.setParameterValueById('ParamAngleZ', paramAngleZ)
+    for (const [parameter, value] of [['ParamAngleX', paramAngleX], ['ParamAngleY', paramAngleY], ['ParamAngleZ', paramAngleZ]] as const) {
+      if (supportsLive2DParameter(ctx.model, parameter))
+        ctx.model.setParameterValueById(parameter, value)
+    }
   }
 }
 
-export function useMotionUpdatePluginIdleDisable(idleEyeFocus = useLive2DIdleEyeFocus()): MotionManagerPlugin {
-  const lastAppliedBlinkOverlay = {
-    left: 0,
-    right: 0,
-  }
-
+export function useMotionUpdatePluginIdleDisable(): MotionManagerPlugin {
   return (ctx) => {
     if (ctx.handled)
       return
@@ -719,32 +731,7 @@ export function useMotionUpdatePluginIdleDisable(idleEyeFocus = useLive2DIdleEye
     if (!ctx.live2dIdleAnimationEnabled.value && ctx.isIdleMotion) {
       ctx.motionManager.stopAllMotions()
 
-      // Still update eye focus and blink even if idle motion is stopped.
-      idleEyeFocus.update(
-        ctx.internalModel,
-        ctx.now,
-        resolveCurrentIdleGazeBias(ctx.performanceState.value),
-      )
-      if (ctx.internalModel.eyeBlink != null) {
-        ctx.internalModel.eyeBlink.updateParameters(
-          ctx.model,
-          clampRange(ctx.timeDeltaSeconds, 0, 0.12),
-        )
-      }
-
-      // Recover the pre-blink baseline so idle blink does not get stuck on the previous frame.
-      const runtimeLeft = clamp01(ctx.model.getParameterValueById('ParamEyeLOpen') as number, 1)
-      const runtimeRight = clamp01(ctx.model.getParameterValueById('ParamEyeROpen') as number, 1)
-      const baselineLeft = clamp01(runtimeLeft - lastAppliedBlinkOverlay.left, 1)
-      const baselineRight = clamp01(runtimeRight - lastAppliedBlinkOverlay.right, 1)
-      const finalLeft = clamp01(baselineLeft * clamp01(ctx.modelParameters.value.leftEyeOpen, 1))
-      const finalRight = clamp01(baselineRight * clamp01(ctx.modelParameters.value.rightEyeOpen, 1))
-
-      ctx.model.setParameterValueById('ParamEyeLOpen', finalLeft)
-      ctx.model.setParameterValueById('ParamEyeROpen', finalRight)
-      lastAppliedBlinkOverlay.left = finalLeft - baselineLeft
-      lastAppliedBlinkOverlay.right = finalRight - baselineRight
-
+      // Gaze and blink each have one post-motion owner, including this path.
       ctx.markHandled()
     }
   }
@@ -752,7 +739,7 @@ export function useMotionUpdatePluginIdleDisable(idleEyeFocus = useLive2DIdleEye
 
 export function useMotionUpdatePluginIdleFocus(idleEyeFocus = useLive2DIdleEyeFocus()): MotionManagerPlugin {
   return (ctx) => {
-    if (!ctx.isIdleMotion || ctx.handled)
+    if (!ctx.isIdleMotion || ctx.now < (ctx.pointerFocusUntil ?? Number.NEGATIVE_INFINITY))
       return
 
     idleEyeFocus.update(
@@ -865,8 +852,10 @@ export function useMotionUpdatePluginAutoEyeBlink(): MotionManagerPlugin {
 
     const runtimeLeft = clamp01(ctx.model.getParameterValueById('ParamEyeLOpen') as number, 1)
     const runtimeRight = clamp01(ctx.model.getParameterValueById('ParamEyeROpen') as number, 1)
-    const rawBaselineLeft = clamp01(runtimeLeft - lastAppliedBlinkOverlay.left, 1)
-    const rawBaselineRight = clamp01(runtimeRight - lastAppliedBlinkOverlay.right, 1)
+    // A stopped idle can leave its last closed-eye pose in saved parameters.
+    // Without a running idle, manual openness is the baseline for the blink.
+    const rawBaselineLeft = ctx.live2dIdleAnimationEnabled.value ? clamp01(runtimeLeft - lastAppliedBlinkOverlay.left, 1) : 1
+    const rawBaselineRight = ctx.live2dIdleAnimationEnabled.value ? clamp01(runtimeRight - lastAppliedBlinkOverlay.right, 1) : 1
     const baseLeft = clamp01(rawBaselineLeft * clamp01(ctx.modelParameters.value.leftEyeOpen, 1))
     const baseRight = clamp01(rawBaselineRight * clamp01(ctx.modelParameters.value.rightEyeOpen, 1))
 
@@ -922,8 +911,6 @@ export function useMotionUpdatePluginAutoEyeBlink(): MotionManagerPlugin {
 
 export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
   const smoothState: Record<string, number> = {}
-  const appliedOverlayState: Record<string, number> = {}
-  const parameterSupportCache = new Map<string, boolean>()
   const speechContinuityState = createLive2DSpeechContinuityState()
   // Keep the last runtime-authored facial release window alive briefly after a cue clears.
   const rendererSettleState = {
@@ -938,36 +925,11 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
   }
 
   function supportsParameter(model: CubismModel, parameterId: string) {
-    const cached = parameterSupportCache.get(parameterId)
-    if (cached != null)
-      return cached
-
-    try {
-      const index = model.getParameterIndex(parameterId)
-      const supported = Number.isInteger(index) && index >= 0
-      if (supported) {
-        parameterSupportCache.set(parameterId, true)
-        return true
-      }
-    }
-    catch {
-      // fallback to direct read below
-    }
-
-    try {
-      const value = model.getParameterValueById(parameterId)
-      const supported = Number.isFinite(Number(value))
-      parameterSupportCache.set(parameterId, supported)
-      return supported
-    }
-    catch {
-      parameterSupportCache.set(parameterId, false)
-      return false
-    }
+    return supportsLive2DParameter(model, parameterId)
   }
 
   function smoothValue(key: string, target: number, deltaSeconds: number, options?: { attack?: number, release?: number }) {
-    const from = smoothState[key] ?? target
+    const from = smoothState[key] ?? 0
     const attack = options?.attack ?? 18
     const release = options?.release ?? 10
     const smoothing = 1 - Math.exp(-(target > from ? attack : release) * deltaSeconds)
@@ -1013,13 +975,11 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
 
   function resolveOverlayBaseline(
     model: CubismModel,
-    overlayKey: string,
     parameterIds: string[],
     fallback: number,
   ) {
     const primaryParameterId = resolvePrimaryParameterId(model, parameterIds)
     if (!primaryParameterId) {
-      delete appliedOverlayState[overlayKey]
       return {
         baseline: fallback,
         supported: false,
@@ -1028,23 +988,24 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
 
     const currentValue = readParameter(model, [primaryParameterId], fallback)
     return {
-      baseline: currentValue - (appliedOverlayState[overlayKey] ?? 0),
+      // Cubism restores saved motion parameters after each draw. This is the
+      // fresh expression/focus/physics result, never last frame's overlay.
+      baseline: currentValue,
       supported: true,
     }
   }
 
   function applyOverlayParameter(input: {
     model: CubismModel
-    overlayKey: string
     overlayValue: number
     parameterIds: string[]
     fallback: number
+    baselineWeight?: number
     max?: number
     min?: number
   }) {
     const baselineState = resolveOverlayBaseline(
       input.model,
-      input.overlayKey,
       input.parameterIds,
       input.fallback,
     )
@@ -1052,18 +1013,18 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     if (!baselineState.supported)
       return baselineState.baseline
 
-    const unclampedValue = baselineState.baseline + input.overlayValue
+    const unclampedValue = baselineState.baseline * (input.baselineWeight ?? 1) + input.overlayValue
     const finalValue = Number.isFinite(input.min) && Number.isFinite(input.max)
       ? clampRange(unclampedValue, input.min as number, input.max as number)
       : unclampedValue
 
     setParameter(input.model, finalValue, input.parameterIds)
-    appliedOverlayState[input.overlayKey] = finalValue - baselineState.baseline
     return finalValue
   }
 
   return (ctx) => {
     const dt = clampRange(ctx.timeDeltaSeconds, 1 / 240, 0.1)
+    const nowMs = ctx.now * 1000
     const speech = ctx.speechRenderState.value
     const performanceState = ctx.performanceState.value
     const embodiedPerformance = performanceState?.performance
@@ -1074,14 +1035,16 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     if (runtimeFacialReleaseMs > 0 && performanceState?.activeCueSource !== 'none' && activeCueKey !== rendererSettleState.activeCueKey) {
       rendererSettleState.activeCueKey = activeCueKey
       rendererSettleState.facialReleaseMs = runtimeFacialReleaseMs
-      rendererSettleState.facialReleaseUntil = ctx.now + runtimeFacialReleaseMs
+      rendererSettleState.facialReleaseUntil = nowMs + runtimeFacialReleaseMs
     }
-    else if (ctx.now >= rendererSettleState.facialReleaseUntil) {
-      rendererSettleState.activeCueKey = ''
+    else if (nowMs >= rendererSettleState.facialReleaseUntil) {
+      // Remember the observed cue after expiry; clearing its key would start
+      // the same release window again on the following frame.
+      rendererSettleState.activeCueKey = activeCueKey
       rendererSettleState.facialReleaseMs = 0
       rendererSettleState.facialReleaseUntil = 0
     }
-    const activeFacialReleaseMs = rendererSettleState.facialReleaseUntil > ctx.now
+    const activeFacialReleaseMs = rendererSettleState.facialReleaseUntil > nowMs
       ? rendererSettleState.facialReleaseMs
       : 0
     const facialReleaseRate = resolveSmoothingRateFromDurationMs(
@@ -1104,6 +1067,7 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
 
     const speechActive = speechContinuity.active
+    const speechMouthDrive = resolveLive2DSpeechMouthDrive(speech)
     const speechCue = speech?.item?.cue ?? null
     const mouthOpenRatio = clamp01(speech?.mouthOpenRatio ?? 0)
     const speechArticulation = speech?.articulation ?? null
@@ -1179,6 +1143,10 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
       residentMode: performanceState?.activeCue?.rendererHints?.residentMode,
     })
     const gazeStability = clamp01(motorGazeStability + gazeModeBias.stabilityBias)
+    const companionshipFacialScale = companionshipFacialSettleCurve
+      * (performanceState?.activeCueSource === 'resident' || performanceState?.activeCueSource === 'preview'
+        ? 1 - Math.max(0, gazeModeBias.stabilityBias) * 0.28
+        : 1)
     const gazeAzimuth = clampRange(motorGazeAzimuth * gazeModeBias.azimuthScale, -1, 1)
     const gazeElevation = clampRange(motorGazeElevation * gazeModeBias.elevationScale, -1, 1)
     const motorHeadYaw = clampRange(motor?.head.yaw ?? 0, -1, 1)
@@ -1237,43 +1205,44 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
         break
     }
 
-    // NOTICE: all targets below are additive overlays on top of the model's current
-    // motion/expression output. We recover the runtime baseline each frame by
-    // subtracting the previously applied overlay from the current model values.
+    // Draw-time overlays use Cubism's fresh motion/expression baseline. Speech
+    // temporarily owns mouth openness; an emotional face blends out conflicting
+    // authored smiles. Both release smoothly to the original model animation.
+    const smileSuppression = clamp01(-emotionProfile.smile * 4 - Math.min(0, facialCueDriveProfile.mouthForm) * 3)
+    const smileAffinity = 1 - smileSuppression
+    const articulatedMouthOpen = articulationActive
+      ? articulationOpenness * (0.78 + articulationJaw * 0.22)
+      : Math.max(
+          mouthOpenRatio * (0.72 + prosodyIntensity * 0.18),
+          speechEnergy * 0.9,
+          speechContinuity.drive * 0.16,
+          cueMouthWeight * 0.18,
+        )
     const mouthOpenTarget = clamp01(
       params.mouthOpen
       + (speechActive
-        ? Math.max(
-            articulationActive
-              ? articulationOpenness * (0.78 + articulationJaw * 0.22) * (1 - articulationClosure * 0.64)
-              : 0,
-            mouthOpenRatio * (0.72 + prosodyIntensity * 0.18),
-            speechEnergy * 0.9,
-            speechContinuity.drive * 0.16,
-            cueMouthWeight * 0.18,
-          )
+        ? (articulatedMouthOpen + motorJawOpenBias * (0.08 + motorExpressivity * 0.08))
+        * (1 - articulationClosure) * speechMouthDrive
         : 0)
-      + motorJawOpenBias * (0.08 + motorExpressivity * 0.08)
-      + emotionProfile.mouthOpen
-      + facialCueDriveProfile.mouthOpen,
+      + (emotionProfile.mouthOpen + facialCueDriveProfile.mouthOpen) * (1 - articulationClosure),
     )
     const mouthFormTarget = clampRange(
       params.mouthForm
-      + (prosodyIntensity - 0.35) * 0.24
-      + cadenceCentered * 0.1
-      + cueMouthWeight * 0.08
-      + articulationSpread * 0.24
-      - articulationRound * 0.28
-      - articulationClosure * 0.08
-      + motorMouthSpread * 0.24
-      - motorMouthRound * 0.2
-      + emotionProfile.mouthForm
-      + emotionProfile.mouthSpread * 0.14
-      - emotionProfile.mouthRound * 0.18
-      + facialCueDriveProfile.mouthForm
-      + attentivePresence * 0.08
-      - hesitantPresence * 0.06
-      - concernedPresence * 0.14,
+      + ((prosodyIntensity - 0.35) * 0.24
+        + cadenceCentered * 0.1
+        + cueMouthWeight * 0.08
+        + articulationSpread * 0.24
+        - articulationRound * 0.28
+        - articulationClosure * 0.08) * speechMouthDrive
+        + motorMouthSpread * 0.24
+        - motorMouthRound * 0.2
+        + emotionProfile.mouthForm
+        + emotionProfile.mouthSpread * 0.14
+        - emotionProfile.mouthRound * 0.18
+        + facialCueDriveProfile.mouthForm
+        + attentivePresence * 0.08
+        - hesitantPresence * 0.06
+        - concernedPresence * 0.14,
       -1,
       1,
     )
@@ -1287,9 +1256,8 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
       + attentivePresence * 0.08
       - concernedPresence * 0.03,
     )
-    const eyeSmileTarget = clamp01(
-      (params.leftEyeSmile + params.rightEyeSmile) / 2
-      + speechEnergy * (0.2 + prosodyIntensity * 0.16)
+    const eyeSmileTarget = smileAffinity * clamp01(
+      speechEnergy * (0.2 + prosodyIntensity * 0.16)
       + speechFacialNuance.eyeSmileBias
       + motorCheekLift * 0.14
       + motorExpressivity * 0.06
@@ -1401,12 +1369,12 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
 
     const openness = speechActive
       ? Math.max(
-          articulationActive ? articulationOpenness * (1 - articulationClosure * 0.54) : 0,
-          mouthOpenRatio,
-          speechEnergy * 0.92,
-          speechContinuity.drive * 0.2,
-          cueMouthWeight * 0.28,
-        )
+        articulationActive ? articulationOpenness * (1 - articulationClosure * 0.54) : 0,
+        mouthOpenRatio,
+        speechEnergy * 0.92,
+        speechContinuity.drive * 0.2,
+        cueMouthWeight * 0.28,
+      ) * speechMouthDrive
       : 0
     const visemeRaw = articulationActive
       ? {
@@ -1460,7 +1428,7 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
       )
     }
 
-    const mouthSmileTarget = clamp01(
+    const mouthSmileTarget = smileAffinity * clamp01(
       Math.max(0, mouthFormTarget) * 0.58
       + speechFacialNuance.mouthSmileBias
       + clamp01(emotionProfile.smile) * 0.92
@@ -1482,13 +1450,18 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     )
 
     const smoothedMouthOpen = smoothValue('ParamMouthOpenYOverlay', mouthOpenTarget, dt, { attack: 26, release: 14 })
-    const smoothedMouthForm = smoothValue('ParamMouthFormOverlay', mouthFormTarget, dt, { release: facialReleaseRate })
+    const mouthOwnership = smoothValue('mouthOwnership', speechActive ? 1 : 0, dt, { attack: 26, release: 14 })
+    const faceOwnership = smoothValue('faceOwnership', emotionProfile.mouthForm !== 0 || facialCueDriveProfile.mouthForm !== 0
+      ? Math.max(expressionDrive, facialCueDrive) * companionshipFacialScale
+      : 0, dt, { attack: 12, release: facialReleaseRate })
+    const smileOwnership = smoothValue('smileOwnership', smileSuppression * companionshipFacialScale, dt, { attack: 12, release: facialReleaseRate })
+    const smoothedMouthForm = smoothValue('ParamMouthFormOverlay', params.mouthForm + (mouthFormTarget - params.mouthForm) * companionshipFacialScale, dt, { release: facialReleaseRate })
     const smoothedMouthSmile = smoothValue('ParamMouthSmileOverlay', mouthSmileTarget, dt, { attack: 14, release: facialReleaseRate })
     const smoothedMouthPucker = smoothValue('ParamMouthPuckerOverlay', mouthPuckerTarget, dt, { attack: 14, release: facialReleaseRate })
-    const smoothedCheek = smoothValue('ParamCheekOverlay', cheekTarget, dt, { release: facialReleaseRate })
-    const smoothedEyeSmile = smoothValue('ParamEyeSmileOverlay', eyeSmileTarget, dt, { attack: 12, release: facialReleaseRate })
-    const smoothedBrowL = smoothValue('ParamBrowLYOverlay', browLTarget, dt, { release: facialReleaseRate })
-    const smoothedBrowR = smoothValue('ParamBrowRYOverlay', browRTarget, dt, { release: facialReleaseRate })
+    const smoothedCheek = smoothValue('ParamCheekOverlay', params.cheek + (cheekTarget - params.cheek) * companionshipFacialScale, dt, { release: facialReleaseRate })
+    const smoothedEyeSmile = smoothValue('ParamEyeSmileOverlay', eyeSmileTarget * companionshipFacialScale, dt, { attack: 12, release: facialReleaseRate })
+    const smoothedBrowL = smoothValue('ParamBrowLYOverlay', params.leftEyebrowY + (browLTarget - params.leftEyebrowY) * companionshipFacialScale, dt, { release: facialReleaseRate })
+    const smoothedBrowR = smoothValue('ParamBrowRYOverlay', params.rightEyebrowY + (browRTarget - params.rightEyebrowY) * companionshipFacialScale, dt, { release: facialReleaseRate })
     const smoothedBrowLAngle = smoothValue('ParamBrowLAngleOverlay', browLAngleTarget, dt, { release: facialReleaseRate })
     const smoothedBrowRAngle = smoothValue('ParamBrowRAngleOverlay', browRAngleTarget, dt, { release: facialReleaseRate })
     const smoothedBrowLForm = smoothValue('ParamBrowLFormOverlay', browLFormTarget, dt, { release: facialReleaseRate })
@@ -1500,8 +1473,8 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
       0.12,
       1.8,
     )
-    const leftEyeBaselineState = resolveOverlayBaseline(ctx.model, 'ParamEyeLOpenOverlay', ['ParamEyeLOpen'], clamp01(params.leftEyeOpen))
-    const rightEyeBaselineState = resolveOverlayBaseline(ctx.model, 'ParamEyeROpenOverlay', ['ParamEyeROpen'], clamp01(params.rightEyeOpen))
+    const leftEyeBaselineState = resolveOverlayBaseline(ctx.model, ['ParamEyeLOpen'], clamp01(params.leftEyeOpen))
+    const rightEyeBaselineState = resolveOverlayBaseline(ctx.model, ['ParamEyeROpen'], clamp01(params.rightEyeOpen))
     const smoothedEyeLOpen = smoothValue(
       'ParamEyeLOpenOverlay',
       leftEyeBaselineState.baseline * (eyeOpenScale - 1),
@@ -1526,25 +1499,24 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
 
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamEyeLOpenOverlay',
       overlayValue: smoothedEyeLOpen,
       parameterIds: ['ParamEyeLOpen'],
       fallback: clamp01(params.leftEyeOpen),
       min: 0,
-      max: 1,
+      // Cubism enforces each compiled rig's own maximum (e.g. Hiyori 1.2).
+      // A blanket 1.0 limit discards the authored widened-eye range.
+      max: 1.8,
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamEyeROpenOverlay',
       overlayValue: smoothedEyeROpen,
       parameterIds: ['ParamEyeROpen'],
       fallback: clamp01(params.rightEyeOpen),
       min: 0,
-      max: 1,
+      max: 1.8,
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamEyeBallXOverlay',
       overlayValue: smoothedEyeBallX,
       parameterIds: ['ParamEyeBallX'],
       fallback: 0,
@@ -1553,7 +1525,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamEyeBallYOverlay',
       overlayValue: smoothedEyeBallY,
       parameterIds: ['ParamEyeBallY'],
       fallback: 0,
@@ -1562,8 +1533,8 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamMouthOpenOverlay',
       overlayValue: smoothedMouthOpen,
+      baselineWeight: 1 - mouthOwnership,
       parameterIds: ['ParamMouthOpenY', 'ParamMouthOpen'],
       fallback: clamp01(params.mouthOpen),
       min: 0,
@@ -1571,8 +1542,8 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamMouthFormOverlay',
       overlayValue: smoothedMouthForm,
+      baselineWeight: 1 - faceOwnership,
       parameterIds: ['ParamMouthForm'],
       fallback: clampRange(params.mouthForm, -1, 1),
       min: -1,
@@ -1580,8 +1551,8 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamMouthSmileOverlay',
       overlayValue: smoothedMouthSmile,
+      baselineWeight: 1 - smileOwnership,
       parameterIds: ['ParamMouthSmile'],
       fallback: 0,
       min: 0,
@@ -1589,7 +1560,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamMouthPuckerOverlay',
       overlayValue: smoothedMouthPucker,
       parameterIds: ['ParamMouthPucker'],
       fallback: 0,
@@ -1598,7 +1568,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamCheekOverlay',
       overlayValue: smoothedCheek,
       parameterIds: ['ParamCheek'],
       fallback: clamp01(params.cheek),
@@ -1607,16 +1576,33 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamEyeSmileOverlay',
-      overlayValue: smoothedEyeSmile,
-      parameterIds: ['ParamEyeSmile', 'ParamEyeLSmile', 'ParamEyeRSmile'],
+      overlayValue: smoothedEyeSmile + clamp01((params.leftEyeSmile + params.rightEyeSmile) / 2),
+      baselineWeight: 1 - smileOwnership,
+      parameterIds: ['ParamEyeSmile'],
+      fallback: 0,
+      min: 0,
+      max: 1,
+    })
+    applyOverlayParameter({
+      model: ctx.model,
+      overlayValue: smoothedEyeSmile + clamp01(params.leftEyeSmile),
+      baselineWeight: 1 - smileOwnership,
+      parameterIds: ['ParamEyeLSmile'],
+      fallback: 0,
+      min: 0,
+      max: 1,
+    })
+    applyOverlayParameter({
+      model: ctx.model,
+      overlayValue: smoothedEyeSmile + clamp01(params.rightEyeSmile),
+      baselineWeight: 1 - smileOwnership,
+      parameterIds: ['ParamEyeRSmile'],
       fallback: clamp01((params.leftEyeSmile + params.rightEyeSmile) / 2),
       min: 0,
       max: 1,
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamBrowLYOverlay',
       overlayValue: smoothedBrowL,
       parameterIds: ['ParamBrowLY'],
       fallback: clampRange(params.leftEyebrowY, -1, 1),
@@ -1625,7 +1611,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamBrowRYOverlay',
       overlayValue: smoothedBrowR,
       parameterIds: ['ParamBrowRY'],
       fallback: clampRange(params.rightEyebrowY, -1, 1),
@@ -1634,7 +1619,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamBrowLAngleOverlay',
       overlayValue: smoothedBrowLAngle,
       parameterIds: ['ParamBrowLAngle'],
       fallback: clampRange(params.leftEyebrowAngle, -1, 1),
@@ -1643,7 +1627,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamBrowRAngleOverlay',
       overlayValue: smoothedBrowRAngle,
       parameterIds: ['ParamBrowRAngle'],
       fallback: clampRange(params.rightEyebrowAngle, -1, 1),
@@ -1652,7 +1635,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamBrowLFormOverlay',
       overlayValue: smoothedBrowLForm,
       parameterIds: ['ParamBrowLForm'],
       fallback: clampRange(params.leftEyebrowForm, -1, 1),
@@ -1661,7 +1643,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamBrowRFormOverlay',
       overlayValue: smoothedBrowRForm,
       parameterIds: ['ParamBrowRForm'],
       fallback: clampRange(params.rightEyebrowForm, -1, 1),
@@ -1670,7 +1651,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamBrowFormOverlay',
       overlayValue: smoothedBrowForm,
       parameterIds: ['ParamBrowForm'],
       fallback: clampRange((params.leftEyebrowForm + params.rightEyebrowForm) / 2, -1, 1),
@@ -1679,7 +1659,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamAngleXOverlay',
       overlayValue: smoothedAngleX,
       parameterIds: ['ParamAngleX'],
       fallback: params.angleX,
@@ -1688,7 +1667,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamAngleYOverlay',
       overlayValue: smoothedAngleY,
       parameterIds: ['ParamAngleY'],
       fallback: params.angleY,
@@ -1697,7 +1675,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamAngleZOverlay',
       overlayValue: smoothedAngleZ,
       parameterIds: ['ParamAngleZ'],
       fallback: params.angleZ,
@@ -1706,7 +1683,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamBodyAngleXOverlay',
       overlayValue: smoothedBodyX,
       parameterIds: ['ParamBodyAngleX'],
       fallback: params.bodyAngleX,
@@ -1715,7 +1691,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamBodyAngleYOverlay',
       overlayValue: smoothedBodyY,
       parameterIds: ['ParamBodyAngleY'],
       fallback: params.bodyAngleY,
@@ -1724,7 +1699,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamBodyAngleZOverlay',
       overlayValue: smoothedBodyZ,
       parameterIds: ['ParamBodyAngleZ'],
       fallback: params.bodyAngleZ,
@@ -1733,7 +1707,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamBreathOverlay',
       overlayValue: smoothedBreath,
       parameterIds: ['ParamBreath'],
       fallback: clamp01(params.breath),
@@ -1751,7 +1724,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
 
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamAOverlay',
       overlayValue: visemeA,
       parameterIds: ['ParamA'],
       fallback: 0,
@@ -1760,7 +1732,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamIOverlay',
       overlayValue: visemeI,
       parameterIds: ['ParamI'],
       fallback: 0,
@@ -1769,7 +1740,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamUOverlay',
       overlayValue: visemeU,
       parameterIds: ['ParamU'],
       fallback: 0,
@@ -1778,7 +1748,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamEOverlay',
       overlayValue: visemeE,
       parameterIds: ['ParamE'],
       fallback: 0,
@@ -1787,7 +1756,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayKey: 'ParamOOverlay',
       overlayValue: visemeO,
       parameterIds: ['ParamO'],
       fallback: 0,
@@ -1795,8 +1763,8 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
       max: 1,
     })
 
-    if (dt >= 0.045 && ctx.now - debugState.lastFrameGapAt >= 180) {
-      debugState.lastFrameGapAt = ctx.now
+    if (dt >= 0.045 && nowMs - debugState.lastFrameGapAt >= 180) {
+      debugState.lastFrameGapAt = nowMs
       logLive2DPerformanceDebug('motion-frame-gap', {
         dtMs: Math.round(dt * 1000),
         phase: performanceState?.phase ?? 'idle',
@@ -1814,10 +1782,10 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     ])
     if (
       debugSnapshotSignature !== debugState.lastSnapshotSignature
-      || ctx.now - debugState.lastSnapshotAt >= 220
+      || nowMs - debugState.lastSnapshotAt >= 220
     ) {
       debugState.lastSnapshotSignature = debugSnapshotSignature
-      debugState.lastSnapshotAt = ctx.now
+      debugState.lastSnapshotAt = nowMs
       logLive2DPerformanceDebug('performance-drive', {
         emotion: embodiedPerformance?.baseEmotion ?? 'neutral',
         delivery: embodiedPerformance?.delivery ?? 'calm',

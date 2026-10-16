@@ -2,7 +2,7 @@ param([Parameter(Mandatory=$true)][string]$InputPath,[Parameter(Mandatory=$true)
 $ErrorActionPreference='Stop'
 $inputFile=[IO.Path]::GetFullPath($InputPath)
 $outputFile=[IO.Path]::GetFullPath($OutputPath)
-if ([IO.Path]::GetDirectoryName($inputFile) -ne [IO.Path]::GetDirectoryName($outputFile) -or [IO.Path]::GetFileName([IO.Path]::GetDirectoryName($inputFile)) -notlike 'alicization-life-real-*') { throw 'Only an isolated QA directory is supported' }
+if ([IO.Path]::GetDirectoryName($inputFile) -ne [IO.Path]::GetDirectoryName($outputFile) -or [IO.Path]::GetFileName([IO.Path]::GetDirectoryName($inputFile)) -notmatch '^alicization-life-(?:real-|product-regression-)[\w-]+$') { throw 'Only an isolated QA directory is supported' }
 $text=[IO.File]::ReadAllText($inputFile,[Text.Encoding]::UTF8)
 if ($text.Length -eq 0 -or $text.Length -gt 2000) { throw 'QA speech input must be bounded' }
 Add-Type -AssemblyName System.Speech

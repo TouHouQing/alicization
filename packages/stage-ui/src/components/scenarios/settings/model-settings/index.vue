@@ -26,6 +26,8 @@ const props = defineProps<{
 
   live2dSceneClass?: string | string[]
   vrmSceneClass?: string | string[]
+  extractingColors?: boolean
+  colorExtractionError?: string
 }>()
 
 defineEmits<{
@@ -33,6 +35,8 @@ defineEmits<{
 }>()
 
 const modelSelectorOpen = ref(false)
+const live2dSceneRef = ref<InstanceType<typeof Live2DScene>>()
+const live2dSceneState = ref<'pending' | 'loading' | 'mounted'>('pending')
 const resolvedVrmExternalAnimations = ref<VrmActionBinding[]>([])
 const positionCursor = useMouse()
 const { t } = useI18n()
@@ -55,6 +59,16 @@ const {
 } = storeToRefs(settingsStore)
 
 const currentSelectedDisplayModel = computed<DisplayModel | undefined>(() => stageModelSelectedDisplayModel.value)
+
+async function captureModelFrame() {
+  const modelId = stageModelSelected.value
+  if (stageModelRenderer.value !== 'live2d' || live2dSceneState.value !== 'mounted')
+    return null
+  const frame = await live2dSceneRef.value?.captureFrame()
+  return stageModelSelected.value === modelId && live2dSceneState.value === 'mounted' ? frame ?? null : null
+}
+
+defineExpose({ captureModelFrame })
 
 async function handleModelPick(selectedModel: DisplayModel | undefined) {
   stageModelSelected.value = selectedModel?.id ?? ''
@@ -138,6 +152,8 @@ const currentVrmActionBindings = computed(() => {
       v-if="stageModelRenderer === 'live2d'"
       :model-id="stageModelSelected"
       :palette="palette"
+      :extracting-colors="extractingColors"
+      :color-extraction-error="colorExtractionError"
       @extract-colors-from-model="$emit('extractColorsFromModel')"
     />
     <VRM
@@ -151,6 +167,8 @@ const currentVrmActionBindings = computed(() => {
   <template v-if="stageModelRenderer === 'live2d'">
     <div :class="[...(props.live2dSceneClass ? (typeof props.live2dSceneClass === 'string' ? [props.live2dSceneClass] : props.live2dSceneClass) : [])]">
       <Live2DScene
+        ref="live2dSceneRef"
+        v-model:state="live2dSceneState"
         :focus-at="{ x: positionCursor.x.value, y: positionCursor.y.value }"
         :model-src="stageModelSelectedUrl"
         :model-id="stageModelSelected"

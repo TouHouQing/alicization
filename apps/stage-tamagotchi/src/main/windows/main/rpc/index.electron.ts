@@ -13,11 +13,12 @@ import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
 import { ipcMain } from 'electron'
 
-import { electronOpenChat, electronOpenMainDevtools, electronOpenSettings, noticeWindowEventa } from '../../../../shared/eventa'
+import { electronOpenChat, electronOpenMainDevtools, noticeWindowEventa } from '../../../../shared/eventa'
 import { createMcpServersService } from '../../../services/airi/mcp-servers'
 import { createOnboardingService } from '../../../services/airi/onboarding'
 import { createWidgetsService } from '../../../services/airi/widgets'
 import { createAutoUpdaterService } from '../../../services/electron'
+import { createSettingsNavigationService } from '../../../services/electron/settings-navigation'
 import { toggleWindowShow } from '../../shared'
 import { setupBaseWindowElectronInvokes } from '../../shared/window'
 
@@ -47,18 +48,8 @@ export async function setupMainWindowElectronInvokes(params: {
   createOnboardingService({ context, onboardingWindowManager: params.onboardingWindowManager })
 
   defineInvokeHandler(context, electronOpenMainDevtools, () => params.window.webContents.openDevTools({ mode: 'detach' }))
-  defineInvokeHandler(context, electronOpenSettings, async (payload) => {
-    const route = payload?.route
-    console.info('[main-window-rpc] electronOpenSettings invoked', { route: route ?? '/settings' })
-    try {
-      await params.settingsWindow.openWindow(route)
-      console.info('[main-window-rpc] electronOpenSettings completed', { route: route ?? '/settings' })
-    }
-    catch (error) {
-      console.error('[main-window-rpc] electronOpenSettings failed', { route: route ?? '/settings', error })
-      throw error
-    }
-  })
+  const settingsNavigation = createSettingsNavigationService(ipcMain, params.settingsWindow)
+  params.window.once('closed', settingsNavigation.dispose)
   defineInvokeHandler(context, electronOpenChat, async () => toggleWindowShow(await params.chatWindow()))
   defineInvokeHandler(context, noticeWindowEventa.openWindow, payload => params.noticeWindow.open(payload))
 }

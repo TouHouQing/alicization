@@ -5,6 +5,8 @@ import {
   resolveLive2DExpressionSelection,
 } from './expression-runtime'
 
+const compiledFace = ['ParamMouthForm', 'ParamEyeLOpen', 'ParamEyeROpen', 'ParamBrowLY', 'ParamEyeBallX', 'ParamAngleY', 'ParamAngleZ', 'ParamBodyAngleZ']
+
 describe('live2d expression runtime', () => {
   it('resolves semantic expression names to the intended emotion', () => {
     const selection = resolveLive2DExpressionSelection({
@@ -130,7 +132,7 @@ describe('live2d expression runtime', () => {
       'surprised_exp_07',
       'focus_observe',
       'soft_gaze',
-    ])
+    ], compiledFace)
 
     expect(snapshot.supportedBaseEmotions).toEqual(
       expect.arrayContaining(['happy', 'angry', 'neutral', 'surprised']),
@@ -143,7 +145,7 @@ describe('live2d expression runtime', () => {
   it('keeps synthesized live2d facial and emotion capabilities available even when discovered expression names are sparse', () => {
     const snapshot = buildLive2DRuntimeCapabilitySnapshot([
       'neutral_exp_05',
-    ])
+    ], compiledFace)
 
     expect(snapshot.supportedBaseEmotions).toEqual(
       expect.arrayContaining(['neutral', 'thinking', 'concerned', 'happy']),
@@ -156,10 +158,22 @@ describe('live2d expression runtime', () => {
   it('keeps restrained live2d action capabilities available even when discovered expressions are sparse', () => {
     const snapshot = buildLive2DRuntimeCapabilitySnapshot([
       'neutral_exp_05',
-    ])
+    ], compiledFace)
 
     expect(snapshot.supportedActions.map(item => item.key)).toEqual(
       expect.arrayContaining(['steady_focus', 'observe_focus', 'idle_settle']),
     )
+  })
+
+  it('does not advertise facial channels or procedural gestures missing from the actual rig', () => {
+    const empty = buildLive2DRuntimeCapabilitySnapshot([], [])
+    expect(empty.supportedBaseEmotions).toEqual(['neutral'])
+    expect(empty.supportedActions).toEqual([])
+    expect(empty.supportedFacialCues).toEqual([])
+    const mouthOnly = buildLive2DRuntimeCapabilitySnapshot([], ['ParamMouthForm'])
+    expect(mouthOnly.supportedFacialCues.map(item => item.key)).toContain('frown')
+    expect(mouthOnly.supportedFacialCues.map(item => item.key)).not.toContain('blink')
+    expect(mouthOnly.supportedActions).toEqual([])
+    expect(buildLive2DRuntimeCapabilitySnapshot(['happy_exp'], []).supportedBaseEmotions).toContain('happy')
   })
 })

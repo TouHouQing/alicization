@@ -4,9 +4,21 @@ Electron desktop surface for Alicization.
 
 ## Product Experience Checks
 
+File logging owns one native descriptor, serializes accepted writes, drains them before closing, and refuses new entries during shutdown. It uses the callback filesystem API to avoid an observed Electron `FileHandle.close()` stall. Mocked failure/order checks and a real filesystem burst of 1,000 writes cover that ownership; normal native exit remains a separate release requirement.
+
+Application shutdown saves life and window state, stops services, and drains file logs while its windows remain alive. It then destroys this application's remaining native windows, allows their cleanup callbacks to run, and resumes normal Electron quit. The completed cleanup permits the final before-quit event and preserves will-quit; window-all-closed does not start a competing quit during cleanup. Window teardown failures are retained as abnormal shutdown, while remaining windows still receive cleanup. Auxiliary windows are released explicitly before final quit.
+
+Caption following owns its throttled movement, delayed settling and current animation. Detaching cancels all queued work, and both windows must remain available before reading or moving them. Application shutdown also pauses the caption's main-process Anime.js engine before native teardown; renderer Live2D animation belongs to a separate process.
+
+Tray menu rebuilding owns its debounce and caption, locale and window subscriptions. Shutdown cancels and detaches them before destroying the tray; a late caption-visibility notification cannot read destroyed native windows or recreate a menu.
+
+The onboarding renderer opens and awaits follow-up settings before requesting its own closure. Settings navigation uses one unbound Eventa main-process context so acknowledgments and errors return to the actual requesting window. A context bound to the stage can open settings but strand onboarding's promise. Closing the RPC owner first can lose the request; a failed follow-up keeps the onboarding window available for retry. Desktop Vue regression tests use the same Vue and YAML transforms as the renderer.
+
 `scripts/life-acceptance/life-product-regression.cjs` walks a fresh synthetic identity through onboarding, model confirmation, desktop model selection, card file import, memory tabs, initiative settings, backup creation, provider configuration pages, native tray handlers, actual dialogue, and chat export/import. Run it through `run-private-desktop.ps1` with a bounded child job. It uses the configured dialogue service only for synthetic QA content and removes copied credentials on exit.
 
 The interactive `life-product-audit.cjs` captures rendered controls and screenshots for exploratory checks. Both workflows stay on an independent Windows desktop. They do not validate physical microphones, speaker quality, third-party accounts, or the user's input desktop.
+
+Set `LIFE_PRODUCT_RENDERER=live2d` for a fresh Live2D-only audit. `live2d-product-checks.cjs` observes actual Cubism parameters and canvas pixels, exercises character drag/zoom/reset, checks transparent input regions, eye defaults, motion playback and persistence, theme extraction, model-cache feedback, invalid/uppercase ZIP imports, renaming and removal. Renderer identity is recorded with each screenshot. DOM pointer events are sent only to the private app; they do not establish physical input delivery on the Default desktop. The desktop toolbar uses localized accessible names for its visible actions.
 
 ## What It Does
 

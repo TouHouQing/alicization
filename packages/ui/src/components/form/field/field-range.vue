@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import { useId } from 'vue'
+
 import { Range } from '../range'
 
 const props = withDefaults(defineProps<{
   min?: number
   max?: number
   step?: number
+  disabled?: boolean
   label?: string
   description?: string
   formatValue?: (value: number) => string
@@ -14,13 +17,14 @@ const props = withDefaults(defineProps<{
 })
 
 const modelValue = defineModel<number>({ required: true })
+const labelId = useId()
 </script>
 
 <template>
-  <props.as :class="['flex flex-col gap-4']">
+  <component :is="props.as" :class="['flex flex-col gap-4']">
     <div :class="['flex', 'flex-row', 'items-center', 'gap-2']">
       <div :class="['flex-1']">
-        <div :class="['flex', 'items-center', 'gap-1', 'text-sm', 'font-medium']">
+        <div :id="labelId" :class="['flex', 'items-center', 'gap-1', 'text-sm', 'font-medium']">
           <slot name="label">
             {{ label }}
           </slot>
@@ -36,11 +40,13 @@ const modelValue = defineModel<number>({ required: true })
     <div :class="['flex', 'flex-row', 'items-center', 'gap-2']">
       <Range
         v-model="modelValue"
-        :min="min || 0"
-        :max="max || 1"
-        :step="step || 0.01"
+        :aria-labelledby="labelId"
+        :disabled="disabled"
+        :min="min ?? 0"
+        :max="max ?? 1"
+        :step="step ?? 0.01"
         :class="['w-full']"
       />
     </div>
-  </props.as>
+  </component>
 </template>

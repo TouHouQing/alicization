@@ -2,6 +2,12 @@
 
 所有 GUI 脚本必须通过 `run-private-desktop.ps1` 启动。它创建独立 Windows desktop 和受控子进程 job，不切换输入桌面。`electron-launch.cjs` 会验证调用桌面及 QA profile 命名。截图只来自自身应用页面。
 
+Live2D 产品与表达检查先断开测试工具持有的 Node inspector，再点击主舞台真实的“关闭”按钮；从标准输出核对生命与窗口状态保存、服务停止、日志排空和窗口清理，并观察进程退出。其他旧检查只请求一次 app.quit，在最终清理标记后断开 inspector。原生进程须在上限内以 0 退出，日志标记和强制终止均不能替代成功退出。Playwright 1.58 没有公开的仅断开接口，适配器只关闭其内部 Node 调试连接，不注入退出或修改应用结果；升级时须核对接口，缺少接口会明确失败。`life-native-live2d-exit.cjs` 另行从启动起不带 Node inspector，只用渲染器 CDP 检查真实 Live2D 和点击关闭按钮。它可明确选择编译输出，或只复用凭据已移除且原进程已退出的合成 QA 档案；这些模式不能当成最终包的全流程验收。`assert-private-desktop.ps1 -RuntimePid` 枚举指定私有桌面的窗口，验证实际进程归属。
+
+`life-product-regression.cjs` 设置 `LIFE_PRODUCT_RENDERER=live2d` 后只体验 Live2D。`live2d-product-checks.cjs` 记录真实 Cubism 参数、动作和透明区域像素，检查角色拖动、缩放、重置、取色、动作选择、导入、改名和宽窄窗口布局。模型“已选中”或挂载标志不能代替实际角色绘制证据。
+
+已退出的本轮产品测试档案可通过 `life-product-cache-cleanup.cjs` 清理缓存。`LIFE_PRODUCT_CLEANUP_REPORTS` 是 workspace `output/` 内 `report.json`／`audit.json` 或 Live2D 读取诊断报告路径的 JSON 数组；脚本验证正常退出或本轮已登记的强制清理、PID 已结束、私有桌面与临时档案归属，再通过 Electron 的缓存接口清理缓存、代码缓存、着色器与模型临时文件系统，保留人格、数据库和证据。失败记录不会被改成通过。清理控制进程也使用独立端口、私有桌面和正常退出检查。
+
 `life-current-experience.cjs` 使用新建的合成 QA 人格、客户端现有语言模型配置和真正的对话界面，记录实际对白、meta／工具事件、骨骼、表情、确认和结果。它不会将用户私密记忆复制到 QA。音频输出静音，本地 SAPI 适配器验证播放链；它不评估真实云声音质量。
 
 前置条件是已打包 exe，以及 `life-current-persona-smoke.cjs` 保存的 QA 人格报告。示例从仓库根目录运行：
@@ -51,3 +57,11 @@ LIFE_QA_MEMORY_FRESH_PROBE=1 使用全新合成身份运行首次偏好、纠正
 新产品检查通过 `registerPrivateRuntime` 校验 Electron 主进程子进程继承的私有桌面，再登记准确 PID、可执行文件和 QA 档案，运行器核对身份并纳入自己的 Windows Job。Job 关闭仅收束本轮 QA 进程。不得凭进程名批量终止程序。其他脚本未登记时，不应据此声称其额外进程均被新检查覆盖。
 
 按钮点击核验真实控件的几何、可见性和启用状态，再触发 Vue 事件链；托盘窗口检查调用实际菜单回调。因此这些结果不证明 Default 桌面的物理鼠标命中、硬件麦克风、扬声器听感或所有付费供应商可连接。产品回归必须记录正常退出完成，窗口消失本身不算退出成功。
+
+`LIFE_PRODUCT_RENDERER=live2d` 配合 `LIFE_PRODUCT_EXPRESSION=1` 会在完整产品流程中追加真实模型对话与最终 Cubism 绘制帧观察。语音使用有界 localhost SAPI 测试服务，音频输出静音；供应商与语音配置仅写入合成 QA 环境。它验证常规语音流水线与身体投射，不验证商业语音品质或真实声卡听感。
+
+`life-live2d-expression-probe.cjs` 记录待机、左右指针、停住指针的实际最后绘制值；`LIFE_EXPRESSION_ASSERTIONS=1` 启用结果断言。`LIFE_EXPRESSION_CALIBRATE=1` 追加标明为受控输入的渲染校准：暂时替换该组件的表演输入，检查愤怒、微笑、睁大眼、闭口音、点头、重复点头及摇头。校准不改生命 store，也不充当自然行为证明。采样标签必须在同一次输入切换之前更换，防止下一用例的首帧被归入上一用例。报告目录由 `LIFE_EXPRESSION_ROOT` 指定到 workspace `output/` 下。
+
+`LIFE_EXPRESSION_IDLE_MS=60000` 可延长真实待机观察；上限 180 秒。`LIFE_EXPRESSION_QUIET_ASSERTIONS=1` 检查无语音待机的嘴部开合；受控校准另检查有声元音、音频静音时仍存在的文字发音提示、停止后残留的元音提示。最终绘制值必须响应声音状态，不能只检查输入意图。
+
+真实对话观察器也会在实际 AudioContext 播放时钟上读取已解码 PCM 的短窗 RMS，不修改音频、生命状态或渲染输出。`LIFE_PRODUCT_QUIET_MOUTH_ASSERTIONS=1` 检查嘴部在静音观察中回落。最终验收同时启用 `LIFE_PRODUCT_STRICT_PCM=1`，读取连续 200 毫秒窗口内的全部 PCM 样本，要求整窗 RMS 和当前 speech energy 均低于门限；未开启时仅观察跨越 200 毫秒的连续低 RMS 绘制采样，不能等同于完整音频窗口证明。此检查和真实发声张嘴、播放结束释放共同验收；不能把局部静音或整段说话中的单张截图当作完整口型质量证明。

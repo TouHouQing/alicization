@@ -30,13 +30,22 @@ function createInternalModel() {
   } as any
 }
 
-function readParameter(model: ReturnType<typeof createInternalModel>, parameterId: string) {
-  return model.values.get(parameterId) ?? 0
-}
-
 describe('live2d idle eye focus', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('holds a fixation in seconds and lets the SDK advance its own controller once', () => {
+    const model = createInternalModel()
+    const focus = useLive2DIdleEyeFocus()
+    for (const now of [0, 0.016, 0.033, 0.1, 0.5, 0.99])
+      focus.update(model, now)
+    expect(model.focusController.focus).toHaveBeenCalledTimes(1)
+    focus.update(model, 1.01)
+    expect(model.focusController.focus).toHaveBeenCalledTimes(2)
+    expect(model.focusController.update).not.toHaveBeenCalled()
+    expect(model.values.get('ParamEyeBallX')).toBe(0)
+    expect(model.values.get('ParamEyeBallY')).toBe(0)
   })
 
   it('keeps steady idle gaze narrower than drift under the same idle focus target', () => {
@@ -62,8 +71,8 @@ describe('live2d idle eye focus', () => {
       stabilityBias: -0.1,
     })
 
-    expect(Math.abs(readParameter(steadyModel, 'ParamEyeBallX'))).toBeLessThan(Math.abs(readParameter(driftModel, 'ParamEyeBallX')))
-    expect(Math.abs(readParameter(steadyModel, 'ParamEyeBallY'))).toBeLessThan(Math.abs(readParameter(driftModel, 'ParamEyeBallY')))
+    expect(Math.abs(steadyModel.focusController.focus.mock.calls[0][0])).toBeLessThan(Math.abs(driftModel.focusController.focus.mock.calls[0][0]))
+    expect(Math.abs(steadyModel.focusController.focus.mock.calls[0][1])).toBeLessThan(Math.abs(driftModel.focusController.focus.mock.calls[0][1]))
   })
 
   it('keeps structured measured-return idle focus steadier than ordinary drift across successive saccades', () => {

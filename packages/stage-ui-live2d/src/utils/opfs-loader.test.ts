@@ -1,8 +1,38 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { OPFSCache } from './opfs-loader'
 
 describe('oPFS cache loader', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('clears only Live2D catalogue cache directories', async () => {
+    const removeEntry = vi.fn()
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => ({
+      async* values() {
+        yield { name: 'preset-live2d-1', kind: 'directory' }
+        yield { name: 'display-model-import', kind: 'directory' }
+        yield { name: 'personal-artifacts', kind: 'directory' }
+        yield { name: 'notes.txt', kind: 'file' }
+      },
+      removeEntry,
+    }) } })
+    await OPFSCache.clearAll()
+    expect(removeEntry.mock.calls).toEqual([
+      ['preset-live2d-1', { recursive: true }],
+      ['display-model-import', { recursive: true }],
+    ])
+  })
+
+  it('propagates a failed cache deletion so the UI cannot report success', async () => {
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => ({
+      async* values() {
+        yield { name: 'display-model-import', kind: 'directory' }
+      },
+      removeEntry: vi.fn().mockRejectedValue(new Error('Storage unavailable')),
+    }) } })
+    await expect(OPFSCache.clearAll()).rejects.toThrow('Storage unavailable')
+  })
+
   it('does not intercept packaged file:// live2d zip assets', async () => {
     const next = vi.fn(async () => {})
     const fetchSpy = vi.fn()

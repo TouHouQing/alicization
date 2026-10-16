@@ -7,6 +7,14 @@ import {
 } from './action-pulse'
 
 describe('live2d action pulse binding resolver', () => {
+  it('allows a later identical semantic action to play again', () => {
+    const state = createIdleStageEmbodimentPerformanceState()
+    const binding = { actionKey: 'nod_soft', motionName: 'Nod', motionIndex: 0 }
+    state.actionPulse.revision = 1
+    const first = buildLive2DActionPulseReplayKey({ binding, state })
+    state.actionPulse.revision = 2
+    expect(buildLive2DActionPulseReplayKey({ binding, state })).not.toBe(first)
+  })
   it('matches a semantic action cue to its motion binding', () => {
     expect(resolveLive2DActionPulseBinding([
       {

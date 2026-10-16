@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { StageEmbodimentCanonicalEmotion } from '@proj-alicization/stage-shared'
 
+import { errorMessageFrom } from '@moeru/std'
 import {
   resolveStageEmbodimentCueCandidates,
   resolveStageEmbodimentLive2DMotionAliases,
@@ -21,6 +22,8 @@ import { ColorPalette } from '../../../widgets'
 const props = defineProps<{
   modelId?: string
   palette: string[]
+  extractingColors?: boolean
+  colorExtractionError?: string
 }>()
 defineEmits<{
   (e: 'extractColorsFromModel'): void
@@ -44,7 +47,6 @@ const {
   scale,
   position,
   modelParameters,
-  currentMotion,
 } = storeToRefs(live2d)
 
 const selectedRuntimeMotion = ref<string>('')
@@ -78,47 +80,58 @@ function applyRuntimeMotionSelection(
   options?: {
     closeSelector?: boolean
     enableIdleAnimation?: boolean
+    persistPreference?: boolean
   },
 ) {
   selectedRuntimeMotion.value = motion.displayPath
   selectedRuntimeMotionName.value = motion.name
-  localStorage.setItem('selected-runtime-motion', motion.displayPath)
-  localStorage.setItem('selected-runtime-motion-name', motion.name)
-  localStorage.setItem('selected-runtime-motion-group', motion.group)
-  localStorage.setItem('selected-runtime-motion-index', motion.index.toString())
+  if (props.modelId && options?.persistPreference !== false)
+    live2d.selectPreferredRuntimeMotion(props.modelId, { fileName: motion.displayPath, motionName: motion.group, motionIndex: motion.index })
 
   if (options?.enableIdleAnimation !== false)
     live2dIdleAnimationEnabled.value = true
-  currentMotion.value = { group: motion.group, index: motion.index }
 
   if (options?.closeSelector !== false)
     showMotionSelector.value = false
 }
 
 function ensureDefaultRuntimeMotionSelection(motions: Array<{ name: string, displayPath: string, group: string, index: number }>) {
-  if (motions.length === 0)
+  if (motions.length === 0) {
+    selectedRuntimeMotion.value = ''
+    selectedRuntimeMotionName.value = ''
     return
+  }
 
-  const savedPath = localStorage.getItem('selected-runtime-motion')
-  const savedGroup = localStorage.getItem('selected-runtime-motion-group')
-  const savedIndexRaw = localStorage.getItem('selected-runtime-motion-index')
-  const savedIndex = savedIndexRaw ? Number.parseInt(savedIndexRaw, 10) : Number.NaN
+  const saved = props.modelId ? live2d.preferredRuntimeMotions[props.modelId] : undefined
 
   const matchedMotion = motions.find(motion =>
-    (savedPath && motion.displayPath === savedPath)
-    || (savedGroup && Number.isFinite(savedIndex) && motion.group === savedGroup && motion.index === savedIndex),
+    saved && (motion.displayPath === saved.fileName || (motion.group === saved.motionName && motion.index === saved.motionIndex)),
   )
 
-  applyRuntimeMotionSelection(matchedMotion ?? motions[0]!, {
+  if (!matchedMotion) {
+    selectedRuntimeMotion.value = ''
+    selectedRuntimeMotionName.value = t('settings.live2d.parameters.motion-selector.auto')
+    return
+  }
+  applyRuntimeMotionSelection(matchedMotion, {
     closeSelector: false,
     enableIdleAnimation: false,
+    persistPreference: false,
   })
+}
+
+function useAutomaticRuntimeMotion() {
+  if (props.modelId)
+    live2d.clearPreferredRuntimeMotion(props.modelId)
+  selectedRuntimeMotion.value = ''
+  selectedRuntimeMotionName.value = t('settings.live2d.parameters.motion-selector.auto')
+  showMotionSelector.value = false
 }
 
 // Get available runtime motions from the model
 onMounted(() => {
   // Listen for available motions updates
-  watch(() => live2d.availableMotions, (motions) => {
+  watch(currentModelAvailableMotions, (motions) => {
     // Show all motions with their full paths
     runtimeMotions.value = motions.map(m => ({
       name: m.fileName.split('/').pop() || m.fileName,
@@ -142,11 +155,21 @@ function resetToDefaultParameters() {
 }
 
 const clearingCache = ref(false)
+const cacheMessage = ref('')
+const cacheError = ref(false)
 
 async function clearModelCache() {
   clearingCache.value = true
+  cacheMessage.value = ''
+  cacheError.value = false
   try {
     await OPFSCache.clearAll()
+    cacheMessage.value = t('settings.live2d.parameters.cache-cleared')
+  }
+  catch (error) {
+    console.warn('[live2d-settings] Cache cleanup failed:', errorMessageFrom(error))
+    cacheError.value = true
+    cacheMessage.value = t('settings.live2d.parameters.cache-clear-failed')
   }
   finally {
     clearingCache.value = false
@@ -230,6 +253,11 @@ function removeActionBinding(fileName: string) {
     return
 
   stagePerformanceStore.removeLive2DAction(props.modelId, fileName)
+}
+
+function previewMotion(motion: { fileName: string, motionName: string, motionIndex: number }) {
+  if (props.modelId)
+    live2d.previewMotion(props.modelId, motion)
 }
 
 function formatEmbodimentAliasInput(aliases?: string[]) {
@@ -380,9 +408,12 @@ function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmot
     :expand="false"
   >
     <ColorPalette class="mb-4 mt-2" :colors="palette.map(hex => ({ hex, name: hex }))" mx-auto />
-    <Button variant="secondary" @click="$emit('extractColorsFromModel')">
+    <Button variant="secondary" :disabled="extractingColors" @click="$emit('extractColorsFromModel')">
       {{ t('settings.live2d.theme-color-from-model.button-extract.title') }}
     </Button>
+    <p v-if="colorExtractionError" role="alert" :class="['mt-2 text-sm text-red-600 dark:text-red-400']">
+      {{ colorExtractionError }}
+    </p>
   </Section>
   <Section
     :title="t('settings.live2d.action-mapping.title')"
@@ -430,7 +461,7 @@ function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmot
           </div>
         </div>
         <div :class="['flex items-center gap-2']">
-          <Button size="sm" variant="secondary" @click="currentMotion = { group: motion.motionName, index: motion.motionIndex }">
+          <Button size="sm" variant="secondary" @click="previewMotion(motion)">
             {{ t('settings.live2d.action-mapping.actions.preview') }}
           </Button>
           <Button size="sm" variant="secondary" @click="removeActionBinding(motion.fileName)">
@@ -547,7 +578,7 @@ function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmot
 
         <Button
           class="form-control"
-          @click="currentMotion = { group: motion.motionName, index: motion.motionIndex }"
+          @click="previewMotion(motion)"
         >
           Play
         </Button>
@@ -576,6 +607,7 @@ function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmot
   >
     <Checkbox
       v-model="live2dDisableFocus"
+      :aria-label="t('settings.live2d.focus.button-disable.title')"
       :label="t('settings.live2d.focus.button-disable.title')"
     />
   </Section>
@@ -591,11 +623,16 @@ function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmot
     :expand="false"
   >
     <div flex items-center justify-between>
-      <span text-sm text-neutral-600 dark:text-neutral-400>{{ t('settings.live2d.parameters.idle-animation') }}</span>
+      <label :class="['flex items-center gap-3 text-sm text-neutral-600 dark:text-neutral-400']">
+        <Checkbox v-model="live2dIdleAnimationEnabled" :aria-label="t('settings.live2d.parameters.idle-animation')" />
+        <span>{{ t('settings.live2d.parameters.idle-animation') }}</span>
+      </label>
       <div data-motion-selector relative flex flex-col items-end gap-1>
         <button
 
           :title="selectedRuntimeMotion"
+          :disabled="runtimeMotions.length === 0"
+          :aria-label="t('settings.live2d.parameters.motion-selector.select')"
           flex items-center gap-2 border rounded bg-neutral-100 px-4 py-2 text-sm text-neutral-700 font-medium transition-colors dark:border-neutral-700 dark:bg-neutral-800 hover:bg-neutral-200 dark:text-neutral-300 dark:hover:bg-neutral-700
           @click="toggleMotionSelector"
         >
@@ -614,6 +651,9 @@ function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmot
           border="1 neutral-200 dark:neutral-700"
           absolute right-0 top-10 z-50 max-h-80 min-w-64 overflow-y-auto rounded-lg shadow-lg
         >
+          <button :class="['w-full px-4 py-2.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700']" @click="useAutomaticRuntimeMotion">
+            {{ t('settings.live2d.parameters.motion-selector.auto') }}
+          </button>
           <div v-if="runtimeMotions.length === 0" p-4 text-sm text-neutral-500 dark:text-neutral-400>
             {{ t('settings.live2d.parameters.motion-selector.empty') }}
           </div>
@@ -638,8 +678,11 @@ function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmot
         </div>
       </div>
     </div>
+    <p v-if="selectedRuntimeMotion" :class="['mt-2 text-xs text-neutral-500 dark:text-neutral-400']">
+      {{ t('settings.live2d.parameters.motion-selector.pending') }}
+    </p>
 
-    <div :class="['mt-4', 'flex', 'items-center', 'justify-between']">
+    <div :class="['mt-4', 'flex', 'flex-col', 'gap-3']">
       <div :class="['flex', 'flex-col', 'gap-1']">
         <span :class="['text-sm', 'text-neutral-600', 'dark:text-neutral-400']">
           {{ t('settings.live2d.fps.title') }}
@@ -648,22 +691,22 @@ function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmot
           {{ t('settings.live2d.fps.description') }}
         </span>
       </div>
-      <SelectTab v-model="live2dMaxFps" :options="fpsOptions" size="sm" :class="['w-48', 'shrink-0']" />
+      <SelectTab v-model="live2dMaxFps" :options="fpsOptions" size="sm" />
     </div>
 
     <div mt-4 flex items-center justify-between>
       <span text-sm text-neutral-600 dark:text-neutral-400>{{ t('settings.live2d.parameters.auto-blink') }}</span>
-      <Checkbox v-model="live2dAutoBlinkEnabled" />
+      <Checkbox v-model="live2dAutoBlinkEnabled" :aria-label="t('settings.live2d.parameters.auto-blink')" />
     </div>
 
     <div mt-3 flex items-center justify-between>
       <span text-sm text-neutral-600 dark:text-neutral-400>{{ t('settings.live2d.parameters.force-auto-blink') }}</span>
-      <Checkbox v-model="live2dForceAutoBlinkEnabled" />
+      <Checkbox v-model="live2dForceAutoBlinkEnabled" :aria-label="t('settings.live2d.parameters.force-auto-blink')" />
     </div>
 
     <div mt-4 flex items-center justify-between>
       <span text-sm text-neutral-600 dark:text-neutral-400>{{ t('settings.live2d.parameters.shadow') }}</span>
-      <Checkbox v-model="live2dShadowEnabled" />
+      <Checkbox v-model="live2dShadowEnabled" :aria-label="t('settings.live2d.parameters.shadow')" />
     </div>
 
     <button
@@ -681,6 +724,9 @@ function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmot
     >
       {{ clearingCache ? t('settings.live2d.parameters.clearing-cache') : t('settings.live2d.parameters.clear-cache') }}
     </button>
+    <p v-if="cacheMessage" :role="cacheError ? 'alert' : 'status'" :class="['mt-2 text-sm', cacheError ? 'text-red-600 dark:text-red-400' : 'text-neutral-600 dark:text-neutral-400']">
+      {{ cacheMessage }}
+    </p>
 
     <!-- Head Rotation -->
     <div mb-2 mt-4 text-xs text-neutral-500 font-semibold dark:text-neutral-400>
@@ -725,7 +771,7 @@ function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmot
       <template #label>
         <div flex items-center>
           <div>{{ t('settings.live2d.parameters.fields.left-eye-open') }}</div>
-          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.leftEyeOpen = 0">
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.leftEyeOpen = defaultModelParameters.leftEyeOpen">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
@@ -735,7 +781,7 @@ function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmot
       <template #label>
         <div flex items-center>
           <div>{{ t('settings.live2d.parameters.fields.right-eye-open') }}</div>
-          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.rightEyeOpen = 0">
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.rightEyeOpen = defaultModelParameters.rightEyeOpen">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>

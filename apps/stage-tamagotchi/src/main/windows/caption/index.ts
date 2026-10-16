@@ -9,20 +9,21 @@ import { join, resolve } from 'node:path'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
-import { animate, utils } from 'animejs'
+import { animate, engine, utils } from 'animejs'
 import { BrowserWindow as ElectronBrowserWindow, ipcMain, screen, shell } from 'electron'
-import { debounce, throttle } from 'es-toolkit'
 import { isMacOS } from 'std-env'
 import { boolean, number, object, optional, record, string } from 'valibot'
 
 import icon from '../../../../resources/icon.png?asset'
 
 import { captionGetIsFollowingWindow, captionIsFollowingWindowChanged } from '../../../shared/eventa'
+import { onAppBeforeQuit } from '../../libs/bootkit/lifecycle'
 import { baseUrl, getElectronMainDirname, load, withHashRoute } from '../../libs/electron/location'
 import { createConfig } from '../../libs/electron/persistence'
 import { createReusableWindow } from '../../libs/electron/window-manager'
 import { mapForBreakpoints, resolutionBreakpoints, widthFrom } from '../shared/display'
 import { setupBaseWindowElectronInvokes, transparentWindowConfig } from '../shared/window'
+import { createCaptionFollowScheduler } from './follow-scheduler'
 
 const captionConfigSchema = object({
   isFollowing: boolean(),
@@ -165,6 +166,7 @@ export function setupCaptionWindowManager(params: {
   setupConfig()
 
   let isFollowing = getConfig().isFollowing ?? true
+  let shuttingDown = false
   let lastProgrammaticMoveAt = 0
 
   // Keep references to listeners so we can detach when toggling
@@ -180,6 +182,9 @@ export function setupCaptionWindowManager(params: {
   }
 
   function followMainWindow(win: BrowserWindow) {
+    detachFromMain()
+    if (shuttingDown || win.isDestroyed() || params.mainWindow.isDestroyed())
+      return
     const cfg = getConfig() ?? { isFollowing, matrices: {} }
     const initialOffset = cfg?.matrices?.[matrixHash]?.relativeToMain ?? computeRelativeOffset(win)
 
@@ -197,7 +202,7 @@ export function setupCaptionWindowManager(params: {
       const b = win.getBounds()
       state.x = b.x
       state.y = b.y
-      animation?.pause()
+      animation?.cancel()
       animation = animate(state, {
         x: toX,
         y: toY,
@@ -218,43 +223,42 @@ export function setupCaptionWindowManager(params: {
     let lastAppliedTx = Number.NaN
     let lastAppliedTy = Number.NaN
 
-    const moveThrottled = throttle(() => {
-      const stored = getConfig()?.matrices[matrixHash]?.relativeToMain ?? initialOffset
-      const main = params.mainWindow.getBounds()
-      const b = win.getBounds()
-      let tx = main.x + stored.dx
-      let ty = main.y + stored.dy
-      const target = { x: tx, y: ty, width: b.width, height: b.height }
-      const workArea = screen.getDisplayMatching(target).workArea
-      const clamped = clampBoundsWithinRect(target, workArea)
-      tx = clamped.x
-      ty = clamped.y
-      lastTx = tx
-      lastTy = ty
-      if (Math.abs(lastAppliedTx - tx) <= 0 && Math.abs(lastAppliedTy - ty) <= 0)
-        return
-      lastAppliedTx = tx
-      lastAppliedTy = ty
-      // Animate towards target at throttled cadence for visible easing
-      settleTo(tx, ty)
-    }, 1000 / 60)
-
-    const settleDebounced = debounce(() => {
-      settleTo(lastTx, lastTy)
-    }, 200)
-
-    const onMainChange = () => {
-      moveThrottled()
-      settleDebounced()
-    }
+    const follow = createCaptionFollowScheduler({
+      isAvailable: () => !shuttingDown && !win.isDestroyed() && !params.mainWindow.isDestroyed(),
+      move: () => {
+        const stored = getConfig()?.matrices[matrixHash]?.relativeToMain ?? initialOffset
+        const main = params.mainWindow.getBounds()
+        const b = win.getBounds()
+        let tx = main.x + stored.dx
+        let ty = main.y + stored.dy
+        const target = { x: tx, y: ty, width: b.width, height: b.height }
+        const workArea = screen.getDisplayMatching(target).workArea
+        const clamped = clampBoundsWithinRect(target, workArea)
+        tx = clamped.x
+        ty = clamped.y
+        lastTx = tx
+        lastTy = ty
+        if (Math.abs(lastAppliedTx - tx) <= 0 && Math.abs(lastAppliedTy - ty) <= 0)
+          return
+        lastAppliedTx = tx
+        lastAppliedTy = ty
+        // Animate towards target at throttled cadence for visible easing
+        settleTo(tx, ty)
+      },
+      settle: () => settleTo(lastTx, lastTy),
+      stop: () => {
+        animation?.cancel()
+        animation = null
+      },
+    })
+    const onMainChange = () => follow.request()
     onMainChange()
     params.mainWindow.on('move', onMainChange)
     params.mainWindow.on('resize', onMainChange)
     detachMainMoveListener = () => {
       params.mainWindow.removeListener('move', onMainChange)
       params.mainWindow.removeListener('resize', onMainChange)
-      animation?.pause()
-      animation = null
+      follow.dispose()
     }
   }
 
@@ -262,6 +266,14 @@ export function setupCaptionWindowManager(params: {
     detachMainMoveListener?.()
     detachMainMoveListener = undefined
   }
+
+  onAppBeforeQuit(() => {
+    shuttingDown = true
+    detachFromMain()
+    // This is the main process's only Anime.js owner. Stop its Node tick loop
+    // before Electron begins tearing down windows and its event loop.
+    engine.pause()
+  })
 
   let eventaContext: ReturnType<typeof createContext>['context'] | undefined
   let currentWindow: BrowserWindow | undefined
@@ -304,6 +316,8 @@ export function setupCaptionWindowManager(params: {
     }
 
     const persistBounds = () => {
+      if (shuttingDown || window.isDestroyed() || params.mainWindow.isDestroyed())
+        return
       const config = getConfig() ?? { isFollowing, matrices: {} }
       const b = window.getBounds()
       config.matrices[matrixHash] = { ...config.matrices[matrixHash], bounds: b }

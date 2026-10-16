@@ -20,6 +20,7 @@ import icon from '../../resources/icon.png?asset'
 
 import { electronSystemLockStateChannel } from '../shared/eventa'
 import { registerAppExitSignalHandlers } from './app-exit-signal-handlers'
+import { closeDesktopWindows } from './app/close-windows'
 import { openDebugger, setupDebugger } from './app/debugger'
 import { nullFileLoggerHandle, setupFileLogger } from './app/file-logger'
 import { createScreenLockWindowLifecycle } from './app/screen-lock'
@@ -286,13 +287,16 @@ if (hasSingleInstanceLock) {
   }).catch(showStartupFailure)
 }
 
+let appExiting = false
+let appExitReady = false
+
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   emitAppWindowAllClosed()
 
-  if (platform !== 'darwin') {
+  if (platform !== 'darwin' && !appExiting) {
     app.quit()
   }
 })
@@ -308,8 +312,6 @@ app.on('activate', () => {
   targetWindow.show()
   targetWindow.focus()
 })
-
-let appExiting = false
 
 // Clean up server and intervals when app quits
 async function handleAppExit() {
@@ -351,12 +353,28 @@ async function handleAppExit() {
   skipFileLogging = true
   await logIfError('flush file logs', () => fileLogger.close()) // Ensure all logs are flushed
 
-  app.exit(exitedNormally ? 0 : 1)
+  // Finish asynchronous disk work while Electron still owns its windows.
+  // After the final window is destroyed, only native teardown and exit remain.
+  log.log('[app-exit] File logs drained; closing desktop windows')
+  await logIfError('close desktop windows', () => closeDesktopWindows(BrowserWindow.getAllWindows()))
+  log.log('[app-exit] Desktop windows closed; exiting')
+
+  // Re-enter normal quit only after our asynchronous cleanup is complete.
+  // This retains Electron's will-quit lifecycle and avoids cancelling it again.
+  appExitReady = true
+  setImmediate(() => {
+    if (exitedNormally)
+      app.quit()
+    else
+      app.exit(1)
+  })
 }
 
 registerAppExitSignalHandlers(process, handleAppExit)
 
 app.on('before-quit', (event) => {
+  if (appExitReady)
+    return
   event.preventDefault()
   handleAppExit()
 })

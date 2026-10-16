@@ -10,6 +10,11 @@ model-selector:
   name: 模型名称
   pick: 使用此模型
   confirm: 确认选择
+  importing: 正在导入模型…
+  import-failed: 导入失败。请确认文件包含有效的模型与贴图，然后重试。
+  operation-failed: 修改未能保存，请重试。
+  rename: 重命名模型
+  name-required: 请填写模型名称。
 animations:
   stage-transitions:
     title: 是否开启舞台动画
@@ -218,6 +223,7 @@ live2d:
     change-to-vrm: 切换至3D虚拟形象设定页面（VRM）
   theme-color-from-model:
     title: 从模型提取主题颜色
+    capture-failed: 暂时无法提取颜色。请等待角色载入完成后重试。
     button-extract:
       title: 提取
   focus:
@@ -278,6 +284,8 @@ live2d:
     title: 参数
     idle-animation: 待机动画
     motion-selector:
+      auto: 跟随当前状态
+      pending: 当前动作结束后，会使用这项待机动画。
       select: 选择动作
       empty: 暂无可用动作
     auto-blink: 自动眨眼
@@ -286,6 +294,8 @@ live2d:
     reset-to-default: 重置为默认参数
     clearing-cache: 正在清理...
     clear-cache: 清理模型缓存
+    cache-cleared: 模型缓存已清理，当前角色可以继续使用。
+    cache-clear-failed: 模型缓存未能清理，请重试。
     groups:
       head-rotation: 头部旋转
       eyes: 眼睛

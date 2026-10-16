@@ -30,6 +30,10 @@ An idle gap during synthesis retains the prepared intention until its own playba
 
 The model step requires explicit confirmation after selection. Provider configuration preserves already saved inputs when revisited. Editing an inactive card changes that card's bindings without activating it; persona and runtime tabs operate only on the active card. Imported card files pass `parseImportedCard` before the card list changes.
 
+Live2D imports must render a valid thumbnail and finish their IndexedDB write before entering the catalogue. Failure feedback stays in the selector; failed imports release their hidden canvases. User model names persist across reloads, and built-in models omit rename/removal actions. The selector locks confirmation while an import is pending.
+
+The Live2D settings panel restores each eye's open default, exposes an explicit idle-animation switch, and selects available motions from the current model. Manual idle choices persist per model; returning to automatic mode releases that preference so the desktop's internal state can drive idle motion again.
+
 `Section` exposes `v-model:expand` so callers can keep expansion state through navigation. The model selector keeps names and confirmation controls visible in narrow desktop windows.
 
 The active card also owns its display model and speech selection. Runtime selection changes update the existing card binding, so a second renderer restores the same body and voice. Applying a different card suppresses writeback during projection; switching cards must preserve each card's independent binding. Regression coverage uses a second Pinia instance and switches between two cards with distinct voices.
@@ -39,6 +43,10 @@ The guided setup collects both names, temperament, response preferences, and a r
 ```shell
 pnpm exec vitest run packages/stage-ui/src/stores/alicization-genesis-workshop.test.ts packages/stage-ui/src/composables/use-alicization-genesis-submit.test.ts
 ```
+
+## Cross-window chat lifecycle
+
+Cross-window chat stream events are received synchronously and delivered through an ordered queue. Stream completion flushes the text stream; assistant completion closes the matching speech intent. The receiver retains the session, generation and message identity until that second event, so a late completion cannot close a newer turn. Disposal drops queued delivery, and an observer error is reported without blocking subsequent completion events.
 
 ## Histoire (UI storyboard)
 

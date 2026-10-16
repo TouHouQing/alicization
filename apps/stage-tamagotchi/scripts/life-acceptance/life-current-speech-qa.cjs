@@ -7,7 +7,7 @@ const { promisify } = require('node:util')
 
 const run = promisify(execFile)
 exports.startSpeechQa = async function (profile, options = {}) {
-  if (!path.basename(profile).startsWith('alicization-life-real-'))
+  if (!/^alicization-life-(?:real-|product-regression-)/u.test(path.basename(profile)))
     throw new Error('Isolated speech QA profile required')
   const maxRequests = options.maxRequests ?? 8
   if (!Number.isInteger(maxRequests) || maxRequests < 1 || maxRequests > 64)
@@ -70,7 +70,7 @@ exports.startSpeechQa = async function (profile, options = {}) {
     }
   })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
-  return { url: `http://127.0.0.1:${server.address().port}/v1/`, summary: () => ({ adapter: 'isolated-local-SAPI-protocol-QA', requests, failures, utterances }), close: async () => {
+  return { url: `http://127.0.0.1:${server.address().port}/v1/`, summary: () => ({ adapter: 'isolated-local-SAPI-protocol-QA', requests, pending: pending.size, failures, utterances }), close: async () => {
     const closed = new Promise(resolve => server.close(resolve))
     server.closeAllConnections()
     await Promise.allSettled(pending)

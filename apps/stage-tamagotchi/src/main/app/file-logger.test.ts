@@ -10,7 +10,15 @@ vi.mock('electron', () => ({ app: { getPath: () => 'C:/qa-user-data' } }))
 vi.mock('node:fs/promises', () => ({
   mkdir: vi.fn(),
   stat: vi.fn(async () => ({ size: 100 })),
-  open: vi.fn(async () => ({ fd: 42, ...fixture })),
+}))
+vi.mock('node:fs', () => ({
+  open: (_path: string, _mode: string, callback: (error: null, fd: number) => void) => callback(null, 42),
+  appendFile: (_fd: number, content: string, callback: (error?: Error | null) => void) => {
+    fixture.appendFile(content).then(() => callback(null), callback)
+  },
+  close: (_fd: number, callback: (error?: Error | null) => void) => {
+    fixture.close().then(() => callback(null), callback)
+  },
 }))
 
 describe('file logger shutdown', () => {

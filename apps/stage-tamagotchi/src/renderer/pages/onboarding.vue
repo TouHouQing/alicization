@@ -24,9 +24,10 @@ async function handleSkipped() {
 
 async function handleConfigured(payload?: OnboardingConfiguredPayload) {
   onboardingStore.markSetupCompleted()
-  await closeWindow()
+  // Deliver the follow-up RPC while its originating renderer is still alive.
   if (payload?.followUpRoute)
     await openSettings({ route: payload.followUpRoute })
+  await closeWindow()
 }
 </script>
 

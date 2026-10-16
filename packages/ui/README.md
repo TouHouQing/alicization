@@ -10,6 +10,8 @@ A stylized UI component library built with [Reka UI](https://reka-ui.com/) and [
 
 `Select` forwards its disabled state, placeholder, and title to the underlying combobox. A disabled selection prevents both text entry and opening the choices.
 
+`FieldRange` links its visible label to the native slider through `aria-labelledby`, forwards `disabled`, and preserves explicit zero bounds. `Range` applies the disabled state to its actual input.
+
 To preview the components, refer to the [`stage-ui`](../stage-ui) package for instructions for running the Histoire UI storyboard.
 
 ## Get started

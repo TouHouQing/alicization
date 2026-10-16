@@ -7,7 +7,7 @@ const process = require('node:process')
 
 const { _electron } = require('playwright')
 
-const { launchOptions, packageIdentity } = require('./electron-launch.cjs')
+const { closePrivateRuntime, launchOptions, packageIdentity, registerPrivateRuntime } = require('./electron-launch.cjs')
 
 // Inspect only this job's synthetic app windows; never target the input desktop.
 async function main() {
@@ -27,9 +27,22 @@ async function main() {
   }
   const identity = await packageIdentity()
   const app = await _electron.launch(launchOptions(profile))
+  const nativeRuntime = await registerPrivateRuntime(app)
   const errors = []
   const records = []
-  app.on('window', page => page.on('pageerror', error => errors.push({ url: page.url(), message: error.message })))
+  const observe = (page) => {
+    page.on('pageerror', error => errors.push({ url: page.url(), message: error.message }))
+    page.on('console', (message) => {
+      if (message.type() === 'error' && page.url().startsWith('file:'))
+        errors.push({ url: page.url(), message: message.text() })
+    })
+    page.on('requestfailed', (request) => {
+      if (request.url().startsWith('file:'))
+        errors.push({ url: request.url(), message: request.failure()?.errorText })
+    })
+  }
+  app.on('window', observe)
+  app.windows().forEach(observe)
   const capture = async (label) => {
     const windows = []
     for (const [i, page] of app.windows().entries()) {
@@ -53,7 +66,8 @@ async function main() {
           disabled: node.disabled,
           value: node.type === 'password' ? '[redacted]' : /key|token|secret/i.test(`${node.name} ${node.id} ${node.placeholder}`) ? '[redacted]' : node.value,
         }))
-        return { text: document.body.innerText, controls, dimensions: { width: innerWidth, height: innerHeight, documentWidth: document.documentElement.scrollWidth }, alerts: [...document.querySelectorAll('[role=alert]')].map(node => node.textContent) }
+        const model = document.querySelector('#app').__vue_app__?.config.globalProperties.$pinia?._s.get('settings-stage-model')
+        return { text: document.body.innerText, controls, dimensions: { width: innerWidth, height: innerHeight, documentWidth: document.documentElement.scrollWidth }, alerts: [...document.querySelectorAll('[role=alert]')].map(node => node.textContent), stage: model ? { renderer: model.stageModelRenderer, modelId: model.stageModelSelected, sourceUrl: model.stageModelSelectedUrl, mounted: document.documentElement.dataset.alicizationStageMounted } : null }
       })
       const screenshot = path.join(root, `${String(records.length).padStart(3, '0')}-${label.replace(/[^\w-]/g, '_')}-${i}.png`)
       await page.screenshot({ path: screenshot, timeout: 5000 }).catch(error => errors.push({ url: page.url(), message: `Screenshot: ${error.message}` }))
@@ -61,7 +75,7 @@ async function main() {
     }
     const result = { label, at: new Date().toISOString(), windows, errors: [...errors] }
     records.push(result)
-    await fs.writeFile(path.join(root, 'audit.json'), JSON.stringify({ profile, ...identity, privateDesktop: process.env.LIFE_QA_PRIVATE_DESKTOP, records }, null, 2))
+    await fs.writeFile(path.join(root, 'audit.json'), JSON.stringify({ profile, ...identity, nativeRuntime, privateDesktop: process.env.LIFE_QA_PRIVATE_DESKTOP, records }, null, 2))
     return result
   }
   try {
@@ -122,8 +136,11 @@ async function main() {
     }
   }
   finally {
-    await app.close()
-    console.info(JSON.stringify({ root, profile, records: records.length, rendererErrors: errors }))
+    const shutdown = await closePrivateRuntime(app, nativeRuntime)
+    await fs.writeFile(path.join(root, 'shutdown.json'), JSON.stringify(shutdown))
+    if (!shutdown.completed || shutdown.exitCode !== 0)
+      process.exitCode = 1
+    console.info(JSON.stringify({ root, profile, records: records.length, rendererErrors: errors, shutdown }))
   }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })

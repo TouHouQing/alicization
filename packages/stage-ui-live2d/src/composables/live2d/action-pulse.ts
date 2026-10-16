@@ -118,6 +118,7 @@ export function buildLive2DActionPulseReplayKey(input: {
 
   return JSON.stringify([
     `${motionName}:${motionIndex}`,
+    input.state?.actionPulse.revision ?? 0,
     input.state?.activeActionCueSource ?? 'none',
     normalizeText(rendererHints?.residentMode).toLowerCase(),
     normalizeText(rendererHints?.preferredBlinkCadence).toLowerCase(),

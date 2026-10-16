@@ -9,7 +9,7 @@ $runningTests = @($processes | Where-Object { $_.CommandLine -match '\bvitest\b'
 $targets = [Collections.Generic.List[object]]::new()
 
 # Only disposable, named QA builds are eligible. Keep released installers and research checkouts.
-foreach ($buildName in @('life-closure-qa-20261006', 'life-installer-qa-20261005', 'win-unpacked', 'life-intent-pre-api-20261006', 'stage-fix', 'stage-fix-final', 'life-continuity-20261005', 'life-experience-20261005', 'life-living-20261005', 'life-phase1-20261005')) {
+foreach ($buildName in @('life-closure-qa-20261006', 'life-installer-qa-20261005', 'win-unpacked', 'life-intent-pre-api-20261006', 'stage-fix', 'stage-fix-final', 'life-continuity-20261005', 'life-experience-20261005', 'life-living-20261005', 'life-phase1-20261005', 'life-completion-20261012-release', 'life-completion-20261012-verified', 'life-completion-20261012-complete', 'life-completion-20261012-final')) {
     $candidate = [IO.Path]::GetFullPath((Join-Path $distRoot $buildName))
     if ((Split-Path $candidate -Parent) -cne $distRoot) { throw 'Build escaped the designated dist directory.' }
     if (Test-Path -LiteralPath $candidate) {
@@ -36,7 +36,7 @@ foreach ($target in $targets) {
     }
     $active = @($processes | Where-Object {
         ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($resolved + '\', [StringComparison]::OrdinalIgnoreCase)) -or
-        ($_.CommandLine -and $_.CommandLine.Contains($resolved, [StringComparison]::OrdinalIgnoreCase))
+        ($_.CommandLine -and $_.CommandLine.IndexOf($resolved, [StringComparison]::OrdinalIgnoreCase) -ge 0)
     })
     $rootItem = Get-Item -LiteralPath $resolved -Force
     $entries = @(Get-ChildItem -LiteralPath $resolved -Recurse -Force -ErrorAction Stop)
