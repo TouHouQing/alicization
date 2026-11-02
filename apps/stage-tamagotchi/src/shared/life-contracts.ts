@@ -42,7 +42,15 @@ export interface LifeCommitReceipt {
   committedAt: number
 }
 
+/** Snapshots retain active work and bounded history; exact historical commands provide a scope. */
+export interface LifeStateReadScope {
+  executionPlanId?: string
+  obligationId?: string
+  obligationIds?: string[]
+}
+
 export interface LifeStateView {
+  execution?: import('./execution-contracts').ExecutionStateView
   backupRestore?: { backupId: string, status: 'restored-awaiting-review' }
   cardId: string
   revision: number
@@ -56,7 +64,7 @@ export interface LifeStateView {
 
 export interface LifeIngress {
   id: string
-  kind: 'user-turn' | 'tool-result' | 'due' | 'feedback' | 'body-receipt' | 'system'
+  kind: 'user-turn' | 'tool-result' | 'due' | 'feedback' | 'body-receipt' | 'system' | 'task-run'
   source: string
   sourceKey: string
   payloadHash: string
@@ -65,6 +73,10 @@ export interface LifeIngress {
   observedAt: number
   status: 'accepted' | 'processing' | 'settled' | 'held' | 'failed'
 }
+
+export type LifeInputReadSet
+  = { kind: 'active-input', ingressId: string, payloadHash: string, inputHash: string }
+    | { kind: 'absent-input', ingressId: string }
 
 export interface LifeEffect {
   id: string
@@ -80,11 +92,21 @@ export interface LifeEffect {
 }
 
 export type LifeMutation
-  = { type: 'ingress-accept', ingress: Omit<LifeIngress, 'observedAt' | 'status' | 'payloadHash'> }
+  = { type: 'execution-plan', plan: import('./execution-contracts').WorkPlan, expectedRevision: number }
+    | { type: 'execution-verifiers-configure', registry: string, expectedHash: string }
+    | { type: 'execution-criteria-revise', command: import('./execution-contracts').ExecutionCriteriaChange }
+    | { type: 'execution-work-stop', command: import('./execution-contracts').ExecutionWorkStop }
+    | { type: 'execution-recovery-assert', effectId: string, binding: string }
+    | { type: 'execution-procedure-bind', threadId: string, candidateId: string, version: string }
+    | { type: 'execution-procedure-observe-failure', planId: string, planRevision: number, generation: number, verificationId: string }
+    | { type: 'execution-step-result', result: import('./execution-contracts').WorkStepResult, expectedState: import('./execution-contracts').WorkStep['state'] }
+    | { type: 'execution-slice', slice: import('./execution-contracts').WorkSlice, expectedState: import('./execution-contracts').WorkSlice['state'] | null }
+    | { type: 'ingress-accept', ingress: Omit<LifeIngress, 'observedAt' | 'status' | 'payloadHash'> }
+    | { type: 'input-assert-current', readSet: LifeInputReadSet }
     | { type: 'input-resume', parentIngressId: string, expectedPayloadHash: string, childTurnId: string, conversationId: string }
     | { type: 'ingress-settle', id: string, status: LifeIngress['status'], nextAttemptAt?: number, expectedStatus?: LifeIngress['status'], expectedPayloadHash?: string }
     | { type: 'effect-prepare', effect: Omit<LifeEffect, 'status' | 'receipt' | 'leaseUntil'> }
-    | { type: 'effect-transition', id: string, expected: LifeEffect['status'], status: LifeEffect['status'], receipt?: Record<string, unknown>, leaseUntil?: number }
+    | { type: 'effect-transition', id: string, expected: LifeEffect['status'], status: LifeEffect['status'], receipt?: Record<string, unknown>, leaseUntil?: number, expectedSnapshot?: { generation: number, payloadHash: string, receiptHash: string } }
     | { type: 'obligation-create', obligation: LifeObligation, dedupeKey: string, schedule?: { taskId: string, message: string } }
     | { type: 'obligation-update', id: string, expectedGeneration: number, expectedRevision: number, status: LifeObligationStatus, dueAt?: number, turnId?: string, receiptId?: string }
     | { type: 'expression-record', receipt: LifeExpressionReceipt, presentationVerified: boolean }
@@ -179,9 +201,11 @@ export interface LifeGoalVerification {
 }
 
 export type LifeObligationStatus = 'proposed' | 'accepted' | 'waiting' | 'in-progress' | 'verifying' | 'fulfilled' | 'blocked' | 'failed' | 'cancelled' | 'superseded'
-export type LifeProofKind = 'file' | 'setting' | 'reminder' | 'user-reported' | 'interface-state'
+export type LifeProofKind = 'file' | 'setting' | 'reminder' | 'user-reported' | 'interface-state' | 'composite'
 
 export interface LifeObligation {
+  procedureSource?: { candidateId: string, version: string }
+  sourceAttemptId?: string | null
   personalTopic?: string
   personalOrigin?: 'self-initiated' | 'host-invited'
   personalAuthorship?: { effectId: string, episodeId: string, verifiedAt: number }
@@ -203,7 +227,7 @@ export interface LifeObligation {
   timezone: string | null
   threadId: string | null
   scheduledTaskId: string | null
-  proof: { kind: LifeProofKind, channel?: 'text-rendered' | 'audio-ended' | 'browser' | 'desktop', targetId?: string, path?: string, contentHash?: string, settingKey?: string, expectedValue?: string }
+  proof: { kind: LifeProofKind, acceptance?: import('./execution-contracts').TaskAcceptance, channel?: 'text-rendered' | 'audio-ended' | 'browser' | 'desktop', targetId?: string, path?: string, contentHash?: string, settingKey?: string, expectedValue?: string }
   receiptId: string | null
   createdAt: number
   updatedAt: number

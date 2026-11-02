@@ -192,6 +192,213 @@ describe('useStageEmbodimentRuntime', () => {
     clearAlicizationBridge()
   })
 
+  it.each([false, true])('retires a speechless Live2D presence pulse with textOnly=%s', async (textOnly) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    let now = 1_000
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const harness = createDispatcherHarness()
+    const scope = effectScope()
+    try {
+      const runtime = scope.run(() => useStageEmbodimentRuntime({
+        textOnly: ref(textOnly),
+        activeCardId: ref('default'),
+        audioContext: { createAnalyser: () => ({ fftSize: 2048, getByteTimeDomainData() {} }), resume: async () => {}, state: 'running' } as unknown as AudioContext,
+        clampPerformance: value => value,
+        currentMotion: ref({ group: 'Idle' }),
+        dispatcher: harness.dispatcher as any,
+        enqueueEmotion: () => {},
+        focusAt: ref({ x: 640, y: 360 }),
+        live2dActionCapabilities: computed(() => []),
+        mouthOpenSize: ref(0),
+        paused: ref(false),
+        performanceManifest: computed(() => ({ ...createManifest(), renderer: 'live2d' as const })),
+        pitch: ref(0),
+        rate: ref(1),
+        resolveClampedPresencePulsePerformance: payload => resolveStagePresencePulsePerformance(payload, 'neutral'),
+        resolvePresenceIntensity: (_emphasis, fallback) => fallback,
+        speakFallback: async () => {},
+        stageBounds: ref({ width: 1280, height: 720 }),
+        stageModelRenderer: ref('live2d'),
+        vrmActionBindings: ref([]),
+      }))!
+      const timestamp = Date.now()
+      await harness.getController('live2d').applyPresencePulse({ watchMode: 'mnemonic-passive', embodiedPresence: 'attentive', scenario: 'coding', stance: 'accompany', confidence: 1, reasonTags: ['committed-execution'], expiresAt: timestamp + 6000, activity: { id: 'task', attemptId: 'attempt', kind: 'execution', phase: 'working', phaseStartedAt: timestamp, observedAt: timestamp, sequence: 1 } })
+      await flushTasks()
+      expect(runtime.performanceState.value.actionPulse.reason).toBe('presence-pulse')
+      const pulseRevision = runtime.performanceState.value.actionPulse.revision
+      now += 5_000
+      vi.advanceTimersByTime(5_000)
+      await flushTasks()
+      expect(runtime.performanceState.value.phase).toBe('idle')
+      expect(runtime.performanceState.value.actionPulse.cue).toBeNull()
+      expect(runtime.performanceState.value.actionPulse.revision).toBe(pulseRevision)
+      expect(runtime.speechRenderState.value.active).toBe(false)
+      expect(runtime.speechRenderState.value.mouthOpenRatio).toBe(0)
+    }
+    finally {
+      scope.stop()
+      clock.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps a visible text reply coherent while resident emotion refreshes, then returns to the latest resident', async () => {
+    vi.useFakeTimers()
+    let now = 1_000
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now)
+    let publish: ((snapshot: AlicizationVisualPresenceStateSnapshot) => void) | undefined
+    let snapshot = createRestProtectiveRuntimeVisualPresenceState()
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getVisualPresenceState: vi.fn(async () => snapshot),
+      onVisualPresenceState: vi.fn((listener) => {
+        publish = listener
+        return () => {}
+      }),
+    }))
+    const harness = createDispatcherHarness()
+    const scope = effectScope()
+    const card = ref('default')
+    const paused = ref(false)
+    const textOnly = ref(true)
+    const renderer = ref<'live2d' | 'vrm'>('live2d')
+    const runtime = scope.run(() => useStageEmbodimentRuntime({
+      textOnly,
+      activeCardId: card,
+      paused,
+      audioContext: { createAnalyser: () => ({ fftSize: 2048, getByteTimeDomainData: vi.fn() }), resume: async () => {}, state: 'running' } as unknown as AudioContext,
+      clampPerformance: performance => performance,
+      currentMotion: ref({ group: 'Idle', index: 0 }),
+      dispatcher: harness.dispatcher as any,
+      enqueueEmotion: () => {},
+      focusAt: ref({ x: 640, y: 360 }),
+      live2dActionCapabilities: computed(() => []),
+      mouthOpenSize: ref(0),
+      performanceManifest: computed(() => createManifest()),
+      pitch: ref(0),
+      rate: ref(1),
+      resolveClampedPresencePulsePerformance: () => ({ baseEmotion: 'neutral', emotion: 'neutral', delivery: 'calm', emphasis: 0 }),
+      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
+      speakFallback: async () => {},
+      stageBounds: ref({ width: 1280, height: 720 }),
+      stageModelRenderer: renderer,
+      vrmActionBindings: ref([]),
+    }))!
+    try {
+      await flushTasks()
+      expect(publish).toBeTypeOf('function')
+      const payload = { baseEmotion: 'happy', emotion: 'happy', facialCue: 'soft-smile', actionCue: 'nod_soft', delivery: 'gentle', emphasis: 0 } as const
+      runtime.beginTextDialogue('visible-text')
+      runtime.armDialoguePerformance(payload, { turnId: 'visible-text', suppressActionPulse: true })
+      expect(runtime.performanceState.value.actionPulse.revision).toBe(0)
+      runtime.presentTextDialogue('stale-turn')
+      expect(runtime.performanceState.value.actionPulse.revision).toBe(0)
+      runtime.presentTextDialogue('visible-text')
+      expect(runtime.performanceState.value.actionPulse.revision).toBeGreaterThan(0)
+      const revision = runtime.performanceState.value.actionPulse.revision
+      const timestamp = Date.now()
+      await harness.getController('live2d').applyPresencePulse({ watchMode: 'mnemonic-passive', embodiedPresence: 'attentive', scenario: 'coding', stance: 'accompany', confidence: 1, reasonTags: ['committed-execution'], expiresAt: timestamp + 6000, activity: { id: 'task', attemptId: 'attempt', kind: 'execution', phase: 'working', phaseStartedAt: timestamp, observedAt: timestamp, sequence: 1 } })
+      expect(runtime.activityPresence.value?.phase).toBe('working')
+      expect(runtime.performanceState.value.actionPulse.revision).toBe(revision)
+      for (let refresh = 1; refresh <= 4; refresh++) {
+        now += 3_000
+        snapshot = createRestProtectiveRuntimeVisualPresenceState(Date.now() + refresh)
+        publish?.(snapshot)
+        await flushTasks()
+        expect(runtime.performanceState.value.residentPerformance.baseEmotion).toBe('tired')
+        expect(runtime.performanceState.value.performance.baseEmotion).toBe('happy')
+        expect(runtime.performanceState.value.performance.facialCue).toBe('soft-smile')
+        expect(runtime.performanceState.value.actionPulse.revision).toBe(revision)
+        expect(runtime.speechRenderState.value.active).toBe(false)
+        expect(runtime.speechRenderState.value.mouthOpenRatio).toBe(0)
+      }
+      runtime.armDialoguePerformance({ ...payload, baseEmotion: 'concerned', facialCue: 'frown' }, { turnId: 'unrelated-turn' })
+      expect(runtime.performanceState.value.performance.baseEmotion).toBe('happy')
+      runtime.finishTextDialogue('stale-turn')
+      expect(runtime.performanceState.value.phase).toBe('armed')
+      runtime.finishTextDialogue('visible-text')
+      now += 3_121
+      vi.advanceTimersByTime(3_121)
+      await flushTasks()
+      expect(runtime.performanceState.value.phase).toBe('idle')
+      expect(runtime.performanceState.value.performance.baseEmotion).toBe('tired')
+      runtime.beginTextDialogue('next-visible-text')
+      runtime.armDialoguePerformance(payload, { turnId: 'next-visible-text' })
+      card.value = 'another-card'
+      expect(runtime.performanceState.value.performance.baseEmotion).toBe('neutral')
+      await harness.getController('live2d').applyPerformance(payload, { cardId: 'default', turnId: 'next-visible-text' })
+      expect(runtime.performanceState.value.performance.baseEmotion).toBe('neutral')
+      const revocations = [
+        () => { paused.value = true },
+        () => { textOnly.value = false },
+        () => { renderer.value = 'vrm' },
+      ]
+      for (const revoke of revocations) {
+        runtime.beginTextDialogue('revoked-text')
+        runtime.armDialoguePerformance(payload, { turnId: 'revoked-text' })
+        revoke()
+        expect(runtime.performanceState.value.performance.baseEmotion).toBe('neutral')
+      }
+    }
+    finally {
+      scope.stop()
+      clock.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('delivers text emotion once, rejects finished-turn replay, and preserves unrelated initiative', () => {
+    let now = 1_000
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const harness = createDispatcherHarness()
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentRuntime({
+      textOnly: ref(true),
+      activeCardId: ref('default'),
+      audioContext: { createAnalyser: () => ({ fftSize: 2048, getByteTimeDomainData: vi.fn() }), resume: async () => {}, state: 'running' } as unknown as AudioContext,
+      clampPerformance: performance => performance,
+      currentMotion: ref({ group: 'Idle', index: 0 }),
+      dispatcher: harness.dispatcher as any,
+      enqueueEmotion: () => {},
+      focusAt: ref({ x: 640, y: 360 }),
+      live2dActionCapabilities: computed(() => []),
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      performanceManifest: computed(() => createManifest()),
+      pitch: ref(0),
+      rate: ref(1),
+      resolveClampedPresencePulsePerformance: () => ({ baseEmotion: 'neutral', emotion: 'neutral', delivery: 'calm', emphasis: 0 }),
+      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
+      speakFallback: async () => {},
+      stageBounds: ref({ width: 1280, height: 720 }),
+      stageModelRenderer: ref('live2d'),
+      vrmActionBindings: ref([]),
+    }))!
+    const payload = { baseEmotion: 'happy', emotion: 'happy', facialCue: 'soft-smile', actionCue: 'nod_soft', delivery: 'gentle', emphasis: 0 } as const
+    runtime.beginTextDialogue('text-one')
+    runtime.armDialoguePerformance(payload, { variationToken: 'text-one:gw1|reply' })
+    const first = runtime.performanceState.value.actionPulse.revision
+    now += 2_000
+    runtime.armDialoguePerformance(payload, { variationToken: 'text-one:gw1|reply' })
+    expect(runtime.performanceState.value.actionPulse.revision).toBe(first)
+    runtime.armDialoguePerformance({ ...payload, baseEmotion: 'concerned', facialCue: 'soft-gaze' }, { variationToken: 'text-one:gw1|reply' })
+    expect(runtime.performanceState.value.performance.baseEmotion).toBe('concerned')
+    expect(runtime.performanceState.value.actionPulse.revision).toBe(first)
+    runtime.finishTextDialogue('stale-turn')
+    expect(runtime.performanceState.value.phase).toBe('armed')
+    runtime.finishTextDialogue('text-one')
+    expect(runtime.performanceState.value.phase).toBe('cooldown')
+    now += 2_000
+    runtime.armDialoguePerformance(payload, { variationToken: 'text-one:gw1|late' })
+    expect(runtime.performanceState.value.phase).toBe('cooldown')
+    runtime.armDialoguePerformance({ ...payload, actionCue: 'head_tilt' }, { variationToken: 'initiative:other-turn' })
+    expect(runtime.performanceState.value.phase).toBe('cooldown')
+    expect(runtime.performanceState.value.actionPulse.revision).toBeGreaterThan(first)
+    expect(runtime.speechRenderState.value.active).toBe(false)
+    expect(runtime.speechRenderState.value.mouthOpenRatio).toBe(0)
+    scope.stop()
+    clock.mockRestore()
+  })
+
   it('keeps chinese runtime embodiment authority coherent from speech planning through playback telemetry', async () => {
     const harness = createDispatcherHarness()
     const scope = effectScope()

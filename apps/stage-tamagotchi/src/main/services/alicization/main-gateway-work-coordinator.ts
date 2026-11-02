@@ -25,6 +25,9 @@ export type AlicizationMainGatewayOneShotWorkLease
   }
 
 export interface AlicizationMainGatewayWorkCoordinator {
+  readonly signal: AbortSignal
+  close: (reason?: unknown) => void
+  onAvailability: (listener: () => void) => () => void
   acquireOneShot: (input: {
     source: AlicizationMainGatewaySource
   }) => AlicizationMainGatewayOneShotWorkLease
@@ -43,6 +46,10 @@ export interface AlicizationMainGatewayWorkCoordinator {
 export const mainGatewayForegroundPreemptionReason = 'main-gateway-preempted-by-foreground-chat'
 const backgroundFailureBackoffBaseMs = 60_000
 const backgroundFailureBackoffMaxMs = 15 * 60_000
+const shutdownSignals = new WeakSet<AbortSignal>()
+
+/** Only the actual coordinator owner can classify its cancellation as shutdown. */
+export const isMainGatewayWorkShutdown = (signal: AbortSignal) => shutdownSignals.has(signal)
 
 function createForegroundPreemptionError() {
   return Object.assign(new Error(mainGatewayForegroundPreemptionReason), {
@@ -64,7 +71,7 @@ export function isMainGatewayForegroundPreemption(error: unknown) {
 }
 
 export function createAlicizationMainGatewayWorkCoordinator(): AlicizationMainGatewayWorkCoordinator {
-  const laneStorage = new AsyncLocalStorage<AlicizationMainGatewayWorkLane>()
+  const foregroundOwner = new AsyncLocalStorage<() => boolean>()
   let activeForegroundCount = 0
   let activeBackground: {
     source: AlicizationMainGatewaySource
@@ -72,9 +79,40 @@ export function createAlicizationMainGatewayWorkCoordinator(): AlicizationMainGa
   } | null = null
   let consecutiveBackgroundFailures = 0
   let backgroundBackoffUntil = 0
+  let closed = false
+  const lifetime = new AbortController()
+  const leaseControllers = new Set<AbortController>()
+  const availabilityListeners = new Set<() => void>()
+  let backoffWakeTimer: ReturnType<typeof setTimeout> | undefined
+
+  function notifyAvailability() {
+    if (backoffWakeTimer) {
+      clearTimeout(backoffWakeTimer)
+      backoffWakeTimer = undefined
+    }
+    if (closed || !availabilityListeners.size || activeForegroundCount || activeBackground)
+      return
+    const delay = backgroundBackoffUntil - Date.now()
+    if (delay > 0) {
+      backoffWakeTimer = setTimeout(notifyAvailability, delay)
+      backoffWakeTimer.unref?.()
+      return
+    }
+    for (const listener of [...availabilityListeners]) {
+      try { listener() }
+      catch { /* A continuation observer cannot break provider ownership. */ }
+    }
+  }
 
   const acquireOneShot: AlicizationMainGatewayWorkCoordinator['acquireOneShot'] = ({ source }) => {
-    const lane = laneStorage.getStore() ?? 'background'
+    if (closed)
+      throw new DOMException('Main gateway coordinator is closed', 'AbortError')
+    // Detached task continuations retain their admission's async context. This
+    // internal planning job must still yield to the next real user turn.
+    // Timers also inherit a finished dialogue's async context. Its released
+    // lease cannot lend foreground priority to later background work.
+    const liveForeground = foregroundOwner.getStore()?.() === true
+    const lane = source === 'execution-planning' || !liveForeground ? 'background' : 'foreground'
     if (lane === 'background' && activeForegroundCount > 0) {
       return {
         accepted: false,
@@ -100,6 +138,7 @@ export function createAlicizationMainGatewayWorkCoordinator(): AlicizationMainGa
     }
 
     const controller = new AbortController()
+    leaseControllers.add(controller)
     let released = false
     if (lane === 'background') {
       activeBackground = {
@@ -116,6 +155,7 @@ export function createAlicizationMainGatewayWorkCoordinator(): AlicizationMainGa
         if (released)
           return
         released = true
+        leaseControllers.delete(controller)
         if (lane === 'background' && activeBackground?.controller === controller) {
           activeBackground = null
           if (outcome?.status === 'failure') {
@@ -131,12 +171,15 @@ export function createAlicizationMainGatewayWorkCoordinator(): AlicizationMainGa
             consecutiveBackgroundFailures = 0
             backgroundBackoffUntil = 0
           }
+          notifyAvailability()
         }
       },
     }
   }
 
   const openForeground: AlicizationMainGatewayWorkCoordinator['openForeground'] = () => {
+    if (closed)
+      throw new DOMException('Main gateway coordinator is closed', 'AbortError')
     activeForegroundCount += 1
     const background = activeBackground
     if (background && !background.controller.signal.aborted)
@@ -144,17 +187,54 @@ export function createAlicizationMainGatewayWorkCoordinator(): AlicizationMainGa
 
     let released = false
     return {
-      run: async task => await laneStorage.run('foreground', task),
+      run: async (task) => {
+        if (closed)
+          throw new DOMException('Main gateway coordinator is closed', 'AbortError')
+        return await foregroundOwner.run(() => !released, task)
+      },
       release: () => {
         if (released)
           return
         released = true
         activeForegroundCount = Math.max(0, activeForegroundCount - 1)
+        notifyAvailability()
       },
     }
   }
 
   return {
+    signal: lifetime.signal,
+    close: (reason = new DOMException('Main gateway coordinator is closed', 'AbortError')) => {
+      if (closed)
+        return
+      closed = true
+      lifetime.abort(reason)
+      if (backoffWakeTimer) {
+        clearTimeout(backoffWakeTimer)
+        backoffWakeTimer = undefined
+      }
+      availabilityListeners.clear()
+      // Cancellation requests release no lease. Each actual provider owner
+      // remains visible until its normal finally block confirms completion.
+      for (const controller of leaseControllers) {
+        shutdownSignals.add(controller.signal)
+        controller.abort(reason)
+      }
+    },
+    onAvailability: (listener) => {
+      if (closed)
+        return () => {}
+      availabilityListeners.add(listener)
+      if (backgroundBackoffUntil > Date.now())
+        notifyAvailability()
+      return () => {
+        availabilityListeners.delete(listener)
+        if (!availabilityListeners.size && backoffWakeTimer) {
+          clearTimeout(backoffWakeTimer)
+          backoffWakeTimer = undefined
+        }
+      }
+    },
     acquireOneShot,
     openForeground,
     snapshot: () => ({

@@ -14,6 +14,85 @@ import { createLifeTurnRuntime } from './life-turn-runtime'
 import { dispatchTaskThread } from './task-thread-dispatcher'
 
 describe('production reply grounding with SQLite responsibility fences', () => {
+  it.each([
+    '你今天完成了画稿，我已经保存了文件。',
+    '我已经删除了文件。',
+    '文件已经保存了。',
+    '我已保存文件。',
+    '文件已保存。',
+    'I have already saved the file.',
+    'The file has already been saved.',
+  ])('rejects an independent review that silently omits the execution assertion in %s', async (text) => {
+    const root = await mkdtemp(join(tmpdir(), 'life-omitted-execution-review-'))
+    const db = await setupAlicizationDb(root, { cardId: 'alice' })
+    const signal = new AbortController().signal
+    try {
+      const life = createLifeTurnRuntime({ read: db.readLifeState, commit: db.commitLifeState, getIngress: db.getLifeIngress, getEffect: db.getLifeEffect, now: Date.now })
+      await life.admit({ cardId: 'alice', turnId: 'prior-art', conversationId: 'primary', messages: [{ role: 'user', content: '今天画稿终于完成了，还得到了朋友的夸奖，我很开心。' }] }, signal)
+      await life.admit({ cardId: 'alice', turnId: 'comfort', conversationId: 'primary', messages: [{ role: 'user', content: '先陪我安静一会儿，再轻轻鼓励我一句。' }] }, signal)
+      const review = createLifeReplyGroundingRuntime({ read: db.readLifeState, readUserInput: db.getLifeUserInput, readMemoryEvidence: cardId => db.readLifeFactVersions({ cardId }), commit: db.commitLifeState, now: Date.now, generate: async ({ user, responseFormat }) => {
+        expect((responseFormat.json_schema.schema.properties.claims as { minItems?: number }).minItems).toBe(1)
+        const sources = JSON.parse(user).conversationStatements as Array<{ speaker: string, text: string, binding: unknown }>
+        const source = sources.find(statement => statement.speaker === 'host' && statement.text.includes('画稿'))!
+        return JSON.stringify({ claims: [], hostStatements: text.startsWith('你今天') ? [{ quote: '你今天完成了画稿，', binding: source.binding, meaningMatchesBinding: true }] : [] })
+      } })
+      const result = await review({ cardId: 'alice', turnId: 'comfort', text, owners: (await db.readLifeState()).owners, signal })
+      expect(result.accepted).toBe(false)
+      expect(result.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'UNRELIABLE_REVIEW' })]))
+      const audit = await db.getLifeIngress(result.reviewId!)
+      expect(audit?.payload.accepted).toBe(false)
+      expect(audit?.payload.requiredExecutionReviewQuotes).toEqual(expect.arrayContaining([expect.stringMatching(/保存|删除|saved/u)]))
+      expect((await db.readLifeState()).effects).toEqual([])
+    }
+    finally { await db.close(); await rm(root, { recursive: true, force: true }) }
+  })
+  it.each([null, '', '   ', '{broken'])('distinguishes missing independent review from malformed review: %j', async (raw) => {
+    const root = await mkdtemp(join(tmpdir(), 'life-review-availability-'))
+    const db = await setupAlicizationDb(root, { cardId: 'alice' })
+    try {
+      const signal = new AbortController().signal
+      const life = createLifeTurnRuntime({ read: db.readLifeState, commit: db.commitLifeState, getIngress: db.getLifeIngress, getEffect: db.getLifeEffect, now: Date.now })
+      await life.admit({ cardId: 'alice', turnId: 'request', conversationId: 'primary', messages: [{ role: 'user', content: '检查当前任务状态。' }] }, signal)
+      const review = createLifeReplyGroundingRuntime({ read: db.readLifeState, readUserInput: db.getLifeUserInput, readMemoryEvidence: cardId => db.readLifeFactVersions({ cardId }), commit: db.commitLifeState, now: Date.now, generate: async () => raw })
+      const result = await review({ cardId: 'alice', turnId: 'request', text: '我还没有确认结果。', owners: (await db.readLifeState()).owners, signal })
+      const missing = !raw?.trim()
+      expect(result.accepted).toBe(false)
+      expect((result as typeof result & { reviewUnavailable?: true }).reviewUnavailable).toBe(missing ? true : undefined)
+      const audit = await db.getLifeIngress(result.reviewId!)
+      expect(audit).toMatchObject({ source: 'reply-grounding', status: 'settled', payload: { accepted: false, reviewUnavailable: missing } })
+      expect((await db.readLifeState()).effects).toHaveLength(0)
+    }
+    finally { await db.close(); await rm(root, { recursive: true, force: true }) }
+  })
+  it('handles pure evidence limitations before an incorrect execution claim label without inventing a responsibility', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'life-evidence-limitation-'))
+    const db = await setupAlicizationDb(root, { cardId: 'alice' })
+    const signal = new AbortController().signal
+    let kind = 'task-acknowledgment'
+    let quote = '目前还不能说已执行完成。'
+    try {
+      const life = createLifeTurnRuntime({ read: db.readLifeState, commit: db.commitLifeState, getIngress: db.getLifeIngress, getEffect: db.getLifeEffect, now: Date.now })
+      await life.admit({ cardId: 'alice', turnId: 'status', conversationId: 'primary', messages: [{ role: 'user', content: '现在的执行状态呢？' }] }, signal)
+      const review = createLifeReplyGroundingRuntime({ read: db.readLifeState, readUserInput: db.getLifeUserInput, readMemoryEvidence: cardId => db.readLifeFactVersions({ cardId }), commit: db.commitLifeState, now: Date.now, generate: async () => JSON.stringify({ claims: [{ kind, quote, binding: null, meaningMatchesBinding: false }] }) })
+      const check = async () => review({ cardId: 'alice', turnId: 'status', text: quote, owners: (await db.readLifeState()).owners, signal })
+      for (const label of ['task-acknowledgment', 'future-task', 'task-complete', 'execution-step-complete', 'execution-step-outcome']) {
+        kind = label
+        for (const limitation of ['目前还不能说已执行完成。', '我还没有收到执行完成或文件验收结果。', '尚不能确认文件已写入或验收通过。', '报告完成后还需要你确认是否符合要求。', '计划受理不代表步骤已执行；', '工作接收不等于已经完成。']) {
+          quote = limitation
+          expect((await check()).accepted, `${label}: ${quote}`).toBe(true)
+        }
+        for (const mixed of ['目前还不能说已执行完成，但文件已经保存了。', '不能确认文件没有保存。', '尚不能确认已完成；我会删除其他文件。', '报告已完成后还需要你确认是否符合要求。', '报告完成后我会删除文件。', '计划受理不代表步骤没有执行。', '工作已经执行不代表全部完成。']) {
+          quote = mixed
+          expect((await check()).accepted, `${label}: ${quote}`).toBe(false)
+        }
+      }
+      expect((await db.readLifeState()).obligations).toEqual([])
+    }
+    finally {
+      await db.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
   it.each(['active', 'another-conversation', 'withdrawn'])('recalls an actual failed read with source scope, while refusing present-state and success claims: %s', async (sourceState) => {
     const root = await mkdtemp(join(tmpdir(), 'life-past-read-grounding-'))
     const db = await setupAlicizationDb(root, { cardId: 'alice' })
@@ -315,7 +394,8 @@ describe('production reply grounding with SQLite responsibility fences', () => {
       await db.close()
       await rm(root, { recursive: true, force: true })
     }
-  })
+  // Includes a real native child process and SQLite review/publication fences.
+  }, 15_000)
 
   it('archives the reviewed text atomically and refuses a different text or a cancellation after review', async () => {
     const root = await mkdtemp(join(tmpdir(), 'life-publication-review-'))

@@ -48,6 +48,19 @@ hitl:
     empty_summary: 无参数摘要
     none: 无
   fields:
+    input_preview: 本次操作的内容预览：
+    window_preview: 窗口预览
+    window_foreground_hint: 允许后请切回这个窗口并松开切换按键；执行期间移动鼠标或按键即可接管。
+    window_target_markers: 数字标记操作目标；拖拽时从 1 移动到 2。
+    window_click: '使用鼠标{button}点击标记 1。'
+    window_drag: 从标记 1 拖动到标记 2。
+    window_scroll: '在标记 1 处{direction}滚动 {notches} 格。'
+    window_button_left: 左键
+    window_button_right: 右键
+    window_button_middle: 中键
+    window_scroll_up: 向上
+    window_scroll_down: 向下
+    preview_truncated: 仅显示前 600 个字符，下方大小和哈希对应完整内容。
     arguments_summary: 参数摘要：
     not_provided: 未提供
     reason: 原因：

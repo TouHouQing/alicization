@@ -11,6 +11,7 @@ const portableSchemaOmittedKeys = new Set([
   'format',
   'propertyNames',
 ])
+const namedSchemaMaps = new Set(['properties', 'patternProperties', '$defs', 'definitions', 'dependentSchemas', 'dependencies'])
 
 function toPortableProviderSchema(value: unknown): unknown {
   if (Array.isArray(value))
@@ -19,13 +20,20 @@ function toPortableProviderSchema(value: unknown): unknown {
   if (!value || typeof value !== 'object')
     return value
 
-  const result: Record<string, unknown> = {}
+  const entries: Array<[string, unknown]> = []
   for (const [key, entry] of Object.entries(value)) {
     if (portableSchemaOmittedKeys.has(key))
       continue
-    result[key] = toPortableProviderSchema(entry)
+    // Property/definition names and literal values are data. Removing a schema
+    // keyword named "format" must not remove an input property with that name.
+    const adapted = namedSchemaMaps.has(key) && isRecord(entry)
+      ? Object.fromEntries(Object.entries(entry).map(([name, schema]) => [name, toPortableProviderSchema(schema)]))
+      : key === 'enum' || key === 'const'
+        ? structuredClone(entry)
+        : toPortableProviderSchema(entry)
+    entries.push([key, adapted])
   }
-  return result
+  return Object.fromEntries(entries)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

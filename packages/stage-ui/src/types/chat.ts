@@ -24,6 +24,8 @@ import type {
   AlicizationMindTurnGovernance,
   AlicizationProactiveMetadata,
 } from '../stores/alicization-bridge'
+import type { ChatEmbodimentMetaHookPayload } from '../stores/chat/hooks'
+import type { PresentedChatTextUnit } from '../stores/chat/text-presentation'
 
 export interface ChatSlicesText {
   type: 'text'
@@ -108,6 +110,7 @@ export interface ChatAssistantStructuredPayload {
 }
 
 export interface ChatAssistantMessage extends AssistantMessage {
+  delivery?: { status: 'interrupted', reason: 'cancelled' | 'failed', visibleText: string }
   id?: string
   origin?: 'user-turn' | 'subconscious-proactive'
   slices: ChatSlices[]
@@ -151,9 +154,12 @@ export type ChatStreamEvent
     | { type: 'after-compose', message: string, sessionId: string, context: ChatStreamEventContext }
     | { type: 'before-send', message: string, sessionId: string, context: ChatStreamEventContext }
     | { type: 'after-send', message: string, sessionId: string, context: ChatStreamEventContext }
+    | { type: 'text-presented', presentation: PresentedChatTextUnit, sessionId: string, context: ChatStreamEventContext }
+    | { type: 'embodiment-meta', meta: ChatEmbodimentMetaHookPayload, sessionId: string, context: ChatStreamEventContext }
     | { type: 'token-literal', literal: string, sessionId: string, context: ChatStreamEventContext }
     | { type: 'token-special', special: string, sessionId: string, context: ChatStreamEventContext }
     | { type: 'stream-end', sessionId: string, context: ChatStreamEventContext }
+    | { type: 'stream-cancel', reason: string, sessionId: string, context: ChatStreamEventContext }
     | { type: 'assistant-end', message: string, sessionId: string, context: ChatStreamEventContext }
     | { type: 'tool-call', toolCall: CompletionToolCall, sessionId: string, context: ChatStreamEventContext }
     | { type: 'assistant-message', message: ChatAssistantMessage, sessionId: string, messageText: string, context: ChatStreamEventContext }

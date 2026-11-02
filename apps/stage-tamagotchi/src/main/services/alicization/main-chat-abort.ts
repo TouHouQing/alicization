@@ -109,21 +109,20 @@ async function abortAlicizationChatRun(input: {
 }
 
 export async function abortAlicizationRunningChatRuns(input: AbortAlicizationRunningChatRunsOptions) {
-  let aborted = 0
-  for (const [key, run] of input.runs) {
-    if (run.state !== 'running')
-      continue
-    const accepted = await abortAlicizationChatRun({
-      key,
-      run,
-      reason: input.reason,
-      mainChatRunState: input.mainChatRunState,
-      createAbortError: input.createAbortError,
-    })
-    if (accepted)
-      aborted += 1
-  }
-  return aborted
+  // Each turn retains its own commit/cancellation authority. Request all stops
+  // before awaiting one owner that may depend on another turn's cleanup.
+  const pending = [...input.runs].filter(([, run]) => run.state === 'running').map(([key, run]) => abortAlicizationChatRun({
+    key,
+    run,
+    reason: input.reason,
+    mainChatRunState: input.mainChatRunState,
+    createAbortError: input.createAbortError,
+  }))
+  const outcomes = await Promise.allSettled(pending)
+  const failures = outcomes.filter((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected')
+  if (failures.length)
+    throw new AggregateError(failures.map(outcome => outcome.reason), 'Some chat cancellations failed after every running owner was signalled')
+  return outcomes.filter(outcome => outcome.status === 'fulfilled' && outcome.value).length
 }
 
 export async function abortAlicizationDirectChatRun(

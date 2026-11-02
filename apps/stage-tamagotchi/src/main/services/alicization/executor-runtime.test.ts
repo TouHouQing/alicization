@@ -392,11 +392,12 @@ describe('executor runtime remembered execution procedures', () => {
     resetCapabilityProbeMocks()
   })
 
-  it('admits only completed execution threads into reusable planning memory', async () => {
+  it('admits only current independently verified completed threads into reusable planning memory', async () => {
     const dbState = createDbState(createNeedsAffirmationThread())
     const statuses = ['completed', 'failed', 'cancelled', 'blocked', 'running', 'paused'] as const
     const executionThreads = statuses.map((status, index): AlicizationTaskThreadRecord => ({
       id: `thread-procedure-${status}`,
+      attemptId: `attempt-${status}`,
       decisionTraceId: `mind:trace:procedure-${status}`,
       turnId: `turn-procedure-${status}`,
       sessionId: `session-procedure-${status}`,
@@ -415,6 +416,8 @@ describe('executor runtime remembered execution procedures', () => {
         ? 200 + index
         : null,
     }))
+    // The successful source is older than the ordinary presentation window.
+    Object.assign(dbState.db, { readLifeState: vi.fn(async (scope?: { obligationIds?: string[] }) => ({ cardId: 'alice', obligations: scope?.obligationIds?.includes('task:thread-procedure-completed') ? [{ cardId: 'alice', threadId: 'thread-procedure-completed', sourceAttemptId: 'attempt-completed', status: 'fulfilled', verification: { verdict: 'satisfied', independent: true, verifiedAt: 250 } }] : [] })) })
     dbState.db.listTaskThreads = vi.fn(async (input?: { status?: unknown }) => (
       input?.status ? [] : executionThreads
     )) as any
@@ -424,6 +427,7 @@ describe('executor runtime remembered execution procedures', () => {
         return []
       return [{
         id: `event-${thread.id}`,
+        attemptId: thread.attemptId,
         threadId: thread.id,
         decisionTraceId: thread.decisionTraceId,
         turnId: thread.turnId,
@@ -481,6 +485,34 @@ describe('executor runtime remembered execution procedures', () => {
 
     expect(rememberedIds).toEqual(['execution-trace:thread-procedure-completed'])
   })
+})
+
+describe('historical procedural memory source reads', () => {
+  for (const recovered of [false, true]) {
+    it(`retains old memory while ${recovered ? 'rejecting recovered authorship' : 'preserving its verified channel preference'}`, async () => {
+      resetCapabilityProbeMocks()
+      const dbState = createDbState(createNeedsAffirmationThread())
+      const obligationId = 'task:old-memory-source'
+      Object.assign(dbState.db, {
+        searchMemoryConsolidations: vi.fn(async () => [{ id: 'old-procedure', kind: 'procedural', facet: null, periodKey: 'Earlier repository inspection', summary: 'Inspect repository memory planner regression.', lesson: 'Check the current repository before editing.', confidence: 0.8, periodEndedAt: 100, cues: [], metadata: { preferredChannel: 'codex', execution: { obligationId, generation: 1, attemptId: 'original', verificationId: 'verified-old-source' } } }]),
+        readLifeState: vi.fn(async (scope?: { obligationIds?: string[] }) => ({
+          cardId: 'alice',
+          obligations: scope?.obligationIds?.includes(obligationId) ? [{ id: obligationId, cardId: 'alice', generation: 1, sourceAttemptId: 'original', status: 'fulfilled', verification: { id: 'verified-old-source', verdict: 'satisfied', independent: true, verifiedAt: 100 } }] : [],
+          execution: { plans: [{ id: 'old-plan', rootObligationId: obligationId }], results: recovered ? [{ planId: 'old-plan', output: { recoveredFromReality: true } }] : [] },
+        })),
+      })
+      const runtime = createRuntime({ dbState, dispatchTaskThread: vi.fn() })
+      const planning = await runtime.planTaskThread({
+        threadId: 'new-memory-plan',
+        trace: { decisionTraceId: 'new-decision', turnId: 'new-turn', sessionId: 'new-session', origin: 'user-turn' },
+        task: { kind: 'codebase-investigation', goal: 'Inspect repository memory planner regression.', origin: 'user', effect: 'observe', requestedChannel: 'codex' },
+        capabilities: [{ channel: 'codex', available: true, enabled: true, ready: true, sessionAffinity: true }],
+        now: 1_710_000_000_000,
+      })
+      const metadata = planning.thread.metadata as { fabric?: { experience?: { rememberedProcedures?: Array<{ id: string, preferredChannel: string | null }> } } }
+      expect(metadata.fabric?.experience?.rememberedProcedures?.find(item => item.id === 'old-procedure')).toMatchObject({ preferredChannel: recovered ? null : 'codex' })
+    })
+  }
 })
 
 describe('executor runtime capability resolution', () => {

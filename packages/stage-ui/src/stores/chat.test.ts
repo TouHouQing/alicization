@@ -13,7 +13,9 @@ import { clearAlicizationBridge, setAlicizationBridge } from './alicization-brid
 import { hasVerifiedToolResult, useChatOrchestratorStore } from './chat'
 
 const hookCapture = vi.hoisted(() => ({
+  presentations: [] as Array<{ unit: any, visible: any }>,
   speechLiterals: [] as string[],
+  cancellations: [] as Array<{ reason: string, context: any }>,
   beforeSendContexts: [] as any[],
   embodimentMetas: [] as any[],
   contextsSnapshot: {} as Record<string, unknown>,
@@ -249,6 +251,13 @@ vi.mock('./providers', () => ({
   }),
 }))
 
+// The presentation clock has its own real/fake-timer tests. Orchestration tests
+// exercise every actual cursor event with an injected no-delay wait.
+vi.mock('./chat/text-presentation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./chat/text-presentation')>()
+  return { ...actual, createChatTextPresenter: (options: Parameters<typeof actual.createChatTextPresenter>[0]) => actual.createChatTextPresenter({ ...options, wait: async () => {} }) }
+})
+
 vi.mock('./chat/hooks', () => ({
   createChatHooks: () => {
     const noopAsync = async () => {}
@@ -260,9 +269,11 @@ vi.mock('./chat/hooks', () => ({
         hookCapture.beforeSendContexts.push(context)
       },
       emitAfterSendHooks: noopAsync,
+      emitTextPresentedHooks: async (unit: any) => { hookCapture.presentations.push({ unit, visible: streamingMessage.value.content }) },
       emitTokenLiteralHooks: async (literal: string) => { hookCapture.speechLiterals.push(literal) },
       emitTokenSpecialHooks: noopAsync,
       emitStreamEndHooks: noopAsync,
+      emitStreamCancelledHooks: async (reason: string, context: any) => { hookCapture.cancellations.push({ reason, context }) },
       emitEmbodimentMetaHooks: async (meta: any) => {
         hookCapture.embodimentMetas.push(meta)
       },
@@ -280,7 +291,9 @@ vi.mock('./chat/hooks', () => ({
       onAfterMessageComposed: () => () => {},
       onBeforeSend: () => () => {},
       onAfterSend: () => () => {},
+      onTextPresented: () => () => {},
       onTokenLiteral: () => () => {},
+      onStreamCancelled: () => () => {},
       onTokenSpecial: () => () => {},
       onStreamEnd: () => () => {},
       onEmbodimentMeta: () => () => {},
@@ -508,7 +521,9 @@ describe('chat orchestrator reply authority', () => {
     resumeKillSwitchMock.mockReset()
     chatAbortMock.mockReset()
     hookCapture.beforeSendContexts.length = 0
+    hookCapture.presentations.length = 0
     hookCapture.speechLiterals.length = 0
+    hookCapture.cancellations.length = 0
     hookCapture.embodimentMetas.length = 0
     hookCapture.contextsSnapshot = {}
     hookCapture.toolCallError = null
@@ -589,6 +604,10 @@ describe('chat orchestrator reply authority', () => {
 
     expect(streamMock).toHaveBeenCalledTimes(1)
     expect(streamMock.mock.calls[0]?.[3]).not.toHaveProperty('responseFormat')
+    expect(hookCapture.presentations[0]?.visible).toBe([...reply][0])
+    expect(hookCapture.presentations.at(-1)?.visible).toBe(reply)
+    expect(hookCapture.presentations.map(item => item.unit.grapheme).join('')).toBe(reply)
+    expect(hookCapture.presentations.every(item => item.visible.endsWith(item.unit.grapheme))).toBe(true)
   })
 
   it('does not turn renderer context snapshots into an extra Provider user prompt without a bridge', async () => {
@@ -630,6 +649,65 @@ describe('chat orchestrator reply authority', () => {
     expect(serializedMessages).not.toContain('renderer-context-must-not-become-a-prompt')
     expect(serializedMessages).not.toContain('These are the contextual information retrieved')
   })
+
+  it('shows the first live glyph before producer completion and commits the same reply without replay', async () => {
+    const reply = '你好，我在这里。'
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let producerFinished = false
+    installAlicizationBridge({ streamChat: async (_payload, options) => {
+      await options.onStreamEvent({ type: 'text-delta', text: '你', delivery: { phase: 'append', sequence: 0, offset: 0 }, origin: 'provider' })
+      await gate
+      await options.onStreamEvent({ type: 'text-delta', text: reply.slice(1), delivery: { phase: 'append', sequence: 1, offset: 1 }, origin: 'provider' })
+      await options.onStreamEvent({ type: 'text-delta', text: '', delivery: { phase: 'complete', sequence: 2, offset: reply.length }, origin: 'provider' })
+      producerFinished = true
+      await options.onStreamEvent({ type: 'finish', fullText: createProviderFullText(reply), origin: 'provider', learningPolicy: providerLearningPolicy(), finishReason: 'stop' })
+    } })
+    const running = useChatOrchestratorStore().ingest('你好', { model: 'mock-model', chatProvider: createChatProviderStub(), origin: 'ui-user' })
+    await vi.waitFor(() => expect(hookCapture.presentations[0]?.visible).toBe('你'))
+    expect(producerFinished).toBe(false)
+    expect(appendConversationTurnMock).not.toHaveBeenCalled()
+    release()
+    await running
+    expect(hookCapture.presentations.map(item => item.unit.grapheme).join('')).toBe(reply)
+    expect(hookCapture.speechLiterals.join('')).toBe(reply)
+    expect(appendConversationTurnMock).toHaveBeenCalledOnce()
+    expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({ assistantText: reply }))
+  })
+
+  it('preserves a visible prefix on provider failure without rewriting it into a successful reply or memory', async () => {
+    const prefix = '这是一段未完成的话'
+    installAlicizationBridge({ streamChat: async (_payload, options) => {
+      await options.onStreamEvent({ type: 'text-delta', text: prefix, delivery: { phase: 'append', sequence: 0, offset: 0 }, origin: 'provider' })
+      await vi.waitFor(() => expect(streamingMessage.value.content).toBe(prefix))
+      throw new Error('network ended after public prefix')
+    } })
+    await useChatOrchestratorStore().ingest('继续说', { model: 'mock-model', chatProvider: createChatProviderStub(), origin: 'ui-user' })
+    const partial = ensureSessionMessages(activeSessionId.value).find(message => message.role === 'assistant' && message.delivery?.status === 'interrupted') as any
+    expect(partial).toMatchObject({ content: prefix, delivery: { reason: 'failed', visibleText: prefix }, structured: { contractFailed: true, excludeFromMemoryCondensation: true, excludeFromPersonaLearning: true } })
+    expect(appendConversationTurnMock).not.toHaveBeenCalled()
+    expect(hookCapture.cancellations.at(-1)?.reason).toBe('provider-failed')
+    expect(appendAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({ action: 'public-reply-interrupted', payload: expect.objectContaining({ error: 'network ended after public prefix' }) }))
+    expect(streamingMessage.value.content).toBe('')
+  })
+
+  it.each(['已完整读取。\n\n`  原文  `\n结尾校验。', '已读取：\r\n\t原文  中文🙂\r\n结尾。'])('settles the exact approved streamed formatting without interrupting the reply: %j', async (reply) => {
+    installAlicizationBridge({ streamChat: async (_payload, options) => {
+      await options.onStreamEvent({ type: 'text-delta', text: reply, delivery: { phase: 'append', sequence: 0, offset: 0 }, origin: 'provider' })
+      await options.onStreamEvent({ type: 'text-delta', text: '', delivery: { phase: 'complete', sequence: 1, offset: reply.length }, origin: 'provider' })
+      await options.onStreamEvent({ type: 'finish', fullText: createProviderFullText(reply), acceptedProviderReply: JSON.parse(createProviderFullText(reply)), conversationCommitted: true, origin: 'provider', learningPolicy: providerLearningPolicy(), finishReason: 'stop' })
+    } })
+    await useChatOrchestratorStore().ingest('搜索后完整读取资料', { model: 'mock-model', chatProvider: createChatProviderStub(), origin: 'ui-user' })
+    const messages = ensureSessionMessages(activeSessionId.value).filter(message => message.role === 'assistant')
+    expect(messages).toHaveLength(1)
+    expect(messages[0].content).toBe(reply)
+    expect(messages[0].delivery).toBeUndefined()
+    expect(hookCapture.presentations.map(item => item.unit.grapheme).join('')).toBe(reply)
+    expect(hookCapture.cancellations).toHaveLength(0)
+    expect(chatAbortMock).not.toHaveBeenCalled()
+  }, 30000)
 
   it('persists the main-process provider artifact from finish fullText', async () => {
     const reply = '这是主进程 Provider 根据当前对话与记忆生成的回复。'
@@ -1156,8 +1234,14 @@ describe('chat orchestrator reply authority', () => {
         reason: 'stream-timeout',
       }))
       expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
-        assistantText: 'Provider 等待首个响应超时（mock-provider / mock-model）。',
+        assistantText: 'Provider 已开始响应，但未在时限内完成（mock-provider / mock-model）。重试前请先检查已有操作结果。',
+        structured: expect.objectContaining({
+          failureSurface: expect.objectContaining({
+            timeout: expect.objectContaining({ phase: 'tool-result-handoff', timeoutStage: 'tool-execution', sawAnyEvent: true, lastEventType: 'tool-call' }),
+          }),
+        }),
       }))
+      expect(streamChat).toHaveBeenCalledOnce()
     }
     finally {
       vi.useRealTimers()
@@ -1296,8 +1380,14 @@ describe('chat orchestrator reply authority', () => {
       }))
       expect(capturedAbortSignal?.aborted).toBe(true)
       expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
-        assistantText: 'Provider 等待首个响应超时（mock-provider / mock-model）。',
+        assistantText: 'Provider 已开始响应，但未在时限内完成（mock-provider / mock-model）。重试前请先检查已有操作结果。',
+        structured: expect.objectContaining({
+          failureSurface: expect.objectContaining({
+            timeout: expect.objectContaining({ phase: 'tool-result-handoff', timeoutStage: 'tool-execution', sawAnyEvent: true, lastEventType: 'tool-call' }),
+          }),
+        }),
       }))
+      expect(streamChat).toHaveBeenCalledOnce()
 
       await emitLateEvent?.({
         type: 'text-delta',
@@ -3808,7 +3898,9 @@ describe('chat orchestrator reply authority', () => {
     })
 
     const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
-    expect(persisted.assistantText).toBe('你好， 我在这里。\n你想聊什么？')
+    // Inspection can normalize its diagnostic text; the approved body owns
+    // user-visible whitespace and must agree with the streamed artifact.
+    expect(persisted.assistantText).toBe(reply)
     expect(persisted.structured).toMatchObject({
       origin: 'provider',
       contractFailed: false,
@@ -4879,5 +4971,7 @@ describe('chat orchestrator reply authority', () => {
     expect(hookCapture.speechLiterals).toEqual([])
     expect(appendConversationTurnMock).not.toHaveBeenCalled()
     expect(store.sending).toBe(false)
+    expect(hookCapture.cancellations).toHaveLength(1)
+    expect(hookCapture.cancellations[0].context.sessionId).toBe('session-test')
   })
 })

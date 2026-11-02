@@ -31,6 +31,38 @@ function createInput(overrides?: Partial<Parameters<typeof abortAlicizationDirec
 }
 
 describe('main chat abort', () => {
+  it.each([true, false])('requests every cancellation before waiting for a gated owner, preserving committed authority: %s', async (firstAccepted) => {
+    const input = createInput()
+    let release!: (value: boolean) => void
+    const gate = new Promise<boolean>((resolve) => { release = resolve })
+    const first: ChatRunState = { ...input.getRun('first')!, cancelTurn: vi.fn(() => gate) }
+    const second: ChatRunState = { ...input.getRun('second')!, cardId: 'card-2', turnId: 'turn-2' }
+    const stopped = abortAlicizationRunningChatRuns({ runs: [['first', first], ['second', second]], reason: 'app-before-quit', mainChatRunState: input.mainChatRunState, createAbortError: input.createAbortError })
+    try {
+      await Promise.resolve()
+      expect(first.cancelTurn).toHaveBeenCalledOnce()
+      expect(second.controller.signal.aborted).toBe(true)
+      expect(first.controller.signal.aborted).toBe(false)
+      expect(input.mainChatRunState.finishRun).toHaveBeenCalledWith('second', { status: 'aborted', finishReason: 'app-before-quit' })
+    }
+    finally { release(firstAccepted); await stopped }
+    expect(await stopped).toBe(firstAccepted ? 2 : 1)
+    expect(first.state).toBe(firstAccepted ? 'aborted' : 'running')
+    expect(first.controller.signal.aborted).toBe(false)
+  })
+
+  it('requests the other owners stop even when one cancellation rejects', async () => {
+    const input = createInput()
+    const failure = new Error('one cancellation could not settle')
+    const first: ChatRunState = { ...input.getRun('first')!, cancelTurn: vi.fn(async () => { throw failure }) }
+    const second: ChatRunState = { ...input.getRun('second')!, turnId: 'turn-2' }
+    await expect(abortAlicizationRunningChatRuns({ runs: [['first', first], ['second', second]], reason: 'app-before-quit', mainChatRunState: input.mainChatRunState, createAbortError: input.createAbortError })).rejects.toThrow()
+    expect(second.controller.signal.aborted).toBe(true)
+    expect(second.state).toBe('aborted')
+    expect(first.state).toBe('running')
+    expect(first.controller.signal.aborted).toBe(false)
+  })
+
   it('settles a renderer watchdog abort as timed-out with structured timeout metadata', async () => {
     const controller = new AbortController()
     const run = {

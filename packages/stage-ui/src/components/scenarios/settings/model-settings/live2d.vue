@@ -59,6 +59,13 @@ const fpsOptions = computed(() => [
   { value: 30, label: '30' },
 ])
 const currentModelAvailableMotions = computed(() => live2d.getAvailableMotionsForModel(props.modelId))
+const loopModelMotions = computed({
+  get: () => live2d.getIdleMotionModeForModel(props.modelId) === 'animation',
+  set: (enabled: boolean) => {
+    if (props.modelId)
+      live2d.setIdleMotionModeForModel(props.modelId, enabled ? 'animation' : 'presence')
+  },
+})
 const currentModelActionBindings = computed(() => stagePerformanceStore.listLive2DActions(props.modelId ?? ''))
 const embodimentEmotionOptions = computed(() => stageEmbodimentCanonicalEmotions.map(emotion => ({
   value: emotion,
@@ -86,7 +93,7 @@ function applyRuntimeMotionSelection(
   selectedRuntimeMotion.value = motion.displayPath
   selectedRuntimeMotionName.value = motion.name
   if (props.modelId && options?.persistPreference !== false)
-    live2d.selectPreferredRuntimeMotion(props.modelId, { fileName: motion.displayPath, motionName: motion.group, motionIndex: motion.index })
+    live2d.selectPreferredRuntimeMotion(props.modelId, { fileName: motion.displayPath, motionName: motion.group, motionIndex: motion.index }, { activate: loopModelMotions.value })
 
   if (options?.enableIdleAnimation !== false)
     live2dIdleAnimationEnabled.value = true
@@ -178,6 +185,8 @@ async function clearModelCache() {
 
 // Runtime motion selection handlers
 function handleMotionSelect(motion: any) {
+  if (props.modelId && !loopModelMotions.value)
+    live2d.previewMotion(props.modelId, { fileName: motion.displayPath, motionName: motion.group, motionIndex: motion.index })
   applyRuntimeMotionSelection(motion, {
     enableIdleAnimation: true,
   })
@@ -678,8 +687,18 @@ function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmot
         </div>
       </div>
     </div>
-    <p v-if="selectedRuntimeMotion" :class="['mt-2 text-xs text-neutral-500 dark:text-neutral-400']">
+    <p :class="['mt-2 text-xs text-neutral-500 dark:text-neutral-400']">
+      {{ t('settings.live2d.parameters.quiet-presence-description') }}
+    </p>
+    <label :class="['mt-3 flex items-center gap-3 text-sm text-neutral-600 dark:text-neutral-400']">
+      <Checkbox v-model="loopModelMotions" :aria-label="t('settings.live2d.parameters.loop-model-motions')" :disabled="!props.modelId" />
+      <span>{{ t('settings.live2d.parameters.loop-model-motions') }}</span>
+    </label>
+    <p v-if="selectedRuntimeMotion && loopModelMotions" :class="['mt-2 text-xs text-neutral-500 dark:text-neutral-400']">
       {{ t('settings.live2d.parameters.motion-selector.pending') }}
+    </p>
+    <p v-else-if="selectedRuntimeMotion" :class="['mt-2 text-xs text-neutral-500 dark:text-neutral-400']">
+      {{ t('settings.live2d.parameters.motion-selector.preview-once') }}
     </p>
 
     <div :class="['mt-4', 'flex', 'flex-col', 'gap-3']">

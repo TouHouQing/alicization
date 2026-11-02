@@ -1,6 +1,8 @@
 import type { AlicizationPersonaTrainingArtifact } from '@proj-alicization/stage-shared'
 
+import { once } from 'node:events'
 import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -10,6 +12,8 @@ import {
   createLlamaCppPersonaRuntime,
   normalizeAlicizationPersonaRuntimeConfig,
 } from './llama-cpp-persona-runtime'
+
+import * as personaProcessIdentity from './persona-process-identity'
 
 const { llamaServerSpawnCalls } = vi.hoisted(() => ({
   llamaServerSpawnCalls: [] as Array<{
@@ -796,6 +800,41 @@ describe('llama.cpp Persona runtime', () => {
     expect(runtime.getRoute()).toBeNull()
     expect(runtime.getSnapshot().error).toContain('exited')
     await rm(root, { recursive: true, force: true })
+  })
+
+  it('starts its bounded health window after durable native identity inspection rather than expiring before any health probe', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'alicization-llama-runtime-'))
+    const modelPath = join(root, 'base.gguf')
+    const artifactPath = join(root, 'persona.gguf')
+    await writeFile(modelPath, 'base-model')
+    await writeFile(artifactPath, 'persona-adapter')
+    const executable = await createFakeLlamaServer(root)
+    const reservation = createServer().listen(0, '127.0.0.1')
+    await once(reservation, 'listening')
+    const address = reservation.address()
+    if (!address || typeof address === 'string')
+      throw new Error('Expected an owned ephemeral fixture port')
+    const port = address.port
+    await new Promise<void>((resolve, reject) => reservation.close(error => error ? reject(error) : resolve()))
+    const actualReadIdentity = personaProcessIdentity.readPersonaProcessIdentity
+    let nativeInspectionElapsed = 0
+    const inspection = vi.spyOn(personaProcessIdentity, 'readPersonaProcessIdentity').mockImplementation(async (pid) => {
+      const identity = await actualReadIdentity(pid)
+      // Advance the injected clock as a slow, successful Windows inspection
+      // would; no sleep or relaxed health deadline is needed in this fixture.
+      nativeInspectionElapsed += 5000
+      return identity
+    })
+    const runtime = createLlamaCppPersonaRuntime({ getConfig: () => ({ executable, modelPath, host: '127.0.0.1', port, modelAlias: 'alice-persona', startupTimeoutMs: 2000 }), processStatePath: join(root, 'process.json'), now: () => Date.now() + nativeInspectionElapsed })
+    runtimes.push(runtime)
+    try {
+      await runtime.loader.load({ cardId: 'card-a', artifact: createArtifact({ path: artifactPath, baseModel: modelPath }), signal: new AbortController().signal, operationId: 'load-after-slow-native-inspection' })
+      expect(inspection).toHaveBeenCalled()
+      expect(nativeInspectionElapsed).toBeGreaterThanOrEqual(5000)
+      expect(runtime.getSnapshot().active).toBe(true)
+      expect(runtime.getRoute()).not.toBeNull()
+    }
+    finally { inspection.mockRestore(); await runtime.dispose(); await rm(root, { recursive: true, force: true }) }
   })
 
   it('recovers an identity-matched orphaned detached llama-server before reusing its port', async () => {

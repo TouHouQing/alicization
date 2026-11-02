@@ -126,11 +126,15 @@ describe('stage performance helpers', () => {
     expect(getDefaultLive2DActionBindingDefaults({
       motionName: 'Idle',
       motionIndex: 0,
-    })).toEqual({
-      actionKey: 'idle_gentle_nod',
-      label: '轻轻点头',
-      description: '轻轻低头再抬起，像在安静回应用户，适合默认待机、温柔附和或轻声应答。',
-    })
+    })).toBeNull()
+
+    // A complete sample-model idle performance is not a short nod. Compiled
+    // head parameters advertise the bounded procedural nod independently.
+    expect(resolveLive2DActionBindingForMotion({
+      fileName: 'motion/hiyori_m01.motion3.json',
+      motionName: 'Idle',
+      motionIndex: 0,
+    })).toBeNull()
 
     expect(resolveLive2DActionBindingForMotion({
       fileName: 'motion/hiyori_m10.motion3.json',

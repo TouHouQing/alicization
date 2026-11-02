@@ -3,12 +3,13 @@ import {
 } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
+import { AlicizationReplyGroundingUnavailableError } from './life-reply-grounding-error'
 import {
   handleAlicizationMainChatRunFailure,
   isProviderSchemaUnsupportedError,
   normalizeAlicizationMainChatAbortReason,
 } from './main-chat-run-lifecycle'
-import { createAlicizationRuntimeAbortError } from './turn-os/runtime-errors'
+import { createAlicizationMainWatchdogAbortError, createAlicizationRuntimeAbortError } from './turn-os/runtime-errors'
 import { AlicizationVisibleReplySettlementBlockedError } from './visible-reply/settlement'
 
 function createBaseInput(
@@ -253,6 +254,13 @@ describe('main chat run lifecycle', () => {
     expect(input.queueScopedAuditLog).toHaveBeenCalledWith('card-1', expect.objectContaining({
       action: 'provider-retry-deadline-failed',
     }))
+  })
+
+  it('does not describe an active tool proposal deadline as waiting for the first provider event', async () => {
+    const error = createAlicizationMainWatchdogAbortError({ timeoutPhase: 'idle-timeout', timeoutStage: 'provider', timeoutMs: 120000, elapsedMs: 120007, lastEventType: 'tool-call-delta', sawAnyEvent: true, sawProgress: true }, 'chat-provider-retry-deadline')
+    const input = createBaseInput({ error, dispatchBound: true })
+    await handleAlicizationMainChatRunFailure(input)
+    expect(input.finish).toHaveBeenCalledWith(expect.objectContaining({ failureSurface: expect.objectContaining({ timeout: expect.objectContaining({ phase: 'provider-continuation', elapsedMs: 120007, timeoutMs: 120000, lastEventType: 'tool-call-delta' }) }) }))
   })
 
   it('surfaces one-shot gateway attempt timeouts instead of treating them as silent aborts', async () => {
@@ -632,6 +640,15 @@ describe('main chat run lifecycle', () => {
     )
   })
 
+  it('preserves an unavailable grounding review as an incomplete reply with existing-operation guidance', async () => {
+    const input = createBaseInput({ error: new AlicizationReplyGroundingUnavailableError() })
+    const { failureSurface, metadata } = failureMetadata('provider-continuation-incomplete')
+    await handleAlicizationMainChatRunFailure(input)
+    expect(input.emitError).toHaveBeenCalledWith(failureSurface.reply, metadata)
+    expect(input.finish).toHaveBeenCalledWith(expect.objectContaining({ finishReason: 'reply-grounding-unavailable', status: 'failed' }))
+    expect(failureSurface).toMatchObject({ allowLongTermCondensation: false, allowPersonaLearning: false, allowTraining: false })
+    expect(failureSurface.reply).not.toContain('格式异常')
+  })
   it('surfaces Provider settlement blocks as provider output failures', async () => {
     const error = new AlicizationVisibleReplySettlementBlockedError(
       'provider-settlement-invalid:provider-memory-usage-invalid',

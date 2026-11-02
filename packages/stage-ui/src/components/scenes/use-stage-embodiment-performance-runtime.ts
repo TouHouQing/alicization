@@ -23,6 +23,7 @@ import {
 } from '@proj-alicization/stage-shared'
 import { computed, onScopeDispose, readonly, ref, watch } from 'vue'
 
+import { createStageActionDelivery } from './stage-action-delivery'
 import { resolveRendererSettleMsWithPersonaBias } from './stage-runtime-embodiment-cues'
 
 type StageEmbodimentPerformanceActionPulseReason = StageEmbodimentPerformanceState['actionPulse']['reason']
@@ -35,6 +36,9 @@ export interface UseStageEmbodimentPerformanceRuntimeOptions {
 }
 
 export interface StageEmbodimentPerformanceArmOptions {
+  textDelivery?: boolean
+  turnId?: string | null
+  suppressActionPulse?: boolean
   segmentId?: string | null
   source?: 'dialogue' | 'presence-pulse'
   preserveResidentReasonTags?: boolean
@@ -1955,6 +1959,7 @@ function shouldAllowDenseActionPulsePair(
     || (previousReason === 'segment-beat' && nextReason === 'segment-preview')
     || (previousReason === 'dialogue' && nextReason === 'segment-start')
     || (previousReason === 'dialogue' && nextReason === 'segment-preview')
+    || (previousReason === 'dialogue' && nextReason === 'segment-beat')
     || (previousReason === 'segment-preview' && nextReason === 'segment-start')
   )
 }
@@ -1968,6 +1973,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
   let lastTickAt = 0
   let lastActionPulseAt: number | null = null
   let lastActionPulseReason: StageEmbodimentPerformanceActionPulseReason = null
+  const actionDelivery = createStageActionDelivery()
   let lastArmedAt = 0
   let lastArmSignature = ''
   let lastResidentSyncedAt = 0
@@ -1983,6 +1989,9 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
   let heldSegmentCue: StageEmbodimentPerformanceState['activeCue'] = null
   let heldSegmentCueUntil = 0
   let cooldownTimer: ReturnType<typeof setTimeout> | undefined
+  // A visible reply owns its expression independently of the resident emotion.
+  // Resident updates continue underneath it until delivery and release finish.
+  let textPerformance: AlicizationDialoguePerformancePayload | null = null
 
   function clearCooldownTimer() {
     if (cooldownTimer) {
@@ -2008,15 +2017,19 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
   }
 
   function reset(now = performance.now()) {
+    textPerformance = null
     clearCooldownTimer()
     clearTransientSpeechCarry(now)
     lastArmSignature = ''
     state.value = {
       ...createIdleStageEmbodimentPerformanceState(),
       revision: state.value.revision + 1,
-      // Model consumers retain their last command revision across idle frames.
-      // Reusing 1 after every reset makes every later gesture look duplicated.
-      actionPulse: state.value.actionPulse,
+      // Keep command revisions monotonic, but retire their payload. A newly
+      // loaded body must not replay a previous turn's already completed action.
+      actionPulse: {
+        ...createIdleStageEmbodimentPerformanceState().actionPulse,
+        revision: state.value.actionPulse.revision,
+      },
       updatedAt: now,
     }
   }
@@ -2044,6 +2057,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     minimumGapMs: number,
     cueOverride?: string | null,
     segmentIdOverride?: string | null,
+    turnIdOverride?: string | null,
   ) {
     const cue = cueOverride?.trim()
       || state.value.activeActionCue
@@ -2060,6 +2074,9 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       return
     }
 
+    const segmentId = normalizeDriverSegmentId(segmentIdOverride) ?? (reason === 'presence-pulse' ? null : state.value.activeSegment?.segmentId ?? null)
+    if (reason !== 'presence-pulse' && !actionDelivery.claim(segmentId, cue, turnIdOverride))
+      return
     lastActionPulseAt = now
     lastActionPulseReason = reason
     state.value.actionPulse = {
@@ -2067,7 +2084,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       cue,
       issuedAt: now,
       reason,
-      segmentId: normalizeDriverSegmentId(segmentIdOverride) ?? (reason === 'presence-pulse' ? null : state.value.activeSegment?.segmentId ?? null),
+      segmentId,
     }
     state.value.motionPulse = 1
   }
@@ -2289,7 +2306,9 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       : segmentActionCueSuppressedUntilMotionAuthority
         ? suppressActionCueUntilMotionAuthority(segmentProjectedCue)
         : segmentProjectedCue
-    const residentPerformance = state.value.residentPerformance
+    const residentPerformance = !speechActivelyPlaying && textPerformance
+      ? textPerformance
+      : state.value.residentPerformance
     const segmentChanged = Boolean(segmentId) && segmentId !== lastSegmentId
     const segmentGestureWeight = Math.max(
       clamp01(segmentCue?.gestureWeight),
@@ -2315,6 +2334,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       if (
         segmentPlaybackActive
         && !segmentActionCueSuppressedUntilMotionAuthority
+        && segmentCue?.actionWindow !== 'cadence-peak'
         && ((segmentCue?.actionWindow !== 'none') || segmentGestureWeight >= 0.34)
       ) {
         issueActionPulse(
@@ -2326,7 +2346,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
         )
       }
     }
-    else if (shouldIssueLateSegmentRealignPulse && !segmentActionCueSuppressedUntilMotionAuthority) {
+    else if (shouldIssueLateSegmentRealignPulse && !segmentActionCueSuppressedUntilMotionAuthority && segmentCue?.actionWindow !== 'cadence-peak') {
       issueActionPulse(
         'segment-start',
         now,
@@ -2377,7 +2397,8 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       && speech.dynamics.cadencePulse >= Math.max(0.46, 0.68 - Math.max(clamp01(segmentCue.beatWeight), clamp01(segmentLife?.action.intensity), clamp01(segmentDriverMotion?.intensity)) * 0.18),
     )
     if (cadencePeakActive && !lastCadencePeakActive) {
-      const beatSegmentKey = `${segmentId}:${state.value.actionPulse.revision}`
+      const beatCue = segmentLife?.action.actionCue ?? segmentCue?.actionCue ?? segmentDriverMotion?.actionCue ?? ''
+      const beatSegmentKey = `${segmentId}:${beatCue}`
       if (beatSegmentKey !== lastBeatPulseSegmentKey) {
         issueActionPulse('segment-beat', now, segmentBeatPulseGapMs, segmentLife?.action.actionCue ?? segmentCue?.actionCue ?? segmentDriverMotion?.actionCue, segmentId)
         lastBeatPulseSegmentKey = beatSegmentKey
@@ -2503,6 +2524,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     if (previewAhead && previewSegmentId) {
       if (
         !previewActionCueSuppressedUntilMotionAuthority
+        && previewCue?.actionWindow !== 'cadence-peak'
         && previewSegmentId !== lastPreviewPulseSegmentId
         && (previewCue?.actionWindow === 'segment-start' || previewGestureWeight >= 0.34)
       ) {
@@ -3007,9 +3029,12 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
   ) {
     const now = performance.now()
     const performancePayload = normalizeAlicizationPerformancePayload(input, input.baseEmotion)
+    textPerformance = armOptions.textDelivery ? performancePayload : null
     const variationToken = armOptions.variationToken?.trim() ?? ''
     const performanceFingerprint = JSON.stringify([
       armOptions.source ?? 'dialogue',
+      Boolean(armOptions.textDelivery),
+      Boolean(armOptions.suppressActionPulse),
       performancePayload.baseEmotion,
       performancePayload.facialCue,
       performancePayload.actionCue,
@@ -3050,7 +3075,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       driverRendererTarget: state.value.driverRendererTarget ?? null,
       driverAuthority: null,
       residentPerformance: {
-        ...performancePayload,
+        ...(armOptions.textDelivery ? state.value.residentPerformance : performancePayload),
       },
       residentReasonTags: preservedResidentReasonTags,
       performance: performancePayload,
@@ -3067,7 +3092,8 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       updatedAt: now,
     }
 
-    issueActionPulse(armOptions.source ?? 'dialogue', now, dialogueActionPulseGapMs, null, armOptions.segmentId)
+    if (!armOptions.suppressActionPulse)
+      issueActionPulse(armOptions.source ?? 'dialogue', now, dialogueActionPulseGapMs, null, armOptions.segmentId, armOptions.turnId)
     updateFromSpeech(now)
     logPerformanceEmbodimentDebug('arm-performance', {
       source: armOptions.source ?? 'dialogue',
@@ -3077,6 +3103,18 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       actionCue: performancePayload.actionCue ?? null,
       variationToken: variationToken || null,
     })
+  }
+
+  function settleTextDialogue() {
+    if (state.value.speechActive)
+      return
+    const now = performance.now()
+    // Let the reader see the final semantic expression, then hand ownership
+    // back to the resident emotion. No estimated reading/speaking queue.
+    state.value.phase = 'cooldown'
+    state.value.cooldownUntil = now + 2_400 + cooldownMs
+    updateFromSpeech(now)
+    scheduleCooldownExpiry(now)
   }
 
   function syncResidentPerformance(
@@ -3147,6 +3185,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
   }
 
   function prepareForNextMessage() {
+    textPerformance = null
     const now = performance.now()
     const residentPerformance = normalizeAlicizationPerformancePayload(
       state.value.residentPerformance,
@@ -3241,7 +3280,14 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
   )
 
   function dispose() {
+    textPerformance = null
     clearCooldownTimer()
+    actionDelivery.clear()
+  }
+
+  function clear() {
+    actionDelivery.clear()
+    reset()
   }
 
   onScopeDispose(() => {
@@ -3250,10 +3296,11 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
 
   return {
     armPerformance,
-    clear: reset,
+    clear,
     dispose,
     playbackTelemetry: readonly(computed(() => options.playbackTelemetry?.value ?? null)),
     prepareForNextMessage,
+    settleTextDialogue,
     syncResidentPerformance,
     state: readonly(state) as Readonly<Ref<StageEmbodimentPerformanceState>>,
   }

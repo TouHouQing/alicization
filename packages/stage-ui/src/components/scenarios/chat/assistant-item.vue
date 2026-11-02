@@ -8,6 +8,7 @@ import ChatResponsePart from './response-part.vue'
 import ChatToolCallBlock from './tool-call-block.vue'
 
 import { MarkdownRenderer } from '../../markdown'
+import { interruptedReplyMessageKey } from './execution-presentation'
 
 const props = withDefaults(defineProps<{
   message: ChatAssistantMessage
@@ -25,6 +26,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const interruptionMessageKey = computed(() => interruptedReplyMessageKey(props.message))
 
 const resolvedSlices = computed<ChatSlices[]>(() => {
   if (props.message.slices?.length) {
@@ -160,6 +162,10 @@ async function handleRecoveryAction(action: ChatRecoveryAction) {
         </template>
       </div>
       <div v-else-if="showLoader" i-eos-icons:three-dots-loading />
+
+      <p v-if="interruptionMessageKey" data-chat-delivery-status="interrupted" class="mt-2 text-xs opacity-65" role="status">
+        {{ t(interruptionMessageKey) }}
+      </p>
 
       <ChatResponsePart
         v-if="message.categorization"

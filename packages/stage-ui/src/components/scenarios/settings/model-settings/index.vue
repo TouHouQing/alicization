@@ -59,6 +59,12 @@ const {
 } = storeToRefs(settingsStore)
 
 const currentSelectedDisplayModel = computed<DisplayModel | undefined>(() => stageModelSelectedDisplayModel.value)
+const live2dModelArchive = computed(() => {
+  const model = currentSelectedDisplayModel.value
+  return model?.type === 'file' && model.format === DisplayModelFormat.Live2dZip
+    ? { id: model.id, file: model.file }
+    : undefined
+})
 
 async function captureModelFrame() {
   const modelId = stageModelSelected.value
@@ -172,6 +178,7 @@ const currentVrmActionBindings = computed(() => {
         :focus-at="{ x: positionCursor.x.value, y: positionCursor.y.value }"
         :model-src="stageModelSelectedUrl"
         :model-id="stageModelSelected"
+        :model-archive="live2dModelArchive"
         :disable-focus-at="live2dDisableFocus"
         :scale="live2dScale"
         :theme-colors-hue="themeColorsHue"

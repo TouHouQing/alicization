@@ -3,12 +3,44 @@
 import type { Configuration } from 'electron-builder'
 
 import { existsSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { readdir, readFile } from 'node:fs/promises'
+import { createRequire, isBuiltin } from 'node:module'
+import { basename, dirname, join } from 'node:path'
 import { env } from 'node:process'
 
+import { parse } from 'acorn'
 import { getLoadablePath as getSqliteVecLoadablePath } from 'sqlite-vec'
 
 const sqliteVecExtensionPath = getSqliteVecLoadablePath()
+
+// Resolve the pinned template path without changing shared dependencies.
+// NSIS keeps the standard installer/signing flow and shadows only multiUser.nsh.
+const requireBuilder = createRequire(createRequire(import.meta.url).resolve('electron-builder'))
+env.ALICIZATION_NSIS_UPSTREAM_TEMPLATES = join(dirname(requireBuilder.resolve('app-builder-lib')), '..', 'templates', 'nsis')
+
+/** Reject a forgotten preload/main external before dependency filtering runs. */
+export async function assertBundledJavaScriptRuntime(outputDirectory: string) {
+  const native = new Set(['electron', 'electron-click-drag-plugin', 'sqlite3'])
+  for (const surface of ['main', 'preload']) {
+    const directory = join(outputDirectory, surface)
+    const files = (await readdir(directory)).filter(file => /\.(?:mjs|js)$/u.test(file))
+    if (!files.length || files.length > 128)
+      throw new Error(`Packaged ${surface} has an invalid JavaScript entry budget`)
+    for (const file of files) {
+      const source = await readFile(join(directory, file), 'utf8')
+      if (source.length > 32 * 1024 * 1024)
+        throw new Error(`Packaged ${surface} JavaScript exceeds its audit budget`)
+      const program = parse(source, { ecmaVersion: 'latest', sourceType: 'module' })
+      for (const node of program.body) {
+        if (!['ImportDeclaration', 'ExportNamedDeclaration', 'ExportAllDeclaration'].includes(node.type))
+          continue
+        const dependency = (node as typeof node & { source?: { value?: unknown } }).source?.value
+        if (typeof dependency === 'string' && !dependency.startsWith('.') && !isBuiltin(dependency) && !native.has(dependency))
+          throw new Error(`Unbundled runtime dependency in ${surface}/${file}: ${dependency}. Bundle this JavaScript before packaging.`)
+      }
+    }
+  }
+}
 
 export function assertPackagedSqlite3Runtime(
   resourcesPath: string,
@@ -65,6 +97,12 @@ export default {
     'out/**',
     'resources/**',
     'package.json',
+    // Main/preload JS and renderer assets are bundled by electron-vite. Keep
+    // only external native wrappers and their runtime loaders; shipping the
+    // workspace source and browser dependency trees duplicates the same assets.
+    // Preserve dependency root licenses/notices even when its JS is bundled.
+    '!**/node_modules/!(sqlite3|bindings|file-uri-to-path|electron-click-drag-plugin|bufferutil|utf-8-validate|node-gyp-build|debug|superjson|@*)/**/!(LICENSE*|LICENCE*|NOTICE*|COPYING*|license*|licence*|notice*|copying*)',
+    '!**/node_modules/@*/*/**/!(LICENSE*|LICENCE*|NOTICE*|COPYING*|license*|licence*|notice*|copying*)',
     '!**/.vscode/*',
     '!src/**/*',
     '!**/node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme}',
@@ -79,6 +117,7 @@ export default {
     '!{tsconfig.json}',
   ],
   asar: true,
+  beforePack: context => assertBundledJavaScriptRuntime(join(context.packager.info.appDir, 'out')),
   asarUnpack: [
     '**/*.node',
     '**/node_modules/sqlite3/**/*',
@@ -86,6 +125,10 @@ export default {
     '**/node_modules/file-uri-to-path/**/*',
   ],
   extraResources: [
+    {
+      from: 'resources/third-party/ripgrep',
+      to: join('tools', 'ripgrep'),
+    },
     {
       from: sqliteVecExtensionPath,
       to: join('sqlite-vec', basename(sqliteVecExtensionPath)),
@@ -102,6 +145,7 @@ export default {
     executableName: 'alicization',
   },
   nsis: {
+    include: 'build/nsis-startup.nsh',
     artifactName: '${productName}-${version}-windows-${arch}-setup.${ext}',
     shortcutName: '${productName}',
     uninstallDisplayName: '${productName}',

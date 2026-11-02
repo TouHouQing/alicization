@@ -15,11 +15,19 @@ export function resolveStagePresencePulsePerformance(
       return { baseEmotion: emotion, emotion, actionCue: phase === 'working' ? resting ? 'rest_settle' : 'stretch' : 'idle_settle', facialCue: resting ? 'relaxed' : null, delivery: 'gentle', emphasis: 0 }
     }
     const negativeBaseline = baseline && ['sad', 'angry', 'tired', 'concerned'].includes(baseline)
+    const awaitingHost = payload.activity.kind === 'execution'
+      && payload.activity.phase === 'working'
+      && payload.activity.work?.mode === 'waiting'
+      && payload.reasonTags?.includes('execution:awaiting-host-approval')
+    if (awaitingHost) {
+      const emotion = baseline ?? 'neutral'
+      return { baseEmotion: emotion, emotion, actionCue: 'idle_settle', facialCue: negativeBaseline ? null : 'soft-gaze', delivery: 'gentle', emphasis: 0 }
+    }
     const emotion = baseline ?? (phase === 'working' || phase === 'verifying' ? 'thinking' : 'neutral')
     const actionCue = phase === 'orienting'
       ? 'observe_focus'
       : phase === 'working'
-        ? 'steady_focus'
+        ? payload.activity.work?.mode === 'reading' ? 'observe_focus' : payload.activity.work?.mode === 'checking' || payload.activity.work?.mode === 'comparing' ? 'tilt_head' : 'steady_focus'
         : phase === 'verifying'
           ? 'tilt_head'
           : phase === 'blocked' || phase === 'failed'

@@ -6,15 +6,19 @@ import { join } from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { callLocalFilesystem } from '../airi/mcp-servers/local-filesystem'
+import { callLocalFilesystem, localFilesystemTools } from '../airi/mcp-servers/local-filesystem'
+import { localFilesystemInputSchemas } from '../airi/mcp-servers/local-filesystem-schema'
 import { setupAlicizationDb } from './db'
 import { buildAlicizationExecutionRuntimeContext } from './execution-runtime-context'
+import { declaredWorkProposal } from './execution/declared-work-proposal'
 import { createLifeReplyGroundingRuntime } from './life-reply-grounding-runtime'
 import { createLifeTurnRuntime } from './life-turn-runtime'
 import {
   buildExecutionCapabilitySystemBlocks,
   buildMainGatewayTools as buildMainGatewayToolsImplementation,
+  normalizeMcpToolCallResult,
 } from './main-chat-execution-surface'
+import { projectProviderToolInput } from './provider-tool-input'
 import {
   createCanonicalToolRegistry,
   createToolRegistry,
@@ -73,6 +77,126 @@ function buildMainGatewayTools(options: Record<string, unknown>) {
 }
 
 describe('main chat execution surface', () => {
+  it.each([
+    { userText: '请在 C:\\资料 中用内容搜索查找包含标记的文件，然后完整读取命中文件。只读这个目录，不修改或创建任何文件。', surface: 'main-chat', backend: true, plan: false },
+    { userText: 'Read-only: search C:\\notes for the marker and read the matching file.', surface: 'main-chat', backend: true, plan: false },
+    { userText: '请在 C:\\资料 搜索后读取文件。', surface: 'main-chat', backend: true, plan: true },
+    { userText: '只读搜索 C:\\资料 然后读取文件，明天继续监控。', surface: 'main-chat', backend: true, plan: true },
+    { userText: '只读搜索 C:\\资料 然后读取文件，把结果保存到新文件。', surface: 'main-chat', backend: true, plan: true },
+    { userText: '用 life_execute_work_plan 只读搜索 C:\\资料 然后读取文件。', surface: 'main-chat', backend: true, plan: true },
+    { userText: '只读搜索 C:\\资料 然后读取文件。', surface: 'main-chat', backend: false, plan: true },
+    { userText: '只读搜索 C:\\资料 然后读取文件。', surface: 'complete', backend: true, plan: true },
+  ])('routes a foreground read lookup without inventing persistent work: $userText / $surface / backend=$backend', async ({ userText, surface, backend, plan }) => {
+    const createWorkPlan = vi.fn()
+    const tools = await buildMainGatewayTools({
+      toolSurface: surface,
+      userText,
+      createWorkPlan,
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: { cardId: 'default', turnId: 'lookup-routing' },
+      executionCapabilityChannels: [],
+      executeTaskThread: vi.fn(),
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(),
+      invokeMcpListTools: vi.fn(async () => backend ? localFilesystemTools : []),
+      invokeMcpCallTool: vi.fn(),
+    })
+    expect(tools.some(tool => tool.function.name === 'life_execute_work_plan')).toBe(plan)
+    if (!plan) {
+      expect(tools.some(tool => tool.function.name === 'filesystem_search_files')).toBe(true)
+      expect(tools.some(tool => tool.function.name === 'filesystem_read_file')).toBe(true)
+    }
+    expect(createWorkPlan).not.toHaveBeenCalled()
+  })
+
+  it.each(['list_directory', 'search_files'])('offers %s from the actual array returned by the main MCP port', async (operation) => {
+    const tools = await buildMainGatewayTools({
+      toolSurface: 'main-chat',
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: { cardId: 'default', turnId: 'actual-catalog-array' },
+      executionCapabilityChannels: [],
+      executeTaskThread: vi.fn(),
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(),
+      invokeMcpListTools: vi.fn(async () => localFilesystemTools),
+      invokeMcpCallTool: vi.fn(),
+    })
+    expect(tools.some(tool => tool.function.name === `filesystem_${operation}`)).toBe(true)
+  })
+
+  it.each(['list_directory', 'search_files'] as const)('keeps a bounded upstream %s result visibly incomplete through the real production projection', async (operation) => {
+    const path = join(tmpdir(), 'owned-discovery-root')
+    const observed = { path: join(path, 'observed.txt'), name: 'observed.txt', type: 'file', line: 1, text: 'needle' }
+    const metadata = { path, [operation === 'list_directory' ? 'entries' : 'matches']: [observed], truncated: true, scope: 'bounded-owned-observation' }
+    const invokeMcpCallTool = vi.fn(async () => ({ ok: true, isError: false, structuredContent: metadata, content: [{ type: 'text', text: JSON.stringify(metadata) }] }))
+    const tools = await buildMainGatewayTools({
+      toolSurface: 'main-chat',
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: { cardId: 'default', turnId: 'bounded-search' },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(),
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(),
+      invokeMcpListTools: vi.fn(async () => ([{ serverName: 'filesystem', toolName: operation, name: `filesystem::${operation}`, inputSchema: localFilesystemInputSchemas[operation] }])),
+      invokeMcpCallTool,
+    })
+    const tool = tools.find(tool => tool.function.name === `filesystem_${operation}`)!
+    expect(tool).toBeDefined()
+    const result = await tool.execute({ path, maxReturnBytes: 1000, ...(operation === 'search_files' ? { query: 'needle' } : {}) }, { messages: [], toolCallId: 'bounded-search' })
+    expect(result).toMatchObject({ status: 'completed', truncated: true, [operation === 'list_directory' ? 'totalEntryCount' : 'totalMatchCount']: null })
+    expect(invokeMcpCallTool).toHaveBeenCalledOnce()
+    if (operation === 'search_files')
+      expect(invokeMcpCallTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'filesystem::search_files', arguments: expect.objectContaining({ query: 'needle', maxReturnBytes: 1000 }) }))
+  })
+
+  it('offers an exact current-request work reference and carries it to the production admission port', async () => {
+    const path = join(tmpdir(), 'owned-reference.txt')
+    const proposal = { goal: '保存完整原文', criteria: [{ id: 'file', required: true, proofScope: 'structure', predicate: { kind: 'text-content', path, includes: ['完整'] } }], steps: [{ id: 'save', dependsOn: [], capabilityId: 'tool.filesystem_write_file', input: { path, content: '完整原文🙂'.repeat(1000) }, acceptanceCriterionIds: ['file'] }] }
+    const userText = `请执行参数：${JSON.stringify(proposal)}`
+    const createDeclaredWorkPlan = vi.fn(async () => ({ status: 'accepted' }))
+    const createWorkPlan = vi.fn()
+    const tools = await buildMainGatewayTools({ buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId: 'reference' }, userText, executionCapabilityChannels: executionChannels, executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(), invokeMcpListTools: vi.fn(async () => ([])), invokeMcpCallTool: vi.fn(), createWorkPlan, createDeclaredWorkPlan })
+    const offered = tools.find(tool => tool.function.name === 'life_execute_work_plan')!
+    expect(Object.keys(offered.function.parameters.properties ?? {})).toEqual(['sourceInputId', 'proposalHash'])
+    expect(JSON.stringify(offered.function.parameters)).not.toContain(path)
+    const reference = { sourceInputId: 'user:reference', proposalHash: declaredWorkProposal(userText)!.hash }
+    const signal = new AbortController().signal
+    expect(await offered.execute(reference, { messages: [], toolCallId: 'reference', abortSignal: signal })).toMatchObject({ status: 'accepted' })
+    expect(createDeclaredWorkPlan).toHaveBeenCalledExactlyOnceWith({ ...reference, cardId: 'default', turnId: 'reference', abortSignal: signal })
+    expect(createWorkPlan).not.toHaveBeenCalled()
+  })
+  it('preserves the learned-method source preparation port through canonical tool composition', async () => {
+    const useLearnedProcedure = vi.fn(async () => ({ status: 'accepted' }))
+    const prepareLearnedProcedureInput = vi.fn(async ({ input }: { input: Record<string, unknown> }) => ({ input: { ...input, arguments: [{ name: 'input1', value: 'source bytes' }] }, projection: { actionAdmitted: false } }))
+    const tools = await buildMainGatewayTools({ buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId: 'current-source' }, executionCapabilityChannels: executionChannels, executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(), invokeMcpListTools: vi.fn(async () => ([])), invokeMcpCallTool: vi.fn(), useLearnedProcedure, prepareLearnedProcedureInput })
+    const offered = tools.find(tool => tool.function.name === 'life_use_learned_procedure')!
+    const signal = new AbortController().signal
+    const input = { id: 'skill.learned_example', version: 'a'.repeat(64), goal: 'Current request', arguments: [{ name: 'input1', value: 'model transcription' }] }
+    const prepared = await projectProviderToolInput(offered, input, signal, vi.fn())
+    expect(prepareLearnedProcedureInput).toHaveBeenCalledWith({ cardId: 'default', turnId: 'current-source', input, signal })
+    expect(useLearnedProcedure).not.toHaveBeenCalled()
+    await offered.execute(prepared, { messages: [], toolCallId: 'source', abortSignal: signal })
+    expect(useLearnedProcedure).toHaveBeenCalledWith(expect.objectContaining({ cardId: 'default', turnId: 'current-source', arguments: { input1: 'source bytes' } }))
+    expect(input.arguments[0].value).toBe('model transcription')
+  })
+  it('offers the registered verifier catalog through the canonical production tool boundary', async () => {
+    const catalog = { quality: [{ rubricId: `report@${'a'.repeat(64)}`, version: '1', checks: [] }], external: [] }
+    const listExecutionVerifiers = vi.fn(async () => catalog)
+    const tools = await buildMainGatewayTools({ toolSurface: 'main-chat', buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId: 'catalog' }, executionCapabilityChannels: executionChannels, executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(), invokeMcpListTools: vi.fn(async () => ([])), invokeMcpCallTool: vi.fn(), listExecutionVerifiers })
+    const offered = tools.find(tool => tool.function.name === 'life_list_execution_verifiers')!
+    expect(offered).toBeDefined()
+    expect(await offered.execute({}, { messages: [], toolCallId: 'catalog' })).toEqual(catalog)
+    expect(listExecutionVerifiers).toHaveBeenCalledOnce()
+    expect(await offered.execute({ bypass: true }, { messages: [], toolCallId: 'invalid' })).toMatchObject({ errorCode: 'CAPABILITY_INPUT_INVALID' })
+    expect(listExecutionVerifiers).toHaveBeenCalledOnce()
+  })
+  it('preserves partial-effect and actual-stop facts through the MCP boundary', () => {
+    expect(normalizeMcpToolCallResult({ ok: false, isError: true, errorCode: 'MCP_CALL_FAILED', effectMayHaveOccurred: true, executionStopped: false })).toMatchObject({ ok: false, effectMayHaveOccurred: true, executionStopped: false })
+    expect(normalizeMcpToolCallResult({ ok: false, isError: true, errorCode: 'ALICIZATION_TOOL_DENIED_BY_HOST', effectMayHaveOccurred: false, executionStopped: true })).toMatchObject({ ok: false, effectMayHaveOccurred: false, executionStopped: true })
+  })
   it('respects a host capture exclusion before dispatch and leaves semantic controls available', async () => {
     const executeTaskThread = vi.fn()
     const desktopListInteractables = vi.fn(async () => ({ status: 'completed', channel: 'desktop', operation: 'desktop_list_interactables', elements: [] }))
@@ -101,7 +225,7 @@ describe('main chat execution surface', () => {
         const owner = { channel: 'desktop', desktop: 'QA-owned', windowId: '41', processId: 42, title: 'QA Notes', status: 'completed', ok: true, finalStatus: 'completed' }
         await step('input', 'desktop_type_text', { text: requested, clearExisting: true }, { ...owner, operation: 'desktop_type_text' })
         await step('save', 'desktop_click_element', { text: '保存' }, { ...owner, windowId: clickedWindow, operation: 'desktop_click_element' })
-        const tools = await buildMainGatewayTools({ buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId, sessionId: 'qa' }, executionCapabilityChannels: executionChannels, executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(), invokeMcpListTools: vi.fn(async () => ({ tools: [] })), invokeMcpCallTool: vi.fn(async (payload: { arguments: Record<string, unknown> }) => callLocalFilesystem({ workspace, toolName: 'read_file', arguments: payload.arguments, signal })) })
+        const tools = await buildMainGatewayTools({ buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId, sessionId: 'qa' }, executionCapabilityChannels: executionChannels, executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(), invokeMcpListTools: vi.fn(async () => ([])), invokeMcpCallTool: vi.fn(async (payload: { arguments: Record<string, unknown> }) => callLocalFilesystem({ workspace, toolName: 'read_file', arguments: payload.arguments, signal })) })
         const result = await tools.find(tool => tool.function.name === 'filesystem_read_file')!.execute({ path }, { messages: [], toolCallId: `read-${turnId}` })
         expect(result).toMatchObject({ verifiedPath: await realpath(path), truncated: false })
         await step('readback', 'filesystem_read_file', { path }, result)
@@ -137,13 +261,31 @@ describe('main chat execution surface', () => {
   })
 
   it('offers native read/write-derived tools while withholding unregistered directory backends on the primary chat surface', async () => {
-    const tools = await buildMainGatewayTools({ toolSurface: 'main-chat', buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId: 'available-files', sessionId: 's' }, executionCapabilityChannels: [], executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(), invokeMcpListTools: vi.fn(async () => ({ tools: [{ serverName: 'filesystem', toolName: 'read_file' }, { serverName: 'filesystem', toolName: 'write_file' }] })), invokeMcpCallTool: vi.fn() })
+    const tools = await buildMainGatewayTools({ toolSurface: 'main-chat', buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId: 'available-files', sessionId: 's' }, executionCapabilityChannels: [], executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(), invokeMcpListTools: vi.fn(async () => (localFilesystemTools.filter(tool => ['read_file', 'write_file'].includes(tool.toolName)))), invokeMcpCallTool: vi.fn() })
     expect(tools.map(tool => tool.function.name)).toEqual(expect.arrayContaining(['filesystem_read_file', 'filesystem_write_file', 'filesystem_edit_file', 'filesystem_patch_file']))
     expect(tools.some(tool => ['filesystem_list_directory', 'filesystem_search_files'].includes(tool.function.name))).toBe(false)
   })
 
+  it('reuses learned procedures only through the canonical current-request boundary with bounded unique arguments', async () => {
+    const common = { buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId: 'current-procedure-request', sessionId: 's' }, executionCapabilityChannels: executionChannels, executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(), invokeMcpListTools: vi.fn(async () => ([])), invokeMcpCallTool: vi.fn() }
+    expect((await buildMainGatewayTools(common)).some(tool => tool.function.name === 'life_use_learned_procedure')).toBe(false)
+    const useLearnedProcedure = vi.fn(async () => ({ status: 'accepted' }))
+    const listLearnedProcedures = vi.fn(async () => [{ id: 'skill.learned_example' }])
+    const tools = await buildMainGatewayTools({ ...common, useLearnedProcedure, listLearnedProcedures })
+    await tools.find(tool => tool.function.name === 'life_list_learned_procedures')!.execute({}, { messages: [], toolCallId: 'list' })
+    expect(listLearnedProcedures).toHaveBeenCalledOnce()
+    const use = tools.find(tool => tool.function.name === 'life_use_learned_procedure')!
+    const input = { id: 'skill.learned_example', version: 'a'.repeat(64), goal: 'Fresh request', arguments: [{ name: 'input1', value: 'fresh content' }] }
+    const controller = new AbortController()
+    await use.execute(input, { messages: [], toolCallId: 'use', abortSignal: controller.signal })
+    expect(useLearnedProcedure).toHaveBeenCalledWith(expect.objectContaining({ cardId: 'default', turnId: 'current-procedure-request', arguments: { input1: 'fresh content' }, abortSignal: controller.signal }))
+    await expect(use.execute({ ...input, arguments: [...input.arguments, ...input.arguments] }, { messages: [], toolCallId: 'duplicate' })).rejects.toThrow('duplicate')
+    expect(useLearnedProcedure).toHaveBeenCalledOnce()
+    expect(common.invokeMcpCallTool).not.toHaveBeenCalled()
+  })
+
   it('offers bounded personal creation only with a real handler and preserves the owning turn and cancellation', async () => {
-    const common = { buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId: 'personal-piece', sessionId: 's' }, executionCapabilityChannels: executionChannels, executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(async () => ({ ok: true })), invokeMcpListTools: vi.fn(async () => ({ tools: [] })), invokeMcpCallTool: vi.fn() }
+    const common = { buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId: 'personal-piece', sessionId: 's' }, executionCapabilityChannels: executionChannels, executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(async () => ({ ok: true })), invokeMcpListTools: vi.fn(async () => ([])), invokeMcpCallTool: vi.fn() }
     expect((await buildMainGatewayTools(common)).some(tool => tool.function.name === 'life_create_personal_piece')).toBe(false)
     const createPersonalPiece = vi.fn(async () => ({ status: 'held', reason: 'daily-project-budget' }))
     const tool = (await buildMainGatewayTools({ ...common, createPersonalPiece })).find(tool => tool.function.name === 'life_create_personal_piece')!
@@ -155,7 +297,7 @@ describe('main chat execution surface', () => {
 
   it('blocks credential paths before MCP dispatch while ordinary local reads remain available', async () => {
     const invokeMcpCallTool = vi.fn(async () => ({ content: [{ type: 'text', text: 'ordinary QA note' }] }))
-    const tools = await buildMainGatewayTools({ buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId: 'private-read', sessionId: 's' }, executionCapabilityChannels: executionChannels, executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(async () => ({ ok: true })), invokeMcpListTools: vi.fn(async () => ({ tools: [] })), invokeMcpCallTool })
+    const tools = await buildMainGatewayTools({ buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(), context: { cardId: 'default', turnId: 'private-read', sessionId: 's' }, executionCapabilityChannels: executionChannels, executeTaskThread: vi.fn(), getSensorySnapshot: () => sensorySnapshot, resolveTaskPlanningCapabilities: vi.fn(async () => []), scheduleReminderTask: vi.fn(async () => ({ ok: true })), invokeMcpListTools: vi.fn(async () => ([])), invokeMcpCallTool })
     const read = tools.find(tool => tool.function.name === 'filesystem_read_file')!
     const blocked = await read.execute({ path: '.env' }, { messages: [], toolCallId: 'private' })
     expect(blocked).toMatchObject({ errorCode: 'PRIVATE_READ_CONFIRMATION_REQUIRED' })
@@ -177,7 +319,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     }
 
@@ -192,7 +334,7 @@ describe('main chat execution surface', () => {
   })
 
   it('does not expose generic MCP discovery or dispatch tools to the model', async () => {
-    const invokeMcpListTools = vi.fn(async () => ({ tools: [] }))
+    const invokeMcpListTools = vi.fn(async () => ([]))
     const invokeMcpCallTool = vi.fn(async () => ({ ok: true }))
     const tools = await buildMainGatewayTools({
       buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
@@ -232,7 +374,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -266,7 +408,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -303,7 +445,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find(tool => tool.function.name === 'codex')!
@@ -351,7 +493,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find(tool => tool.function.name === 'codex')!
@@ -405,7 +547,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codingAgentTool = tools.find(tool =>
@@ -524,7 +666,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -561,7 +703,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ tools: [] })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const localVisualTool = tools.find((entry: any) =>
@@ -603,7 +745,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool,
     })
 
@@ -641,7 +783,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       toolRegistry: registry,
     })
@@ -672,7 +814,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -710,7 +852,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool,
     })
     const readFileTool = tools.find(tool =>
@@ -750,7 +892,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool,
     })
     const readFileTool = tools.find(tool =>
@@ -790,7 +932,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => ({ tools: [] })),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool,
     })
     const writeFileTool = tools.find(tool =>
@@ -840,7 +982,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool,
     })
     const patchFileTool = tools.find(tool =>
@@ -882,7 +1024,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool,
     })
     const readFileTool = tools.find(tool =>
@@ -925,7 +1067,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool,
     })
     const readFileTool = tools.find(tool =>
@@ -966,7 +1108,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool,
     })
     const readFileTool = tools.find(tool =>
@@ -1018,7 +1160,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool,
     } as any)
     const writeFileTool = tools.find(tool =>
@@ -1082,7 +1224,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -1135,7 +1277,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -1170,7 +1312,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codingAgentTool = tools.find(tool =>
@@ -1222,7 +1364,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codingAgentTool = tools.find((entry: any) => entry.function?.name === 'coding_agent') as any
@@ -1276,7 +1418,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codingAgentTool = tools.find((entry: any) => entry.function?.name === 'coding_agent') as any
@@ -1350,7 +1492,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -1389,7 +1531,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -1416,7 +1558,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -1452,7 +1594,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -1487,7 +1629,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -1521,7 +1663,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -1559,7 +1701,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -1614,7 +1756,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const claudeTool = tools.find((entry: any) => entry.function?.name === 'claude_code') as any
@@ -1671,7 +1813,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -1711,7 +1853,7 @@ describe('main chat execution surface', () => {
         getSensorySnapshot: () => sensorySnapshot,
         resolveTaskPlanningCapabilities: vi.fn(async () => []),
         scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-        invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+        invokeMcpListTools: vi.fn(async () => ([])),
         invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       })
       const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -1797,7 +1939,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -1865,7 +2007,7 @@ describe('main chat execution surface', () => {
         getSensorySnapshot: () => sensorySnapshot,
         resolveTaskPlanningCapabilities: vi.fn(async () => []),
         scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-        invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+        invokeMcpListTools: vi.fn(async () => ([])),
         invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       })
       const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -1994,7 +2136,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2103,7 +2245,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2161,7 +2303,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2211,7 +2353,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2267,7 +2409,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2314,7 +2456,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2384,7 +2526,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2451,7 +2593,7 @@ describe('main chat execution surface', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       resumeTaskThread: resumeTaskThread as any,
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2489,7 +2631,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2535,7 +2677,7 @@ describe('main chat execution surface', () => {
         getSensorySnapshot: () => sensorySnapshot,
         resolveTaskPlanningCapabilities: vi.fn(async () => []),
         scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-        invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+        invokeMcpListTools: vi.fn(async () => ([])),
         invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       })
       const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2588,7 +2730,7 @@ describe('main chat execution surface', () => {
         getSensorySnapshot: () => sensorySnapshot,
         resolveTaskPlanningCapabilities: vi.fn(async () => []),
         scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-        invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+        invokeMcpListTools: vi.fn(async () => ([])),
         invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       })
       const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
@@ -2668,7 +2810,7 @@ describe('main chat execution surface', () => {
         getSensorySnapshot: () => sensorySnapshot,
         resolveTaskPlanningCapabilities: vi.fn(async () => []),
         scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-        invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+        invokeMcpListTools: vi.fn(async () => ([])),
         invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       })
       const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2756,7 +2898,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2836,7 +2978,7 @@ describe('main chat execution surface', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       resumeTaskThread: resumeTaskThread as any,
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2875,7 +3017,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2916,7 +3058,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -2967,7 +3109,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -3019,7 +3161,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -3073,7 +3215,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -3125,7 +3267,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -3174,7 +3316,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -3223,7 +3365,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -3290,7 +3432,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const browserClickTool = tools.find((entry: any) => entry.function?.name === 'browser_click_element') as any
@@ -3358,7 +3500,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -3407,7 +3549,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -3439,7 +3581,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
@@ -3479,7 +3621,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
@@ -3526,7 +3668,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
@@ -3573,7 +3715,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -3604,7 +3746,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
@@ -3635,7 +3777,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
@@ -3690,7 +3832,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
@@ -3740,7 +3882,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities,
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -3776,7 +3918,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -3823,7 +3965,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -3880,7 +4022,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -3928,7 +4070,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const browserReadTool = tools.find(tool => tool.function.name === 'browser_read_page')!
@@ -3962,7 +4104,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const desktopListTool = tools.find(tool => tool.function.name === 'desktop_list_interactables')!
@@ -4002,7 +4144,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const browserReadTool = tools.find(tool => tool.function.name === 'browser_read_page')!
@@ -4038,7 +4180,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const browserClickTool = tools.find(tool => tool.function.name === 'browser_click_element')!
@@ -4088,7 +4230,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const browserClickTool = tools.find(tool => tool.function.name === 'browser_click_element')!
@@ -4149,7 +4291,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const browserOpenTool = tools.find(tool => tool.function.name === 'browser_open_url')!
@@ -4202,7 +4344,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const desktopClickTool = tools.find(tool => tool.function.name === 'desktop_click_element')!
@@ -4238,6 +4380,7 @@ describe('main chat execution surface', () => {
       output: 'shortcut applied',
     }
     const tools = await buildMainGatewayTools({
+      toolRegistry: createCanonicalToolRegistry({ platform: 'darwin' }),
       buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
       context: {
         cardId: 'default',
@@ -4254,7 +4397,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const desktopPressTool = tools.find(tool => tool.function.name === 'desktop_press_keys')!
@@ -4329,7 +4472,7 @@ describe('main chat execution surface', () => {
       getSensorySnapshot: () => sensorySnapshot,
       resolveTaskPlanningCapabilities: vi.fn(async () => []),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const browserClickTool = tools.find(tool => tool.function.name === 'browser_click_element')!

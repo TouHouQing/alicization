@@ -457,6 +457,12 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   desktopPressKeys?: BuildMainGatewayToolsOptions['desktopPressKeys']
   desktopWait?: BuildMainGatewayToolsOptions['desktopWait']
   createPersonalPiece?: BuildMainGatewayToolsOptions['createPersonalPiece']
+  createWorkPlan?: BuildMainGatewayToolsOptions['createWorkPlan']
+  createDeclaredWorkPlan?: BuildMainGatewayToolsOptions['createDeclaredWorkPlan']
+  listExecutionVerifiers?: BuildMainGatewayToolsOptions['listExecutionVerifiers']
+  listLearnedProcedures?: BuildMainGatewayToolsOptions['listLearnedProcedures']
+  useLearnedProcedure?: BuildMainGatewayToolsOptions['useLearnedProcedure']
+  prepareLearnedProcedureInput?: BuildMainGatewayToolsOptions['prepareLearnedProcedureInput']
   desktopInspectScene?: BuildMainGatewayToolsOptions['desktopInspectScene']
   desktopOpenApplication?: BuildMainGatewayToolsOptions['desktopOpenApplication']
   resolveTaskPlanningCapabilities: BuildMainGatewayToolsOptions['resolveTaskPlanningCapabilities']
@@ -2699,7 +2705,9 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
               decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
               sessionId: agentTurn.conversationSessionId,
             },
-            userText: readLatestUserMessageText(messages),
+            // The current request owns literal tool arguments. Prelude and
+            // memory previews may be compacted; neither can replace its bytes.
+            userText: readTransportContentAsText(payload.messages.findLast(message => message.role === 'user')?.content),
             buildExecutionRuntimeContext: sessionBoundToolOptions.buildExecutionRuntimeContext,
             executeTaskThread: sessionBoundToolOptions.executeTaskThread,
             resumeTaskThread: sessionBoundToolOptions.resumeTaskThread,
@@ -2717,6 +2725,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             desktopPressKeys: sessionBoundToolOptions.desktopPressKeys,
             desktopWait: sessionBoundToolOptions.desktopWait,
             createPersonalPiece: options.createPersonalPiece,
+            createWorkPlan: options.createWorkPlan,
+            createDeclaredWorkPlan: options.createDeclaredWorkPlan,
+            listExecutionVerifiers: options.listExecutionVerifiers,
+            listLearnedProcedures: options.listLearnedProcedures,
+            useLearnedProcedure: options.useLearnedProcedure,
+            prepareLearnedProcedureInput: options.prepareLearnedProcedureInput,
             desktopInspectScene: sessionBoundToolOptions.desktopInspectScene,
             desktopOpenApplication: sessionBoundToolOptions.desktopOpenApplication,
             executionCapabilityChannels: options.executionCapabilityChannels,

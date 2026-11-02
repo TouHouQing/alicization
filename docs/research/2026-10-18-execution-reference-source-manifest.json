@@ -1,0 +1,617 @@
+{
+  "observedAt": "2026-10-18T11:36:59.885949+00:00",
+  "repositories": [
+    {
+      "name": "agent-s",
+      "repository": "simular-ai/Agent-S",
+      "url": "https://github.com/simular-ai/Agent-S",
+      "commit": "15776a8dc659658b1963816ea006f7af1978e595",
+      "commitDate": "2026-10-08T22:27:32Z",
+      "defaultBranch": "main",
+      "licenseApi": {
+        "key": "apache-2.0",
+        "name": "Apache License 2.0",
+        "spdx_id": "Apache-2.0",
+        "url": "https://api.github.com/licenses/apache-2.0",
+        "node_id": "MDc6TGljZW5zZTI="
+      },
+      "treeTruncated": false,
+      "fileCount": 127,
+      "inspection": "Selected static source reading; no dependency installation or upstream code execution",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1",
+          "bytes": 11356,
+          "sourceUrl": "https://github.com/simular-ai/Agent-S/blob/15776a8dc659658b1963816ea006f7af1978e595/LICENSE"
+        },
+        {
+          "path": "gui_agents/s3/agents/agent_s.py",
+          "sha256": "ba3837d647d6e9a26e95f73354db2e32dc46fa8ce3a3232d8c9eb9134c386adc",
+          "bytes": 3116,
+          "sourceUrl": "https://github.com/simular-ai/Agent-S/blob/15776a8dc659658b1963816ea006f7af1978e595/gui_agents/s3/agents/agent_s.py",
+          "localPath": "output/execution-optimization-sources-20261018/agent-s/gui_agents/s3/agents/agent_s.py"
+        },
+        {
+          "path": "gui_agents/s3/agents/worker.py",
+          "sha256": "69c170f3516c7472d200bf3329f133509ecc949d6e3d1e80cf24e8867dddb292",
+          "bytes": 15514,
+          "sourceUrl": "https://github.com/simular-ai/Agent-S/blob/15776a8dc659658b1963816ea006f7af1978e595/gui_agents/s3/agents/worker.py",
+          "localPath": "output/execution-optimization-sources-20261018/agent-s/gui_agents/s3/agents/worker.py"
+        },
+        {
+          "path": "gui_agents/s3/memory/procedural_memory.py",
+          "sha256": "d4cc3aca3ffb390636706e22ff651e02e5db178e06d3e6f21327bd43f6f58575",
+          "bytes": 26034,
+          "sourceUrl": "https://github.com/simular-ai/Agent-S/blob/15776a8dc659658b1963816ea006f7af1978e595/gui_agents/s3/memory/procedural_memory.py",
+          "localPath": "output/execution-optimization-sources-20261018/agent-s/gui_agents/s3/memory/procedural_memory.py"
+        }
+      ],
+      "id": "O10",
+      "displayName": "Agent-S",
+      "observedMechanism": "当前 S3 的 AgentS3 使用单 Worker 加可选反思，保存有限截图轨迹，并以 grounding 接口形成动作；procedural_memory 文件主要构造行动提示。",
+      "localApplication": "把操作前反思限制在当前观察和失败证据，区分思考、动作建议、已执行回执。",
+      "limitation": "不沿用旧版本“全部分层规划”的描述，不把反思提示当已验证技能或把预测代码直接作为执行事实。",
+      "reuseDecision": "reference-only",
+      "executionPerformed": false,
+      "productionCodeImportedThisTurn": false
+    },
+    {
+      "name": "browser-use",
+      "repository": "browser-use/browser-use",
+      "url": "https://github.com/browser-use/browser-use",
+      "commit": "aa093a843da5edbf323c0b4145c9b6a0db3ecde8",
+      "commitDate": "2026-10-17T18:53:21Z",
+      "defaultBranch": "main",
+      "licenseApi": {
+        "key": "mit",
+        "name": "MIT License",
+        "spdx_id": "MIT",
+        "url": "https://api.github.com/licenses/mit",
+        "node_id": "MDc6TGljZW5zZTEz"
+      },
+      "treeTruncated": false,
+      "fileCount": 555,
+      "inspection": "Selected static source reading; no dependency installation or upstream code execution",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "135c57671b0ee957669b05a0ca00cc06f645496d351e2e732832c6e276da9a5e",
+          "bytes": 1069,
+          "sourceUrl": "https://github.com/browser-use/browser-use/blob/aa093a843da5edbf323c0b4145c9b6a0db3ecde8/LICENSE"
+        },
+        {
+          "path": "browser_use/browser/watchdogs/default_action_watchdog.py",
+          "sha256": "0f679e4de08dd45c8bba824666a1d87569855b00a45f5db3c9c8f61e1957aebc",
+          "bytes": 134773,
+          "sourceUrl": "https://github.com/browser-use/browser-use/blob/aa093a843da5edbf323c0b4145c9b6a0db3ecde8/browser_use/browser/watchdogs/default_action_watchdog.py",
+          "localPath": "output/execution-optimization-sources-20261018/browser-use/browser_use/browser/watchdogs/default_action_watchdog.py"
+        },
+        {
+          "path": "browser_use/browser/watchdogs/downloads_watchdog.py",
+          "sha256": "a27d9d5ef87d0d2c459cc26e7b6a77b3b6520b24758b4b1fe582920529ff4a07",
+          "bytes": 56973,
+          "sourceUrl": "https://github.com/browser-use/browser-use/blob/aa093a843da5edbf323c0b4145c9b6a0db3ecde8/browser_use/browser/watchdogs/downloads_watchdog.py",
+          "localPath": "output/execution-optimization-sources-20261018/browser-use/browser_use/browser/watchdogs/downloads_watchdog.py"
+        },
+        {
+          "path": "browser_use/agent/service.py",
+          "sha256": "b6b6943492b062754acd322f9f1d0a950e0ce30edebe53ac4392ede9b4796ba1",
+          "bytes": 165219,
+          "sourceUrl": "https://github.com/browser-use/browser-use/blob/aa093a843da5edbf323c0b4145c9b6a0db3ecde8/browser_use/agent/service.py",
+          "localPath": "output/execution-optimization-sources-20261018/browser-use/browser_use/agent/service.py"
+        }
+      ],
+      "id": "O05",
+      "displayName": "Browser Use",
+      "observedMechanism": "动作与观察由 watchdog 协作；点击关联下载开始/进度/完成及 GUID；保留动作批次中的部分结果。当前 judge 记录附于结果但不覆盖代理自报 success。",
+      "localApplication": "适配 iframe/控件操作、下载生命周期、部分动作结果；在本地验证器单独裁定目标。",
+      "limitation": "不导入整套 Python 代理。不能把 self-report、judge 或下载开始当作真实业务完成。",
+      "reuseDecision": "adapt-browser-components",
+      "executionPerformed": false,
+      "productionCodeImportedThisTurn": false
+    },
+    {
+      "name": "hermes",
+      "repository": "NousResearch/hermes-agent",
+      "url": "https://github.com/NousResearch/hermes-agent",
+      "commit": "354ad3d48786f2978c49be88f28c13d78fa0b6e0",
+      "commitDate": "2026-10-18T10:27:21Z",
+      "defaultBranch": "main",
+      "licenseApi": {
+        "key": "mit",
+        "name": "MIT License",
+        "spdx_id": "MIT",
+        "url": "https://api.github.com/licenses/mit",
+        "node_id": "MDc6TGljZW5zZTEz"
+      },
+      "treeTruncated": false,
+      "fileCount": 20258,
+      "inspection": "Selected static source reading; no dependency installation or upstream code execution",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "821556e6336796450ab852d375117b48a4887e71d255794fd6318d99982a5ab6",
+          "bytes": 1070,
+          "sourceUrl": "https://github.com/NousResearch/hermes-agent/blob/354ad3d48786f2978c49be88f28c13d78fa0b6e0/LICENSE"
+        },
+        {
+          "path": "tools/skill_manager_tool.py",
+          "sha256": "131d3720957659c37addd27430693d5d0b7dec0b5176a83b2bedad783b7edcd7",
+          "bytes": 47255,
+          "sourceUrl": "https://github.com/NousResearch/hermes-agent/blob/354ad3d48786f2978c49be88f28c13d78fa0b6e0/tools/skill_manager_tool.py",
+          "localPath": "output/execution-optimization-sources-20261018/hermes/tools/skill_manager_tool.py"
+        },
+        {
+          "path": "hermes_cli/goals.py",
+          "sha256": "9be23366970e87d4b41ca6ba15c51294f9584c0d6d3e501e1cefa0590c32f012",
+          "bytes": 84404,
+          "sourceUrl": "https://github.com/NousResearch/hermes-agent/blob/354ad3d48786f2978c49be88f28c13d78fa0b6e0/hermes_cli/goals.py",
+          "localPath": "output/execution-optimization-sources-20261018/hermes/hermes_cli/goals.py"
+        },
+        {
+          "path": "agent/tool_executor.py",
+          "sha256": "2c39c9863fc906175f0ce9c70d1ae8e6efb0276b36c8b0fbb862cf0ca06869f2",
+          "bytes": 97794,
+          "sourceUrl": "https://github.com/NousResearch/hermes-agent/blob/354ad3d48786f2978c49be88f28c13d78fa0b6e0/agent/tool_executor.py",
+          "localPath": "output/execution-optimization-sources-20261018/hermes/agent/tool_executor.py"
+        }
+      ],
+      "id": "O02",
+      "displayName": "Hermes Agent",
+      "observedMechanism": "GoalContract 表达 outcome、verification、constraints、boundaries、stop_when；GoalGate 在模型评审前运行确定性检查。技能管理有路径校验、写锁和原子写入。",
+      "localApplication": "把目标契约与验收配方接入 LifeObligation；把经验转成隔离评估的技能候选。",
+      "limitation": "不照搬任意 shell=True 验收命令，不把模型 judge 当独立事实；技能被写入不等于已经可靠。",
+      "reuseDecision": "adapt-contract-and-write-guards",
+      "executionPerformed": false,
+      "productionCodeImportedThisTurn": false
+    },
+    {
+      "name": "langgraph",
+      "repository": "langchain-ai/langgraphjs",
+      "url": "https://github.com/langchain-ai/langgraphjs",
+      "commit": "cc29753d529caa5eed97a65e765ba26c0f88c631",
+      "commitDate": "2026-10-16T20:52:09Z",
+      "defaultBranch": "main",
+      "licenseApi": {
+        "key": "mit",
+        "name": "MIT License",
+        "spdx_id": "MIT",
+        "url": "https://api.github.com/licenses/mit",
+        "node_id": "MDc6TGljZW5zZTEz"
+      },
+      "treeTruncated": false,
+      "fileCount": 2002,
+      "inspection": "Selected static source reading; no dependency installation or upstream code execution",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "dbeab89f4ab409184f943dd1b882c3ece706b365eabc3569844e095cea247cde",
+          "bytes": 1069,
+          "sourceUrl": "https://github.com/langchain-ai/langgraphjs/blob/cc29753d529caa5eed97a65e765ba26c0f88c631/LICENSE"
+        },
+        {
+          "path": "libs/checkpoint-sqlite/src/index.ts",
+          "sha256": "02612d203fe0dc022cf81d38702a8f8ca149693730d4c3b3cf6e984ffa9f60fd",
+          "bytes": 18709,
+          "sourceUrl": "https://github.com/langchain-ai/langgraphjs/blob/cc29753d529caa5eed97a65e765ba26c0f88c631/libs/checkpoint-sqlite/src/index.ts",
+          "localPath": "output/execution-optimization-sources-20261018/langgraph/libs/checkpoint-sqlite/src/index.ts"
+        },
+        {
+          "path": "libs/langgraph-core/src/pregel/runner.ts",
+          "sha256": "7bb4c7175315255297d8ec984453601fc1d748bd11a4ab8b1354fdefdf3a6919",
+          "bytes": 18756,
+          "sourceUrl": "https://github.com/langchain-ai/langgraphjs/blob/cc29753d529caa5eed97a65e765ba26c0f88c631/libs/langgraph-core/src/pregel/runner.ts",
+          "localPath": "output/execution-optimization-sources-20261018/langgraph/libs/langgraph-core/src/pregel/runner.ts"
+        },
+        {
+          "path": "libs/langgraph-core/src/pregel/retry.ts",
+          "sha256": "6912e481b1678eab9c35245a532486c571b81f8a41e95084babe1ae2f8b287fe",
+          "bytes": 6796,
+          "sourceUrl": "https://github.com/langchain-ai/langgraphjs/blob/cc29753d529caa5eed97a65e765ba26c0f88c631/libs/langgraph-core/src/pregel/retry.ts",
+          "localPath": "output/execution-optimization-sources-20261018/langgraph/libs/langgraph-core/src/pregel/retry.ts"
+        }
+      ],
+      "id": "O08",
+      "displayName": "LangGraph.js",
+      "observedMechanism": "SqliteSaver 以 thread/namespace/checkpoint/task/index 存节点写入；普通写入与控制通道有不同冲突语义。Runner 控制并发、取消和节点错误处理。",
+      "localApplication": "在现有 SQLite writer 中实现同等节点产物、恢复游标、错误节点和版本检查。",
+      "limitation": "不再引入 better-sqlite3 第二 writer；节点重试不等于可以重发外部副作用。",
+      "reuseDecision": "adapt-checkpoint-protocol",
+      "executionPerformed": false,
+      "productionCodeImportedThisTurn": false
+    },
+    {
+      "name": "neko",
+      "repository": "Project-N-E-K-O/N.E.K.O",
+      "url": "https://github.com/Project-N-E-K-O/N.E.K.O",
+      "commit": "61c7766dba74462e0f7726b60e2854d9b7343dcb",
+      "commitDate": "2026-10-18T10:39:33Z",
+      "defaultBranch": "main",
+      "licenseApi": {
+        "key": "apache-2.0",
+        "name": "Apache License 2.0",
+        "spdx_id": "Apache-2.0",
+        "url": "https://api.github.com/licenses/apache-2.0",
+        "node_id": "MDc6TGljZW5zZTI="
+      },
+      "treeTruncated": false,
+      "fileCount": 5940,
+      "inspection": "Selected static source reading; no dependency installation or upstream code execution",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "0d99b64baf1323c3a7f70a28075b14d573df6d773aa2d33d827053cc775062d8",
+          "bytes": 11357,
+          "sourceUrl": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/61c7766dba74462e0f7726b60e2854d9b7343dcb/LICENSE"
+        },
+        {
+          "path": "NOTICE",
+          "sha256": "96199da23327c5086c4f562e4c1a05685e18643ab32ce896f13934b15b4a8aca",
+          "bytes": 771,
+          "sourceUrl": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/61c7766dba74462e0f7726b60e2854d9b7343dcb/NOTICE"
+        },
+        {
+          "path": "brain/task_executor.py",
+          "sha256": "3daeb45f99d4684955d4fca53822586e992515599d1cbfd961b66b890f3d4dda",
+          "bytes": 139029,
+          "sourceUrl": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/61c7766dba74462e0f7726b60e2854d9b7343dcb/brain/task_executor.py",
+          "localPath": "output/execution-optimization-sources-20261018/neko/brain/task_executor.py"
+        },
+        {
+          "path": "brain/computer_use.py",
+          "sha256": "e8b36896331306aae6f43521c74be327572907b57530b5aba2fc51b9b6ce4a01",
+          "bytes": 61125,
+          "sourceUrl": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/61c7766dba74462e0f7726b60e2854d9b7343dcb/brain/computer_use.py",
+          "localPath": "output/execution-optimization-sources-20261018/neko/brain/computer_use.py"
+        }
+      ],
+      "id": "O03",
+      "displayName": "N.E.K.O.",
+      "observedMechanism": "DirectTaskExecutor 分析当前意图并选择 computer/browser/plugin 等执行通道；任务带身份；computer-use 循环在截图、模型返回及操作边界检查取消。",
+      "localApplication": "借鉴陪伴主体与专用执行适配器的职责分离、任务关联及密集取消检查。",
+      "limitation": "保留本项目单一心智；不直接接受模型生成的 pyautogui 代码为可执行授权，也不复制另一个人格/记忆中心。",
+      "reuseDecision": "reference-and-selective-adaptation",
+      "executionPerformed": false,
+      "productionCodeImportedThisTurn": false
+    },
+    {
+      "name": "openhands",
+      "repository": "OpenHands/software-agent-sdk",
+      "url": "https://github.com/OpenHands/software-agent-sdk",
+      "commit": "59b2831c17fbd6793f1cb8103d3fd91e57420324",
+      "commitDate": "2026-10-18T04:37:04Z",
+      "defaultBranch": "main",
+      "licenseApi": {
+        "key": "mit",
+        "name": "MIT License",
+        "spdx_id": "MIT",
+        "url": "https://api.github.com/licenses/mit",
+        "node_id": "MDc6TGljZW5zZTEz"
+      },
+      "treeTruncated": false,
+      "fileCount": 1931,
+      "inspection": "Selected static source reading; no dependency installation or upstream code execution",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "14a9b631c658eee682c6c2973525fbdf808c3457176bc47513052c559cc5ce86",
+          "bytes": 1079,
+          "sourceUrl": "https://github.com/OpenHands/software-agent-sdk/blob/59b2831c17fbd6793f1cb8103d3fd91e57420324/LICENSE"
+        },
+        {
+          "path": "openhands-sdk/openhands/sdk/conversation/event_store.py",
+          "sha256": "af721391c46a1979c45e0e414c45a82dfc42d8a92d62ac2ccea0242f725450b0",
+          "bytes": 14192,
+          "sourceUrl": "https://github.com/OpenHands/software-agent-sdk/blob/59b2831c17fbd6793f1cb8103d3fd91e57420324/openhands-sdk/openhands/sdk/conversation/event_store.py",
+          "localPath": "output/execution-optimization-sources-20261018/openhands/openhands-sdk/openhands/sdk/conversation/event_store.py"
+        },
+        {
+          "path": "openhands-sdk/openhands/sdk/security/confirmation_policy.py",
+          "sha256": "6ecac839fa3740e5cdc8aae6515cd0cf4ef4177c5b27bb99a7d593af844c765f",
+          "bytes": 2145,
+          "sourceUrl": "https://github.com/OpenHands/software-agent-sdk/blob/59b2831c17fbd6793f1cb8103d3fd91e57420324/openhands-sdk/openhands/sdk/security/confirmation_policy.py",
+          "localPath": "output/execution-optimization-sources-20261018/openhands/openhands-sdk/openhands/sdk/security/confirmation_policy.py"
+        }
+      ],
+      "id": "O04",
+      "displayName": "OpenHands Software Agent SDK",
+      "observedMechanism": "EventLog 追加前检查重复 ID 和父事件，持久化时有锁和写保护；ConfirmRisky 将风险判断与是否需要确认分开。",
+      "localApplication": "强化事件因果链、版本栅栏和可替换的风险决策接口。",
+      "limitation": "文件日志锁不是外部操作 exactly-once。Python 的锁和存储不直接替换现有 SQLite 单 writer。",
+      "reuseDecision": "adapt-protocol-not-storage",
+      "executionPerformed": false,
+      "productionCodeImportedThisTurn": false
+    },
+    {
+      "name": "pi",
+      "repository": "earendil-works/pi",
+      "url": "https://github.com/earendil-works/pi",
+      "commit": "482c1381a00d8d00bc81697e4a980c593db6803e",
+      "commitDate": "2026-10-18T02:15:33Z",
+      "defaultBranch": "main",
+      "licenseApi": {
+        "key": "mit",
+        "name": "MIT License",
+        "spdx_id": "MIT",
+        "url": "https://api.github.com/licenses/mit",
+        "node_id": "MDc6TGljZW5zZTEz"
+      },
+      "treeTruncated": false,
+      "fileCount": 1952,
+      "inspection": "Selected static source reading; no dependency installation or upstream code execution",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
+          "bytes": 1069,
+          "sourceUrl": "https://github.com/earendil-works/pi/blob/482c1381a00d8d00bc81697e4a980c593db6803e/LICENSE"
+        },
+        {
+          "path": "packages/agent/src/agent-loop.ts",
+          "sha256": "28a2b03e34a7e32f004aa851e54d3b5be9dad71c392205614cbc9abdf3a9020a",
+          "bytes": 29513,
+          "sourceUrl": "https://github.com/earendil-works/pi/blob/482c1381a00d8d00bc81697e4a980c593db6803e/packages/agent/src/agent-loop.ts",
+          "localPath": "output/execution-optimization-sources-20261018/pi/packages/agent/src/agent-loop.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/session-manager.ts",
+          "sha256": "450d82c529933214e088b8422f00061815e617f352f6c834689787a314064bff",
+          "bytes": 63809,
+          "sourceUrl": "https://github.com/earendil-works/pi/blob/482c1381a00d8d00bc81697e4a980c593db6803e/packages/coding-agent/src/core/session-manager.ts",
+          "localPath": "output/execution-optimization-sources-20261018/pi/packages/coding-agent/src/core/session-manager.ts"
+        }
+      ],
+      "id": "O01",
+      "displayName": "Pi",
+      "observedMechanism": "工具调用生命周期、steering 与 follow-up 分开；finishTurn 可给出显式继续决定；截断的工具参数不派发。会话管理保存树状来源。",
+      "localApplication": "保留既有 EventLoop，吸收工具生命周期和中途纠正语义；优先复用仓库已经适配的事件流。",
+      "limitation": "当前仓库由 badlogic/pi-mono 重定向至 earendil-works/pi。核心循环和会话保存不提供 Alicization 的权限、外部效果核验或人格权威。",
+      "reuseDecision": "existing-adaptation-first",
+      "executionPerformed": false,
+      "productionCodeImportedThisTurn": false
+    },
+    {
+      "name": "temporal",
+      "repository": "temporalio/sdk-typescript",
+      "url": "https://github.com/temporalio/sdk-typescript",
+      "commit": "34a7913e9c9495c43bc63f445a845cc18a5cebd1",
+      "commitDate": "2026-10-16T16:34:33Z",
+      "defaultBranch": "main",
+      "licenseApi": {
+        "key": "mit",
+        "name": "MIT License",
+        "spdx_id": "MIT",
+        "url": "https://api.github.com/licenses/mit",
+        "node_id": "MDc6TGljZW5zZTEz"
+      },
+      "treeTruncated": false,
+      "fileCount": 1086,
+      "inspection": "Selected static source reading; no dependency installation or upstream code execution",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "434e542427eae40756e435acb1ad7273164953277a090b54ed3336e7339bcde9",
+          "bytes": 1113,
+          "sourceUrl": "https://github.com/temporalio/sdk-typescript/blob/34a7913e9c9495c43bc63f445a845cc18a5cebd1/LICENSE"
+        },
+        {
+          "path": "packages/common/src/retry-policy.ts",
+          "sha256": "22fcabc7aabfea12fcde2557f51852b07fc981e2bc9b9f5df8dffafb566427c8",
+          "bytes": 3851,
+          "sourceUrl": "https://github.com/temporalio/sdk-typescript/blob/34a7913e9c9495c43bc63f445a845cc18a5cebd1/packages/common/src/retry-policy.ts",
+          "localPath": "output/execution-optimization-sources-20261018/temporal/packages/common/src/retry-policy.ts"
+        },
+        {
+          "path": "packages/common/src/activity-options.ts",
+          "sha256": "49e0b624bca7d39e3c65f4eece8c6cca0639848f76b4c273da372fd63b954242",
+          "bytes": 12412,
+          "sourceUrl": "https://github.com/temporalio/sdk-typescript/blob/34a7913e9c9495c43bc63f445a845cc18a5cebd1/packages/common/src/activity-options.ts",
+          "localPath": "output/execution-optimization-sources-20261018/temporal/packages/common/src/activity-options.ts"
+        },
+        {
+          "path": "packages/workflow/src/cancellation-scope.ts",
+          "sha256": "7e6935cf82f2f4015c93b9b9a132ddddb41328216848df66195804bdfb1fec62",
+          "bytes": 10734,
+          "sourceUrl": "https://github.com/temporalio/sdk-typescript/blob/34a7913e9c9495c43bc63f445a845cc18a5cebd1/packages/workflow/src/cancellation-scope.ts",
+          "localPath": "output/execution-optimization-sources-20261018/temporal/packages/workflow/src/cancellation-scope.ts"
+        }
+      ],
+      "id": "O09",
+      "displayName": "Temporal TypeScript SDK",
+      "observedMechanism": "Activity 区分排队、单次执行和整体时限，提供 heartbeat、取消完成语义和声明式重试；CancellationScope 区分作用域取消。",
+      "localApplication": "给后台工作窗口、适配器心跳、取消确认和恢复设置明确协议。",
+      "limitation": "本地 Phase 1 不引入 Temporal 服务；其默认 Activity 重试策略不能直接套到发送、付款或未知写入。",
+      "reuseDecision": "reference-only-local-implementation",
+      "executionPerformed": false,
+      "productionCodeImportedThisTurn": false
+    },
+    {
+      "name": "ui-tars",
+      "repository": "bytedance/UI-TARS-desktop",
+      "url": "https://github.com/bytedance/UI-TARS-desktop",
+      "commit": "3ac2cb8d946d78d5ff92ad17b318eaafa18c178c",
+      "commitDate": "2026-10-09T01:29:51Z",
+      "defaultBranch": "main",
+      "licenseApi": {
+        "key": "apache-2.0",
+        "name": "Apache License 2.0",
+        "spdx_id": "Apache-2.0",
+        "url": "https://api.github.com/licenses/apache-2.0",
+        "node_id": "MDc6TGljZW5zZTI="
+      },
+      "treeTruncated": false,
+      "fileCount": 2504,
+      "inspection": "Selected static source reading; no dependency installation or upstream code execution",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "bytes": 11357,
+          "sourceUrl": "https://github.com/bytedance/UI-TARS-desktop/blob/3ac2cb8d946d78d5ff92ad17b318eaafa18c178c/LICENSE"
+        },
+        {
+          "path": "packages/ui-tars/operators/nut-js/src/index.ts",
+          "sha256": "c4a41b34fac082016171a460e9907371116ea67572d30f139e6d8f4a829e569c",
+          "bytes": 9708,
+          "sourceUrl": "https://github.com/bytedance/UI-TARS-desktop/blob/3ac2cb8d946d78d5ff92ad17b318eaafa18c178c/packages/ui-tars/operators/nut-js/src/index.ts",
+          "localPath": "output/execution-optimization-sources-20261018/ui-tars/packages/ui-tars/operators/nut-js/src/index.ts"
+        },
+        {
+          "path": "packages/ui-tars/sdk/src/GUIAgent.ts",
+          "sha256": "036e14d2cf5db9c3bca830c8e43a8667bf25bfb866832eb3c505356d0a52017d",
+          "bytes": 17317,
+          "sourceUrl": "https://github.com/bytedance/UI-TARS-desktop/blob/3ac2cb8d946d78d5ff92ad17b318eaafa18c178c/packages/ui-tars/sdk/src/GUIAgent.ts",
+          "localPath": "output/execution-optimization-sources-20261018/ui-tars/packages/ui-tars/sdk/src/GUIAgent.ts"
+        },
+        {
+          "path": "packages/ui-tars/operators/nut-js/package.json",
+          "sha256": "7987bd726ecabb27a0dc0d0b1272c149c079738a5bf98e320c42828bd98aae51",
+          "bytes": 1221,
+          "sourceUrl": "https://github.com/bytedance/UI-TARS-desktop/blob/3ac2cb8d946d78d5ff92ad17b318eaafa18c178c/packages/ui-tars/operators/nut-js/package.json",
+          "localPath": "output/execution-optimization-sources-20261018/ui-tars/packages/ui-tars/operators/nut-js/package.json"
+        }
+      ],
+      "id": "O06",
+      "displayName": "UI-TARS Desktop",
+      "observedMechanism": "GUIAgent 分离模型和 Operator，支持暂停、恢复、取消、截图重试与循环预算。NutJSOperator 明确键盘/拖动/滚动动作，并换算截图像素密度。",
+      "localApplication": "采用 typed operator、坐标空间元数据与逐动作取消；视觉输入作为语义控件的兜底。",
+      "limitation": "NutJS 的全局鼠标/键盘不能直接作为后台输入；依赖 @computer-use/nut-js 的二进制和依赖许可证需在实际引入时单独核验。",
+      "reuseDecision": "adapt-pure-utilities-first",
+      "executionPerformed": false,
+      "productionCodeImportedThisTurn": false
+    },
+    {
+      "name": "windows-mcp",
+      "repository": "CursorTouch/Windows-MCP",
+      "url": "https://github.com/CursorTouch/Windows-MCP",
+      "commit": "a3d8e0160fd61d8f1002988333fd11c5ad71a639",
+      "commitDate": "2026-10-16T07:31:35Z",
+      "defaultBranch": "main",
+      "licenseApi": {
+        "key": "mit",
+        "name": "MIT License",
+        "spdx_id": "MIT",
+        "url": "https://api.github.com/licenses/mit",
+        "node_id": "MDc6TGljZW5zZTEz"
+      },
+      "treeTruncated": false,
+      "fileCount": 179,
+      "inspection": "Selected static source reading; no dependency installation or upstream code execution",
+      "files": [
+        {
+          "path": "LICENSE.md",
+          "sha256": "20ced59173768e20e91a43e3a80443aa1200b129c134f07f0cc45779747a1743",
+          "bytes": 1069,
+          "sourceUrl": "https://github.com/CursorTouch/Windows-MCP/blob/a3d8e0160fd61d8f1002988333fd11c5ad71a639/LICENSE.md"
+        },
+        {
+          "path": "src/windows_mcp/desktop/service.py",
+          "sha256": "c116adc0d221c993a89596a14f0ac66bf924e250672cb2691a8914b0e788231e",
+          "bytes": 68704,
+          "sourceUrl": "https://github.com/CursorTouch/Windows-MCP/blob/a3d8e0160fd61d8f1002988333fd11c5ad71a639/src/windows_mcp/desktop/service.py",
+          "localPath": "output/execution-optimization-sources-20261018/windows-mcp/src/windows_mcp/desktop/service.py"
+        },
+        {
+          "path": "src/windows_mcp/tree/service.py",
+          "sha256": "e769246b80c86930c550754054ba69f260f4805e681c55e7f7f9676ecc86c5c1",
+          "bytes": 58994,
+          "sourceUrl": "https://github.com/CursorTouch/Windows-MCP/blob/a3d8e0160fd61d8f1002988333fd11c5ad71a639/src/windows_mcp/tree/service.py",
+          "localPath": "output/execution-optimization-sources-20261018/windows-mcp/src/windows_mcp/tree/service.py"
+        },
+        {
+          "path": "pyproject.toml",
+          "sha256": "458ec69ef4c00a21e636bc8fdbd8c440218acaca5840fe55df2af0af0512f8ca",
+          "bytes": 1998,
+          "sourceUrl": "https://github.com/CursorTouch/Windows-MCP/blob/a3d8e0160fd61d8f1002988333fd11c5ad71a639/pyproject.toml",
+          "localPath": "output/execution-optimization-sources-20261018/windows-mcp/pyproject.toml"
+        },
+        {
+          "path": "src/windows_mcp/desktop/control_ledger.py",
+          "sha256": "4d322ed49edb75b80496dad3f98064fd2a4c7889c501ab653adbd7f2b5243905",
+          "bytes": 2756,
+          "sourceUrl": "https://github.com/CursorTouch/Windows-MCP/blob/a3d8e0160fd61d8f1002988333fd11c5ad71a639/src/windows_mcp/desktop/control_ledger.py",
+          "localPath": "output/execution-optimization-sources-20261018/windows-mcp/src/windows_mcp/desktop/control_ledger.py"
+        },
+        {
+          "path": "src/windows_mcp/desktop/control_recovery.py",
+          "sha256": "ff975484044f1fe01eb4e91dd39c0c3ce6d6fed6e02134443fda209121b11a4b",
+          "bytes": 3975,
+          "sourceUrl": "https://github.com/CursorTouch/Windows-MCP/blob/a3d8e0160fd61d8f1002988333fd11c5ad71a639/src/windows_mcp/desktop/control_recovery.py",
+          "localPath": "output/execution-optimization-sources-20261018/windows-mcp/src/windows_mcp/desktop/control_recovery.py"
+        }
+      ],
+      "id": "O07",
+      "displayName": "Windows-MCP",
+      "observedMechanism": "UIA 与窗口服务覆盖多类控件；InputLedger 先记录自身按下的键，再派发，并在中断时释放；物理接管和遗漏释放恢复有独立状态。",
+      "localApplication": "优先移植 InputLedger 与输入接管算法到本地 native helper，补齐 Windows 目标和焦点验证。",
+      "limitation": "快捷键依赖前台 SendKeys；整个项目要求 Python >=3.14。采用小模块移植，避免整包引入与主桌面焦点争抢。",
+      "reuseDecision": "adapt-input-ledger",
+      "executionPerformed": false,
+      "productionCodeImportedThisTurn": false
+    }
+  ],
+  "format": "alicization-execution-reference-study-v1",
+  "commercialReferences": [
+    {
+      "id": "C01",
+      "name": "OpenAI Computer Use",
+      "kind": "published-commercial-api",
+      "urls": [
+        "https://developers.openai.com/api/docs/guides/tools-computer-use"
+      ],
+      "observedMechanism": "公开协议分开 computer_call 与环境执行结果，动作按顺序运行后反馈新截图；示例另验证页面结果。",
+      "localApplication": "模型生成完成、操作派发完成和目标验证完成分别落库；保留 provider-neutral 适配层。",
+      "unknown": "模型和托管服务内部实现、训练与总体成功率不作推断。"
+    },
+    {
+      "id": "C02",
+      "name": "Claude Computer Use",
+      "kind": "published-commercial-api",
+      "urls": [
+        "https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool"
+      ],
+      "observedMechanism": "应用负责执行代理循环；同批每个工具块都返回结果，失败和跳过项可供下一轮重规划；高影响动作在执行前检查。",
+      "localApplication": "动作批次逐项验证目标、风险和取消；失败后交付部分回执；外部页面内容仅作观察。",
+      "unknown": "闭源模型判断和服务内部注入防御不可复制；不预设它保证完成验收。"
+    },
+    {
+      "id": "C03",
+      "name": "Microsoft Power Automate Desktop",
+      "kind": "published-commercial-product",
+      "urls": [
+        "https://learn.microsoft.com/en-us/power-automate/desktop-flows/ui-elements",
+        "https://learn.microsoft.com/en-us/power-automate/desktop-flows/errors",
+        "https://learn.microsoft.com/en-us/troubleshoot/power-platform/power-automate/desktop-flows/ui-automation/ui-automation-action-fails-errors"
+      ],
+      "observedMechanism": "UI 元素保存层级属性和有序备用 selector，动作和动作块提供错误处理；官方说明布局、DPI、权限等会导致失效。",
+      "localApplication": "控件多候选定位、强目标身份校验、有限重新观察和逐动作错误恢复。",
+      "unknown": "selector repair 的专有模型与实现未知；不能凭页面宣传认定它能在任意后台窗口输入。"
+    },
+    {
+      "id": "C04",
+      "name": "UiPath Action Center",
+      "kind": "published-commercial-product",
+      "urls": [
+        "https://docs.uipath.com/action-center/automation-cloud/latest/user-guide/wait-for-job-and-resume"
+      ],
+      "observedMechanism": "Wait For Job And Resume 通过 JobData 引用暂停并在对应 Job 完成后继续；区分运行、挂起、恢复和停止。",
+      "localApplication": "等待用户或外部依赖时持久化引用并释放执行资源；接续时核验同一责任版本。",
+      "unknown": "未取得内部服务源码；Job 成功不能代替本项目的业务验收。"
+    },
+    {
+      "id": "C05",
+      "name": "Manus Browser Operator",
+      "kind": "published-commercial-product",
+      "urls": [
+        "https://www.manus.im/blog/manus-preferred-browser",
+        "https://help.manus.im/en/articles/11711218-how-can-i-take-over-manus-browser-or-vs-code"
+      ],
+      "observedMechanism": "用户选择并授权已有登录状态的浏览器环境；遇到困难或用户主动干预时可接管。",
+      "localApplication": "区分自有浏览器和用户授权浏览器，复用指定 tab/session，支持接管并让旧操作失效。",
+      "unknown": "内部规划、验证和持久化实现未知；登录态复用不提供权限绕过或完成保证。"
+    }
+  ],
+  "codeFileCount": 29,
+  "scope": "Static inspection of selected pinned upstream files and current official commercial documentation; no upstream runtime was installed or executed; implementation proposals are unimplemented."
+}

@@ -21,6 +21,7 @@ const props = defineProps<{
   options: { groupLabel: string, children?: { label: string, value: T }[] }[]
   placeholder?: string
   disabled?: boolean
+  ariaLabel?: string
 }>()
 
 const modelValue = defineModel<T>({ required: false })
@@ -44,6 +45,7 @@ function toDisplayValue(value: T): string {
       ]"
     >
       <ComboboxInput
+        :aria-label="props.ariaLabel"
         :class="[
           '!bg-transparent outline-none h-full selection:bg-grass5 placeholder-stone-400 w-full',
           'text-neutral-700 dark:text-neutral-200',
@@ -52,7 +54,7 @@ function toDisplayValue(value: T): string {
         :placeholder="props.placeholder"
         :display-value="(val) => toDisplayValue(val)"
       />
-      <ComboboxTrigger>
+      <ComboboxTrigger v-bind="props.ariaLabel ? { 'aria-label': props.ariaLabel } : {}">
         <div
           i-solar:alt-arrow-down-linear
           :class="[

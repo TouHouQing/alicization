@@ -32,6 +32,7 @@ import {
   renameAlicizationAtomicPath,
   writeAlicizationAtomicContent,
 } from './runtime-atomic-write'
+import { sqliteFileSystemPath } from './sqlite-file-path'
 
 export type MemorySemanticScaleJobTier = '10k' | '100k'
 export type MemorySemanticScaleJobStatus = 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
@@ -705,7 +706,7 @@ function mapJobRow(row: MemorySemanticScaleJobRow): MemorySemanticScaleJob {
 
 function openDatabase(path: string) {
   return new Promise<sqlite3.Database>((resolve, reject) => {
-    const database = new sqlite.Database(path, (error) => {
+    const database = new sqlite.Database(sqliteFileSystemPath(path), (error) => {
       if (error) {
         reject(error)
         return
@@ -1892,6 +1893,9 @@ export function createMemorySemanticScaleJobRuntime(input: {
           abortAttemptForStop(attempt)
         else if (current.status === 'cancel_requested' && !controller.signal.aborted)
           controller.abort(new Error(current.last_error ?? 'semantic scale job cancelled'))
+        // Lease loss or stop can arrive while native/filesystem preparation
+        // awaits. Do not admit work with an already-revoked execution signal.
+        controller.signal.throwIfAborted()
         attempt.report = await executeJob({
           jobId: activeClaim.row.id,
           cardId: activeClaim.row.card_id,

@@ -80,5 +80,7 @@ export * from './stage-embodiment-presence-posture'
 export * from './stage-embodiment-profile'
 export * from './stage-embodiment-speech-articulation'
 export * from './stage-embodiment-speech-playback'
+export * from './stage-text-articulation'
 export * from './url'
+
 export * from './window'

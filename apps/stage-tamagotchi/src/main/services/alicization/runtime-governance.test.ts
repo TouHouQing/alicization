@@ -55,6 +55,38 @@ function buildTestAlicizationChatStreamEmbodimentMeta(
 }
 
 describe('runtime-governance', () => {
+  it('does not borrow a resident frown when a sparse dialogue explicitly changes emotion', () => {
+    const residentPerformance = {
+      version: 'resident-performance-v1',
+      source: 'main-runtime',
+      confidence: 0.8,
+      reasonTags: ['main-runtime'],
+      signature: 'concerned-resident',
+      updatedAt: 1,
+      stance: 'care',
+      embodiedPresence: 'concerned',
+      emotionalTension: 'care',
+      performance: { baseEmotion: 'concerned', emotion: 'concerned', facialCue: 'frown', actionCue: null, delivery: 'gentle', emphasis: 0 },
+    }
+    const performanceManifest = {
+      renderer: 'live2d',
+      supportedBaseEmotions: ['neutral', 'concerned', 'happy'],
+      supportedFacialCues: ['frown', 'smile', 'soft-smile', 'soft-gaze', 'relaxed'].map(key => ({ key, label: key, description: key, source: 'preset', affectsMouth: false })),
+      supportedActions: [],
+      supportsLookAt: true,
+      supportsVisemeLipSync: true,
+      supportsMicroDynamics: true,
+    }
+    const candidate = { baseEmotion: 'happy', emotion: 'happy', facialCue: null, actionCue: null, delivery: 'gentle', emphasis: 1 }
+    const governance = { decisionTraceId: 'text-owner', turnMode: 'answer', truthState: 'dialogue-grounded', answerAct: 'guide', personaKernelMode: 'full', relationshipPosture: 'warm', openingStyle: 'direct-answer', repairState: 'none' }
+    const stream = buildAlicizationChatStreamEmbodimentMeta({ governance, turnId: 'text-owner', reply: '真替你开心。', explicitPerformance: candidate, residentPerformance, performanceManifest })
+    expect(stream.embodiment?.performance.baseEmotion).toBe('happy')
+    expect(stream.embodiment?.performance.facialCue).not.toBe('frown')
+    const settled = normalizeDialogueRespondedPayload({ cardId: 'default', turnId: 'text-owner', sessionId: 'session', origin: 'subconscious-proactive', assistantText: '真替你开心。', structured: { reply: '真替你开心。', thought: 'share-joy', emotion: 'happy', performance: candidate, format: 'mind-turn-v1', parsePath: 'json' } }, performanceManifest, { residentPerformance: residentPerformance as any })
+    expect(settled).not.toBeNull()
+    expect(settled?.structured.performance.baseEmotion).toBe('happy')
+    expect(settled?.structured.performance.facialCue).not.toBe('frown')
+  })
   it('does not derive emotion from turn-level relationship posture', () => {
     expect(resolveMindGovernanceEmotion({
       turnMode: 'answer',

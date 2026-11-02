@@ -1,6 +1,8 @@
+import type { Live2DIdleMotionMode } from '../composables/live2d/idle-presence'
+
 import { defaultAlicizationStageModelId, resolveStageEmbodimentLive2DMotionAliases } from '@proj-alicization/stage-shared'
 import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
-import { useBroadcastChannel } from '@vueuse/core'
+import { refManualReset, useBroadcastChannel } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
@@ -143,7 +145,20 @@ export const useLive2d = defineStore('live2d', () => {
     x: `${position.value.x}%`,
     y: `${position.value.y}%`,
   }))
-  const currentMotion = useLocalStorageManualReset<{ group: string, index?: number }>('settings/live2d/current-motion', () => ({ group: 'Idle', index: 0 }))
+  // A running motion is a command owned by this actor. Persisted, cross-window
+  // storage replays stale commands; preferences and explicit previews have
+  // their own durable state and request channel below.
+  const currentMotion = refManualReset<{ group: string, index?: number }>({ group: 'Idle', index: 0 })
+  const idleMotionModes = useLocalStorageManualReset<Record<string, Live2DIdleMotionMode>>('settings/live2d/idle-motion-modes', () => ({}))
+
+  function getIdleMotionModeForModel(modelId: string | undefined): Live2DIdleMotionMode {
+    return modelId && idleMotionModes.value[modelId] === 'animation' ? 'animation' : 'presence'
+  }
+
+  function setIdleMotionModeForModel(modelId: string, mode: Live2DIdleMotionMode) {
+    if (modelId.trim())
+      idleMotionModes.value = { ...idleMotionModes.value, [modelId]: mode }
+  }
   const preferredRuntimeMotions = useLocalStorageManualReset<Record<string, Live2DAvailableMotion>>('settings/live2d/preferred-runtime-motions', () => {
     // NOTICE: Migrate the former global selector only to its known active model.
     const storage = globalThis.localStorage
@@ -188,9 +203,10 @@ export const useLive2d = defineStore('live2d', () => {
     return availableMotionsByModel.value[normalizedModelId] ?? []
   }
 
-  function selectPreferredRuntimeMotion(modelId: string, motion: Live2DAvailableMotion) {
+  function selectPreferredRuntimeMotion(modelId: string, motion: Live2DAvailableMotion, options?: { activate?: boolean }) {
     preferredRuntimeMotions.value = { ...preferredRuntimeMotions.value, [modelId]: { ...motion } }
-    currentMotion.value = { group: motion.motionName, index: motion.motionIndex }
+    if (options?.activate !== false)
+      currentMotion.value = { group: motion.motionName, index: motion.motionIndex }
   }
 
   function clearPreferredRuntimeMotion(modelId: string) {
@@ -306,6 +322,7 @@ export const useLive2d = defineStore('live2d', () => {
     position.reset()
     currentMotion.reset()
     preferredRuntimeMotions.value = {}
+    idleMotionModes.reset()
     availableMotions.reset()
     availableMotionsByModel.reset()
     motionMap.reset()
@@ -319,6 +336,9 @@ export const useLive2d = defineStore('live2d', () => {
     position,
     positionInPercentageString,
     currentMotion,
+    idleMotionModes,
+    getIdleMotionModeForModel,
+    setIdleMotionModeForModel,
     preferredRuntimeMotions,
     selectPreferredRuntimeMotion,
     clearPreferredRuntimeMotion,

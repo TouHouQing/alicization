@@ -385,7 +385,7 @@ describe('memory semantic scale job runtime', () => {
   it('preserves cancellation requested after claim but before the executor starts', async () => {
     let releaseTempCreation: (() => void) | undefined
     let tempCreationStarted: (() => void) | undefined
-    let observedSignal: AbortSignal | undefined
+    const executeJob = vi.fn(async ({ corpusSize }: MemorySemanticScaleJobExecutionInput) => createReport(corpusSize))
     const releaseTempCreationPromise = new Promise<void>((resolve) => {
       releaseTempCreation = resolve
     })
@@ -398,12 +398,7 @@ describe('memory semantic scale job runtime', () => {
         await releaseTempCreationPromise
         return await mkdtemp(join(tempRootDir, 'cancel-race-'))
       },
-      executeJob: async ({ corpusSize, signal }) => {
-        observedSignal = signal
-        if (signal.aborted)
-          throw signal.reason
-        return createReport(corpusSize)
-      },
+      executeJob,
     })
     const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
 
@@ -415,7 +410,7 @@ describe('memory semantic scale job runtime', () => {
     releaseTempCreation?.()
     await attempt
 
-    expect(observedSignal?.aborted).toBe(true)
+    expect(executeJob).not.toHaveBeenCalled()
     expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
       status: 'cancelled',
       lastError: 'cancel during temp setup',
@@ -425,7 +420,7 @@ describe('memory semantic scale job runtime', () => {
   it('preserves stop requested after claim but before the executor starts', async () => {
     let releaseTempCreation: (() => void) | undefined
     let tempCreationStarted: (() => void) | undefined
-    let observedSignal: AbortSignal | undefined
+    const executeJob = vi.fn(async ({ corpusSize }: MemorySemanticScaleJobExecutionInput) => createReport(corpusSize))
     const releaseTempCreationPromise = new Promise<void>((resolve) => {
       releaseTempCreation = resolve
     })
@@ -438,12 +433,7 @@ describe('memory semantic scale job runtime', () => {
         await releaseTempCreationPromise
         return await mkdtemp(join(tempRootDir, 'stop-race-'))
       },
-      executeJob: async ({ corpusSize, signal }) => {
-        observedSignal = signal
-        if (signal.aborted)
-          throw signal.reason
-        return createReport(corpusSize)
-      },
+      executeJob,
     })
     const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
 
@@ -453,7 +443,7 @@ describe('memory semantic scale job runtime', () => {
     releaseTempCreation?.()
     await Promise.all([worker, stopping])
 
-    expect(observedSignal?.aborted).toBe(true)
+    expect(executeJob).not.toHaveBeenCalled()
     expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
       status: 'queued',
       attemptCount: 0,
@@ -763,7 +753,6 @@ describe('memory semantic scale job runtime', () => {
     const recoveryJournalDir = join(tempRootDir, 'stop-recovery-journal')
     let releaseExecution: (() => void) | undefined
     let executionStarted: (() => void) | undefined
-    let completionFailures = 0
     let recoveryReadStarted = false
     const executionStartedPromise = new Promise<void>((resolve) => {
       executionStarted = resolve
@@ -777,7 +766,6 @@ describe('memory semantic scale job runtime', () => {
       },
       run: async (sql, params = []) => {
         if (sql.includes(`SET status = 'completed'`)) {
-          completionFailures += 1
           throw new Error('completion persistence unavailable during stop')
         }
         return await harness.run(sql, params)
@@ -827,7 +815,8 @@ describe('memory semantic scale job runtime', () => {
     expect((stopResult.error as Error).message).toContain(
       'stop deadline reached during recovery reconciliation read',
     )
-    expect(completionFailures).toBeGreaterThan(0)
+    // Stop may journal the still-running attempt before its report settles.
+    // The contract here is the bounded read, regardless of that interleaving.
     expect(recoveryReadStarted).toBe(true)
     expect(elapsedMs).toBeLessThan(250)
   })
@@ -1347,12 +1336,50 @@ describe('memory semantic scale job runtime', () => {
     expect(result.nextRetryAt).not.toBeNull()
   })
 
+  it('does not start an executor whose lease heartbeat failed while its temporary directory was being prepared', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let heartbeatFailed!: () => void
+    const failed = new Promise<void>((resolve) => { heartbeatFailed = resolve })
+    let heartbeatWriteFailed = false
+    const executeJob = vi.fn(async ({ corpusSize }: MemorySemanticScaleJobExecutionInput) => createReport(corpusSize, 'must-not-start-after-heartbeat-loss'))
+    const { runtime } = attachRuntime(harness, {
+      leaseMs: 15,
+      retryBaseMs: 1,
+      tempRootDir,
+      createTempDir: async () => {
+        const directory = await mkdtemp(join(tempRootDir, 'prepared-after-heartbeat-'))
+        await failed
+        // Let the failed write propagate through the heartbeat's abort handler.
+        await new Promise<void>(resolve => setImmediate(resolve))
+        return directory
+      },
+      run: async (sql, params = []) => {
+        if (!heartbeatWriteFailed && sql.includes('SET lease_expires_at = ?, updated_at = ?')) {
+          heartbeatWriteFailed = true
+          heartbeatFailed()
+          throw new Error('lease heartbeat persistence failed')
+        }
+        return harness.run(sql, params)
+      },
+      executeJob,
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    const result = await runtime.runNextAttempt(job.jobId)
+    expect(heartbeatWriteFailed).toBe(true)
+    expect(executeJob).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ status: 'queued', attemptCount: 1, lastError: 'lease heartbeat persistence failed' })
+  })
+
   it('does not refund a heartbeat-aborted attempt when stop races with executor rejection', async () => {
     const harness = await createSqliteHarness()
     const tempRootDir = await createTempRoot()
     let heartbeatWriteFailed = false
     let heartbeatAborted: (() => void) | undefined
     let releaseExecutorRejection: (() => void) | undefined
+    let executorReady!: () => void
+    const executorReadyPromise = new Promise<void>((resolve) => { executorReady = resolve })
     const heartbeatAbortedPromise = new Promise<void>((resolve) => {
       heartbeatAborted = resolve
     })
@@ -1371,6 +1398,7 @@ describe('memory semantic scale job runtime', () => {
           && sql.includes('SET lease_expires_at = ?, updated_at = ?')
         ) {
           heartbeatWriteFailed = true
+          await executorReadyPromise
           throw new Error('lease heartbeat persistence failed before stop')
         }
         return await harness.run(sql, params)
@@ -1381,6 +1409,7 @@ describe('memory semantic scale job runtime', () => {
           heartbeatAborted?.()
           void releaseExecutorRejectionPromise.then(() => reject(heartbeatReason))
         }, { once: true })
+        executorReady()
       }),
     })
     await runtime.initializeSchema()

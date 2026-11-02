@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { setupAlicizationDb } from './db'
-import { lifeArtifactDescriptionQuotes, readLifePersonalArtifactContents } from './life-personal-artifact-content'
+import { lifeArtifactDescriptionQuotes, lifeArtifactStatementFormat, readLifePersonalArtifactContents } from './life-personal-artifact-content'
 import { createLifePersonalProjectRuntime } from './life-personal-project-runtime'
 import { createLifeProjectExperienceRecorder } from './life-project-experience-runtime'
 import { createLifeReplyGroundingRuntime } from './life-reply-grounding-runtime'
@@ -13,6 +13,15 @@ import { createLifeTurnRuntime } from './life-turn-runtime'
 import { dispatchTaskThread } from './task-thread-dispatcher'
 
 describe('completed authored content rather than proposed plot', () => {
+  it.each(['\n', '\r\n', '\t'])('keeps %j inside exact review data without a provider-invalid enum literal', (separator) => {
+    const quote = `这次写的故事：${separator}一封没有署名的信。`
+    const format = lifeArtifactStatementFormat([quote], [{ id: 'r0', version: '1' }], true, ['一封没有署名的信。'])
+    expect(format.minItems).toBe(1)
+    expect(format.maxItems).toBe(8)
+    expect(format.items.properties.quote).toEqual({ type: 'string', minLength: 1, maxLength: 4000, enum: ['artifact-quote:1'] })
+    expect(format.items.properties.sourceExcerpt.enum).toContain('一封没有署名的信。')
+  })
+
   it('uses independently verified actual bytes after restart, rejects mismatched plot, forged excerpts and incomplete review, and withdraws with its source', async () => {
     const root = await mkdtemp(join(tmpdir(), 'life-authored-content-'))
     let db = await setupAlicizationDb(root, { cardId: 'alice' })
@@ -39,24 +48,44 @@ describe('completed authored content rather than proposed plot', () => {
       let empty = false
       let invalidExcerpt: number | boolean | undefined
       let version: string | undefined
+      let quoteReference: string | undefined
       const review = createLifeReplyGroundingRuntime({ read: db.readLifeState, commit: db.commitLifeState, readUserInput: db.getLifeUserInput, getEffect: db.getLifeEffect, readMemoryEvidence: cardId => db.readLifeFactVersions({ cardId }), now: Date.now, generate: async ({ user, responseFormat }) => {
         const evidence = JSON.parse(user)
         expect(evidence.personalArtifactContents[0].text).toBe(content.text)
         expect(evidence.artifactContentReviewRequired).toBe(true)
         expect(responseFormat.json_schema.schema.properties.artifactStatements.minItems).toBe(1)
-        expect(responseFormat.json_schema.schema.properties.artifactStatements.items.properties.quote.enum).toEqual(lifeArtifactDescriptionQuotes(evidence.draft, view.obligations))
+        const requiredQuotes = lifeArtifactDescriptionQuotes(evidence.draft, view.obligations)
+        expect(evidence.artifactStatementsRequiringReview).toEqual(requiredQuotes)
+        const quoteFormat = responseFormat.json_schema.schema.properties.artifactStatements.items.properties.quote
+        expect(quoteFormat.enum).toEqual(requiredQuotes.map((_, index) => `artifact-quote:${index + 1}`))
+        expect(evidence.artifactQuoteReferences).toEqual(requiredQuotes.map((quote, index) => ({ reference: `artifact-quote:${index + 1}`, quote })))
         const allowedExcerpts = responseFormat.json_schema.schema.properties.artifactStatements.items.properties.sourceExcerpt.enum
         expect(allowedExcerpts).toContain('雨夜的旧车站里，一个老人收好女人的旧车票。')
         expect(allowedExcerpts.filter(text => text).every(text => content.text.includes(text))).toBe(true)
         expect(allowedExcerpts.every(text => !/[\r\n\t]/u.test(text))).toBe(true)
         expect(allowedExcerpts).not.toContain('站员发现写着自己名字的信。')
         const binding = { ...evidence.personalArtifactContents[0].binding, ...(version ? { version } : {}) }
-        return JSON.stringify({ claims: [], hostStatements: [], companionStatements: [], artifactStatements: empty ? [] : [{ quote, binding, sourceExcerpt: invalidExcerpt ?? sourceExcerpt, meaningMatchesText: matches }], conversationLinks: [] })
+        return JSON.stringify({ claims: [], hostStatements: [], companionStatements: [], artifactStatements: empty ? [] : [{ quote: quoteReference ?? evidence.artifactQuoteReferences.find((item: { quote: string }) => item.quote === quote)?.reference ?? 'unregistered-quote', binding, sourceExcerpt: invalidExcerpt ?? sourceExcerpt, meaningMatchesText: matches }], conversationLinks: [] })
       } })
       const check = async (text = quote) => review({ cardId: 'alice', turnId: 'recall', text, owners: (await db.readLifeState()).owners, signal })
       const acceptedOwners = (await db.readLifeState()).owners
       const accepted = await check()
       expect(accepted.accepted).toBe(true)
+      quote = '写好了，给你看：\n\n故事里有一个保管旧车票的老人。'
+      expect(lifeArtifactDescriptionQuotes(quote, view.obligations)).toEqual([quote])
+      expect((await check()).accepted).toBe(true)
+      quoteReference = 'artifact-quote:999'
+      expect((await check()).accepted).toBe(false)
+      quoteReference = quote
+      expect((await check()).accepted).toBe(false)
+      quoteReference = undefined
+      // The wire format must preserve coverage, exact quotes and actual source
+      // bindings even when a provider cannot put multiline text in an enum.
+      expect((await check(`${quote}\n故事里还有一个从未写过的旅人。`)).accepted).toBe(false)
+      sourceExcerpt = '故事里还有一个从未写过的旅人。'
+      expect((await check()).accepted).toBe(false)
+      sourceExcerpt = '雨夜的旧车站里，一个老人收好女人的旧车票。'
+      quote = '故事里有一个保管旧车票的老人。'
       const mixedRecall = `我在想一些事情；${quote}另一个想法是换个题材写新故事；那只是当时说过的打算，并没有证据表明我后来实际写了。`
       expect(lifeArtifactDescriptionQuotes(mixedRecall, view.obligations)).toEqual([quote])
       expect((await check(mixedRecall)).accepted).toBe(true)

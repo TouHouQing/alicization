@@ -1,3 +1,8 @@
+resources:
+  failure:
+    title: 角色畫面暫不可用
+    description: 角色畫面載入失敗，請重試。
+    retry: 重新載入
 operations:
   load-models: 載入推理模型
   load-models-status:

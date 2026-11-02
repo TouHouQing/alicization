@@ -22,13 +22,47 @@ async function observeLive2DExpression(stage) {
       throw new Error('Actual Live2D actor is unavailable')
     const core = sdk.internalModel.coreModel
     const ids = core.getModel().parameters.ids
+    const partIds = core.getModel().parts.ids
+    const bodyPartIds = partIds.filter(id => /arm|hand|shoulder/iu.test(id))
+    const readBodyParts = () => Object.fromEntries(bodyPartIds.map(id => [id, core.getPartOpacityByIndex(partIds.indexOf(id))]))
     const selected = ids.filter(id => /^(?:ParamAngle[XYZ]|ParamEye(?:Ball[XY]|[LR](?:Open|Smile))|ParamMouth(?:OpenY|Form)|ParamCheek|ParamBrow(?:[LR]Y|[LR]Angle)|ParamBodyAngle[XYZ])$/u.test(id))
-    const qa = window.__live2dExpressionObservation = { phase: 'dialogue', frames: [], lastAt: -1, audioEvents: [], audioSources: [], chatEvents: [], selectionChanges: [] }
+    const qa = window.__live2dExpressionObservation = { phase: 'dialogue', phaseTimes: { dialogue: performance.now() }, frames: [], lastAt: -1, audioEvents: [], audioSources: [], chatEvents: [], selectionChanges: [], motions: [], motionRequests: [] }
+    const manager = sdk.internalModel.motionManager; const startMotion = manager.startMotion
+    manager.startMotion = function (group, index, priority) {
+      if (qa.motionRequests.length < 500)
+        qa.motionRequests.push({ at: performance.now(), phase: qa.phase, group, index, priority, stack: new Error('motion-request').stack, cue: actor.props.performanceState?.activeCue, actionPulse: actor.props.performanceState?.actionPulse })
+      return startMotion.call(this, group, index, priority)
+    }
+    manager.on('motionStart', (group, index) => qa.motions.push({ at: performance.now(), phase: qa.phase, group, index, priority: manager.state.currentPriority }))
     qa.channel = new BroadcastChannel('airi-chat-stream')
-    qa.channel.onmessage = ({ data }) => qa.chatEvents.push({ type: data.type, sessionId: data.sessionId, messageId: data.context?.message?.id })
+    qa.channel.onmessage = ({ data }) => qa.chatEvents.push({ phase: qa.phase, at: performance.now(), wallAt: Date.now(), presentation: data.presentation, type: data.type, reason: data.reason, sessionId: data.sessionId, messageId: data.context?.message?.id })
     const pinia = app.config.globalProperties.$pinia
     qa.hookEvents = []; qa.generationReads = []; qa.providerCalls = []
     const orchestrator = pinia._s.get('chat-orchestrator')
+    qa.semanticEvents = []
+    qa.stopSemanticObserver = orchestrator.onEmbodimentMeta(async (meta, context) => {
+      if (meta.embodiment?.performance)
+        qa.semanticEvents.push({ phase: qa.phase, wallAt: Date.now(), turnId: `chat:${context.sessionId}:${context.message.id}`, performance: { ...meta.embodiment.performance } })
+    })
+    qa.stageLongTasks = []
+    if (PerformanceObserver.supportedEntryTypes.includes('longtask')) {
+      qa.longTaskObserver = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (qa.stageLongTasks.length < 1000)
+            qa.stageLongTasks.push({ wallAt: performance.timeOrigin + entry.startTime, durationMs: entry.duration, phase: qa.phase })
+        }
+      })
+      qa.longTaskObserver.observe({ type: 'longtask', buffered: true })
+    }
+    qa.textInputs = []
+    const presentText = orchestrator.emitTextPresentedHooks
+    orchestrator.emitTextPresentedHooks = async function (...args) {
+      const receivedAt = Date.now()
+      const result = await presentText.apply(this, args)
+      // Observe committed Vue input, independently of software-GL draw cadence.
+      qa.textInputs.push({ at: performance.now(), wallAt: Date.now(), receivedAt, presentation: args[0], frame: actor.props.textArticulation ? { ...actor.props.textArticulation } : null, visibleText: pinia._s.get('chat-stream')?.streamingMessage?.content ?? null, phase: qa.phase })
+      return result
+    }
     for (const name of ['emitBeforeMessageComposedHooks', 'emitBeforeSendHooks', 'emitTokenLiteralHooks', 'emitStreamEndHooks', 'emitAssistantResponseEndHooks']) {
       const original = orchestrator[name]
       orchestrator[name] = function (...args) { qa.hookEvents.push({ name, messageId: args.at(-1)?.message?.id }); return original.apply(this, args) }
@@ -38,6 +72,16 @@ async function observeLive2DExpression(stage) {
       const value = generation.apply(this, args); if (qa.generationReads.length < 100)
         qa.generationReads.push({ sessionId: args[0], active: this.activeSessionId, value }); return value
     }
+    qa.motionSelections = []
+    let previousMotionSelection = ''
+    pinia._s.get('live2d').$subscribe((_mutation, state) => {
+      const key = JSON.stringify(state.currentMotion)
+      if (key === previousMotionSelection)
+        return
+      previousMotionSelection = key
+      if (qa.motionSelections.length < 500)
+        qa.motionSelections.push({ at: performance.now(), phase: qa.phase, selection: state.currentMotion, stack: new Error('motion-selection').stack })
+    }, { flush: 'sync' })
     const providers = pinia._s.get('providers'); const provider = providers.getProviderInstance
     providers.getProviderInstance = function (...args) {
       if (args[0] === 'openai-compatible-audio-speech')
@@ -109,9 +153,9 @@ async function observeLive2DExpression(stage) {
         }
         actualAudio = { id: audio.id, rms, quietWindowRms, quietWindowSeconds: (end - quietBegin) / audio.buffer.sampleRate, elapsed, duration: audio.duration }
       }
-      qa.frames.push({ at: now, phase: qa.phase, nativeMotionPriority: sdk.internalModel.motionManager.state.currentPriority, values: Object.fromEntries(selected.map(id => [id, core.getParameterValueById(id)])), emotion: state?.performance?.baseEmotion, expressionIntensity: state?.expressionIntensity, facialCue: state?.activeFacialCue, actionCue: state?.actionPulse?.cue, actionRevision: state?.actionPulse?.revision, source: state?.activeCueSource, speechActivity: stageComponent?.exposed.speechActivity?.value, speech: { active: speech?.active, phase: speech?.phase, playbackPhase: speech?.playbackPhase, audioBound: speech?.audioBound, energy: speech?.dynamics?.speechEnergy, prosody: speech?.dynamics?.prosodyIntensity, closure: speech?.articulation?.lipClosure, articulationOpen: speech?.articulation?.openness, openness: speech?.mouthOpenRatio, segmentId: speech?.item?.digitalLifeFrame?.id ?? speech?.item?.segmentId }, actualAudio, diagnostics: actor.exposed.executionDiagnostics() })
+      qa.frames.push({ at: now, phase: qa.phase, nativeMotionPriority: sdk.internalModel.motionManager.state.currentPriority, values: Object.fromEntries(selected.map(id => [id, core.getParameterValueById(id)])), bodyParts: readBodyParts(), performancePhase: state?.phase, variationToken: state?.variationToken, emotion: state?.performance?.baseEmotion, expressionIntensity: state?.expressionIntensity, facialCue: state?.activeFacialCue, actionCue: state?.actionPulse?.cue, actionRevision: state?.actionPulse?.revision, actionReason: state?.actionPulse?.reason, actionIssuedAt: state?.actionPulse?.issuedAt, actionSegment: state?.actionPulse?.segmentId, source: state?.activeCueSource, visibleText: pinia._s.get('chat-stream')?.streamingMessage?.content ?? null, textArticulation: actor.props.textArticulation ? { ...actor.props.textArticulation } : null, wallAt: Date.now(), speechActivity: stageComponent?.exposed.speechActivity?.value, speech: { active: speech?.active, phase: speech?.phase, playbackPhase: speech?.playbackPhase, audioBound: speech?.audioBound, energy: speech?.dynamics?.speechEnergy, prosody: speech?.dynamics?.prosodyIntensity, closure: speech?.articulation?.lipClosure, articulationOpen: speech?.articulation?.openness, openness: speech?.mouthOpenRatio, segmentId: speech?.item?.digitalLifeFrame?.id ?? speech?.item?.segmentId }, actualAudio, diagnostics: actor.exposed.executionDiagnostics() })
     })
-    return { compiledParameterIds: ids, modelId: actor.props.modelId, scope: 'Read-only final draw observation; no life or rendering state is injected.' }
+    return { compiledParameterIds: ids, compiledPartIds: partIds, restingBodyParts: readBodyParts(), modelId: actor.props.modelId, scope: 'Read-only final draw observation; no life or rendering state is injected.' }
   })
 }
 

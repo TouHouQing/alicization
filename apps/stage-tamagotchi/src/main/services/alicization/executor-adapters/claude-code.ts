@@ -6,9 +6,11 @@ import type {
   AlicizationTaskThreadStatus,
 } from '@proj-alicization/stage-shared'
 
+import type { WindowsProcessJobOutcome } from '../execution/windows-process-job'
+
 import { execFile } from 'node:child_process'
 import { isAbsolute, relative, resolve } from 'node:path'
-import { cwd as processCwd } from 'node:process'
+import { platform, cwd as processCwd } from 'node:process'
 
 import { errorMessageFrom } from '@moeru/std'
 import {
@@ -21,6 +23,9 @@ import {
   buildAlicizationExecutionEnv,
   resolveAlicizationExecutionBinary,
 } from '../execution-command-env'
+import { markActionNotStarted } from '../execution/action-dispatch-context'
+import { inspectProcessDispatchAuthority, processDispatchRefusal } from '../execution/process-dispatch-authority'
+import { runWindowsProcessCommand } from '../execution/windows-process-command'
 import { requiresDelegatedPermissionApproval } from './delegated-risk-policy'
 import {
   isLowRiskAutonomousCodeAgentSelfStartThread,
@@ -49,6 +54,8 @@ interface AlicizationClaudeCodeCommandSpec {
 }
 
 interface AlicizationClaudeCodeExecutionRuntimeResult {
+  processTree?: WindowsProcessJobOutcome
+  dispatchRefused?: true
   ok: boolean
   stdout: string
   stderr: string
@@ -62,6 +69,7 @@ interface AlicizationClaudeCodeExecutionRuntimeResult {
 }
 
 export interface AlicizationClaudeCodeAdapterInput {
+  processJobsRoot?: string
   thread: AlicizationTaskThreadRecord
   command: AlicizationClaudeCodeCommandInput
   abortSignal?: AbortSignal
@@ -70,6 +78,8 @@ export interface AlicizationClaudeCodeAdapterInput {
 }
 
 export interface AlicizationClaudeCodeAdapterResult {
+  effectMayHaveOccurred?: boolean
+  sideEffectState?: 'none' | 'unknown'
   ok: boolean
   summary: string
   output: string | null
@@ -97,7 +107,7 @@ function segmentOutput(raw: string) {
 
 function isWithinRoot(root: string, target: string) {
   const rel = relative(root, target)
-  return rel === '' || (!rel.startsWith('..') && !rel.startsWith('../') && !rel.startsWith('..\\'))
+  return rel === '' || (!isAbsolute(rel) && !rel.startsWith('..') && !rel.startsWith('../') && !rel.startsWith('..\\'))
 }
 
 function normalizeTimeoutMs(raw: unknown) {
@@ -301,6 +311,8 @@ async function runClaudeCodeCommand(
   spec: AlicizationClaudeCodeCommandSpec,
   abortSignal?: AbortSignal,
   now: () => number = Date.now,
+  processJobsRoot?: string,
+  owner = 'standalone-claude-code',
 ): Promise<AlicizationClaudeCodeExecutionRuntimeResult> {
   const startedAt = now()
   const args = buildClaudeCodeExecArgs(spec)
@@ -308,6 +320,12 @@ async function runClaudeCodeCommand(
   const command = await resolveAlicizationExecutionBinary('claude', {
     pathValue: env.PATH,
   })
+  const refusal = await inspectProcessDispatchAuthority('claude-code', abortSignal, startedAt, now)
+  if (refusal)
+    return refusal
+  if (platform === 'win32') {
+    return runWindowsProcessCommand({ command, args, cwd: spec.cwd, env, owner, protectedRoot: processJobsRoot, prefix: 'CLAUDE_CODE', timeoutMs: spec.timeoutMs, maxBytes: claudeCodeMaxBufferBytes, signal: abortSignal, now, startedAt, authorize: async () => !await inspectProcessDispatchAuthority('claude-code', abortSignal, startedAt, now) })
+  }
   return await new Promise<AlicizationClaudeCodeExecutionRuntimeResult>((resolveResult) => {
     let aborted = abortSignal?.aborted === true
     let settled = false
@@ -335,7 +353,7 @@ async function runClaudeCodeCommand(
           aborted: true,
           timedOut: false,
           errorCode: 'CLAUDE_CODE_ABORTED',
-          errorMessage: 'Claude Code dispatch was aborted by kill switch.',
+          errorMessage: 'The originating Claude Code operation was cancelled.',
         })
         return
       }
@@ -428,7 +446,9 @@ export async function executeClaudeCodeTaskThread(input: AlicizationClaudeCodeAd
   if (!normalized.ok) {
     const createdAt = now()
     const runtimeContext = normalizeAlicizationExecutionRuntimeContext(input.command.runtimeContext)
-    return {
+    return markActionNotStarted<AlicizationClaudeCodeAdapterResult & { sideEffectState: 'none', effectMayHaveOccurred: false }>({
+      sideEffectState: 'none',
+      effectMayHaveOccurred: false,
       ok: false,
       summary: buildFailureSummary(thread, normalized.errorMessage),
       output: null,
@@ -454,7 +474,7 @@ export async function executeClaudeCodeTaskThread(input: AlicizationClaudeCodeAd
         },
         createdAt,
       }],
-    }
+    })
   }
 
   const spec = normalized.spec
@@ -482,7 +502,9 @@ export async function executeClaudeCodeTaskThread(input: AlicizationClaudeCodeAd
     createdAt: dispatchCreatedAt,
   }
 
-  const runtimeResult = await runClaudeCodeCommand(spec, input.abortSignal, now)
+  const runtimeResult = await runClaudeCodeCommand(spec, input.abortSignal, now, input.processJobsRoot, `${thread.id}:${thread.turnId ?? 'none'}`)
+  if (runtimeResult.dispatchRefused)
+    return processDispatchRefusal(thread, 'claude-code', runtimeResult, now)
   const output = composeCombinedOutput(runtimeResult.stdout, runtimeResult.stderr)
   const stepBaseAt = Math.max(dispatchCreatedAt + 1, now())
   const stdoutSegments = segmentOutput(runtimeResult.stdout)
@@ -526,7 +548,7 @@ export async function executeClaudeCodeTaskThread(input: AlicizationClaudeCodeAd
     const cancelAt = stepBaseAt + stdoutSegments.length + stderrSegments.length
     return {
       ok: false,
-      summary: 'Claude Code execution was cancelled because the kill switch changed while the process was running.',
+      summary: 'Claude Code execution was cancelled while the process was running.',
       output,
       errorCode: runtimeResult.errorCode,
       errorMessage: runtimeResult.errorMessage,
@@ -545,6 +567,7 @@ export async function executeClaudeCodeTaskThread(input: AlicizationClaudeCodeAd
           threadStatus: 'cancelled',
           payload: {
             adapter: 'claude-code',
+            ...(runtimeResult.processTree ? { processTree: runtimeResult.processTree } : {}),
             hasRuntimeContext: spec.runtimeContext !== null,
             runtimeContext: spec.runtimeContext,
             promptPreview: spec.promptPreview,
@@ -583,6 +606,7 @@ export async function executeClaudeCodeTaskThread(input: AlicizationClaudeCodeAd
         threadStatus: success ? 'completed' : 'failed',
         payload: {
           adapter: 'claude-code',
+          ...(runtimeResult.processTree ? { processTree: runtimeResult.processTree } : {}),
           hasRuntimeContext: spec.runtimeContext !== null,
           runtimeContext: spec.runtimeContext,
           promptPreview: spec.promptPreview,

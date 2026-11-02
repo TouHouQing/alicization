@@ -38,10 +38,14 @@ export function useAlicizationPermissionQueue(options: {
     next()
   }
 
-  async function decide(input: { allow: boolean, rememberSession: boolean }) {
+  async function decide(input: { requestId: string, token: string, allow: boolean, rememberSession: boolean }) {
     const request = current.value
-    if (!request || resolving.value)
+    if (!request || resolving.value || input.requestId !== request.requestId || input.token !== request.token)
       return
+    if (!options.isCurrentCard(request.cardId) || request.createdAt + request.timeoutMs <= Date.now()) {
+      close(request)
+      return
+    }
     resolvingToken.value = request.token
     try {
       await options.resolve({ cardId: request.cardId, token: request.token, requestId: request.requestId, allow: input.allow, rememberSession: input.allow && request.supportsRememberSession && input.rememberSession, reason: input.allow ? 'user-approved' : 'user-denied' })

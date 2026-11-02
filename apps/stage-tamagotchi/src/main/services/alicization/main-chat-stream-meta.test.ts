@@ -90,6 +90,44 @@ function buildMinimalPayloadInput() {
 }
 
 describe('main chat stream meta', () => {
+  it.each([null, { decisionTraceId: 'uncommitted' }])('prepares an accepted emotion header before full governance exists: %j', (governance) => {
+    let performance: any = null
+    const emitter = createAlicizationChatStreamMetaEmitter({
+      cardId: 'card',
+      turnId: 'current-turn',
+      getGovernance: () => governance as any,
+      getExplicitPerformance: () => performance,
+      emit: vi.fn(),
+    })
+    expect(emitter.compose('').embodiment).toBeNull()
+    performance = { baseEmotion: 'happy', emotion: 'happy', facialCue: null, actionCue: null, delivery: 'calm', emphasis: 0 }
+    const header = emitter.compose('')
+    expect(header.embodiment?.performance.baseEmotion).toBe('happy')
+    expect(header.governance).toBeNull()
+    expect(header.speechTimeline?.reply ?? '').toBe('')
+    expect(header.embodimentScript?.speechPlan.segments ?? []).toHaveLength(0)
+    expect(emitter.compose('An uncommitted body is not a completed performance.').embodiment).toBeNull()
+    expect(emitter.getLastReply()).toBe('')
+  })
+
+  it('prepares the accepted header emotion before public text while keeping governance private on the wire', () => {
+    const emit = vi.fn()
+    const emitter = createAlicizationChatStreamMetaEmitter({
+      cardId: 'card',
+      turnId: 'turn',
+      getGovernance: () => ({ decisionTraceId: 'mind:abc123:feedfacecafe', turnMode: 'answer', truthState: 'dialogue-grounded', answerAct: 'guide', personaKernelMode: 'full', relationshipPosture: 'warm', openingStyle: 'direct-answer', repairState: 'none' } as any),
+      getExplicitPerformance: () => ({ baseEmotion: 'happy', emotion: 'happy', facialCue: 'smile', actionCue: 'nod_soft', delivery: 'gentle', emphasis: 0 }),
+      emit,
+    })
+    emitter.emit('', { force: true })
+    const meta = emit.mock.calls[0][0]
+    expect(meta.embodiment?.performance.baseEmotion).toBe('happy')
+    expect(meta.embodiment?.performance.facialCue).toBe('smile')
+    expect(meta.governance).toEqual({ decisionTraceId: 'mind:abc123:feedfacecafe' })
+    expect(JSON.stringify(meta.governance)).not.toContain('relationshipPosture')
+    expect(emitter.getLastReply()).toBe('')
+  })
+
   it('preserves literal reply and memory facts without adding reply-governance payloads', () => {
     const payload = buildAlicizationChatMetaPayload(buildMinimalPayloadInput())
 
@@ -145,11 +183,14 @@ describe('main chat stream meta', () => {
       cardId: 'card-emitter',
       turnId: 'turn-emitter',
       getGovernance: () => ({
-        decisionTraceId: 'trace-emitter',
+        decisionTraceId: 'mind:def456:feedfacecafe',
         turnMode: 'answer',
-        truthState: 'grounded',
+        truthState: 'dialogue-grounded',
         personaKernelMode: 'full',
         answerAct: 'answer',
+        relationshipPosture: 'warm',
+        openingStyle: 'direct-answer',
+        repairState: 'none',
       } as any),
       getRuntimeDigest: () => buildMinimalPayloadInput().runtimeDigest,
       emit,

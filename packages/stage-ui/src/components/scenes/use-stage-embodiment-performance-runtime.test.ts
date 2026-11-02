@@ -28,12 +28,51 @@ it('keeps action commands monotonic across settlement so the actual model can ad
   const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({ speechRenderState: ref(createIdleStageEmbodimentSpeechRenderState()) }))!
   runtime.armPerformance(createPerformance({ actionCue: 'open_palm' }))
   const first = runtime.state.value.actionPulse.revision
-  const command = { ...runtime.state.value.actionPulse }
   expect(first).toBeGreaterThan(0)
   runtime.clear()
   expect(runtime.state.value.actionPulse.revision).toBe(first)
-  expect(runtime.state.value.actionPulse).toEqual(command)
+  expect(runtime.state.value.actionPulse.cue).toBeNull()
+  expect(runtime.state.value.actionPulse.issuedAt).toBeNull()
   runtime.armPerformance(createPerformance({ actionCue: 'reassuring_nod' }))
+  expect(runtime.state.value.actionPulse.revision).toBeGreaterThan(first)
+  scope.stop()
+})
+
+it('does not turn buffered speech sentences and quiet gaps into a sequence of large gestures', async () => {
+  vi.useFakeTimers()
+  const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+  const scope = effectScope()
+  const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({ speechRenderState }))!
+  runtime.armPerformance(createPerformance({ actionCue: 'nod_soft' }), { turnId: 'turn:gw1' })
+  const first = runtime.state.value.actionPulse.revision
+  const playSentence = async (index: number) => {
+    speechRenderState.value = {
+      ...createIdleStageEmbodimentSpeechRenderState(),
+      active: true,
+      phase: 'playing',
+      revision: index + 1,
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent',
+        streamId: 'stream',
+        segmentId: `turn:gw1|||formatted\nreply:${index}`,
+        text: 'quiet afternoon',
+        special: null,
+        cue: createPlaybackCueFixture({ id: `turn:${index}`, index, actionCue: 'cheer_raise_hand', actionWindow: 'segment-start', gestureWeight: 0.8 }),
+      }),
+    }
+    await nextTick()
+  }
+  await playSentence(1)
+  expect(runtime.state.value.actionPulse.revision).toBe(first)
+  speechRenderState.value = createIdleStageEmbodimentSpeechRenderState()
+  await nextTick()
+  vi.advanceTimersByTime(5000)
+  await nextTick()
+  expect(runtime.state.value.phase).toBe('idle')
+  await playSentence(2)
+  expect(runtime.state.value.actionPulse.revision).toBe(first)
+  runtime.prepareForNextMessage()
+  runtime.armPerformance(createPerformance({ actionCue: 'nod_soft' }), { segmentId: 'next-turn:gw1|||reply:0' })
   expect(runtime.state.value.actionPulse.revision).toBeGreaterThan(first)
   scope.stop()
 })
@@ -995,6 +1034,18 @@ describe('stage embodiment performance runtime', () => {
 
     expect(runtime.state.value.actionPulse.reason).toBe('segment-beat')
     expect(runtime.state.value.actionPulse.cue).toBe('nod_soft')
+    const firstBeatRevision = runtime.state.value.actionPulse.revision
+    // Acoustic cadence rises several times inside one sentence. It cannot
+    // repeatedly restart that sentence's one-shot semantic nod.
+    for (const cadencePulse of [0, 0.9, 0, 0.95]) {
+      speechRenderState.value = {
+        ...speechRenderState.value,
+        revision: speechRenderState.value.revision + 1,
+        dynamics: { ...speechRenderState.value.dynamics, cadencePulse },
+      }
+      await nextTick()
+    }
+    expect(runtime.state.value.actionPulse.revision).toBe(firstBeatRevision)
     expect(runtime.state.value.residentPerformance.facialCue).toBe('smile')
     expect(runtime.state.value.performance.baseEmotion).toBe('thinking')
     expect(runtime.state.value.performance.facialCue).toBe('focused')
@@ -1829,8 +1880,9 @@ describe('stage embodiment performance runtime', () => {
     upcomingSpeechSegment.value = null
     await nextTick()
 
-    expect(runtime.state.value.actionPulse.revision).toBeGreaterThan(previewPulseRevision)
-    expect(runtime.state.value.actionPulse.reason).toBe('segment-start')
+    // Playback assumes the preview's ownership without replaying its gesture.
+    expect(runtime.state.value.actionPulse.revision).toBe(previewPulseRevision)
+    expect(runtime.state.value.actionPulse.reason).toBe('segment-preview')
     expect(runtime.state.value.activeActionCueSource).toBe('segment')
     expect(runtime.state.value.activeFacialCueSource).toBe('segment')
     expect(runtime.state.value.activeCueSource).toBe('segment')

@@ -4,6 +4,7 @@ import type {
   StageEmbodimentPerformanceState,
   StageEmbodimentPresencePostureState,
   StageEmbodimentSpeechRenderState,
+  StageTextArticulationFrame,
 } from '@proj-alicization/stage-shared'
 
 import type {
@@ -11,6 +12,7 @@ import type {
   Live2DExecutionDiagnosticsSnapshot,
   Live2DRuntimeCapabilitySnapshot,
 } from '../../composables/live2d'
+import type { Live2DArchiveSource } from '../../utils/live2d-model-source'
 
 import { useElementSize } from '@vueuse/core'
 import { computed, onBeforeMount, onErrorCaptured, onMounted, ref, watch } from 'vue'
@@ -24,6 +26,7 @@ import '../../utils/live2d-opfs-registration'
 withDefaults(defineProps<{
   modelSrc?: string
   modelId?: string
+  modelArchive?: Live2DArchiveSource
 
   paused?: boolean
   actionBindings?: Live2DActionPulseBinding[]
@@ -31,6 +34,7 @@ withDefaults(defineProps<{
   performanceState?: StageEmbodimentPerformanceState | null
   preferredExpressionAliases?: string[] | null
   presencePosture?: StageEmbodimentPresencePostureState | null
+  textArticulation?: StageTextArticulationFrame | null
   speechRenderState?: StageEmbodimentSpeechRenderState | null
   focusAt?: { x: number, y: number }
   disableFocusAt?: boolean
@@ -60,6 +64,7 @@ withDefaults(defineProps<{
 })
 
 const emits = defineEmits<{
+  (e: 'renderError', code: string | null): void
   (e: 'characterHoverChange', hovered: boolean): void
   (e: 'runtimeCapabilitiesResolved', value: Live2DRuntimeCapabilitySnapshot): void
 }>()
@@ -130,6 +135,14 @@ const live2dModelRef = ref<{
   hitTestClientPoint: (clientX: number, clientY: number) => boolean
 }>()
 
+function handleRenderError(code: string | null) {
+  if (code) {
+    componentStateModel.value = 'pending'
+    componentState.value = 'loading'
+  }
+  emits('renderError', code)
+}
+
 watch([componentStateModel, componentStateCanvas], () => {
   componentState.value = (componentStateModel.value === 'mounted' && componentStateCanvas.value === 'mounted')
     ? 'mounted'
@@ -151,6 +164,7 @@ onBeforeMount(() => {
 })
 
 defineExpose({
+  retryRenderer: () => live2dCanvasRef.value?.retryRenderer() ?? Promise.resolve(),
   captureFrame: () => live2dCanvasRef.value?.captureFrame() ?? Promise.resolve(null),
   canvasElement: () => {
     return live2dCanvasRef.value?.canvasElement()
@@ -181,12 +195,14 @@ defineExpose({
       :resolution="2"
       :max-fps="live2dMaxFps"
       max-h="100dvh"
+      @render-error="handleRenderError"
     >
       <Live2DModel
         ref="live2dModelRef"
         v-model:state="componentStateModel"
         :model-src="modelSrc"
         :model-id="modelId"
+        :model-archive="modelArchive"
         :app="app"
         :action-bindings="actionBindings"
         :idle-motion-preference="idleMotionPreference"
@@ -194,6 +210,7 @@ defineExpose({
         :preferred-expression-aliases="preferredExpressionAliases"
         :presence-posture="presencePosture"
         :speech-render-state="speechRenderState"
+        :text-articulation="textArticulation"
         :width="viewportWidth"
         :height="viewportHeight"
         :paused="paused"

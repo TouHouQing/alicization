@@ -35,6 +35,7 @@ export type AlicizationDispatchAdapterResult
     | AlicizationOpenClawAdapterResult
 
 interface AlicizationDispatchRuntimeInput {
+  processJobsRoot?: string
   ownedNoteRoot?: string
   abortSignal?: AbortSignal
   onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
@@ -52,6 +53,7 @@ interface AlicizationDispatchAdapter<Channel extends AlicizationDispatchExecutab
   validateCommand: (command: unknown) => boolean
   pickCommand: (input: AlicizationDispatchCommandInput) => unknown
   execute: (input: {
+    processJobsRoot?: string
     ownedNoteRoot?: string
     thread: AlicizationTaskThreadRecord
     command: unknown
@@ -77,6 +79,7 @@ const dispatchAdapterRegistry = {
     validateCommand: command => hasNonEmptyStringField(command, 'command'),
     pickCommand: input => input.cli,
     execute: async input => await executeCliTaskThread({
+      processJobsRoot: input.processJobsRoot,
       ownedNoteRoot: input.ownedNoteRoot,
       thread: input.thread,
       command: input.command as NonNullable<AlicizationDispatchTaskThreadInput['cli']>,
@@ -96,6 +99,7 @@ const dispatchAdapterRegistry = {
     validateCommand: command => hasNonEmptyStringField(command, 'prompt'),
     pickCommand: input => input.codex,
     execute: async input => await executeCodexTaskThread({
+      processJobsRoot: input.processJobsRoot,
       thread: input.thread,
       command: input.command as NonNullable<AlicizationDispatchTaskThreadInput['codex']>,
       abortSignal: input.abortSignal,
@@ -114,6 +118,7 @@ const dispatchAdapterRegistry = {
     validateCommand: command => hasNonEmptyStringField(command, 'prompt'),
     pickCommand: input => input.claudeCode,
     execute: async input => await executeClaudeCodeTaskThread({
+      processJobsRoot: input.processJobsRoot,
       thread: input.thread,
       command: input.command as NonNullable<AlicizationDispatchTaskThreadInput['claudeCode']>,
       abortSignal: input.abortSignal,
@@ -327,6 +332,7 @@ export function prepareTaskThreadDispatch(input: {
     channel: adapter.channel,
     sessionTrackingChannel: adapter.channel,
     run: async runtime => await adapter.execute({
+      processJobsRoot: runtime.processJobsRoot,
       ownedNoteRoot: runtime.ownedNoteRoot,
       thread: input.thread,
       command,

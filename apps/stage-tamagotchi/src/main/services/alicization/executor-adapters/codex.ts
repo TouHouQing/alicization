@@ -6,6 +6,8 @@ import type {
   AlicizationTaskThreadStatus,
 } from '@proj-alicization/stage-shared'
 
+import type { WindowsProcessJobOutcome } from '../execution/windows-process-job'
+
 import nodeProcess, {
   cwd as processCwd,
   env as processEnv,
@@ -17,7 +19,7 @@ import { Buffer } from 'node:buffer'
 import { spawn } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
-import { access, copyFile, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, copyFile, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { StringDecoder } from 'node:string_decoder'
@@ -34,6 +36,10 @@ import {
   buildAlicizationExecutionEnv,
   resolveAlicizationExecutionBinary,
 } from '../execution-command-env'
+import { markActionNotStarted } from '../execution/action-dispatch-context'
+import { inspectProcessDispatchAuthority, processDispatchRefusal } from '../execution/process-dispatch-authority'
+import { prepareWindowsProcessJob, settleWindowsProcessJob, stopWindowsProcessJob } from '../execution/windows-process-job'
+import { copyCodexWindowsSandboxState } from './codex-windows-sandbox-state'
 import {
   isLowRiskAutonomousCodeAgentSelfStartThread,
   resolveThreadPermissionMode,
@@ -82,6 +88,8 @@ interface AlicizationCodexCommandSpec {
 }
 
 interface AlicizationCodexExecutionRuntimeResult {
+  processTree?: WindowsProcessJobOutcome
+  dispatchRefused?: true
   ok: boolean
   stdout: string
   stderr: string
@@ -166,6 +174,7 @@ type AlicizationCodexConfigLoadResult
   }
 
 export interface AlicizationCodexAdapterInput {
+  processJobsRoot?: string
   thread: AlicizationTaskThreadRecord
   command: AlicizationCodexCommandInput
   abortSignal?: AbortSignal
@@ -182,6 +191,8 @@ export interface AlicizationCodexAdapterInput {
 }
 
 export interface AlicizationCodexAdapterResult {
+  effectMayHaveOccurred?: boolean
+  sideEffectState?: 'none' | 'unknown'
   ok: boolean
   summary: string
   output: string | null
@@ -210,7 +221,7 @@ function segmentOutput(raw: string) {
 
 function isWithinRoot(root: string, target: string) {
   const rel = relative(root, target)
-  return rel === '' || (!rel.startsWith('..') && !rel.startsWith('../') && !rel.startsWith('..\\'))
+  return rel === '' || (!isAbsolute(rel) && !rel.startsWith('..') && !rel.startsWith('../') && !rel.startsWith('..\\'))
 }
 
 function normalizeTimeoutMs(raw: unknown, effect: AlicizationTaskEffect) {
@@ -955,6 +966,8 @@ function signalCodexProcessTree(
   child: ReturnType<typeof spawn>,
   signal: NodeJS.Signals,
 ) {
+  if (stopWindowsProcessJob(child))
+    return
   const pid = typeof child.pid === 'number' && Number.isFinite(child.pid)
     ? child.pid
     : null
@@ -1251,7 +1264,11 @@ async function scavengeExpiredCodexHomes(
   now = Date.now(),
 ) {
   let entries
+  let selectedHome: string
   try {
+    // A configured home can be a junction, an 8.3/case alias, or a directory
+    // inside an old temporary home. None authorizes deleting its real source.
+    selectedHome = await realpath(excludedHome)
     entries = await readdir(tmpdir(), { withFileTypes: true })
   }
   catch {
@@ -1263,7 +1280,17 @@ async function scavengeExpiredCodexHomes(
       return
 
     const home = resolve(tmpdir(), entry.name)
-    if (home === excludedHome)
+    if (isWithinRoot(home, excludedHome) || isWithinRoot(excludedHome, home))
+      return
+
+    let canonicalHome: string
+    try {
+      canonicalHome = await realpath(home)
+    }
+    catch {
+      return
+    }
+    if (isWithinRoot(canonicalHome, selectedHome) || isWithinRoot(selectedHome, canonicalHome))
       return
 
     let owner: { pid: number, createdAt: number } | null
@@ -1291,6 +1318,7 @@ async function scavengeExpiredCodexHomes(
 async function createIsolatedCodexHome(
   sourceHome: string,
   authenticationRequired: boolean,
+  windowsSandbox: AlicizationCodexInheritedConfig['windowsSandbox'],
 ) {
   const sourceAuthPath = resolve(sourceHome, 'auth.json')
   await scavengeExpiredCodexHomes(resolve(sourceHome))
@@ -1311,20 +1339,24 @@ async function createIsolatedCodexHome(
     await copyFile(sourceAuthPath, resolve(isolatedHome, 'auth.json'))
   }
   catch {
-    if (!authenticationRequired) {
+    if (authenticationRequired) {
+      await rm(isolatedHome, { recursive: true, force: true }).catch(() => {})
       return {
-        ok: true as const,
-        home: isolatedHome,
-        cleanup: async () => {
-          await rm(isolatedHome, { recursive: true, force: true })
-        },
+        ok: false as const,
+        errorCode: 'CODEX_PROVIDER_AUTH_FAILED',
+        errorMessage: 'Codex authentication is unavailable. Sign in to Codex or configure auth.json in CODEX_HOME.',
       }
     }
+  }
+  try {
+    await copyCodexWindowsSandboxState({ sourceHome, isolatedHome, platform: processPlatform, sandbox: windowsSandbox })
+  }
+  catch (error) {
     await rm(isolatedHome, { recursive: true, force: true }).catch(() => {})
     return {
       ok: false as const,
-      errorCode: 'CODEX_PROVIDER_AUTH_FAILED',
-      errorMessage: 'Codex authentication is unavailable. Sign in to Codex or configure auth.json in CODEX_HOME.',
+      errorCode: 'CODEX_WINDOWS_SANDBOX_STATE_UNAVAILABLE',
+      errorMessage: errorMessageFrom(error) ?? 'Existing Windows sandbox state is unavailable for isolated execution.',
     }
   }
 
@@ -1401,6 +1433,7 @@ async function runCodexPreflight(input: {
       const isolatedHome = await createIsolatedCodexHome(
         sourceHome,
         codexAuthenticationRequired(inheritedConfigResult.config),
+        inheritedConfigResult.config?.windowsSandbox ?? null,
       )
       if (!isolatedHome.ok) {
         finish({
@@ -1473,6 +1506,8 @@ async function runCodexCommandAttempt(
   now: () => number = Date.now,
   onProgress?: (progress: AlicizationCodexRuntimeProgress) => void,
   lifecycle?: AlicizationCodexAdapterInput['lifecycle'],
+  processJobsRoot?: string,
+  owner = 'standalone-codex',
 ): Promise<AlicizationCodexExecutionRuntimeResult> {
   const startedAt = now()
   const startupTimeoutMs = normalizeLifecycleTimeoutMs(
@@ -1503,6 +1538,7 @@ async function runCodexCommandAttempt(
       timedOut: false,
       errorCode: 'CODEX_ABORTED',
       errorMessage: 'Codex dispatch was aborted before the process started.',
+      dispatchRefused: true,
     }
   }
 
@@ -1544,6 +1580,17 @@ async function runCodexCommandAttempt(
       timedOut: false,
       errorCode: 'CODEX_ABORTED',
       errorMessage: 'Codex dispatch was aborted before the process started.',
+      dispatchRefused: true,
+    }
+  }
+  let windowsJob: Awaited<ReturnType<typeof prepareWindowsProcessJob>> | undefined
+  if (processPlatform === 'win32') {
+    try {
+      windowsJob = await prepareWindowsProcessJob({ command, args, cwd: spec.cwd, env, owner, protectedRoot: processJobsRoot })
+    }
+    catch {
+      await cleanupPreflight()
+      return { ok: false, dispatchRefused: true, stdout: '', stderr: '', exitCode: null, signal: null, durationMs: Math.max(0, now() - startedAt), aborted: abortSignal?.aborted === true, timedOut: false, errorCode: 'CODEX_PROCESS_PREPARATION_FAILED', errorMessage: 'The owned process supervisor could not be prepared; no target process ran.' }
     }
   }
   const remainingExecutionTimeoutMs = totalTimeoutMs - Math.max(0, now() - startedAt)
@@ -1562,6 +1609,11 @@ async function runCodexCommandAttempt(
       errorCode: 'CODEX_EXECUTION_TIMEOUT',
       errorMessage: `Codex execution exceeded the total limit of ${totalTimeoutMs}ms.`,
     }
+  }
+  const refusal = await inspectProcessDispatchAuthority('codex', abortSignal, startedAt, now)
+  if (refusal) {
+    await cleanupPreflight()
+    return refusal
   }
   return await new Promise<AlicizationCodexExecutionRuntimeResult>((resolveResult) => {
     let terminationReason: 'abort' | 'startup-timeout' | 'active-step-timeout' | 'provider-recovery-timeout' | 'execution-timeout' | null = null
@@ -1628,14 +1680,22 @@ async function runCodexCommandAttempt(
             retryUnsafeActivityObserved: true,
           }
         : result
-      if (preflightCleanupStarted) {
-        resolveResult(finalResult)
-        return
-      }
-      preflightCleanupStarted = true
-      void preflight.cleanup()
-        .catch(() => {})
-        .finally(() => resolveResult(finalResult))
+      void (async () => {
+        const processTree = child ? await settleWindowsProcessJob(child) : undefined
+        let admittedResult = finalResult
+        if (processTree) {
+          admittedResult = { ...finalResult, processTree }
+          if (processTree.dispatchRefused)
+            admittedResult = { ...admittedResult, ok: false, outputReady: false, dispatchRefused: true, errorCode: abortSignal?.aborted ? 'CODEX_ABORTED' : 'CODEX_DISPATCH_REVOKED' }
+          else if (!processTree.treeStopped || !processTree.receipt || processTree.receipt.errorCode)
+            admittedResult = { ...admittedResult, ok: false, outputReady: false, errorCode: 'CODEX_PROCESS_TREE_UNVERIFIED', errorMessage: 'The process tree did not provide a verified stop receipt; its effects require reconciliation.' }
+        }
+        if (!preflightCleanupStarted) {
+          preflightCleanupStarted = true
+          await preflight.cleanup().catch(() => {})
+        }
+        resolveResult(admittedResult)
+      })()
     }
 
     const settleFromProcessState = (
@@ -1662,7 +1722,7 @@ async function runCodexCommandAttempt(
           aborted: true,
           timedOut: false,
           errorCode: 'CODEX_ABORTED',
-          errorMessage: 'Codex dispatch was aborted by kill switch.',
+          errorMessage: 'The originating Codex operation was cancelled.',
         })
         return
       }
@@ -2265,7 +2325,7 @@ async function runCodexCommandAttempt(
 
     const spawnInvocation = buildCodexSpawnInvocation(command, args)
     try {
-      child = spawn(spawnInvocation.command, spawnInvocation.args, {
+      child = windowsJob?.start(async () => !await inspectProcessDispatchAuthority('codex', abortSignal, startedAt, now)).child ?? spawn(spawnInvocation.command, spawnInvocation.args, {
         cwd: spec.cwd,
         detached: processPlatform !== 'win32',
         env,
@@ -2428,6 +2488,8 @@ async function runCodexCommand(
   now: () => number = Date.now,
   onProgress?: (progress: AlicizationCodexRuntimeProgress) => void,
   lifecycle?: AlicizationCodexAdapterInput['lifecycle'],
+  processJobsRoot?: string,
+  owner = 'standalone-codex',
 ): Promise<AlicizationCodexExecutionRuntimeResult> {
   const startedAt = now()
   const totalTimeoutMs = normalizeLifecycleTimeoutMs(
@@ -2450,7 +2512,8 @@ async function runCodexCommand(
         aborted: true,
         timedOut: false,
         errorCode: 'CODEX_ABORTED',
-        errorMessage: 'Codex dispatch was aborted by kill switch.',
+        errorMessage: 'The originating Codex operation was cancelled.',
+        ...(!lastResult ? { dispatchRefused: true as const } : {}),
       }
     }
 
@@ -2484,6 +2547,8 @@ async function runCodexCommand(
         ...lifecycle,
         totalTimeoutMs: remainingExecutionTimeoutMs,
       },
+      processJobsRoot,
+      owner,
     )
     lastResult = result
     if (
@@ -2494,6 +2559,10 @@ async function runCodexCommand(
       })
       || retries >= codexProviderRetryMaxRetries
     ) {
+      // A refusal in a later attempt cannot prove that an earlier child had no
+      // effect. Preserve conservative reconciliation for the whole dispatch.
+      if (retries && result.dispatchRefused)
+        delete result.dispatchRefused
       return {
         ...result,
         durationMs: Math.max(0, now() - startedAt),
@@ -2547,7 +2616,9 @@ export async function executeCodexTaskThread(input: AlicizationCodexAdapterInput
   if (!normalized.ok) {
     const createdAt = now()
     const runtimeContext = normalizeAlicizationExecutionRuntimeContext(input.command.runtimeContext)
-    return {
+    return markActionNotStarted<AlicizationCodexAdapterResult & { sideEffectState: 'none', effectMayHaveOccurred: false }>({
+      sideEffectState: 'none',
+      effectMayHaveOccurred: false,
       ok: false,
       summary: buildFailureSummary(thread, normalized.errorMessage),
       output: null,
@@ -2573,7 +2644,7 @@ export async function executeCodexTaskThread(input: AlicizationCodexAdapterInput
         },
         createdAt,
       }],
-    }
+    })
   }
 
   const spec = normalized.spec
@@ -2687,6 +2758,8 @@ export async function executeCodexTaskThread(input: AlicizationCodexAdapterInput
     now,
     recordProgress,
     input.lifecycle,
+    input.processJobsRoot,
+    `${thread.id}:${thread.turnId ?? 'none'}`,
   )
   if (pendingProgressObservers.size > 0) {
     const drainTimeoutMs = normalizeExecutionEventDrainTimeoutMs(
@@ -2708,6 +2781,8 @@ export async function executeCodexTaskThread(input: AlicizationCodexAdapterInput
       )
     }
   }
+  if (runtimeResult.dispatchRefused)
+    return processDispatchRefusal(thread, 'codex', runtimeResult, now)
   const assistantOutput = runtimeResult.assistantOutput ?? ''
   const diagnosticOutput = composeCombinedOutput(assistantOutput, runtimeResult.stdout, runtimeResult.stderr)
   const stepBaseAt = Math.max(dispatchCreatedAt + 1, now())
@@ -2789,7 +2864,7 @@ export async function executeCodexTaskThread(input: AlicizationCodexAdapterInput
     const cancelAt = stepBaseAt + assistantSegments.length + stdoutSegments.length + stderrSegments.length
     return {
       ok: false,
-      summary: 'Codex execution was cancelled because the kill switch changed while the process was running.',
+      summary: 'Codex execution was cancelled while the process was running.',
       output: diagnosticOutput,
       externalSessionId,
       errorCode: runtimeResult.errorCode,
@@ -2809,6 +2884,7 @@ export async function executeCodexTaskThread(input: AlicizationCodexAdapterInput
           threadStatus: 'cancelled',
           payload: {
             adapter: 'codex',
+            ...(runtimeResult.processTree ? { processTree: runtimeResult.processTree } : {}),
             hasRuntimeContext: spec.runtimeContext !== null,
             runtimeContext: spec.runtimeContext,
             promptPreview: spec.promptPreview,
@@ -2862,6 +2938,7 @@ export async function executeCodexTaskThread(input: AlicizationCodexAdapterInput
         threadStatus: success ? 'completed' : 'failed',
         payload: {
           adapter: 'codex',
+          ...(runtimeResult.processTree ? { processTree: runtimeResult.processTree } : {}),
           hasRuntimeContext: spec.runtimeContext !== null,
           runtimeContext: spec.runtimeContext,
           promptPreview: spec.promptPreview,

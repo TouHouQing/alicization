@@ -2,12 +2,34 @@
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $fixture = [Console]::In.ReadLine() | ConvertFrom-Json
 Add-Type -AssemblyName PresentationFramework
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class AlicizationFixturePopup {
+  [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr window,uint relation);
+  [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr window);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+}
+'@
 $form = [Windows.Window]::new()
 $form.Title = 'Alicization QA Native Notes'
 $form.Width = 520
-$form.Height = 280
+$form.Height = 420
 $panel = [Windows.Controls.StackPanel]::new()
 $panel.Margin = [Windows.Thickness]::new(20)
+$menu = [Windows.Controls.Menu]::new()
+$fileMenu = [Windows.Controls.MenuItem]::new()
+$fileMenu.Header = '文件菜单'
+[Windows.Automation.AutomationProperties]::SetName($fileMenu,'文件菜单')
+$fileMenu.Add_SubmenuOpened({ param($sender,$eventArgs) [IO.File]::AppendAllText(($fixture.path + '.menu-events.txt'),("opened=" + $sender.IsSubmenuOpen + ";capture=" + ([Windows.Input.Mouse]::Captured -eq $menu) + ";active=" + $form.IsActive + "`n"),[Text.UTF8Encoding]::new($false)) })
+$fileMenu.Add_SubmenuClosed({ [IO.File]::AppendAllText(($fixture.path + '.menu-events.txt'),"closed`n",[Text.UTF8Encoding]::new($false)) })
+$menuAction = [Windows.Controls.MenuItem]::new()
+$menuAction.Header = '写入菜单标记'
+[Windows.Automation.AutomationProperties]::SetName($menuAction,'写入菜单标记')
+$menuAction.Add_Click({ [IO.File]::WriteAllText(($fixture.path + '.menu.txt'),'actual WPF menu action',[Text.UTF8Encoding]::new($false)) })
+[void]$fileMenu.Items.Add($menuAction)
+[void]$menu.Items.Add($fileMenu)
+[void]$panel.Children.Add($menu)
 $entry = [Windows.Controls.TextBox]::new()
 $entry.AcceptsReturn = $true
 $entry.Height = 70
@@ -58,10 +80,68 @@ $save.Add_Click({
 })
 $change.Add_Click({ $save.Content = '删除'; [Windows.Automation.AutomationProperties]::SetName($save,'删除') })
 [void]$panel.Children.Add($entry)
+$sort = [Windows.Controls.ComboBox]::new()
+[Windows.Automation.AutomationProperties]::SetName($sort,'QA分类方式')
+foreach ($label in @('按名称','按类型','中文🙂')) {
+  $option = [Windows.Controls.ComboBoxItem]::new()
+  $option.Content = $label
+  [Windows.Automation.AutomationProperties]::SetName($option,$label)
+  [void]$sort.Items.Add($option)
+}
+$sort.SelectedIndex = 0
+$sort.Add_SelectionChanged({ [IO.File]::WriteAllText(($fixture.path + '.selection.txt'),[string]$sort.SelectedItem.Content,[Text.UTF8Encoding]::new($false)) })
+[void]$panel.Children.Add($sort)
+$replaceOption = [Windows.Controls.Button]::new()
+$replaceOption.Content = '改变分类选项'
+[Windows.Automation.AutomationProperties]::SetName($replaceOption,'改变分类选项')
+$replaceOption.Add_Click({
+  $option = $sort.Items[0]
+  $option.Content = '按日期'
+  [Windows.Automation.AutomationProperties]::SetName($option,'按日期')
+  [IO.File]::WriteAllText(($fixture.path + '.option-change.txt'),[string]$option.Content,[Text.UTF8Encoding]::new($false))
+})
+[void]$panel.Children.Add($replaceOption)
+$reader = [Windows.Controls.ScrollViewer]::new()
+$reader.Height = 75
+$reader.VerticalScrollBarVisibility = [Windows.Controls.ScrollBarVisibility]::Auto
+[Windows.Automation.AutomationProperties]::SetName($reader,'QA阅读区域')
+[Windows.Automation.AutomationProperties]::SetAutomationId($reader,'qa-reader')
+$lines = [Windows.Controls.StackPanel]::new()
+for ($line = 1; $line -le 20; $line++) {
+  $label = [Windows.Controls.TextBlock]::new()
+  $label.Text = '可读行 ' + $line
+  $label.Height = 30
+  [void]$lines.Children.Add($label)
+}
+$reader.Content = $lines
+$reader.Add_ScrollChanged({
+  @{offset=$reader.VerticalOffset;extent=$reader.ExtentHeight;viewport=$reader.ViewportHeight} | ConvertTo-Json -Compress | Set-Content -LiteralPath ($fixture.path + '.viewport.json') -Encoding UTF8
+})
+[void]$panel.Children.Add($reader)
 [void]$panel.Children.Add($save)
 [void]$panel.Children.Add($status)
 [void]$panel.Children.Add($change)
 $form.Content = $panel
+$menuDiagnostic = [Windows.Threading.DispatcherTimer]::new()
+$menuDiagnostic.Interval = [TimeSpan]::FromMilliseconds(100)
+$menuDiagnostic.Add_Tick({
+  try {
+    $source = [Windows.PresentationSource]::FromVisual($menuAction)
+    $popupHandle = if ($source) { $source.Handle } else { [IntPtr]::Zero }
+    @{open=$fileMenu.IsSubmenuOpen;visible=$menuAction.IsVisible;windowId=$popupHandle.ToInt64().ToString();nativeVisible=[AlicizationFixturePopup]::IsWindowVisible($popupHandle);ownerWindowId=[AlicizationFixturePopup]::GetWindow($popupHandle,4).ToInt64().ToString();parentWindowId=[AlicizationFixturePopup]::GetParent($popupHandle).ToInt64().ToString()} | ConvertTo-Json -Compress | Set-Content -LiteralPath ($fixture.path + '.menu-snapshot.json') -Encoding UTF8
+  } catch {
+    [IO.File]::WriteAllText(($fixture.path + '.menu-snapshot-error.txt'),$_.Exception.Message,[Text.UTF8Encoding]::new($false))
+  }
+})
+$menuDiagnostic.Start()
+$form.Add_Closed({ $menuDiagnostic.Stop() })
+$stopTimer = $null
+if ($fixture.stopPath) {
+  $stopTimer = [Windows.Threading.DispatcherTimer]::new()
+  $stopTimer.Interval = [TimeSpan]::FromMilliseconds(100)
+  $stopTimer.Add_Tick({ if ([IO.File]::Exists($fixture.stopPath)) { $stopTimer.Stop(); $form.Close() } })
+  $stopTimer.Start()
+}
 $form.Show()
 $handle = [Windows.Interop.WindowInteropHelper]::new($form).Handle
 [Console]::WriteLine((@{ready=$true;windowId=$handle.ToInt64().ToString();title=$form.Title} | ConvertTo-Json -Compress))

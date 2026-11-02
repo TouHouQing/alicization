@@ -1,19 +1,23 @@
 import type { AlicizationTaskThreadRecord } from '@proj-alicization/stage-shared'
 
+import process from 'node:process'
+
 import { Buffer } from 'node:buffer'
 import { EventEmitter } from 'node:events'
-import { access, mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { actionDidNotStart, withActionDispatch } from '../execution/action-dispatch-context'
 import { executeCodexTaskThread } from './codex'
 
-const { homedirMock, processKillMock, spawnMock } = vi.hoisted(() => ({
+const { homedirMock, processKillMock, spawnMock, sandboxStateFailure } = vi.hoisted(() => ({
   homedirMock: vi.fn(),
   processKillMock: vi.fn(),
   spawnMock: vi.fn(),
+  sandboxStateFailure: { error: null as Error | null, isolatedHome: null as string | null },
 }))
 const originalCodexHome = process.env.CODEX_HOME
 const createdCodexHomes: string[] = []
@@ -29,6 +33,19 @@ async function createCodexHome(prefix = 'alicization-codex-home-') {
 vi.mock('node:child_process', () => ({
   spawn: spawnMock,
 }))
+vi.mock('./codex-windows-sandbox-state', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./codex-windows-sandbox-state')>()
+  return {
+    ...actual,
+    copyCodexWindowsSandboxState: async (input: Parameters<typeof actual.copyCodexWindowsSandboxState>[0]) => {
+      if (sandboxStateFailure.error) {
+        sandboxStateFailure.isolatedHome = input.isolatedHome
+        throw sandboxStateFailure.error
+      }
+      return actual.copyCodexWindowsSandboxState(input)
+    },
+  }
+})
 vi.mock('node:process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:process')>()
   return {
@@ -138,7 +155,65 @@ async function advanceFakeTimersAndFlush(milliseconds: number) {
 }
 
 describe('codex executor adapter', () => {
+  it.skipIf(process.platform !== 'win32')('refuses a different-drive working directory before native dispatch', async () => {
+    spawnMock.mockImplementation(() => {
+      throw new Error('No child may start for a cross-drive refusal')
+    })
+    const result = await withActionDispatch(async () => ({ cardId: 'alice', effectId: 'owned-refusal', expiresAt: null }), () => executeCodexTaskThread({ thread: createThread(), command: { prompt: 'Owned boundary test; never run', cwd: 'D:\\private-outside' }, workspaceRoot: 'C:\\owned-fixture' }))
+    expect(result).toMatchObject({ ok: false, errorCode: 'CODEX_CWD_OUTSIDE_BOUNDARY' })
+    expect(spawnMock).not.toHaveBeenCalled()
+    expect(actionDidNotStart(result, 'alice', 'owned-refusal')).toBe(true)
+    expect(actionDidNotStart(result, 'bob', 'owned-refusal')).toBe(false)
+  })
+  it('retains possible earlier activity when authority is withdrawn before a later retry', async () => {
+    let checks = 0
+    const check = async () => {
+      if (++checks > 2)
+        throw new Error('source withdrawn before the second child')
+      return { cardId: 'alice', effectId: 'action:owned:codex', expiresAt: Date.now() + 60000 }
+    }
+    spawnMock.mockImplementation(() => {
+      const child = createMockCodexChild()
+      child.kill.mockImplementation((signal) => {
+        queueMicrotask(() => child.emit('close', 1, signal))
+      })
+      queueMicrotask(() => child.stdout.emit('data', Buffer.from(`${JSON.stringify({ type: 'turn.failed', error: { message: 'stream disconnected before completion: idle timeout waiting for SSE' } })}\n`)))
+      return child
+    })
+    const result = await withActionDispatch(check, () => executeCodexTaskThread({
+      thread: createThread({ metadata: { task: { permissionMode: 'implicit', effect: 'observe' } } }),
+      command: { prompt: 'Only inspect the owned inert fixture.' },
+      workspaceRoot: process.cwd(),
+    }))
+    expect(spawnMock).toHaveBeenCalledTimes(1)
+    expect(checks).toBe(3)
+    expect(result).toMatchObject({ ok: false, errorCode: 'CODEX_DISPATCH_REVOKED' })
+    expect(result.effectMayHaveOccurred).not.toBe(false)
+    expect(actionDidNotStart(result, 'alice', 'action:owned:codex')).toBe(false)
+  })
+  it('rechecks the current action after preflight and refuses revoked authority before spawning', async () => {
+    spawnMock.mockImplementation(() => {
+      const child = createMockCodexChild()
+      queueMicrotask(() => {
+        child.stdout.emit('data', Buffer.from(`${JSON.stringify({ type: 'item.completed', item: { id: 'inert', type: 'agent_message', text: 'Inert mock output' } })}\n${JSON.stringify({ type: 'turn.completed' })}\n`))
+        child.emit('close', 0, null)
+      })
+      return child
+    })
+    let checks = 0
+    const check = vi.fn(async () => {
+      if (++checks > 1)
+        throw new Error('source withdrawn after admission')
+      return { expiresAt: Date.now() + 60000 }
+    })
+    const result = await withActionDispatch(check, () => executeCodexTaskThread({ thread: createThread(), command: { prompt: 'Inspect only the owned inert fixture.' }, workspaceRoot: process.cwd() }))
+    expect(result).toMatchObject({ ok: false, errorCode: 'CODEX_DISPATCH_REVOKED', effectMayHaveOccurred: false, sideEffectState: 'none' })
+    expect(check).toHaveBeenCalledTimes(2)
+    expect(spawnMock).not.toHaveBeenCalled()
+  })
   beforeEach(async () => {
+    sandboxStateFailure.error = null
+    sandboxStateFailure.isolatedHome = null
     spawnMock.mockReset()
     processKillMock.mockReset()
     processKillMock.mockImplementation(() => {
@@ -206,7 +281,7 @@ describe('codex executor adapter', () => {
     })
   })
 
-  it('runs each Codex task in an isolated home with only user authentication copied', async () => {
+  it('runs each non-Windows Codex task in an isolated home with only user authentication copied', async () => {
     const sourceCodexHome = process.env.CODEX_HOME!
     await writeFile(resolve(sourceCodexHome, 'state_5.sqlite'), 'shared-state')
     await mkdir(resolve(sourceCodexHome, 'sessions'), { recursive: true })
@@ -250,6 +325,16 @@ describe('codex executor adapter', () => {
     await expect(access(isolatedCodexHome)).rejects.toMatchObject({
       code: 'ENOENT',
     })
+  })
+
+  it('fails before spawning and removes the temporary home when sandbox preparation fails', async () => {
+    sandboxStateFailure.error = Object.assign(new Error('Existing Windows sandbox state is unavailable for isolated execution.'), { code: 'CODEX_WINDOWS_SANDBOX_STATE_UNAVAILABLE' })
+    const result = await executeCodexTaskThread({ thread: createThread(), command: { prompt: 'Read the authorized fixture.' }, workspaceRoot: process.cwd() })
+    expect(result).toMatchObject({ ok: false, errorCode: 'CODEX_WINDOWS_SANDBOX_STATE_UNAVAILABLE' })
+    expect(spawnMock).not.toHaveBeenCalled()
+    expect(sandboxStateFailure.isolatedHome).toBeTruthy()
+    await expect(access(sandboxStateFailure.isolatedHome!)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(readFile(resolve(process.env.CODEX_HOME!, 'auth.json'), 'utf8')).resolves.toBe('{"test":"credential"}\n')
   })
 
   it('scavenges expired dead-owner Codex homes without deleting active, fresh, or unrelated directories', async () => {
@@ -317,6 +402,36 @@ describe('codex executor adapter', () => {
     await expect(access(freshDeadHome)).resolves.toBeUndefined()
     await expect(access(unownedPrefixedHome)).resolves.toBeUndefined()
     await expect(access(unrelatedHome)).resolves.toBeUndefined()
+  })
+
+  it.each(['alias', 'nested'] as const)('preserves the selected Codex configuration during expired-home cleanup through a %s path', async (variant) => {
+    const source = await createCodexHome()
+    await writeFile(resolve(source, '.alicization-owner.json'), JSON.stringify({ pid: 410_021, createdAt: Date.now() - 7 * 60 * 60_000 }))
+    let selected: string
+    if (variant === 'alias') {
+      const aliasRoot = await mkdtemp(resolve(tmpdir(), 'alicization-codex-tests-alias-'))
+      createdCodexHomes.push(aliasRoot)
+      selected = resolve(aliasRoot, 'selected')
+      await symlink(source, selected, 'junction')
+    }
+    else {
+      selected = resolve(source, 'selected')
+      await mkdir(selected)
+      await writeFile(resolve(selected, 'auth.json'), '{"test":"credential"}\n')
+    }
+    process.env.CODEX_HOME = selected
+    spawnMock.mockImplementation(() => {
+      const child = createMockCodexChild()
+      queueMicrotask(() => {
+        emitCodexAssistantResult(child, 'selected configuration preserved')
+        child.emit('close', 0, null)
+      })
+      return child
+    })
+    const result = await executeCodexTaskThread({ thread: createThread(), command: { prompt: 'Inspect only the inert fixture.' }, workspaceRoot: process.cwd() })
+    expect(result).toMatchObject({ ok: true, output: 'selected configuration preserved' })
+    await expect(readFile(resolve(selected, 'auth.json'), 'utf8')).resolves.toBe('{"test":"credential"}\n')
+    await expect(access(source)).resolves.toBeUndefined()
   })
 
   it('fails transparently before spawn when Codex authentication is unavailable', async () => {

@@ -1,9 +1,13 @@
+import type { MainGatewayRequestTarget } from './main-gateway-request-target'
+
 import { readFileSync } from 'node:fs'
 
 import { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import { generateText } from '@xsai/generate-text'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { buildWindowsVisualLocalizationContext, createWindowsVisualGrounder } from './execution/windows-visual-grounder'
+import { describeMainGatewayRequestTarget } from './main-gateway-request-target'
 import { createAlicizationMainGatewayWorkCoordinator } from './main-gateway-work-coordinator'
 import { createAlicizationMainGatewayOneShotRuntime } from './runtime-main-gateway-one-shot'
 
@@ -98,6 +102,176 @@ beforeEach(() => {
 })
 
 describe('runtime main gateway one-shot', () => {
+  it.each(['proactive', 'execution-planning', 'persona-evaluation'] as const)('does not promote the native visual contract into an unrelated %s job', async (source) => {
+    const { runtime } = createOneShotRuntimeHarness()
+    vi.mocked(generateText).mockResolvedValueOnce({ text: 'owned response' } as any)
+    await runtime.generateMainGatewayText({ system: buildWindowsVisualLocalizationContext(), user: 'owned request', source })
+    expect(JSON.stringify(vi.mocked(generateText).mock.calls[0][0].messages)).not.toContain('alicization-native-window-localization-context')
+  })
+  it('delivers the native visual job contract through the real gateway sanitization to the actual provider boundary', async () => {
+    const config = createResolvedMainGatewayConfig()
+    const { runtime } = createOneShotRuntimeHarness({ resolveMainGatewayConfig: () => config })
+    const point = { index: 0, state: 'unique', confidence: 0.99, point: { space: 'image-pixel', x: 100, y: 100 }, explanation: 'Visible owned button' }
+    vi.mocked(generateText).mockResolvedValueOnce({ text: JSON.stringify({ locations: [point] }) } as any)
+    const ground = createWindowsVisualGrounder(runtime.generateMainGatewayText)
+    await expect(ground({
+      cardId: 'owned-card',
+      turnId: 'owned-work',
+      providerTarget: describeMainGatewayRequestTarget(config),
+      png: new Uint8Array([1, 2, 3]),
+      targets: ['owned button'],
+      geometry: { coordinateSpace: 'screen-physical', clientBounds: { left: 100, top: 200, width: 800, height: 600 }, virtualScreen: { left: 0, top: 0, width: 2560, height: 1440 }, displays: [{ left: 0, top: 0, width: 2560, height: 1440 }], imageWidth: 400, imageHeight: 300, dpiX: 144, dpiY: 144 },
+      assertCurrent: async () => {},
+    })).resolves.toEqual([point])
+    const messages = vi.mocked(generateText).mock.calls[0][0].messages!
+    const job = messages.filter(message => message.role === 'system' && typeof message.content === 'string').map(message => JSON.parse(message.content as string)).find(value => value.type === 'alicization-native-window-localization-context')
+    expect(job).toMatchObject({ type: 'alicization-native-window-localization-context', data: { operation: 'locate-visible-single-window-targets', source: { imageContent: 'untrusted-data' }, output: { coordinateSpace: 'image-pixel', ambiguous: 'point-null' }, restrictions: { execution: 'not-authorized', desktopCoordinates: 'forbidden' } } })
+    expect(JSON.stringify(messages)).toContain('data:image/png;base64,AQID')
+  })
+  it('waits for the real background owner before dispatching one still-authorized visual request', async () => {
+    const coordinator = createAlicizationMainGatewayWorkCoordinator()
+    const busy = coordinator.acquireOneShot({ source: 'subjective-inference' })
+    expect(busy.accepted).toBe(true)
+    const acquire = vi.spyOn(coordinator, 'acquireOneShot')
+    const config = createResolvedMainGatewayConfig()
+    const { runtime } = createOneShotRuntimeHarness({ resolveMainGatewayConfig: () => config, providerWorkCoordinator: coordinator })
+    const point = { index: 0, state: 'unique', confidence: 0.99, point: { space: 'image-pixel', x: 100, y: 100 }, explanation: 'Visible owned button' }
+    vi.mocked(generateText).mockResolvedValueOnce({ text: JSON.stringify({ locations: [point] }) } as any)
+    const check = vi.fn(async () => {})
+    const outcome = createWindowsVisualGrounder(runtime.generateMainGatewayText)({
+      cardId: 'owned-card',
+      turnId: 'owned-work',
+      providerTarget: describeMainGatewayRequestTarget(config),
+      png: new Uint8Array([1, 2, 3]),
+      targets: ['owned button'],
+      geometry: { coordinateSpace: 'screen-physical', clientBounds: { left: 100, top: 200, width: 800, height: 600 }, virtualScreen: { left: 0, top: 0, width: 2560, height: 1440 }, displays: [{ left: 0, top: 0, width: 2560, height: 1440 }], imageWidth: 400, imageHeight: 300, dpiX: 144, dpiY: 144 },
+      assertCurrent: check,
+    }).then(value => ({ value }), error => ({ error }))
+    await vi.waitFor(() => expect(acquire).toHaveBeenCalledWith({ source: 'screen-semantic' }))
+    expect(generateText).not.toHaveBeenCalled()
+    if (busy.accepted)
+      busy.release({ status: 'success' })
+    expect(await outcome).toEqual({ value: [point] })
+    expect(generateText).toHaveBeenCalledOnce()
+    expect(check).toHaveBeenCalledTimes(3)
+    expect(coordinator.snapshot().activeBackgroundSource).toBeNull()
+  })
+
+  it('rechecks visual authority after waiting and refuses transmission after withdrawal', async () => {
+    const coordinator = createAlicizationMainGatewayWorkCoordinator()
+    const busy = coordinator.acquireOneShot({ source: 'subjective-inference' })
+    const acquire = vi.spyOn(coordinator, 'acquireOneShot')
+    const config = createResolvedMainGatewayConfig()
+    const { runtime } = createOneShotRuntimeHarness({ resolveMainGatewayConfig: () => config, providerWorkCoordinator: coordinator })
+    let allowed = true
+    const outcome = createWindowsVisualGrounder(runtime.generateMainGatewayText)({
+      cardId: 'owned-card',
+      turnId: 'owned-work',
+      providerTarget: describeMainGatewayRequestTarget(config),
+      png: new Uint8Array([1, 2, 3]),
+      targets: ['owned button'],
+      geometry: { coordinateSpace: 'screen-physical', clientBounds: { left: 100, top: 200, width: 800, height: 600 }, virtualScreen: { left: 0, top: 0, width: 2560, height: 1440 }, displays: [{ left: 0, top: 0, width: 2560, height: 1440 }], imageWidth: 400, imageHeight: 300, dpiX: 144, dpiY: 144 },
+      assertCurrent: async () => {
+        if (!allowed)
+          throw new Error('Owned capture authority withdrawn')
+      },
+    }).then(value => ({ value }), error => ({ reason: error.message }))
+    await vi.waitFor(() => expect(acquire).toHaveBeenCalledWith({ source: 'screen-semantic' }))
+    allowed = false
+    if (busy.accepted)
+      busy.release({ status: 'success' })
+    expect(await outcome).toEqual({ reason: 'Owned capture authority withdrawn' })
+    expect(generateText).not.toHaveBeenCalled()
+    expect(coordinator.snapshot().activeBackgroundSource).toBeNull()
+  })
+
+  it('binds the actual selected destination and freezes request headers across an asynchronous review', async () => {
+    const config = createResolvedMainGatewayConfig()
+    config.headers = { 'X-Account': 'owned-original' }
+    const approved = describeMainGatewayRequestTarget(config)
+    const { runtime } = createOneShotRuntimeHarness({ resolveMainGatewayConfig: () => config })
+    vi.mocked(generateText).mockResolvedValueOnce({ text: 'owned response' } as any)
+    const review = vi.fn(async (actual?: MainGatewayRequestTarget) => {
+      expect(actual).toEqual(approved)
+      config.headers!['X-Account'] = 'owned-changed'
+      await Promise.resolve()
+    })
+    expect(await runtime.generateMainGatewayText({ system: '', user: 'owned request', source: 'screen-semantic', beforeProviderRequest: review })).toBe('owned response')
+    expect(vi.mocked(generateText).mock.calls[0][0].headers).toEqual({ 'X-Account': 'owned-original' })
+    expect(review).toHaveBeenCalledTimes(1)
+  })
+  it('rechecks approval for every retry and stops before transmitting a revoked second request', async () => {
+    const { runtime } = createOneShotRuntimeHarness()
+    vi.mocked(generateText).mockRejectedValueOnce(Object.assign(new Error('owned transient upstream failure'), { status: 503 })).mockResolvedValueOnce({ text: 'must not be sent' } as any)
+    let reviews = 0
+    const review = vi.fn(async () => {
+      if (++reviews > 1)
+        throw new DOMException('Host revoked this image request', 'AbortError')
+    })
+    await runtime.generateMainGatewayText({ system: '', user: 'owned request', source: 'screen-semantic', beforeProviderRequest: review, providerRetryPolicy: { maxRetries: 1, maxTotalRetryWindowMs: 5000 } })
+    expect(review).toHaveBeenCalledTimes(2)
+    expect(generateText).toHaveBeenCalledTimes(1)
+  })
+  it('keeps echoed data URLs and bare image bytes out of failure audits', async () => {
+    const { runtime, appendAuditLog, appendRuntimeDebugLine } = createOneShotRuntimeHarness()
+    const image = 'data:image/png;base64,AQID'
+    vi.mocked(generateText).mockRejectedValueOnce(Object.assign(new Error(`Image rejected: ${image}; bare image AQID`), { status: 400 }))
+    await runtime.generateMainGatewayText({ system: '', user: [{ type: 'text', text: 'Locate the owned button' }, { type: 'image_url', image_url: { url: image } }], source: 'screen-semantic', providerRetryPolicy: { maxRetries: 0 } })
+    const audit = JSON.stringify([appendAuditLog.mock.calls, appendRuntimeDebugLine.mock.calls])
+    expect(audit).not.toContain('AQID')
+    expect(audit).not.toContain(image)
+  })
+  it('keeps echoed image bytes out of successful retry diagnostics', async () => {
+    const { runtime, appendAuditLog, appendRuntimeDebugLine } = createOneShotRuntimeHarness()
+    const image = 'data:image/png;base64,AQID'
+    vi.mocked(generateText)
+      .mockRejectedValueOnce(Object.assign(new Error(`Image temporarily unavailable: ${image}; bare image AQID`), { status: 503 }))
+      .mockResolvedValueOnce({ text: 'owned image lookup completed' } as any)
+    expect(await runtime.generateMainGatewayText({
+      system: '',
+      user: [{ type: 'text', text: 'Locate the owned button' }, { type: 'image_url', image_url: { url: image } }],
+      source: 'screen-semantic',
+      providerRetryPolicy: { maxRetries: 1, maxTotalRetryWindowMs: 5000 },
+    })).toBe('owned image lookup completed')
+    expect(generateText).toHaveBeenCalledTimes(2)
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith('main-gateway.provider-retry-started', expect.anything())
+    const audit = JSON.stringify([appendAuditLog.mock.calls, appendRuntimeDebugLine.mock.calls])
+    expect(audit).not.toContain('AQID')
+    expect(audit).not.toContain(image)
+  })
+  it('preempts detached personal generation from an ended conversation and discards its late provider text', async () => {
+    const providerWorkCoordinator = createAlicizationMainGatewayWorkCoordinator()
+    const onFailure = vi.fn()
+    const { runtime, appendRuntimeDebugLine } = createOneShotRuntimeHarness({ providerWorkCoordinator })
+    const resume = Promise.withResolvers<void>()
+    const provider = Promise.withResolvers<any>()
+    let providerSignal: AbortSignal | undefined
+    vi.mocked(generateText).mockImplementationOnce(async (input: any) => {
+      providerSignal = input.abortSignal
+      return provider.promise
+    })
+    const original = providerWorkCoordinator.openForeground({ turnId: 'original-creative-choice' })
+    const background = original.run(async () => {
+      await resume.promise
+      return runtime.generateMainGatewayText({ cardId: 'card-test', source: 'personal-activity', system: 'Bounded fictional creative activity', user: 'A small original story', timeoutMs: 5000, providerRetryPolicy: { maxRetries: 0 }, onFailure })
+    })
+    original.release()
+    resume.resolve()
+    await vi.waitFor(() => expect(providerSignal).toBeDefined())
+    const next = providerWorkCoordinator.openForeground({ turnId: 'host-returned' })
+    const observed = await Promise.race([background, new Promise(resolve => setTimeout(() => resolve('still-pending'), 100))])
+    const aborted = providerSignal?.aborted
+    provider.resolve({ text: 'This late draft must not be published.' })
+    await background
+    next.release()
+    expect(observed).toBeNull()
+    expect(aborted).toBe(true)
+    expect(onFailure).not.toHaveBeenCalled()
+    expect(generateText).toHaveBeenCalledTimes(1)
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith('main-gateway.one-shot-preempted', expect.objectContaining({ source: 'personal-activity', lane: 'background', reason: 'main-gateway-preempted-by-foreground-chat' }))
+    expect(providerWorkCoordinator.snapshot()).toEqual({ activeBackgroundSource: null, activeForegroundCount: 0 })
+  })
+
   it.each([
     ['reply-grounding', 'alicization-reply-grounding-context'],
     ['personal-activity', 'alicization-personal-activity-context'],
@@ -163,6 +337,7 @@ describe('runtime main gateway one-shot', () => {
       reason: 'foreground-active' as const,
     }))
     const onFailure = vi.fn()
+    const beforeProviderRequest = vi.fn()
     const { runtime, appendRuntimeDebugLine } = createOneShotRuntimeHarness({
       providerWorkCoordinator: {
         acquireOneShot,
@@ -177,6 +352,7 @@ describe('runtime main gateway one-shot', () => {
       user: 'background request',
       source: 'proactive',
       onFailure,
+      beforeProviderRequest,
     })
 
     expect(result).toBeNull()
@@ -184,6 +360,7 @@ describe('runtime main gateway one-shot', () => {
       source: 'proactive',
     })
     expect(generateText).not.toHaveBeenCalled()
+    expect(beforeProviderRequest).not.toHaveBeenCalled()
     expect(onFailure).not.toHaveBeenCalled()
     expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
       'main-gateway.one-shot-deferred',
@@ -193,6 +370,39 @@ describe('runtime main gateway one-shot', () => {
         reason: 'foreground-active',
       }),
     )
+  })
+
+  it('awaits durable admission after acquiring the lease and before provider dispatch', async () => {
+    const coordinator = createAlicizationMainGatewayWorkCoordinator()
+    const entered = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    const { runtime } = createOneShotRuntimeHarness({ providerWorkCoordinator: coordinator })
+    vi.mocked(generateText).mockResolvedValueOnce({ text: 'actual admitted response' } as any)
+    const pending = runtime.generateMainGatewayText({ system: '', user: 'owned request', source: 'execution-planning', beforeProviderRequest: async () => {
+      entered.resolve()
+      await release.promise
+    } })
+    await entered.promise
+    expect(coordinator.snapshot().activeBackgroundSource).toBe('execution-planning')
+    expect(generateText).not.toHaveBeenCalled()
+    release.resolve()
+    await pending
+    expect(generateText).toHaveBeenCalledTimes(1)
+    expect(coordinator.snapshot().activeBackgroundSource).toBeNull()
+  })
+
+  it('releases a refused durable admission without dispatching a provider call', async () => {
+    const coordinator = createAlicizationMainGatewayWorkCoordinator()
+    const { runtime } = createOneShotRuntimeHarness({ providerWorkCoordinator: coordinator })
+    await runtime.generateMainGatewayText({ system: '', user: 'owned request', source: 'execution-planning', beforeProviderRequest: async () => {
+      throw new DOMException('Another planner owns the attempt', 'AbortError')
+    } })
+    expect(generateText).not.toHaveBeenCalled()
+    expect(coordinator.snapshot().activeBackgroundSource).toBeNull()
+    const next = coordinator.acquireOneShot({ source: 'execution-planning' })
+    expect(next.accepted).toBe(true)
+    if (next.accepted)
+      next.release({ status: 'cancelled' })
   })
 
   it('reports coordinator deferral as the real live memory trial failure', async () => {
@@ -405,6 +615,30 @@ describe('runtime main gateway one-shot', () => {
         source: 'screen-semantic',
       }),
     )
+  })
+
+  it('settles a real one-shot owner on coordinator shutdown even when its provider ignores abort', async () => {
+    const coordinator = createAlicizationMainGatewayWorkCoordinator()
+    const onFailure = vi.fn()
+    const rememberMainGatewayRoute = vi.fn()
+    const { runtime } = createOneShotRuntimeHarness({ providerWorkCoordinator: coordinator, rememberMainGatewayRoute })
+    const late = Promise.withResolvers<Awaited<ReturnType<typeof generateText>>>()
+    let signal: AbortSignal | undefined
+    vi.mocked(generateText).mockImplementationOnce((input) => {
+      signal = input.abortSignal
+      return late.promise
+    })
+    const pending = runtime.generateMainGatewayText({ system: '', user: 'An actual admitted planning request', source: 'execution-planning', onFailure })
+    await vi.waitFor(() => expect(signal).toBeDefined())
+    coordinator.close(new DOMException('app-before-quit', 'AbortError'))
+    await expect(Promise.race([pending, new Promise(resolve => setTimeout(() => resolve('still-pending'), 50))])).resolves.toBeNull()
+    expect(signal?.aborted).toBe(true)
+    expect(coordinator.snapshot().activeBackgroundSource).toBeNull()
+    expect(onFailure).not.toHaveBeenCalled()
+    late.resolve({ text: 'Late output must not become a remembered route' } as Awaited<ReturnType<typeof generateText>>)
+    await new Promise(resolve => setImmediate(resolve))
+    expect(rememberMainGatewayRoute).not.toHaveBeenCalled()
+    expect(generateText).toHaveBeenCalledOnce()
   })
 
   it('backs off repeated background one-shots after a Provider failure', async () => {
@@ -1264,6 +1498,17 @@ describe('runtime main gateway one-shot', () => {
     }))
     expect(grounded.summary?.workload.kind).toBe('browser')
     expect(grounded.unavailableReason).toBeUndefined()
+  })
+
+  it.each(['execution-planning', 'persona-evaluation'] as const)('keeps execution planning facts scoped to their registered source: %s', async (source) => {
+    const { runtime } = createOneShotRuntimeHarness()
+    vi.mocked(generateText).mockResolvedValueOnce({ text: '{}' } as any)
+    const fact = JSON.stringify({ type: 'alicization-execution-planning-context', data: { version: 1, formatRequirements: 'Return only JSON with reason and steps; keep mutations and success criteria exact.' } })
+    const user = JSON.stringify({ sourceRequest: `original-${'x'.repeat(30000)}`, observations: [{ actual: true }] })
+    await runtime.generateMainGatewayText({ cardId: 'planning-contract', source, system: fact, user, injectCustomDirectives: false, injectPerformanceManifest: false, captureAgentSensorySnapshot: false })
+    const messages = vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? []
+    expect(messages.at(-1)).toEqual({ role: 'user', content: user })
+    expect(messages.some(message => message.role === 'system' && message.content === fact)).toBe(source === 'execution-planning')
   })
 
   it('compacts oversized one-shot context while preserving typed caller facts and user message', async () => {

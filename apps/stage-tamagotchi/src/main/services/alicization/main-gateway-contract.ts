@@ -2,6 +2,7 @@ export type AlicizationMainGatewayAuditFamily
   = 'dialogue-grounding'
     | 'background-life'
     | 'execution-callback'
+    | 'execution-planning'
     | 'memory-planning'
     | 'mind-state'
     | 'screen-understanding'
@@ -12,6 +13,7 @@ export type AlicizationMainGatewaySource
     | 'persona-evaluation'
     | 'reply-grounding'
     | 'execution-callback'
+    | 'execution-planning'
     | 'reminder'
     | 'proactive'
     | 'dream'
@@ -59,6 +61,8 @@ export function resolveAlicizationMainGatewayAuditFamilyForSource(
     return 'mind-state'
   if (source === 'execution-callback')
     return 'execution-callback'
+  if (source === 'execution-planning')
+    return 'execution-planning'
   if (source === 'screen-semantic' || source === 'scene-appraisal')
     return 'screen-understanding'
   return null

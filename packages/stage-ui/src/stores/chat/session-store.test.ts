@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isReactive, ref } from 'vue'
 
 import { useAiriCardStore } from '../modules/airi-card'
+import { interruptChatAssistantMessage } from './message-identity'
 import { useChatSessionStore } from './session-store'
 
 const authState = vi.hoisted(() => ({
@@ -240,6 +241,31 @@ describe('chat session store reset stability', () => {
     mocks.resetStorage()
     authState.userId = 'local-user'
     useAiriCardStore().activeCardId = 'default'
+  })
+
+  it.each(['empty', 'partial'] as const)('does not overwrite another window\'s persisted dialogue when a %s cached window ensures the primary session', async (scenario) => {
+    const sessionId = 'session:primary:default'
+    const initial: ChatHistoryItem[] = scenario === 'partial' ? [{ id: 'earlier-user', role: 'user', content: '先前的问候', createdAt: Date.now() }] : []
+    await seedPersistedSession(sessionId, initial)
+    const stale = useChatSessionStore()
+    await stale.initialize()
+    setActivePinia(createPinia())
+    useAiriCardStore().activeCardId = 'default'
+    const sender = useChatSessionStore()
+    await sender.initialize()
+    const latest: ChatHistoryItem[] = [...initial, { id: 'new-user', role: 'user', content: '继续说说雨天', createdAt: Date.now() }, interruptChatAssistantMessage({ id: 'stopped-reply', role: 'assistant', content: '雨落下来的', slices: [], tool_results: [], createdAt: Date.now() }, '雨落下来的', 'cancelled')]
+    sender.setSessionMessages(sessionId, latest)
+    await vi.waitFor(async () => expect((await mocks.chatSessionsRepo.getSession(sessionId))?.messages).toEqual(latest))
+    mocks.chatSessionsRepo.saveSession.mockClear()
+    expect(await stale.ensureExternalSession('older-event-session')).toBe(sessionId)
+    expect(mocks.chatSessionsRepo.saveSession).not.toHaveBeenCalled()
+    expect((await mocks.chatSessionsRepo.getSession(sessionId))?.messages).toEqual(latest)
+    expect(stale.messages).toEqual(latest)
+    setActivePinia(createPinia())
+    useAiriCardStore().activeCardId = 'default'
+    const reopened = useChatSessionStore()
+    await reopened.initialize()
+    expect(reopened.messages).toEqual(latest)
   })
 
   it('does not lose freshly sent messages after resetAllSessions under delayed persistence', async () => {

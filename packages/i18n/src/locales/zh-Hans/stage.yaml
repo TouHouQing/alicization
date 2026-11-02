@@ -5,6 +5,9 @@ chat:
   input-hint: Enter 发送 · Shift + Enter 换行
   preparing: 正在准备回复… 等待时可以点击中断按钮。
   message:
+    reply-stopped: 回复已停止
+    reply-interrupted: 回复未完成，可以重试。
+    work-reply-interrupted: 回复中断了。工作可能已经开始，请先查看工作进展，再决定是否重新提交。
     character-name:
       airi: ALICIZATION
       core-system: 核心系统
@@ -20,6 +23,7 @@ chat:
     provider-continuation-incomplete: 工具已完成，但 Provider 没有返回最终回复。
     local-runtime-unavailable: 本地模型服务不可用，例如 `11434` 上的 Ollama 或 `1234` 上的 LM Studio。
     stream-timeout: 'Provider 等待首个响应超时（{provider} / {model}）。'
+    provider-progress-timeout: 'Provider 已开始响应，但未在时限内完成（{provider} / {model}）。重试前请先检查已有操作结果。'
     provider-auth: 当前提供方认证失败，API Key 或模型权限无效。
     provider-network: 当前到模型服务的网络连接不稳定。
     provider-config: '提供方或模型配置不完整：例如 `provider`、`model` 或 `baseUrl` 缺失。'
@@ -31,6 +35,12 @@ chat:
     low-obedience-denied: 操作被拒绝了。
     low-liveliness: 当前运行状态偏低，本轮回复将保持简短。
     reminder-schedule-failed: 提醒未成功设置。
+  tool-actions:
+    plan-work: 安排工作
+    find-method: 查找学到的方法
+    use-method: 使用学到的方法
+    create-piece: 创作作品
+    operation: 处理操作
   tool-recovery:
     continue: 确认后继续
     resume: 核对后恢复

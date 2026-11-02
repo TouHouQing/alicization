@@ -1,5 +1,11 @@
 # Stage UI
 
+Visible text holds one dialogue expression over the latest resident emotional state until delivery ends or is interrupted. Resident updates continue underneath it. The existing chat stream relays embodiment metadata to the stage in the same ordered, session and generation bound channel as visible glyphs; it omits retained prompt history, rejects cancelled or foreign turns and does not echo remote events. Card, pause, renderer and speech-mode changes revoke transient text presentation. Audio still derives timing and playback outcomes from its own real source.
+
+Header metadata prepares the face while suppressing a gesture. The first actual visible glyph admits that prepared text performance once; subsequent glyphs and metadata updates preserve the one-action limit. An action-admission change participates in performance deduplication so an immediate first glyph cannot lose its gesture to the preparation frame's short deduplication window.
+
+Live2D model settings default to quiet companionship. A per-model option enables repeating authored idle animations; motion selection in quiet mode previews the asset once. Mode changes preserve foreground actions, and reloading settings restores the saved mode without firing another preview.
+
 Shared core for stage
 
 VRM dialogue anchors consume the rendered body bounds and head region. Default panels first protect the face, then minimize body overlap within the available viewport. Relative user drag offsets remain available, and a center tolerance prevents breathing from changing the panel side. Body visibility witnesses sample the actual head, body center and existing anchor rather than assuming a standing pose.
@@ -60,5 +66,53 @@ pnpm -F @proj-alicization/stage-ui run story:dev
 
 ### Project structure
 
+Pure text uses the same authority metadata as speech, with no audio clock. `stage-text-dialogue-delivery.ts` deduplicates semantic updates and admits at most one primary gesture per text turn. Audio sentence decorations do not become extra text emotion events. Completion briefly holds the final expression before performance cooldown; a new turn cancels that cooldown, and late metadata cannot replay a finished text turn or block an unrelated initiative turn. Actual audio keeps its existing playback and lip sync lifecycle.
+
+The typed `stream-cancel` terminal event releases the matching prepared or active chat turn across windows. Its session, generation and message identity guards reject stale cancellation. Completed action payloads retire while their revisions remain monotonic, so a newly loaded body does not replay a settled gesture.
+
+`stage-action-delivery.ts` admits one primary gesture per spoken utterance across metadata, preview, playback and cadence callbacks. Sentence boundaries, transcript formatting and gateway attempts do not authorize another large gesture. Facial expression, gaze, audio lip sync and the existing speech motor layer continue through the utterance. Independent interactions and ordinary explicit action segments retain their own identity. Cadence actions wait for their intended beat instead of firing early at playback start.
+
 1. If a story is bound to a specific component, it can be placed beside the component in the `src` folder. e.g., `MyComponent.story.vue`
 2. If a story is not bound to a specific component, then it should be placed in the `stories` folder. e.g., `MyStory.story.vue`
+
+
+### Live provider text and mouth presentation (2026-10-18)
+
+The desktop extracts the root public `reply` while the provider stream is still
+open. A small whitelisted emotion header can prepare the face; private fields,
+JSON framing and tool arguments never enter the body channel. Concrete execution,
+stored-memory, promise and attributed-history claims retain the grounding gate.
+Admitted body packets carry sequence numbers and UTF-16 offsets; completion confirms
+the same body and never replays it. Early packets cannot enter memory or training.
+
+One cancellable presentation cursor consumes arriving body packets independently
+of network reception, preserving the existing natural text/mouth pacing. Its first
+glyph starts without waiting for provider completion or private-state settlement.
+`text-presented` carries the same visible position to the body, caption and remote
+chat; `token-literal` supplies admitted text to the actual speech pipeline.
+Published text cannot be silently revised or retried. Failures and cancellation
+retain the visible prefix with an explicit interruption status and disable learning.
+Final personality, memory and tool-result admission still require full settlement.
+Chinese runs use contextual `pinyin-pro` readings, including bilabial closure,
+vowel spreading/rounding and punctuation pauses. Digits use Mandarin readings;
+Latin spelling is an approximation, not a phonetic dictionary. Emoji and symbols
+stay silent. Cancellation/generation replacement discard the remaining cursor.
+The Live2D draw plugin writes only compiled mouth parameters, yields to actual
+audio, and never creates PCM energy or re-arms semantic gesture budgets.
+Hiyori exposes open/form controls, so full five-vowel geometry requires a rig with
+corresponding bindings. Character-scale timing is a text presentation clock, not
+measured speech alignment.
+
+### Natural text pacing and one visible reply (2026-10-18)
+
+The visible cursor advances at 230 ms per Mandarin syllable, lengthening the last
+syllable of a phrase to 290 ms. Commas pause for 260 ms; sentence endings pause
+for 440 ms. Connected syllables retain mouth aperture and compound finals glide;
+adjacent mouth forms transition over 70 ms of wall time. Punctuation, cancellation
+and actual audio retain immediate mouth authority. This is a text presentation
+estimate; measured audio continues to own voice lip sync.
+
+An active logical turn renders one bubble. Gateway retry IDs share a canonical
+identity across durable replay and the live cursor. While presentation is active,
+its prefix masks an already persisted full reply; completion upserts the same
+row once. Durable content and its audit metadata are retained.

@@ -691,6 +691,14 @@ describe('runtime main chat prelude', () => {
     expect(JSON.stringify(prelude)).not.toContain('alicization-inspection')
   })
 
+  it('preserves exact workflow arguments without granting desktop inspection', async () => {
+    const userMessage = { role: 'user', content: '执行参数：{"steps":[{"capabilityId":"tool.browser_read_page","input":{"text":"看看屏幕 \\\" 原样"}}],"question":"这份报告符合要求吗？"}' } as Message
+    const runtime = createRuntime()
+    const prelude = await runtime.prepareMainChatPrelude({ cardId: 'card-workflow', turnId: 'turn-workflow', providerId: 'openai', model: 'gpt-5', providerConfig: {}, messages: [userMessage] } as any, mainGateway)
+    expect(prelude.messages).toEqual([userMessage])
+    expect(prelude.perceptionAugmentation.capture.inspectionRequested).toBe(false)
+  })
+
   it('keeps perception and inspection context when the user explicitly asks to view the screen', async () => {
     const passivePerceptionBlock = JSON.stringify({
       type: 'alicization-perception',

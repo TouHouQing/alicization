@@ -5,6 +5,7 @@ import type {
 } from '../../types/chat'
 
 import { normalizeDialogueStructuredArtifact } from '../../composables/alicization-structured-output'
+import { interruptChatAssistantMessage, orderChatMessagesByTurn } from './message-identity'
 import { shouldReplaceToolSettlement } from './tool-settlement-arbitration'
 
 type ChatAssistantMessage = Extract<ChatHistoryItem, { role: 'assistant' }>
@@ -258,6 +259,8 @@ function mergeToolCallResultSlice(
 
 function sanitizeCanonicalMessage(message: ChatHistoryItem) {
   const cloned = cloneValue(message)
+  if (cloned.role === 'assistant' && cloned.delivery)
+    return interruptChatAssistantMessage(cloned, cloned.delivery.visibleText, cloned.delivery.reason)
   if (cloned.role !== 'assistant' || !cloned.structured)
     return cloned
 
@@ -420,6 +423,11 @@ function mergeEquivalentMessages(left: ChatHistoryItem, right: ChatHistoryItem):
       : cloneValue(secondaryAssistant.categorization)
   }
 
+  if (merged.role === 'assistant') {
+    const delivery = (left.role === 'assistant' ? left.delivery : undefined) ?? (right.role === 'assistant' ? right.delivery : undefined)
+    if (delivery)
+      return interruptChatAssistantMessage(merged, delivery.visibleText, delivery.reason)
+  }
   return merged
 }
 
@@ -439,7 +447,7 @@ export function canonicalizeSessionMessages(messages: ChatHistoryItem[]) {
   // NOTICE: SQLite conversation turns persist one shared created_at for both the
   // user prompt and the assistant reply of the same turn. When timestamps tie, the
   // user bubble must stay ahead of the assistant bubble or the chat visually flips.
-  return canonical.sort(compareMessageOrder)
+  return orderChatMessagesByTurn(canonical.sort(compareMessageOrder))
 }
 
 export function mergeLoadedSessionMessages(storedMessages: ChatHistoryItem[], currentMessages: ChatHistoryItem[]) {

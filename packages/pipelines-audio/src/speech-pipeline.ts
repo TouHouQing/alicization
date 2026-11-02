@@ -470,12 +470,16 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
         context.emit(speechPipelineEventMap.onIntentEnd, intent.intentId)
       }
 
-      intents.delete(intent.intentId)
-      activeIntent = null
-
-      const next = pickNextIntent()
-      if (next)
-        void runIntent(next)
+      if (intents.get(intent.intentId) === intent)
+        intents.delete(intent.intentId)
+      // Cancelled synthesis can finish after a replacement has already begun.
+      // Only the current runner can release the slot and advance its queue.
+      if (activeIntent === intent) {
+        activeIntent = null
+        const next = pickNextIntent()
+        if (next)
+          void runIntent(next)
+      }
     }
   }
 

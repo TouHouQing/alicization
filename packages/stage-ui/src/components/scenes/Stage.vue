@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { StageTextArticulationFrame } from '@proj-alicization/stage-shared'
 import type {
   Live2DRuntimeCapabilitySnapshot,
 } from '@proj-alicization/stage-ui-live2d'
@@ -97,6 +98,7 @@ import {
   resolvePreferredExpressionAliasesFromRuntimeState,
   resolvePreferredMotionAliasesFromRuntimeState,
 } from './stage-runtime-embodiment-cues'
+import { resolvePresentedTextArticulation } from './stage-text-dialogue-delivery'
 import {
   resolveVrmManifestActionCapabilities,
   resolveVrmManifestBaseEmotions,
@@ -123,6 +125,7 @@ const props = withDefaults(defineProps<{
 }>(), { paused: false, live2dPositionMode: 'percent', scale: 1, quickReplyEnabled: true, characterHoveredOverride: null, debugEmbodiment: false })
 
 const emit = defineEmits<{
+  (e: 'renderError', code: string | null): void
   (e: 'desktopInteractionChange', active: boolean): void
   (e: 'dialogueRendered', input: { cardId: string, turnId: string }): void
   (e: 'speechReceipt', input: import('../../types/speech-receipts').StageSpeechReceiptInput): void
@@ -193,6 +196,7 @@ const {
   live2dDisableFocus,
   stageModelSelectedUrl,
   stageModelSelected,
+  stageModelSelectedDisplayModel,
   themeColorsHue,
   themeColorsHueDynamic,
   live2dIdleAnimationEnabled,
@@ -201,6 +205,13 @@ const {
   live2dShadowEnabled,
   live2dMaxFps,
 } = storeToRefs(settingsStore)
+
+const live2dModelArchive = computed(() => {
+  const model = stageModelSelectedDisplayModel.value
+  return model?.type === 'file' && model.format === 'live2d-zip'
+    ? { id: model.id, file: model.file }
+    : undefined
+})
 const { mouthOpenSize } = storeToRefs(useSpeakingStore())
 logStageStartupTrace('before-audio-context')
 const { audioContext } = useAudioContext()
@@ -210,12 +221,15 @@ const chatOrchestrator = useChatOrchestratorStore()
 const {
   onBeforeMessageComposed,
   onEmbodimentMeta,
+  onTextPresented,
   onTokenLiteral,
   onTokenSpecial,
   onStreamEnd,
+  onStreamCancelled,
   onAssistantResponseEnd,
 } = chatOrchestrator
 const { sending } = storeToRefs(chatOrchestrator)
+const textArticulation = ref<StageTextArticulationFrame | null>(null)
 const chatHookCleanups: Array<() => void> = []
 // WORKAROUND: clear previous handlers on unmount to avoid duplicate calls when this component remounts.
 //             We keep per-hook disposers instead of wiping the global chat hooks to play nicely with
@@ -1232,6 +1246,7 @@ watch([stageModelRenderer, stageModelSelected], ([renderer]) => {
 
 const { killSwitch: activityKillSwitch } = storeToRefs(useAlicizationEpoch1Store())
 embodimentRuntime = useStageEmbodimentRuntime({
+  textOnly: computed(() => activeSpeechProvider.value === 'speech-noop'),
   activeCardId,
   onAudioPlaybackReceipt: ({ item, status, playedMs }) => {
     const delivery = item.metadata?.lifeDelivery as { cardId?: string, turnId?: string } | undefined
@@ -1258,6 +1273,17 @@ embodimentRuntime = useStageEmbodimentRuntime({
   dispatcher: alicizationPresenceDispatcherStore,
   enqueueEmotion: emotion => emotionsQueue.enqueue(emotion),
   focusAt: computed(() => props.focusAt),
+  executionGazeGeometry: () => {
+    const frame = desktopInteractions.characterFrame.value
+    if (!frame || typeof window === 'undefined')
+      return null
+    return {
+      screenOrigin: { x: window.screenX, y: window.screenY },
+      anchor: { x: frame.head ? frame.head.x + frame.head.width / 2 : frame.centerX, y: frame.head ? frame.head.y + frame.head.height / 2 : frame.top + (frame.bottom - frame.top) * 0.2 },
+      stage: stageBounds.value,
+      visible: document.visibilityState === 'visible' && stageBodyActuallyVisible() && showStage.value && !props.paused && activityKillSwitch.value.state !== 'SUSPENDED' && !live2dDisableFocus.value,
+    }
+  },
   live2dActionCapabilities: currentLive2DActionCapabilities,
   live2dExecutionDiagnostics,
   live2dRuntimeCapabilities: live2dDiagnosticsRuntimeCapabilities,
@@ -1322,7 +1348,7 @@ const {
 
 const residentPerformanceState = computed(() => projectStageResidentBehavior(performanceState.value, props.residentBehavior, { cardId: activeCardId.value, now: Date.now(), paused: props.paused || activityKillSwitch.value.state === 'SUSPENDED', taskActive: stageActivityNeedsBodyFocus(activityPresence.value), speaking: embodimentRuntime.nowSpeaking.value }))
 function stageBodyActuallyVisible() {
-  const canvas = vrmViewerRef.value?.canvasElement()
+  const canvas = canvasElement()
   if (!canvas || canvas.getBoundingClientRect().width <= 0)
     return false
   for (let element: HTMLElement | null = canvas; element; element = element.parentElement) {
@@ -1510,28 +1536,8 @@ speechPipeline.on('onTtsSkipped', (event) => {
   embodimentRuntime?.discardPreviewSpeechSegment(event.request.segmentId)
 })
 
-speechPipeline.on('onSegment', (segment) => {
-  if (activeSpeechProvider.value !== 'speech-noop')
-    return
-  if (!segment.text.trim())
-    return
-  logStageEmbodimentDebug('synthetic-segment', {
-    intentId: segment.intentId,
-    streamId: segment.streamId,
-    segmentId: segment.segmentId,
-    text: segment.text.slice(0, 96),
-  })
-  embodimentRuntime?.previewSpeechSegment({
-    intentId: segment.intentId,
-    streamId: segment.streamId,
-    segmentId: segment.segmentId,
-    text: segment.text,
-    special: segment.special,
-    continuityHoldMs: segment.continuityHoldMs,
-    metadata: attachEmbodimentScriptToSpeechMetadata(segment.metadata ?? null, (segment.metadata as any)?.embodimentScript),
-  })
-  embodimentRuntime?.applySyntheticSpeechSegment(segment)
-})
+// Text expression comes from the authoritative turn metadata above. Audio
+// sentence segmentation is not another emotional event or speaking clock.
 logStageStartupTrace('after-speech-pipeline-hooks')
 
 logStageStartupTrace('before-bind-playback-manager')
@@ -1575,6 +1581,8 @@ chatHookCleanups.push(onPlaybackEvent((event) => {
 }))
 
 chatHookCleanups.push(onBeforeMessageComposed(async (_message, context) => {
+  textArticulation.value = null
+  currentChatDeliveryTurnId.value = null
   const prepareStartedAt = performance.now()
   speechRuntimeStore.cancelOwner(activeCardId.value, 'new-message')
   clearRuntimeEmbodimentEnvelope({ preserveTurnEnvelope: true })
@@ -1604,9 +1612,13 @@ chatHookCleanups.push(onBeforeMessageComposed(async (_message, context) => {
     metadata: { ...createSpeechIntentMetadata('chat'), lifeDelivery: { cardId: activeCardId.value, turnId: `chat:${context.sessionId}:${context.message.id}` } },
   })
   currentChatDeliveryTurnId.value = `chat:${context.sessionId}:${context.message.id}`
+  embodimentRuntime.beginTextDialogue(currentChatDeliveryTurnId.value)
 }))
 
-chatHookCleanups.push(onEmbodimentMeta(async (meta) => {
+chatHookCleanups.push(onEmbodimentMeta(async (meta, context) => {
+  const turnId = `chat:${context.sessionId}:${context.message.id}`
+  if (turnId !== currentChatDeliveryTurnId.value)
+    return
   runtimeDigest.value = meta.runtimeDigest ?? null
 
   const embodimentScript = meta.embodimentScript ?? null
@@ -1643,8 +1655,12 @@ chatHookCleanups.push(onEmbodimentMeta(async (meta) => {
     ...meta.embodiment,
     rendererHints: authoritativeMeta.rendererHints ?? null,
   }
+  // Stream metadata may precede the first public glyph; a complete utterance
+  // is not required to give this owned turn its expression.
   armDialoguePerformance(meta.embodiment.performance, {
     variationToken: authoritativeMeta.variationToken,
+    turnId,
+    suppressActionPulse: true,
   })
   applyRuntimeEmbodimentEnvelope(authoritativeEmbodiment)
   embodimentRuntime.applyEmotionSpeechStyle(
@@ -1667,6 +1683,19 @@ chatHookCleanups.push(onEmbodimentMeta(async (meta) => {
   })
 }))
 
+chatHookCleanups.push(onTextPresented(async (unit, context) => {
+  const turnId = `chat:${context.sessionId}:${context.message.id}`
+  if (turnId !== currentChatDeliveryTurnId.value)
+    return
+  textArticulation.value = activeSpeechProvider.value === 'speech-noop' ? resolvePresentedTextArticulation(unit, turnId, Date.now()) : null
+  if (activeSpeechProvider.value === 'speech-noop') {
+    embodimentRuntime.presentTextDialogue(turnId)
+    assistantCaption.value += unit.grapheme
+    captionPoster.post({ type: 'caption-assistant', text: assistantCaption.value })
+    presentPoster.post({ type: 'assistant-append', text: unit.grapheme })
+  }
+}))
+
 chatHookCleanups.push(onTokenLiteral(async (literal) => {
   chatIntentBridge.writeLiteral(literal)
 }))
@@ -1681,7 +1710,23 @@ chatHookCleanups.push(onStreamEnd(async () => {
   chatIntentBridge.writeFlush()
 }))
 
-chatHookCleanups.push(onAssistantResponseEnd(async (_message) => {
+chatHookCleanups.push(onStreamCancelled(async (_reason, context) => {
+  const turnId = `chat:${context.sessionId}:${context.message.id}`
+  if (turnId !== currentChatDeliveryTurnId.value)
+    return
+  textArticulation.value = null
+  chatIntentBridge.cancel('chat-cancelled')
+  currentChatIntent.value = null
+  embodimentRuntime.finishTextDialogue(turnId)
+  embodimentRuntime.clearInteractionIntent()
+}))
+
+chatHookCleanups.push(onAssistantResponseEnd(async (_message, context) => {
+  const turnId = `chat:${context.sessionId}:${context.message.id}`
+  if (turnId !== currentChatDeliveryTurnId.value)
+    return
+  textArticulation.value = null
+  embodimentRuntime.finishTextDialogue(turnId)
   chatIntentBridge.end()
   currentChatIntent.value = null
   // const res = await embed({
@@ -1786,7 +1831,7 @@ const dialoguePlacement = computed((previous: ReturnType<typeof resolveStageBubb
 
   return resolveStageBubblePlacement(parseStagePositionX(props.xOffset))
 })
-const streamingBubbleText = computed(() => resolveStageBubbleText(streamingMessage.value))
+const streamingBubbleText = computed(() => resolveStageBubbleText(streamingMessage.value, { visibleOnly: true }))
 const recentAssistantBubbleMessage = computed(() => {
   return [...messages.value]
     .reverse()
@@ -1950,7 +1995,14 @@ onUnmounted(() => {
   viewUpdateCleanups.forEach(dispose => dispose?.())
 })
 
+function handleLive2DRenderError(code: string | null) {
+  if (code)
+    desktopInteractions.cancelInteraction()
+  emit('renderError', code)
+}
+
 defineExpose({
+  retryRenderer: () => live2dSceneRef.value?.retryRenderer() ?? Promise.resolve(),
   canvasElement,
   dialogueOverlayElement,
   hitTestClientPoint,
@@ -1979,9 +2031,11 @@ defineExpose({
         :action-bindings="currentLive2DActionCapabilities"
         :model-src="stageModelSelectedUrl"
         :model-id="stageModelSelected"
+        :model-archive="live2dModelArchive"
         :focus-at="live2dFocusAt"
         :presence-posture="presencePosture"
         :speech-render-state="speechRenderState"
+        :text-articulation="props.paused ? null : textArticulation"
         :idle-motion-preference="live2dIdleMotionPreference"
         :paused="paused"
         :performance-state="residentPerformanceState"
@@ -1999,6 +2053,7 @@ defineExpose({
         :live2d-max-fps="live2dMaxFps"
         @character-hover-change="setStageCharacterHovered"
         @runtime-capabilities-resolved="syncLive2DRuntimeCapabilities"
+        @render-error="handleLive2DRenderError"
       />
       <ThreeScene
         v-if="stageModelRenderer === 'vrm' && showStage"

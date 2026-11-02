@@ -424,14 +424,25 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       return await createPrimarySession(characterId, { title })
     }
 
-    const sourceRecord = loadedSessions.has(sourceSessionId)
-      ? null
-      : await chatSessionsRepo.getSession(sourceSessionId)
-    const sourceMessages = sessionMessages.value[sourceSessionId]
-      ?? sourceRecord?.messages
-      ?? []
-    const normalizedMessages = normalizeMessagesWithIds(sourceMessages).normalized
+    // Other desktop windows can have saved newer dialogue since this window
+    // loaded. Ensuring the existing primary session is a refresh, not a reset.
+    const sourceRecord = await chatSessionsRepo.getSession(sourceSessionId)
+    const stored = sourceRecord ? normalizeMessagesWithIds(sourceRecord.messages) : null
+    const local = normalizeMessagesWithIds(sessionMessages.value[sourceSessionId] ?? []).normalized
+    const normalizedMessages = stored ? mergeLoadedSessionMessages(stored.normalized, local) : local
     const sourceMeta = sourceRecord?.meta ?? characterIndex.sessions[sourceSessionId]
+    if (sourceRecord && sourceSessionId === primarySessionId && legacySessionIds.length === 1 && !stored?.changed && (!title || sourceMeta.title)) {
+      sessionMetas.value[primarySessionId] = sourceMeta
+      const current = sessionMessages.value[primarySessionId]
+      if (current)
+        current.splice(0, current.length, ...normalizedMessages)
+      else
+        sessionMessages.value[primarySessionId] = normalizedMessages
+      ensureGeneration(primarySessionId)
+      loadedSessions.add(primarySessionId)
+      activeSessionId.value = primarySessionId
+      return primarySessionId
+    }
     const now = Date.now()
     const primaryMeta: ChatSessionMeta = {
       sessionId: primarySessionId,

@@ -39,7 +39,7 @@ export function lifeArtifactDescriptionQuotes(draft: string, goals: LifeObligati
   return draft.split(/(?<=[。！？.!?；;])\s*/u).map(text => text.trim()).filter((text) => {
     if (text.length > 4000 || !/写的是|写的内容|(?:故事|短篇|作品|札记|那一段)[^。！？.!?\n]{0,120}(?:讲(?:述|了|的是)|描写|关于|里面|里(?:还|也)?[有是的]|——|：)|(?:story|piece|note)\s+(?:is|was|features|describes|about)|I wrote[^.!?\n]{0,100}(?:about|where)/iu.test(text))
       return false
-    const prospective = /我(?:想|打算|准备)|原先构思|当时想|先前设想|(?:只是|另一个)(?:当时)?(?:说过的)?(?:想法|打算)|(?:没有|并无)证据表明|还没|还没有|\b(?:want to|plan to|will|intended)\b/iu.test(text)
+    const prospective = /我(?:想|打算|准备)|原先构思|当时想|先前设想|(?:只是|另一个)(?:当时)?(?:说过的)?(?:想法|打算)|(?:没有|并无)证据表明|还没|\b(?:want to|plan to|will|intended)\b/iu.test(text)
     return !prospective || /写的是|写的内容|已经|写完|成稿|完成|\b(?:finished|completed|actually wrote)\b/iu.test(text)
   })
 }
@@ -51,9 +51,16 @@ export function lifePersonalArtifactSourceExcerpts(text: string) {
   return [...new Set([...body.split(/\r?\n\s*\n/u), ...body.split(/(?<=[。！？.!?])\s*/u), ...body.split(/\r?\n/u)].map(text => text.trim()).filter(text => text.length > 0 && text.length <= 1200 && !/[\r\n\t]/u.test(text)))].slice(0, 40)
 }
 
+export function lifeArtifactQuoteReferences(quotes: string[]) {
+  return quotes.map((quote, index) => ({ reference: `artifact-quote:${index + 1}`, quote }))
+}
+
 export function lifeArtifactStatementFormat(quotes: string[], bindings: Array<{ id: string, version: string }>, required: boolean, sourceExcerpts: string[] = []) {
+  // A local reference preserves exact multiline text without asking a strict
+  // provider to emit control-character enums or reconstruct paragraph spacing.
+  const references = lifeArtifactQuoteReferences(quotes)
   return { type: 'array', minItems: required ? 1 : 0, maxItems: quotes.length ? 8 : 0, items: { type: 'object', additionalProperties: false, required: ['quote', 'binding', 'sourceExcerpt', 'meaningMatchesText'], properties: {
-    quote: { type: 'string', minLength: 1, maxLength: 4000, ...(quotes.length ? { enum: quotes } : {}) },
+    quote: { type: 'string', minLength: 1, maxLength: 4000, ...(references.length ? { enum: references.map(item => item.reference) } : {}) },
     binding: bindings.length ? { anyOf: [{ type: 'null' }, { type: 'object', additionalProperties: false, required: ['kind', 'id', 'version'], properties: { kind: { type: 'string', enum: ['obligation'] }, id: { type: 'string', enum: bindings.map(binding => binding.id) }, version: { type: 'string', enum: [...new Set(bindings.map(binding => binding.version))] } } }] } : { type: 'null' },
     sourceExcerpt: { type: 'string', maxLength: 2000, enum: ['', ...new Set(sourceExcerpts)] },
     meaningMatchesText: { type: 'boolean' },

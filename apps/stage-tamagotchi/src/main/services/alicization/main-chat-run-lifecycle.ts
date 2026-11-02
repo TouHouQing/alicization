@@ -16,6 +16,7 @@ import {
   sanitizeAlicizationMemoryEvidenceText,
 } from '@proj-alicization/stage-shared'
 
+import { AlicizationReplyGroundingUnavailableError } from './life-reply-grounding-error'
 import { readTransportContentAsText } from './runtime-transport-content'
 import {
   readAlicizationRuntimeTimeoutDescriptor,
@@ -61,8 +62,8 @@ function isExplicitExternalTransportTimeout(reason: unknown) {
       ? current.message
       : String(record.message ?? '')
     if (
-      /\b(?:request|connect(?:ion)?|headers?|socket)\s+(?:timed?\s*out|timeout)\b/iu.test(message)
-      || /\b(?:timed?\s*out|timeout)\s+(?:while\s+)?(?:requesting|connecting|reading\s+headers|waiting\s+for\s+(?:the\s+)?(?:request|connection|socket))\b/iu.test(message)
+      /\b(?:request|connect(?:ion)?|headers?|socket)\s+timed?\s*out\b/iu.test(message)
+      || /\btimed?\s*out\s+(?:while\s+)?(?:requesting|connecting|reading\s+headers|waiting\s+for\s+(?:the\s+)?(?:request|connection|socket))\b/iu.test(message)
     ) {
       return true
     }
@@ -259,7 +260,7 @@ export async function handleAlicizationMainChatRunFailure(
           ? 'tool-result-handoff'
           : continuationTimeout
             ? 'provider-continuation'
-            : providerIdleTimeout
+            : providerIdleTimeout || (retryDeadlineTimeout && timeoutDescriptor?.sawProgress)
               ? 'provider-continuation'
               : preparationTimeout
                 ? 'preparation'
@@ -545,18 +546,19 @@ export async function handleAlicizationMainChatRunFailure(
     return
   }
 
-  if (input.error instanceof AlicizationVisibleReplySettlementBlockedError) {
+  if (input.error instanceof AlicizationVisibleReplySettlementBlockedError || input.error instanceof AlicizationReplyGroundingUnavailableError) {
+    const finishReason = input.error instanceof AlicizationReplyGroundingUnavailableError ? 'reply-grounding-unavailable' : 'provider-output-invalid'
     const failureSurface = resolveAlicizationChatFailureSurface({
       kind: input.error.failureSurface.kind,
       userText: currentUserText,
     })
     await emitFailureSurface({
       failureSurface,
-      finishReason: 'provider-output-invalid',
+      finishReason,
       status: 'failed',
       options: input,
     })
-    await input.appendRuntimeDebugLine('chat-stream.provider-output-invalid', {
+    await input.appendRuntimeDebugLine(`chat-stream.${finishReason}`, {
       cardId: input.payload.cardId,
       turnId: input.payload.turnId,
       reason,

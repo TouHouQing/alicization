@@ -29,6 +29,7 @@ import type {
 import type { ChatToolProjectionSlice } from './chat-tool-projection'
 import type { StreamEvent, StreamOptions } from './llm'
 
+import { errorMessageFrom } from '@moeru/std'
 import {
   AlicizationToolEventDeliveryError,
   deriveAlicizationRendererBridgeWatchdogTimeoutPolicy,
@@ -45,7 +46,7 @@ import {
 import { createQueue } from '@proj-alicization/stream-kit'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
-import { ref, toRaw } from 'vue'
+import { nextTick, ref, toRaw } from 'vue'
 
 import { compactMessagesForPromptAssembly, sanitizeAssistantOutputForDisplay } from '../composables/alicization-guardrails'
 import {
@@ -79,8 +80,10 @@ import {
 import { createDatetimeContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
 import { createChatHooks } from './chat/hooks'
+import { interruptChatAssistantMessage, upsertChatAssistantMessage } from './chat/message-identity'
 import { useChatSessionStore } from './chat/session-store'
 import { useChatStreamStore } from './chat/stream-store'
+import { createChatTextPresenter } from './chat/text-presentation'
 import { useLLM } from './llm'
 import { useConsciousnessStore } from './modules/consciousness'
 import { useProvidersStore } from './providers'
@@ -1597,6 +1600,32 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     trackFirstMessage()
 
     const sessionMessagesForSend = chatSession.getSessionMessages(sessionId)
+    const livePresentation = createChatTextPresenter({
+      signal: abortSignal,
+      isCurrent: () => !shouldAbort(),
+      present: async (unit, visibleText) => {
+        buildingMessage.content = visibleText
+        buildingMessage.slices = retainTerminalExecutionStatusSlices(replaceAssistantTextSlices(buildingMessage.slices, visibleText))
+        updateUI()
+        await nextTick()
+        const presentedAt = Date.now()
+        if (!shouldAbort())
+          await hooks.emitTextPresentedHooks({ ...unit, presentedAt }, streamingMessageContext)
+        return presentedAt
+      },
+    })
+    const retainInterruptedReply = async (reason: 'cancelled' | 'failed') => {
+      await livePresentation.cancel()
+      if (isStaleGeneration())
+        return false
+      const text = livePresentation.visibleText
+      if (!text)
+        return false
+      Object.assign(buildingMessage, interruptChatAssistantMessage(buildingMessage, text, reason))
+      upsertChatAssistantMessage(sessionMessagesForSend, toRaw(buildingMessage))
+      chatSession.persistSessionMessages(sessionId)
+      return true
+    }
     let userTurnMessageId: string | null = null
     let assistantOutputCommitted = false
     let mainConversationCommitted = false
@@ -1885,6 +1914,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         getTurnStructuredRuntimeMeta(),
       )
       const finalReply = staged.reply.trim()
+      if (livePresentation.receivedText && (staged.origin !== 'provider' || !finalReply.startsWith(livePresentation.receivedText)))
+        throw new Error('Final settlement cannot replace the public reply stream')
       const categorization = staged.categorization
       const finalizedCategorization = {
         ...categorization,
@@ -1896,15 +1927,20 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       buildingMessage.categorization = finalizedCategorization
       buildingMessage.structured = structuredWithRuntimeMeta
-      buildingMessage.content = finalReply
-      buildingMessage.slices = finalizedSlices
+      buildingMessage.content = staged.origin === 'provider' ? livePresentation.visibleText : finalReply
+      buildingMessage.slices = staged.origin === 'provider' ? replaceAssistantTextSlices(finalizedSlices, livePresentation.visibleText) : finalizedSlices
       finalAssistantDisplayText = finalReply
       assistantTextCommitted = true
 
-      // NOTICE: Provider output becomes visible only after structural settlement.
-      // Infrastructure diagnostics remain visible, but are not her speech.
-      if (staged.origin === 'provider')
-        await hooks.emitTokenLiteralHooks(finalReply, streamingMessageContext)
+      // Structural settlement still owns content. Presentation owns only its
+      // visible cursor, shared with the body through text-presented events.
+      if (staged.origin === 'provider') {
+        if (!livePresentation.receivedText)
+          await hooks.emitTokenLiteralHooks(finalReply, streamingMessageContext)
+        const completed = await livePresentation.finish(finalReply)
+        if (!completed)
+          throw abortSignal.reason ?? new DOMException('Text presentation superseded', 'AbortError')
+      }
       updateUI()
 
       return finalReply
@@ -2613,7 +2649,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           realtimeIntent: false,
           verifiedToolResult: turnToolEvidence.verifiedToolResult,
         })
-        const displayReply = inspectedOutput.cleanText.trim()
+        // Main already admitted these exact public bytes. Inspection still
+        // rejects unsafe content; presentation cannot reformat the live stream.
+        const displayReply = runtimeAuthoritativeBridge ? finalReply : inspectedOutput.cleanText.trim()
         const outputRejected = !displayReply
           || inspectedOutput.fabricationDetected
           || inspectedOutput.leakDetected
@@ -2665,12 +2703,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           return
 
         if (!isStaleGeneration() && buildingMessage.slices.length > 0) {
-          const canonicalId = (id: unknown) => typeof id === 'string' ? id.replace(/:gw\d+(?=:user$|$)/u, '') : ''
-          const existingIndex = sessionMessagesForSend.findIndex(message => message.role === 'assistant' && canonicalId(message.id) === canonicalId(buildingMessage.id))
-          if (existingIndex >= 0)
-            sessionMessagesForSend.splice(existingIndex, 1, toRaw(buildingMessage))
-          else
-            sessionMessagesForSend.push(toRaw(buildingMessage))
+          upsertChatAssistantMessage(sessionMessagesForSend, toRaw(buildingMessage))
           chatSession.persistSessionMessages(sessionId)
         }
       }
@@ -3200,7 +3233,19 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                 case 'text-delta':
                   ingestTransportVisibleArtifactMetadata(event)
                   if (runtimeAuthoritativeBridge) {
-                    turnTransportVisibleText += event.text
+                    if (event.delivery?.phase === 'append') {
+                      if (livePresentation.append(event.text, event.delivery))
+                        await hooks.emitTokenLiteralHooks(event.text, streamingMessageContext)
+                    }
+                    if (event.delivery?.phase === 'complete') {
+                      if (event.text)
+                        throw new Error('Completion must not replay the public body')
+                      livePresentation.seal(livePresentation.receivedText, event.delivery)
+                      turnTransportVisibleText = livePresentation.receivedText
+                    }
+                    else {
+                      turnTransportVisibleText += event.text
+                    }
                     if (event.origin === 'provider' && event.text.trim())
                       runtimeAuthoritativeModelTextObserved = true
                     break
@@ -3343,9 +3388,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       // notification reaches this renderer. It must not become a failure reply.
       const mainInterrupted = Boolean(error && typeof error === 'object' && 'alicizationAbort' in error && error.alicizationAbort === true)
       if (abortSignal.aborted || shouldAbort() || mainInterrupted) {
+        const retained = await retainInterruptedReply('cancelled')
         const abortReason = resolveAbortReason(error, isStaleGeneration())
         const beforeLength = sessionMessagesForSend.length
-        if (userTurnMessageId) {
+        if (userTurnMessageId && !retained) {
           const nextMessages = sessionMessagesForSend.filter(item => item.id !== userTurnMessageId)
           if (nextMessages.length !== sessionMessagesForSend.length) {
             sessionMessagesForSend.splice(0, sessionMessagesForSend.length, ...nextMessages)
@@ -3383,6 +3429,19 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             },
           })
         }
+        await hooks.emitStreamCancelledHooks(abortReason, streamingMessageContext)
+        return
+      }
+
+      if (await retainInterruptedReply('failed')) {
+        if (hasAlicizationBridge() && !mainConversationCommitted) {
+          const abort = getAlicizationBridge().chatAbort
+          await abort?.({ turnId, reason: 'presentation-failed' }).catch(() => {})
+        }
+        await hooks.emitStreamCancelledHooks('provider-failed', streamingMessageContext)
+        if (isForegroundSession())
+          streamingMessage.value = createEmptyStreamingMessage()
+        await appendAlicizationAuditLog({ level: 'warning', category: 'alicization.chat', action: 'public-reply-interrupted', message: 'Preserved the visible prefix after stream failure without replay or learning admission.', details: { turnId, visibleChars: livePresentation.visibleText.length, error: errorMessageFrom(error) } })
         return
       }
 
@@ -3429,6 +3488,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       throw error
     }
     finally {
+      await livePresentation.cancel()
       completeAlicizationTurnAbort(turnId)
       sending.value = false
     }
@@ -3584,9 +3644,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     emitAfterMessageComposedHooks: hooks.emitAfterMessageComposedHooks,
     emitBeforeSendHooks: hooks.emitBeforeSendHooks,
     emitAfterSendHooks: hooks.emitAfterSendHooks,
+    emitTextPresentedHooks: hooks.emitTextPresentedHooks,
     emitTokenLiteralHooks: hooks.emitTokenLiteralHooks,
     emitTokenSpecialHooks: hooks.emitTokenSpecialHooks,
     emitStreamEndHooks: hooks.emitStreamEndHooks,
+    emitStreamCancelledHooks: hooks.emitStreamCancelledHooks,
     emitEmbodimentMetaHooks: hooks.emitEmbodimentMetaHooks,
     emitAssistantResponseEndHooks: hooks.emitAssistantResponseEndHooks,
     emitToolCallHooks: hooks.emitToolCallHooks,
@@ -3597,9 +3659,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     onAfterMessageComposed: hooks.onAfterMessageComposed,
     onBeforeSend: hooks.onBeforeSend,
     onAfterSend: hooks.onAfterSend,
+    onTextPresented: hooks.onTextPresented,
     onTokenLiteral: hooks.onTokenLiteral,
     onTokenSpecial: hooks.onTokenSpecial,
     onStreamEnd: hooks.onStreamEnd,
+    onStreamCancelled: hooks.onStreamCancelled,
     onEmbodimentMeta: hooks.onEmbodimentMeta,
     onAssistantResponseEnd: hooks.onAssistantResponseEnd,
     onToolCall: hooks.onToolCall,

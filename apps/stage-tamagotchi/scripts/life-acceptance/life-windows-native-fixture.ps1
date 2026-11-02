@@ -5,7 +5,7 @@ Add-Type -AssemblyName System.Windows.Forms
 $form = [Windows.Forms.Form]::new()
 $form.Text = 'Alicization QA Native Notes'
 $form.Width = 520
-$form.Height = 280
+$form.Height = 350
 $entry = [Windows.Forms.TextBox]::new()
 $entry.Name = 'entry'
 $entry.AccessibleName = 'QA输入'
@@ -30,7 +30,27 @@ $save.Add_Click({
   $status.Text = '已保存'
 })
 $change.Add_Click({ $save.Text = '删除'; $save.AccessibleName = '删除' })
-$form.Controls.AddRange(@($entry,$save,$status,$change))
+$sort = [Windows.Forms.ComboBox]::new()
+$sort.DropDownStyle = [Windows.Forms.ComboBoxStyle]::DropDownList
+$sort.Name = 'sort'
+$sort.AccessibleName = '排序方式'
+$sort.SetBounds(20,210,140,30)
+[void]$sort.Items.AddRange(@('按名称','按日期'))
+$sort.SelectedIndex = 0
+$sort.Add_SelectedIndexChanged({ [IO.File]::WriteAllText(($fixture.path + '.selection.txt'),[string]$sort.SelectedItem,[Text.UTF8Encoding]::new($false)) })
+$changeOptions = [Windows.Forms.Button]::new()
+$changeOptions.Text = '改变选项'
+$changeOptions.SetBounds(180,205,170,35)
+$changeOptions.Add_Click({ [void]$sort.Items.Add('新增选项') })
+$form.Controls.AddRange(@($entry,$save,$status,$change,$sort,$changeOptions))
+$stopTimer = $null
+if ($fixture.stopPath) {
+  $stopTimer = [Windows.Forms.Timer]::new()
+  $stopTimer.Interval = 100
+  $stopTimer.Add_Tick({ if ([IO.File]::Exists($fixture.stopPath)) { $stopTimer.Stop(); $form.Close() } })
+  $stopTimer.Start()
+}
 $form.Show()
 [Console]::WriteLine((@{ready=$true;windowId=$form.Handle.ToInt64().ToString();title=$form.Text} | ConvertTo-Json -Compress))
 [Windows.Forms.Application]::Run($form)
+if ($stopTimer) { $stopTimer.Dispose() }

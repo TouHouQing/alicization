@@ -5,6 +5,9 @@ chat:
   input-hint: Enter to send · Shift + Enter for a new line
   preparing: Preparing a reply… You can stop it while waiting.
   message:
+    reply-stopped: Reply stopped
+    reply-interrupted: Reply interrupted. You can try again.
+    work-reply-interrupted: The reply was interrupted. Work may already have started; check Work progress before submitting it again.
     character-name:
       airi: ALICIZATION
       core-system: Core System
@@ -20,6 +23,7 @@ chat:
     provider-continuation-incomplete: The tool completed, but the Provider did not return a final reply.
     local-runtime-unavailable: The local model runtime is unavailable this turn (for example Ollama on `11434` or LM Studio on `1234`).
     stream-timeout: 'Provider timed out before the first response ({provider} / {model}).'
+    provider-progress-timeout: The Provider started responding but did not finish within the time limit ({provider} / {model}). Check existing operation results before trying again.
     provider-auth: Provider authentication failed (the API key or model permission is invalid).
     provider-network: The connection to the model service is unstable right now.
     provider-config: 'Provider or model configuration is incomplete: for example `provider`, `model`, or `baseUrl` is missing.'
@@ -31,6 +35,12 @@ chat:
     low-obedience-denied: The operation was denied.
     low-liveliness: Runtime liveliness is low, so this reply will stay brief.
     reminder-schedule-failed: That reminder was not set.
+  tool-actions:
+    plan-work: Arrange the work
+    find-method: Find a learned method
+    use-method: Use a learned method
+    create-piece: Create a piece
+    operation: Handle an operation
   tool-recovery:
     continue: Continue after confirmation
     resume: Inspect and resume

@@ -37,10 +37,10 @@ describe('activity claim language boundaries', () => {
   it('cannot acknowledge a preference without its actual current input evidence', () => {
     expect(isCurrentHostPreferenceAcknowledgment('你现在更喜欢晴天和风声。', null)).toBe(false)
   })
-  it.each(['我没有实际做别的事。', '这次还没有创作或保存作品。', '不能说完成了。', 'I did not finish the work.'])('recognizes the fully negated clause %s', (text) => {
+  it.each(['我没有实际做别的事。', '这次还没有创作或保存作品。', '不能说完成了。', 'I did not finish the work.', '我还没有收到执行完成或文件验收结果', 'I have not received completion evidence.'])('recognizes the fully negated clause %s', (text) => {
     expect(isPureNonCompletionStatement(text)).toBe(true)
   })
-  it.each(['我没有失败，作品完成了。', '我没有保存，但已经上传了。', 'I did not fail.', '我完成了作品。'])('keeps affirmative or mixed claims subject to proof: %s', (text) => {
+  it.each(['我没有失败，作品完成了。', '我没有保存，但已经上传了。', '我没有保存但已经上传了。', '我还没有收到执行结果但文件已经保存了', '我没有执行失败', 'I did not fail.', '我完成了作品。'])('keeps affirmative or mixed claims subject to proof: %s', (text) => {
     expect(isPureNonCompletionStatement(text)).toBe(false)
   })
   it('uses the same sentence time introduction without borrowing from another sentence or a file name', () => {

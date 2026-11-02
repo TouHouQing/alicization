@@ -1,0 +1,130 @@
+import { Buffer } from 'node:buffer'
+import { readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+
+import { expect, it } from 'vitest'
+
+import { createFileRecoveryTestFixture as fixture } from '../test-support/file-recovery-fixture'
+
+it('keeps business bytes unchanged during backup startup failure and saves a verified version after storage recovers', async () => {
+  const f = await fixture()
+  try {
+    const path = join(f.root, 'startup-recovery.txt')
+    const vault = join(dirname(f.db().dbPath), 'file-recovery')
+    await writeFile(path, 'original before storage recovery')
+    await writeFile(vault, 'owned temporary obstruction')
+    await expect(f.save(path, 'must not overwrite')).rejects.toThrow('File recovery vault')
+    expect(await readFile(path, 'utf8')).toBe('original before storage recovery')
+    expect(f.broker.snapshot()).toEqual([])
+    await unlink(vault)
+    const effectId = await f.save(path, 'verified recovered write')
+    expect(await readFile(path, 'utf8')).toBe('verified recovered write')
+    const versions = await f.versions.list('alice')
+    expect(versions.entries).toHaveLength(1)
+    expect(versions.entries[0]).toMatchObject({ effectId, state: 'recorded' })
+    expect((await f.versions.original(versions.entries[0].id, 'alice')).bytes?.toString()).toBe('original before storage recovery')
+    expect(f.broker.snapshot()).toEqual([])
+  }
+  finally { await f.close() }
+})
+
+it('captures original binary bytes through the actual dispatched adapter and reopens immutable before/after versions', async () => {
+  const f = await fixture()
+  try {
+    const path = join(f.root, 'existing.bin')
+    const original = Buffer.concat([Buffer.from('private original 中文🙂'), Buffer.from([0, 255, 128])])
+    await writeFile(path, original)
+    const effectId = await f.save(path, 'new report')
+    const page = await f.versions.list('alice')
+    expect(page.entries).toMatchObject([{ effectId, path, state: 'recorded', originalExisted: true }])
+    const version = page.entries[0].id
+    expect((await f.versions.original(version, 'alice')).bytes).toEqual(original)
+    const entry = await f.db().getLifeIngress(`file-version-before:${version}`)
+    expect(JSON.stringify(entry?.payload)).not.toContain('private original')
+    const [blob] = await readdir(join(dirname(f.db().dbPath), 'file-recovery'))
+    expect((await readFile(join(dirname(f.db().dbPath), 'file-recovery', blob))).includes(original)).toBe(false)
+    await f.reopen()
+    expect((await f.versions.original(version, 'alice')).bytes).toEqual(original)
+    expect(await readFile(path, 'utf8')).toBe('new report')
+    const created = join(f.root, 'created.txt')
+    await f.save(created, '')
+    const createdVersion = (await f.versions.list('alice')).entries.find(item => item.path === created)!
+    const record = await f.versions.original(createdVersion.id, 'alice')
+    expect(record.before.existed).toBe(false)
+    expect(record.bytes).toBeNull()
+    expect(record.after?.bytes).toBe(0)
+    await expect(f.versions.original(version, 'another-card')).rejects.toThrow('card')
+    expect(f.broker.snapshot()).toEqual([])
+  }
+  finally { await f.close() }
+})
+
+it('preserves a host edit or replaced path during awaited encryption instead of overwriting either file', async () => {
+  for (const replace of [false, true]) {
+    const f = await fixture()
+    try {
+      const path = join(f.root, 'existing.txt')
+      const moved = join(f.root, 'original-moved.txt')
+      await writeFile(path, 'original bytes')
+      f.onSeal(async () => {
+        if (replace)
+          await rename(path, moved)
+        await writeFile(path, 'host edit')
+      })
+      await expect(f.save(path, 'must not overwrite')).rejects.toThrow('changed while its original version')
+      expect(await readFile(path, 'utf8')).toBe('host edit')
+      if (replace)
+        expect(await readFile(moved, 'utf8')).toBe('original bytes')
+      const [record] = (await f.versions.list('alice')).entries
+      expect(record.state).toBe('unknown')
+      expect((await f.versions.original(record.id, 'alice')).bytes?.toString()).toBe('original bytes')
+    }
+    finally { await f.close() }
+  }
+})
+
+it('refuses original-journal failure before overwriting and quarantines a changed file if result auditing fails', async () => {
+  for (const source of ['file-version-before', 'file-version-after']) {
+    const f = await fixture()
+    try {
+      const path = join(f.root, 'existing.txt')
+      await writeFile(path, 'original bytes')
+      const db = f.db()
+      f.database({ ...db, commitLifeState: async (input, options) => {
+        if (input.mutations?.some(item => item.type === 'ingress-accept' && item.ingress.source === source))
+          throw new Error(`injected ${source} journal failure`)
+        return db.commitLifeState(input, options)
+      } })
+      await expect(f.save(path, 'generated bytes')).rejects.toThrow('journal failure')
+      expect(await readFile(path, 'utf8')).toBe(source === 'file-version-before' ? 'original bytes' : 'generated bytes')
+      const page = await f.versions.list('alice')
+      expect(page.entries).toHaveLength(source === 'file-version-before' ? 0 : 1)
+      if (page.entries.length) {
+        expect(page.entries[0].state).toBe('unknown')
+        expect((await f.versions.original(page.entries[0].id, 'alice')).bytes?.toString()).toBe('original bytes')
+      }
+      if (source === 'file-version-before')
+        expect(f.broker.snapshot()).toEqual([])
+      else
+        expect(f.broker.snapshot()).toMatchObject([{ uncertain: true }])
+    }
+    finally { await f.close() }
+  }
+})
+
+it('honors cancellation after original persistence without writing business bytes', async () => {
+  const f = await fixture()
+  try {
+    const path = join(f.root, 'existing.txt')
+    await writeFile(path, 'original bytes')
+    const controller = new AbortController()
+    f.onSeal(async () => { controller.abort(new Error('host stopped while saving backup')) })
+    await expect(f.save(path, 'must not write', controller.signal)).rejects.toThrow('host stopped')
+    expect(await readFile(path, 'utf8')).toBe('original bytes')
+    const [record] = (await f.versions.list('alice')).entries
+    expect(record.state).toBe('unknown')
+    expect((await f.versions.original(record.id, 'alice')).bytes?.toString()).toBe('original bytes')
+    expect(f.broker.snapshot()).toEqual([])
+  }
+  finally { await f.close() }
+})

@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { usePreferredReducedMotion } from '@vueuse/core'
 import { useMotion } from '@vueuse/motion'
-import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { ref, toRefs, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -29,38 +30,26 @@ function goBack() {
 }
 
 const pageHeaderRef = ref<HTMLElement>()
-const title = ref(props.title)
-const subtitle = ref(props.subtitle)
-const finalizedDisableBackButton = ref(props.disableBackButton)
+const preferredReducedMotion = usePreferredReducedMotion()
+// Navigation and route labels cannot wait for an optional animation to finish.
+const { title, subtitle, disableBackButton: finalizedDisableBackButton } = toRefs(props)
 
 const { apply } = useMotion(pageHeaderRef, {
-  initial: { opacity: 0, x: 10, transition: { duration: 50 } },
-  enter: { opacity: 1, x: 0, transition: { duration: 250 } },
-  leave: { opacity: 0, x: -5, transition: { duration: 25 } },
+  initial: { opacity: 1, x: preferredReducedMotion.value === 'reduce' ? 0 : 10, transition: { duration: 50 } },
+  enter: { opacity: 1, x: 0, transition: { duration: preferredReducedMotion.value === 'reduce' ? 0 : 250 } },
 })
 
-onMounted(async () => {
+watch([() => props.title, () => props.subtitle, () => route.path], async (_current, _previous, onCleanup) => {
+  let current = true
+  onCleanup(() => {
+    current = false
+  })
+  if (preferredReducedMotion.value === 'reduce')
+    return
   await apply('initial')
-  await apply('enter')
-})
-
-onUnmounted(async () => {
-  await apply('leave')
-  finalizedDisableBackButton.value = true
-})
-
-watch([() => props.title, () => props.subtitle, route], async () => {
-  await apply('leave')
-  await nextTick()
-
-  finalizedDisableBackButton.value = props.disableBackButton
-  title.value = props.title
-  subtitle.value = props.subtitle
-
-  await nextTick()
-  await apply('initial')
-  await apply('enter')
-})
+  if (current)
+    await apply('enter')
+}, { flush: 'post' })
 </script>
 
 <template>
@@ -71,7 +60,7 @@ watch([() => props.title, () => props.subtitle, route], async () => {
       right: 'env(safe-area-inset-right, 0px)',
       left: 'env(safe-area-inset-left, 0px)',
     }"
-    sticky inset-x-0 top-0 z-99 w-full pb-6 pt-10
+    sticky inset-x-0 top-0 z-99 w-full shrink-0 pb-6 pt-6
     flex="~ row items-center gap-2"
     bg="$bg-color"
   >
@@ -80,13 +69,11 @@ watch([() => props.title, () => props.subtitle, route], async () => {
         i-solar:alt-arrow-left-line-duotone text-2xl
       />
     </button>
-    <h1 relative min-w-0 flex-1>
-      <div v-if="subtitle" absolute left-0 top-0 max-w-full truncate translate-y="[-80%]">
-        <span text="neutral-300 dark:neutral-500">{{ subtitle }}</span>
-      </div>
-      <div class="break-words" text-3xl font-normal>
+    <h1 min-w-0 flex-1>
+      <span v-if="subtitle" class="mb-1 block max-w-full truncate text-sm text-neutral-500 leading-5 dark:text-neutral-400">{{ subtitle }}</span>
+      <span class="block break-words text-3xl font-normal leading-tight">
         {{ title }}
-      </div>
+      </span>
     </h1>
   </div>
 </template>

@@ -64,6 +64,9 @@ describe('codex real acceptance runner', () => {
         })
       })
 
+      // Report the original child failure before a missing report can hide it.
+      expect(output).toMatchObject({ signal: null, code: 0 })
+      expect(output.stdout + output.stderr).toContain('provider.retry')
       const report = JSON.parse(await readFile(reportPath, 'utf8')) as {
         passed: boolean
         scenarios: Array<{
@@ -79,9 +82,6 @@ describe('codex real acceptance runner', () => {
           }
         }>
       }
-      expect(output.signal).toBeNull()
-      expect(output.code).toBe(0)
-      expect(output.stdout + output.stderr).toContain('provider.retry')
       expect(report).toMatchObject({
         passed: true,
         scenarios: [{

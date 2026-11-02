@@ -4,15 +4,21 @@ import type { LifeCommitInput, LifeCommitReceipt, LifeStateView } from '../../..
 import type { LifeSurfaceRegistration } from './life-body-repository'
 
 import { randomUUID } from 'node:crypto'
+import { extname } from 'node:path'
 
 import * as v from 'valibot'
 
-import { electronLifeArtifactRestore, electronLifeBackupCommand, electronLifeBodyActivity, electronLifeBodyHealth, electronLifeClosure, electronLifeExpressionReceipt, electronLifeGrowthRollback, electronLifeInputCommand, electronLifeInputPreview, electronLifeObligationCommand, electronLifeOutreachPolicy, electronLifePersonaCommand, electronLifePersonalProposalWithdraw, electronLifePolicyCommand, electronLifeProjectFeedback, electronLifeSurfaceSession, electronLifeView } from '../../../shared/life-events'
+import { lifeBackupCommandSchema } from '../../../shared/life-backup-contracts'
+import { electronLifeArtifactRestore, electronLifeAuthorizedBrowser, electronLifeBackupCommand, electronLifeBodyActivity, electronLifeBodyHealth, electronLifeClosure, electronLifeExecutionArtifact, electronLifeExecutionCriteriaChange, electronLifeExecutionPlan, electronLifeExecutionRecovery, electronLifeExecutionReobserve, electronLifeExecutionReview, electronLifeExecutionRevise, electronLifeExecutionRun, electronLifeExecutionStop, electronLifeExecutionStorage, electronLifeExecutionVerifiers, electronLifeExpressionReceipt, electronLifeFileRecovery, electronLifeGrowthRollback, electronLifeInputCommand, electronLifeInputPreview, electronLifeObligationCommand, electronLifeObligationHistory, electronLifeOutreachPolicy, electronLifePersonaCommand, electronLifePersonalProposalWithdraw, electronLifePolicyCommand, electronLifeProcedure, electronLifeProjectFeedback, electronLifeSurfaceSession, electronLifeView } from '../../../shared/life-events'
+import { workGraphChangesSchema } from '../../../shared/work-graph-editing'
+import { executionCriteriaSchema } from './execution/acceptance-compiler'
+import { explicitWorkStepEditsSchema } from './execution/explicit-work-step-edits'
 import { lifeBodyActivitySchema, recordLifeBodyActivity } from './life-body-activity-runtime'
 import { discardLifeConversationPreferences, lifeRelationshipKey } from './life-conversation-preferences'
 import { lifeExpressionReceiptSchema } from './life-expression-repository'
 import { verifyLifeGoal } from './life-goal-verifier'
 import { parseLifeGrowthSnapshot } from './life-growth-repository'
+import { lifeObligationHistoryRequestSchema } from './life-history-query'
 import { readLifeInputText } from './life-input-preview'
 import { withdrawLifePersonalProposal } from './life-personal-proposals'
 import { recordExplicitPersonalProjectFeedback } from './life-project-development'
@@ -26,10 +32,29 @@ const commandSchema = v.strictObject({ cardId: id, id, operationId: id, expected
 const outreachPolicySchema = v.strictObject({ maximumPerDay: version, minimumIntervalMinutes: version, quietStartHour: version, quietEndHour: version, quietEnabled: v.boolean(), timezone: id })
 
 export function registerLifeInvokeHandlers(options: {
+  storageCommand?: (input: import('../../../shared/execution-storage-contracts').ExecutionStorageCommand) => Promise<import('../../../shared/execution-storage-contracts').ExecutionStorageStatus>
+  obligationHistory?: (input: import('../../../shared/life-history-contracts').LifeObligationHistoryRequest) => Promise<import('../../../shared/life-history-contracts').LifeObligationHistoryPage>
+  verificationConfiguration?: (input: import('../../../shared/execution-verification-contracts').ExecutionVerifierCommand, surfaceId: number) => Promise<import('../../../shared/execution-verification-contracts').ExecutionVerifierState>
+  fileRecoveryCommand?: (input: import('../../../shared/file-recovery-contracts').FileRecoveryCommand, surfaceId: number) => Promise<import('../../../shared/file-recovery-contracts').FileRecoveryResult>
+  changeWorkCriteria?: (input: import('../../../shared/execution-contracts').ExecutionCriteriaChange) => Promise<{ state: string }>
+  reobserveBrowserWork?: (input: { cardId: string, planId: string, expectedRevision: number, requestId: string }) => Promise<{ state: string }>
+  authorizedBrowserCommand?: (input: import('../../../shared/authorized-browser-contracts').AuthorizedBrowserCommand) => Promise<import('../../../shared/authorized-browser-contracts').AuthorizedBrowserState>
+  procedureCommand?: (input: import('../../../shared/procedure-contracts').ProcedureCommand) => Promise<import('../../../shared/procedure-contracts').ProcedureCommandResult>
+  recoverEffect?: (input: import('../../../shared/execution-recovery-contracts').ExecutionRecoveryCommand, surfaceId: number) => Promise<import('../../../shared/execution-recovery-contracts').ExecutionRecoveryResult>
+  withUserCommand?: <T>(cardId: string, task: () => Promise<T>) => Promise<T>
+  reviseWork?: (input: { cardId: string, planId: string, expectedRevision: number, stepId: string, changes: Record<string, string>, requestId: string }) => Promise<{ state: string }>
+  saveWorkPlan?: (input: { cardId: string, plan: import('../../../shared/execution-contracts').WorkPlan, expectedRevision: number, requestId: string }) => Promise<LifeCommitReceipt>
+  startWorkPlan?: (input: { cardId: string, planId: string, expectedRevision: number, requestId: string }) => Promise<{ state: string }>
+  stopWorkPlan?: (input: { cardId: string, planId: string, expectedRevision: number, requestId: string, action: 'pause' | 'cancel' }) => Promise<{ state: string }>
+  reviewWork?: (input: { cardId: string, obligationId: string, expectedGeneration: number, contractHash: string, criterionId: string, approved: boolean, requestId: string }) => Promise<{ state: string }>
+  openArtifact?: (path: string) => Promise<string>
+  verificationInputs?: (view: LifeStateView, goal: import('../../../shared/life-contracts').LifeObligation) => Pick<Parameters<typeof verifyLifeGoal>[0], 'readReview' | 'readDownload' | 'readFileMatch'>
+  refreshExecutionOutcome?: (input: { cardId: string, obligationId: string }) => Promise<void>
+  downloadArtifact?: (input: { cardId: string, obligationId: string, expectedGeneration: number, criterionId: string }) => Promise<string>
   register: (event: unknown, handler: (payload: unknown, metadata: InvokeMetadata) => Promise<unknown>) => void
   withCardScope: <T>(cardId: string, task: () => Promise<T>, options?: { lane: 'foreground' | 'background', label: string, skipQueueWhenScopeAlreadyActive?: boolean }) => Promise<T>
   readClosure: (turnId: string) => Promise<import('../../../shared/life-closure-contracts').LifeClosureRecord>
-  read: () => Promise<LifeStateView>
+  read: (scope?: import('../../../shared/life-contracts').LifeStateReadScope) => Promise<LifeStateView>
   commit: (input: LifeCommitInput) => Promise<LifeCommitReceipt>
   getIngress: (id: string) => Promise<import('../../../shared/life-contracts').LifeIngress | null>
   getUserInput: (id: string) => Promise<Record<string, unknown> | null>
@@ -46,6 +71,7 @@ export function registerLifeInvokeHandlers(options: {
   policyCommand?: (input: import('../../../shared/life-policy-contracts').LifePolicyCommand) => Promise<{ status: string }>
   backupCommand?: (input: import('../../../shared/life-backup-contracts').LifeBackupCommand, metadata: InvokeMetadata) => Promise<import('../../../shared/life-backup-contracts').LifeBackupResult>
 }) {
+  const userCommand = options.withUserCommand ?? (<T>(cardId: string, task: () => Promise<T>) => options.withCardScope(cardId, task, { lane: 'foreground', label: 'execution-user-control' }))
   const surfaces = new Map<number, { id: string, cardId: string }>()
   const sender = (metadata: InvokeMetadata) => {
     const contents = metadata?.raw?.ipcMainEvent?.sender
@@ -56,9 +82,86 @@ export function registerLifeInvokeHandlers(options: {
       throw new Error('Life governance requires the trusted local application interface')
     return contents
   }
+  options.register(electronLifeExecutionStorage, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(v.strictObject({ cardId: id, action: v.picklist(['inspect', 'clear-cache']) }), raw)
+    if (!options.storageCommand)
+      throw new Error('Storage maintenance is unavailable')
+    if (input.action === 'inspect')
+      return options.withCardScope(input.cardId, () => options.storageCommand!(input), { lane: 'background', label: 'execution-storage-status', skipQueueWhenScopeAlreadyActive: true })
+    return userCommand(input.cardId, () => options.storageCommand!(input))
+  })
+  options.register(electronLifeFileRecovery, async (raw, metadata) => {
+    const surface = sender(metadata)
+    const versionId = v.pipe(v.string(), v.regex(/^[a-f\d]{64}$/u))
+    const input = v.parse(v.variant('action', [
+      v.strictObject({ cardId: id, action: v.literal('list'), afterId: v.optional(id) }),
+      v.strictObject({ cardId: id, action: v.literal('preview'), versionId }),
+      v.strictObject({ cardId: id, action: v.literal('preview-forget'), versionId }),
+      v.strictObject({ cardId: id, action: v.literal('restore'), versionId, token: v.pipe(v.string(), v.uuid()), confirmed: v.literal(true) }),
+      v.strictObject({ cardId: id, action: v.literal('forget'), versionId, token: v.pipe(v.string(), v.uuid()), confirmed: v.literal(true) }),
+      v.strictObject({ cardId: id, action: v.literal('stop'), effectId: v.pipe(v.string(), v.regex(/^file-restore:[a-f\d-]{36}$/u)) }),
+    ]), raw)
+    if (!options.fileRecoveryCommand)
+      throw new Error('File recovery governance is unavailable')
+    // A held restoration owns the foreground scope. Stop must reach it without
+    // queuing behind that same operation; main validates its current card.
+    if (input.action === 'stop')
+      return options.fileRecoveryCommand(input, surface.id)
+    if (input.action === 'list')
+      return options.withCardScope(input.cardId, () => options.fileRecoveryCommand!(input, surface.id), { lane: 'background', label: 'file-recovery-list', skipQueueWhenScopeAlreadyActive: true })
+    return userCommand(input.cardId, () => options.fileRecoveryCommand!(input, surface.id))
+  })
+  options.register(electronLifeAuthorizedBrowser, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(v.variant('action', [
+      v.strictObject({ cardId: id, action: v.picklist(['status', 'revoke', 'takeover', 'managed']) }),
+      v.strictObject({ cardId: id, action: v.literal('inspect'), endpoint: v.pipe(v.string(), v.maxLength(128)) }),
+      v.strictObject({ cardId: id, action: v.literal('grant'), inspectionId: v.pipe(v.string(), v.uuid()), tabId: id, origins: v.pipe(v.array(v.pipe(v.string(), v.maxLength(2048))), v.minLength(1), v.maxLength(8)) }),
+      v.strictObject({ cardId: id, action: v.literal('confirm-closed'), confirmedClosed: v.literal(true) }),
+    ]), raw)
+    if (!options.authorizedBrowserCommand)
+      throw new Error('Authorized browser access is unavailable')
+    // Host revocation must reach a blocked browser operation immediately.
+    // The manager itself checks the active card before every asynchronous step.
+    return options.authorizedBrowserCommand(input)
+  })
+  options.register(electronLifeExecutionReobserve, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(v.strictObject({ cardId: id, planId: id, expectedRevision: version, requestId: id }), raw)
+    if (!options.reobserveBrowserWork)
+      throw new Error('Browser work reconnection is unavailable')
+    return userCommand(input.cardId, () => options.reobserveBrowserWork!(input))
+  })
+  options.register(electronLifeProcedure, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(v.variant('action', [
+      v.strictObject({ cardId: id, action: v.literal('list') }),
+      v.strictObject({ cardId: id, action: v.literal('cancel-evaluation') }),
+      v.strictObject({ cardId: id, action: v.literal('evaluate'), candidateId: id }),
+      v.strictObject({ cardId: id, action: v.picklist(['activate', 'revoke', 'rollback']), id, version: v.pipe(v.string(), v.regex(/^[a-f\d]{64}$/u)) }),
+    ]), raw)
+    if (!options.procedureCommand)
+      throw new Error('Learned procedure governance is unavailable')
+    if (input.action === 'cancel-evaluation')
+      return options.procedureCommand(input)
+    if (input.action === 'list')
+      return options.withCardScope(input.cardId, () => options.procedureCommand!(input), { lane: 'foreground', label: 'procedure-list', skipQueueWhenScopeAlreadyActive: true })
+    return userCommand(input.cardId, () => options.procedureCommand!(input))
+  })
+  options.register(electronLifeExecutionRecovery, async (raw, metadata) => {
+    const surface = sender(metadata)
+    const shape = { cardId: id, effectId: id }
+    const input = v.parse(v.variant('action', [v.strictObject({ cardId: id, action: v.literal('list-downloads'), afterId: v.optional(id) }), v.strictObject({ ...shape, action: v.literal('preview') }), v.strictObject({ ...shape, action: v.literal('recheck') }), v.strictObject({ ...shape, action: v.literal('takeover'), token: v.pipe(v.string(), v.uuid()), confirmedStopped: v.literal(true) })]), raw)
+    if (!options.recoverEffect)
+      throw new Error('Execution recovery governance is unavailable')
+    if (input.action === 'list-downloads')
+      return options.withCardScope(input.cardId, () => options.recoverEffect!(input, surface.id), { lane: 'background', label: 'download-resource-list' })
+    return userCommand(input.cardId, () => options.recoverEffect!(input, surface.id))
+  })
   options.register(electronLifeBackupCommand, async (raw, metadata) => {
     sender(metadata)
-    const input = v.parse(v.strictObject({ cardId: id, action: v.picklist(['list', 'create', 'restore']), backupId: v.optional(v.pipe(v.string(), v.uuid())), expectedManifestHash: v.optional(v.pipe(v.string(), v.regex(/^[a-f\d]{64}$/u))) }), raw)
+    const input = v.parse(lifeBackupCommandSchema, raw)
     if (!options.backupCommand)
       throw new Error('Local backup governance is unavailable')
     return options.withCardScope(input.cardId, () => options.backupCommand!(input, metadata))
@@ -73,12 +176,94 @@ export function registerLifeInvokeHandlers(options: {
   options.register(electronLifeView, async (raw, metadata) => {
     sender(metadata)
     const scope = v.parse(scopeSchema, raw)
-    return options.withCardScope(scope.cardId, options.read)
+    return options.withCardScope(scope.cardId, options.read, { lane: 'foreground', label: 'life-view-snapshot', skipQueueWhenScopeAlreadyActive: true })
+  })
+  options.register(electronLifeObligationHistory, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(lifeObligationHistoryRequestSchema, raw)
+    if (!options.obligationHistory)
+      throw new Error('History pagination is unavailable')
+    return options.withCardScope(input.cardId, () => options.obligationHistory!(input), { lane: 'background', label: 'life-obligation-history', skipQueueWhenScopeAlreadyActive: true })
+  })
+  options.register(electronLifeExecutionVerifiers, async (raw, metadata) => {
+    const surface = sender(metadata)
+    const input = v.parse(v.variant('action', [
+      v.strictObject({ cardId: id, action: v.literal('list') }),
+      v.strictObject({ cardId: id, action: v.literal('preview'), registry: v.pipe(v.string(), v.minLength(1), v.maxLength(131_072)) }),
+      v.strictObject({ cardId: id, action: v.literal('apply'), token: v.pipe(v.string(), v.uuid()) }),
+    ]), raw)
+    if (!options.verificationConfiguration)
+      throw new Error('Execution verification configuration is unavailable')
+    if (input.action === 'list')
+      return options.withCardScope(input.cardId, () => options.verificationConfiguration!(input, surface.id), { lane: 'background', label: 'execution-verifier-list', skipQueueWhenScopeAlreadyActive: true })
+    return userCommand(input.cardId, () => options.verificationConfiguration!(input, surface.id))
+  })
+  options.register(electronLifeExecutionPlan, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(v.strictObject({ cardId: id, plan: v.record(v.string(), v.unknown()), expectedRevision: version, requestId: id }), raw)
+    if (!options.saveWorkPlan)
+      throw new Error('Execution plan governance is unavailable')
+    return userCommand(input.cardId, () => options.saveWorkPlan!({ ...input, plan: input.plan as unknown as import('../../../shared/execution-contracts').WorkPlan }))
+  })
+  options.register(electronLifeExecutionRun, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(v.strictObject({ cardId: id, planId: id, expectedRevision: version, requestId: id }), raw)
+    if (!options.startWorkPlan)
+      throw new Error('Execution scheduling is unavailable')
+    return userCommand(input.cardId, () => options.startWorkPlan!(input))
+  })
+  options.register(electronLifeExecutionStop, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(v.strictObject({ cardId: id, planId: id, expectedRevision: version, requestId: id, action: v.picklist(['pause', 'cancel']) }), raw)
+    if (!options.stopWorkPlan)
+      throw new Error('Execution stop governance is unavailable')
+    return userCommand(input.cardId, () => options.stopWorkPlan!(input))
   })
   options.register(electronLifeProjectFeedback, async (raw, metadata) => {
     sender(metadata)
     const input = v.parse(v.strictObject({ cardId: id, goalId: id, generation: version, turnId: id, feedback: v.picklist(['positive', 'dismiss']), operationId: id }), raw)
     return options.withCardScope(input.cardId, () => recordExplicitPersonalProjectFeedback(options, input))
+  })
+  options.register(electronLifeExecutionRevise, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(v.strictObject({ cardId: id, planId: id, expectedRevision: version, stepId: id, changes: v.record(id, v.pipe(v.string(), v.maxLength(64000))), requestId: id }), raw)
+    if (!options.reviseWork)
+      throw new Error('Work revision is unavailable')
+    return userCommand(input.cardId, () => options.reviseWork!(input))
+  })
+  options.register(electronLifeExecutionCriteriaChange, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(v.strictObject({ cardId: id, planId: id, expectedRevision: version, expectedGeneration: version, contractHash: id, criteria: executionCriteriaSchema, stepChanges: v.optional(explicitWorkStepEditsSchema), graphChanges: v.optional(workGraphChangesSchema), requestId: id }), raw)
+    if (!options.changeWorkCriteria)
+      throw new Error('Acceptance revision is unavailable')
+    return userCommand(input.cardId, () => options.changeWorkCriteria!(input))
+  })
+  options.register(electronLifeExecutionReview, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(v.strictObject({ cardId: id, obligationId: id, expectedGeneration: version, contractHash: id, criterionId: id, approved: v.boolean(), requestId: id }), raw)
+    if (!options.reviewWork)
+      throw new Error('Work acceptance is unavailable')
+    return userCommand(input.cardId, () => options.reviewWork!(input))
+  })
+  options.register(electronLifeExecutionArtifact, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(v.strictObject({ cardId: id, obligationId: id, expectedGeneration: version, criterionId: id }), raw)
+    return userCommand(input.cardId, async () => {
+      const view = await options.read({ obligationId: input.obligationId })
+      const goal = view.obligations.find(item => item.id === input.obligationId && item.generation === input.expectedGeneration && !item.invalidatedBy)
+      const artifact = goal?.proof.acceptance?.criteria.find(item => item.id === input.criterionId)?.predicate
+      if (!artifact || !['file-bytes', 'file-matches-read', 'json-structure', 'text-content', 'browser-download'].includes(artifact.kind))
+        throw new Error('The accepted artifact is no longer available')
+      const path = artifact.kind === 'browser-download' ? await options.downloadArtifact?.(input) : 'path' in artifact ? artifact.path : undefined
+      if (!path)
+        throw new Error('The accepted artifact cannot be independently resolved')
+      if (!['.txt', '.md', '.json', '.csv', '.pdf', '.png', '.jpg', '.jpeg', '.docx', '.xlsx', '.pptx'].includes(extname(path).toLowerCase()))
+        throw new Error('This artifact type needs an explicit application action')
+      const error = await options.openArtifact?.(path)
+      if (!options.openArtifact || error)
+        throw new Error(error || 'The system could not open this artifact')
+      return { state: 'open-requested' }
+    })
   })
   options.register(electronLifePersonaCommand, async (raw, metadata) => {
     sender(metadata)
@@ -221,7 +406,7 @@ export function registerLifeInvokeHandlers(options: {
     sender(metadata)
     const command = v.parse(commandSchema, raw)
     return options.withCardScope(command.cardId, async () => {
-      const view = await options.read()
+      const view = await options.read({ obligationId: command.id })
       const obligation = view.obligations.find(item => item.id === command.id)
       if (!obligation || obligation.generation !== command.expectedGeneration || obligation.revision !== command.expectedRevision)
         throw new Error('Obligation changed; reload its current state')
@@ -230,8 +415,9 @@ export function registerLifeInvokeHandlers(options: {
       if (command.action === 'verify' || command.action === 'report-completed') {
         if (command.action === 'report-completed' && obligation.proof.kind !== 'user-reported')
           throw new Error('This obligation requires independent verification')
-        const verification = await verifyLifeGoal({ obligation, readSetting: options.readSetting, userReported: command.action === 'report-completed' })
+        const verification = await verifyLifeGoal({ obligation, readSetting: options.readSetting, ...options.verificationInputs?.(view, obligation), userReported: command.action === 'report-completed' })
         receipt = await options.commit({ cardId: command.cardId, operationKey: `governance:${command.operationId}`, changes: [], mutations: [{ type: 'obligation-verify', ...fence, verification }] })
+        await options.refreshExecutionOutcome?.({ cardId: command.cardId, obligationId: obligation.id })
       }
       else {
         if (command.action === 'reschedule' && command.dueAt == null)

@@ -6,19 +6,34 @@ const process = require('node:process')
 
 const { _electron } = require('playwright')
 
-const { launchOptions, packageIdentity } = require('./electron-launch.cjs')
+const { launchOptions, packageIdentity, registerPrivateRuntime, closePrivateRuntime } = require('./electron-launch.cjs')
+const { inspectHostViewportPackage } = require('./host-package-identity.cjs')
+const { assertInstallerProfileOwner } = require('./installer-qa-identity.cjs')
+const { sampleLive2D } = require('./live2d-product-checks.cjs')
 
 async function main() {
-  const profile = process.env.LIFE_QA_PROFILE ? path.resolve(process.env.LIFE_QA_PROFILE) : await fs.mkdtemp(path.join(os.tmpdir(), 'alicization-life-persona-'))
+  const { errorMessageFrom } = await import('@moeru/std')
+  let profile = process.env.LIFE_QA_PROFILE ? path.resolve(process.env.LIFE_QA_PROFILE) : await fs.mkdtemp(path.join(os.tmpdir(), 'alicization-life-persona-'))
+  let installerOwner
   if (process.env.LIFE_QA_PROFILE) {
-    assert.equal(path.dirname(profile).toLowerCase(), path.resolve(process.env.APPDATA).toLowerCase())
-    assert.equal(path.basename(profile), 'alicization-life-installer-20261005')
-    const owner = JSON.parse(await fs.readFile(path.join(profile, 'life-installer-qa-owner.json'), 'utf8'))
-    assert.ok(process.env.LIFE_QA_PROFILE_NONCE && owner.nonce === process.env.LIFE_QA_PROFILE_NONCE)
+    const verified = await assertInstallerProfileOwner({ workspace: path.resolve(__dirname, '../../../..'), runId: process.env.LIFE_QA_INSTALLER_ID, appData: process.env.APPDATA, profile, nonce: process.env.LIFE_QA_PROFILE_NONCE, executable: process.env.LIFE_QA_EXE })
+    installerOwner = verified.owner
+    profile = verified.canonicalProfile
   }
   const archive = await packageIdentity()
+  if (installerOwner) {
+    assert.equal(archive.packagedAsarSha256, installerOwner.asarSha256)
+    assert.equal(archive.portableExecutableSha256, installerOwner.executableSha256)
+  }
+  const reportPath = path.resolve(process.env.LIFE_QA_REPORT || 'output/life-acceptance/continuity-persona-scene.json')
+  assert.ok(reportPath.startsWith(`${path.resolve('output/life-acceptance')}${path.sep}`) && reportPath.endsWith('.json'), 'QA evidence stays in its owned output directory')
+  await fs.mkdir(path.dirname(reportPath), { recursive: true })
+  const viewport = process.env.LIFE_QA_HOST_VIEWPORT === '1' ? inspectHostViewportPackage({ executable: process.env.LIFE_QA_EXE, runId: process.env.LIFE_QA_INSTALLER_ID }) : null
+  let report = { format: 'life-native-persona-scene-v1', passed: false, profile, startedAt: new Date().toISOString(), ...archive, ...(viewport ? { compiledMainSha256: viewport.mainSha256 } : {}) }
   const app = await _electron.launch(launchOptions(profile))
+  let nativeRuntime
   try {
+    nativeRuntime = await registerPrivateRuntime(app)
     await app.evaluate(({ Tray }) => {
       globalThis.lifeQaTrayLabels = []
       const original = Tray.prototype.setContextMenu
@@ -124,16 +139,41 @@ async function main() {
     assert.ok(trayLabels.every(label => !label.includes('tamagotchi.electron.')), 'No raw translation keys in the native tray menu')
     assert.ok(trayLabels.some(label => /设置/u.test(label)), 'The Windows tray menu actually uses Chinese labels')
     console.info(JSON.stringify({ profile, trayLabels, nativeTrayTranslated: true }))
+    const stage = app.windows().find(candidate => candidate.url().endsWith('#/'))
+    assert.ok(stage, 'Persona completion opens the actual stage')
+    await stage.evaluate(async () => {
+      const model = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('settings-stage-model')
+      model.stageModelSelected = 'preset-live2d-1'
+      await model.updateStageModel()
+    })
+    const drawBy = Date.now() + 30000
+    let body
+    while (Date.now() < drawBy) {
+      body = await sampleLive2D(stage)
+      if (body.models.length === 1 && body.models[0].probes.some(point => point.pixel[3] > 64))
+        break
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    assert.ok(body?.models.length === 1 && body.models[0].probes.some(point => point.pixel[3] > 64), 'Actual Live2D draws after persona initialization')
+    report.live2d = { selected: 'preset-live2d-1', draw: body.models[0], savedSelection: true }
+    await stage.screenshot({ path: path.join(path.dirname(reportPath), 'persona-live2d.png') })
     assert.deepEqual(errors, [], 'Persona setup renderer must not raise an exception')
     assert.deepEqual(await packageIdentity(), archive, 'The observed package must stay unchanged during native QA')
-    const report = { format: 'life-native-persona-scene-v1', passed: true, profile, executable: process.env.LIFE_QA_EXE || 'electron-current-out', ...archive, privateDesktop: process.env.LIFE_QA_PRIVATE_DESKTOP, softwareGlRequested: process.env.LIFE_QA_SOFTWARE_GL === '1', syntheticIdentity: true, configuredModel: false, savedAndAdvanced: true, snapshot, trayLabels, nativeTrayTranslated: true, rendererErrors: errors, scope: 'Isolated Windows desktop: real persona form confirmation, persisted synthetic SOUL, advancement and Chinese native tray labels; no language model or audio hardware.' }
-    const reportPath = path.resolve(process.env.LIFE_QA_REPORT || 'output/life-acceptance/continuity-persona-scene.json')
-    assert.ok(reportPath.startsWith(`${path.resolve('output/life-acceptance')}${path.sep}`) && reportPath.endsWith('.json'), 'QA evidence stays in its owned output directory')
-    await fs.writeFile(reportPath, JSON.stringify(report, null, 2))
-    console.info(JSON.stringify(report))
+    report = { ...report, passed: true, executable: process.env.LIFE_QA_EXE || 'electron-current-out', nativeRuntime, privateDesktop: process.env.LIFE_QA_PRIVATE_DESKTOP, softwareGlRequested: process.env.LIFE_QA_SOFTWARE_GL === '1', syntheticIdentity: true, configuredModel: false, savedAndAdvanced: true, snapshot, trayLabels, nativeTrayTranslated: true, rendererErrors: errors, scope: 'Isolated Windows desktop: real persona form confirmation, persisted synthetic SOUL, advancement and Chinese native tray labels; no language model or audio hardware.' }
+  }
+  catch (error) {
+    report.failure = errorMessageFrom(error)
+    throw error
   }
   finally {
-    await app.close()
+    const shutdown = nativeRuntime ? await closePrivateRuntime(app, nativeRuntime) : await app.close().then(() => ({ completed: false, reason: 'runtime-identity-unverified' }))
+    report.shutdown = shutdown
+    report.finishedAt = new Date().toISOString()
+    report.passed &&= shutdown.completed === true && shutdown.exitCode === 0
+    await fs.writeFile(reportPath, JSON.stringify(report, null, 2))
+    console.info(JSON.stringify(report))
+    if (!report.passed)
+      process.exitCode = 1
   }
 }
 main().catch((error) => {

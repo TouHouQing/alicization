@@ -3,8 +3,6 @@ import type { ChatMessage } from '../../../types/chat'
 
 import { computed } from 'vue'
 
-import { MarkdownRenderer } from '../../markdown'
-
 const props = withDefaults(defineProps<{
   message: Extract<ChatMessage, { role: 'user' }>
   label: string
@@ -49,10 +47,9 @@ const boxClasses = computed(() => [
       <div>
         <span text-sm text="black/60 dark:white/65" font-normal class="inline <sm:hidden">{{ label }}</span>
       </div>
-      <MarkdownRenderer
-        :content="content as string"
-        class="break-words"
-      />
+      <div data-chat-user-content class="whitespace-pre-wrap break-words">
+        {{ content }}
+      </div>
     </div>
   </div>
 </template>

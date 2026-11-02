@@ -30,6 +30,10 @@ docs:
   disconnected: WebSocket 未连接
   'open-settings': 打开 WebSocket 设置
 resources:
+  failure:
+    title: 角色画面暂不可用
+    description: 角色画面加载失败，请重试。
+    retry: 重新加载
   loading:
     pending: 部分模块暂未就绪...
     ready: 所有模块都已准备完成！

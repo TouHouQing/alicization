@@ -16,6 +16,7 @@ export interface ProviderHttpFaultResponse {
   body?: string
   headers?: Record<string, string>
   status: number
+  stream?: (response: ServerResponse) => Promise<void>
 }
 
 export interface ProviderHttpFaultServer {
@@ -31,11 +32,15 @@ async function readRequestBody(request: IncomingMessage) {
   return body
 }
 
-function writeResponse(
+async function writeResponse(
   response: ServerResponse,
   faultResponse: ProviderHttpFaultResponse,
 ) {
   response.writeHead(faultResponse.status, faultResponse.headers)
+  if (faultResponse.stream) {
+    await faultResponse.stream(response)
+    return
+  }
   response.end(faultResponse.body ?? '')
 }
 
@@ -63,7 +68,7 @@ export async function startProviderHttpFaultServer(input: {
         url: request.url ?? '',
       }
       requests.push(recordedRequest)
-      writeResponse(response, await input.respond(recordedRequest))
+      await writeResponse(response, await input.respond(recordedRequest))
     }
     catch (error) {
       response.writeHead(500, { 'Content-Type': 'application/json' })

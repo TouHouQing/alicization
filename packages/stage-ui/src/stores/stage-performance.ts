@@ -35,11 +35,6 @@ export type StageEmbodimentEmotionAliasOverrideMap = Partial<Record<StageEmbodim
 
 const vrmExternalAnimationStoragePrefix = 'stage-performance:vrm-animation'
 const defaultAlicizationLive2DActionBindingSeeds: Record<string, Live2DActionBindingDefaults> = {
-  'Idle:0': {
-    actionKey: 'idle_gentle_nod',
-    label: '轻轻点头',
-    description: '轻轻低头再抬起，像在安静回应用户，适合默认待机、温柔附和或轻声应答。',
-  },
   'Idle:1': {
     actionKey: 'idle_surprised_smile',
     label: '惊讶后眯眼笑',

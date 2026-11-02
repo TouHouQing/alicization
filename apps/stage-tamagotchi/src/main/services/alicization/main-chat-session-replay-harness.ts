@@ -4860,7 +4860,7 @@ export async function replayMainChatSession(input: {
     resolveTaskPlanningCapabilities: async () => createCapabilities(),
     scheduleReminderTask: async () => ({ ok: true } as any),
     tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-    invokeMcpListTools: async () => ({ tools: [] }),
+    invokeMcpListTools: async () => [],
     invokeMcpCallTool: async () => ({ ok: true }),
   })
 

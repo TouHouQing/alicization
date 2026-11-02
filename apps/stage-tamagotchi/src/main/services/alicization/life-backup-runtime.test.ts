@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, generateKeyPairSync } from 'node:crypto'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -6,18 +6,73 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { setupAlicizationDb } from './db'
+import { executionDigest } from './execution/acceptance-compiler'
+import { executionVerificationRegistryKey, listExecutionVerificationRecipes } from './execution/verification-recipes'
+import { windowsKeyboardJournalIndexPrefix } from './execution/windows-keyboard-journal'
 import { applyPendingLifeRestore, cancelPendingLifeRestore, createLifeBackupRuntime } from './life-backup-runtime'
 import { verifyLifeGoal } from './life-goal-verifier'
+import { lifeSchemaVersion } from './life-schema-version'
 import { createLifeTurnRuntime } from './life-turn-runtime'
 
 describe('closed desktop backup restore', () => {
+  it.each(['revoked', 'replaced'] as const)('retains %s service verification authority across identity rollback', async (mode) => {
+    const root = await mkdtemp(join(tmpdir(), 'life-verifier-authority-restore-'))
+    let db = await setupAlicizationDb(root, { cardId: 'alice' })
+    try {
+      const publicKey = () => generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'pem' }).toString()
+      const oldRecipe = { id: 'service', version: '1', receiptPath: join(root, 'service-receipt.json'), publicKey: publicKey() }
+      const oldRegistry = JSON.stringify({ version: 1, quality: [], external: [oldRecipe], reconciliation: [] })
+      await db.setMetaValue(executionVerificationRegistryKey, oldRegistry)
+      const original = await listExecutionVerificationRecipes(db.getMetaValue)
+      const runtime = createLifeBackupRuntime({ userDataPath: root, cardId: () => 'alice', snapshot: db.snapshotLifeDatabase, state: db.readLifeState, schema: async () => lifeSchemaVersion })
+      const backup = await runtime.create()
+      const current = JSON.stringify({ version: 1, quality: [], external: mode === 'revoked' ? [] : [{ ...oldRecipe, publicKey: publicKey() }], reconciliation: [] })
+      await db.setMetaValue(executionVerificationRegistryKey, current)
+      await runtime.requestRestore(backup.id, backup.manifestHash)
+      await db.close()
+      await applyPendingLifeRestore(root)
+      db = await setupAlicizationDb(root, { cardId: 'alice' })
+      expect(await db.getMetaValue(executionVerificationRegistryKey)).toBe(current)
+      const catalog = await listExecutionVerificationRecipes(db.getMetaValue)
+      expect(catalog.external.some(item => item.recipeId === original.external[0].recipeId)).toBe(false)
+      expect(catalog.external).toHaveLength(mode === 'revoked' ? 0 : 1)
+    }
+    finally {
+      await db.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+  it('retains current native admission CAS across identity rollback instead of reviving the snapshot index', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'life-native-admission-restore-'))
+    let db = await setupAlicizationDb(root, { cardId: 'alice' })
+    try {
+      const runtime = createLifeBackupRuntime({ userDataPath: root, cardId: () => 'alice', snapshot: db.snapshotLifeDatabase, state: db.readLifeState, schema: async () => lifeSchemaVersion })
+      const staleKey = `${windowsKeyboardJournalIndexPrefix}${executionDigest({ cardId: 'alice', effectId: 'stale-effect' })}`
+      await db.compareAndSetMetaValue(staleKey, undefined, 'snapshot-only-admission')
+      const backup = await runtime.create()
+      // The current record supersedes the backed-up value; another admission
+      // appeared after the identity snapshot. Neither may be rolled backward.
+      expect(await db.compareAndSetMetaValue(staleKey, 'snapshot-only-admission', 'current-admission')).toBe(true)
+      const freshKey = `${windowsKeyboardJournalIndexPrefix}${executionDigest({ cardId: 'alice', effectId: 'new-effect' })}`
+      expect(await db.compareAndSetMetaValue(freshKey, undefined, 'new-one-shot-admission')).toBe(true)
+      await runtime.requestRestore(backup.id, backup.manifestHash)
+      await db.close()
+      await applyPendingLifeRestore(root)
+      db = await setupAlicizationDb(root, { cardId: 'alice' })
+      expect(await db.getMetaValue(staleKey)).toBe('current-admission')
+      expect(await db.getMetaValue(freshKey)).toBe('new-one-shot-admission')
+      expect(await db.compareAndSetMetaValue(freshKey, undefined, 'replayed-admission')).toBe(false)
+    }
+    finally { await db.close(); await rm(root, { recursive: true, force: true }) }
+  })
+
   it.each(['corrupt-backup', 'before-moved'] as const)('can cancel %s recovery and reopen the untouched original life', async (failure) => {
     const root = await mkdtemp(join(tmpdir(), 'life-restore-cancel-'))
     let db = await setupAlicizationDb(root, { cardId: 'alice' })
     try {
       const soul = join(root, 'alicizations', 'cards', 'alice', 'SOUL.md')
       await writeFile(soul, 'backup identity')
-      const runtime = createLifeBackupRuntime({ userDataPath: root, cardId: () => 'alice', snapshot: db.snapshotLifeDatabase, state: db.readLifeState, schema: async () => 5 })
+      const runtime = createLifeBackupRuntime({ userDataPath: root, cardId: () => 'alice', snapshot: db.snapshotLifeDatabase, state: db.readLifeState, schema: async () => lifeSchemaVersion })
       const backup = await runtime.create()
       await writeFile(soul, 'original current identity')
       await db.upsertMemoryFacts([{ subject: 'user', predicate: 'likes', object: 'current original fact', confidence: 1 }], 'rule')
@@ -51,7 +106,7 @@ describe('closed desktop backup restore', () => {
       const life = createLifeTurnRuntime({ read: db.readLifeState, commit: db.commitLifeState, getIngress: db.getLifeIngress, getEffect: db.getLifeEffect, now: Date.now })
       await life.admit({ cardId: 'alice', conversationId: 'session', turnId: 'write-file', messages: [{ role: 'user', content: 'Write the local QA artifact' }] }, new AbortController().signal)
       await db.upsertMemoryFacts([{ subject: 'user', predicate: 'likes', object: '咖啡', confidence: 1 }], 'rule')
-      const runtime = createLifeBackupRuntime({ userDataPath: root, cardId: () => 'alice', snapshot: db.snapshotLifeDatabase, state: db.readLifeState, schema: async () => 5 })
+      const runtime = createLifeBackupRuntime({ userDataPath: root, cardId: () => 'alice', snapshot: db.snapshotLifeDatabase, state: db.readLifeState, schema: async () => lifeSchemaVersion })
       const backup = await runtime.create()
       expect(await runtime.list()).toHaveLength(1)
       await db.upsertMemoryFacts([{ subject: 'user', predicate: 'likes', object: '茶', confidence: 1 }], 'rule')
@@ -103,9 +158,9 @@ describe('closed desktop backup restore', () => {
     const root = await mkdtemp(join(tmpdir(), 'life-backup-fence-'))
     const db = await setupAlicizationDb(root, { cardId: 'alice' })
     try {
-      const runtime = createLifeBackupRuntime({ userDataPath: root, cardId: () => 'alice', snapshot: db.snapshotLifeDatabase, state: db.readLifeState, schema: async () => 5 })
+      const runtime = createLifeBackupRuntime({ userDataPath: root, cardId: () => 'alice', snapshot: db.snapshotLifeDatabase, state: db.readLifeState, schema: async () => lifeSchemaVersion })
       const backup = await runtime.create()
-      const other = createLifeBackupRuntime({ userDataPath: root, cardId: () => 'bob', snapshot: db.snapshotLifeDatabase, state: db.readLifeState, schema: async () => 5 })
+      const other = createLifeBackupRuntime({ userDataPath: root, cardId: () => 'bob', snapshot: db.snapshotLifeDatabase, state: db.readLifeState, schema: async () => lifeSchemaVersion })
       await expect(other.requestRestore(backup.id, backup.manifestHash)).rejects.toThrow('scope')
       await writeFile(join(root, 'alicizations', 'life-backups', backup.id, 'alicization.db'), 'tampered')
       await expect(runtime.requestRestore(backup.id, backup.manifestHash)).rejects.toThrow('changed')
@@ -119,7 +174,7 @@ describe('closed desktop backup restore', () => {
     try {
       await db.upsertMemoryFacts([{ subject: 'user', predicate: 'likes', object: '旧偏好', confidence: 1 }], 'rule')
       const fact = (await db.readLifeFactVersions({ cardId: 'alice' }))[0]
-      const runtime = createLifeBackupRuntime({ userDataPath: root, cardId: () => 'alice', snapshot: db.snapshotLifeDatabase, state: db.readLifeState, schema: async () => 5 })
+      const runtime = createLifeBackupRuntime({ userDataPath: root, cardId: () => 'alice', snapshot: db.snapshotLifeDatabase, state: db.readLifeState, schema: async () => lifeSchemaVersion })
       const backup = await runtime.create()
       await db.commitLifeState({ cardId: 'alice', operationKey: 'forget', changes: [], mutations: [{ type: 'evidence-invalidate', source: { cardId: 'alice', kind: 'memory_facts', id: fact.factId, version: String(fact.version) }, mode: 'forget', reason: 'user-request' }] })
       await expect(runtime.requestRestore(backup.id, backup.manifestHash)).rejects.toThrow('forgotten source')

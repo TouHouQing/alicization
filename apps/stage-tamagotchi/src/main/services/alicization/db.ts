@@ -98,7 +98,7 @@ import type {
   AlicizationWorkingMemoryCleaningQueueItem,
   AlicizationWorkingMemoryCleaningQueueResult,
 } from '../../../shared/eventa'
-import type { LifeCommitInput, LifeCommitReceipt, LifeFactVersion, LifeOwner, LifeStateView } from '../../../shared/life-contracts'
+import type { LifeCommitInput, LifeCommitReceipt, LifeFactVersion, LifeOwner, LifeStateReadScope, LifeStateView } from '../../../shared/life-contracts'
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
 import type {
   WorkingMemoryLongTermCleaningStatus,
@@ -198,8 +198,11 @@ import {
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
+import * as v from 'valibot'
+
 import sqlite3 from './sqlite3-runtime'
 
+import { executionDigest } from './execution/acceptance-compiler'
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
 import { createAlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
 import { conversationPreferenceAllowsClaim } from './life-conversation-preferences'
@@ -219,6 +222,7 @@ import { createWorkingMemoryLongTermCleaningStoreRuntime } from './life-core/wor
 import { projectWorkingMemoryLongTermCandidate } from './life-core/working-memory-long-term-projection'
 import { parseLifeFactValidity } from './life-fact-validity'
 import { retrieveLifeHistoricalFacts } from './life-historical-recall'
+import { assertLifeInputReadSet, lifeInputReadAssertion, lifeInputReadSetSchema } from './life-input-read-set'
 import { readLifeQuietBoundary, readLifeQuietInterval } from './life-interaction-boundary'
 import { filterLifeRecallFacts, mapLifeFactVersion } from './life-memory-query'
 import { lifePredicateCardinality } from './life-memory-repository'
@@ -302,6 +306,7 @@ import {
   resolveAlicizationAutonomousDialogueFamilyClassification,
   resolveAlicizationAutonomousDialogueOrigin,
 } from './runtime-structured-format'
+import { sqliteFileSystemPath } from './sqlite-file-path'
 import { initializeSqliteWal, withSqliteStartupLockWait } from './sqlite-wal-initialization'
 import { createAlicizationRuntimeCheckpointStore } from './turn-os/checkpoint-store'
 import { createAlicizationRuntimeEventStore } from './turn-os/event-store'
@@ -1754,14 +1759,14 @@ function openDatabase(
         return reject(new Error('Alicization read-only database requires a SQLite driver with OPEN_READONLY'))
       }
       database = new driver.Database(
-        filepath,
+        sqliteFileSystemPath(filepath),
         driver.OPEN_READONLY,
         onOpen,
       )
       return
     }
 
-    database = new driver.Database(filepath, onOpen)
+    database = new driver.Database(sqliteFileSystemPath(filepath), onOpen)
   })
 }
 
@@ -1944,8 +1949,12 @@ export interface AlicizationDbService {
   commitLifeState: (input: LifeCommitInput, options?: DbWriteOptions) => Promise<LifeCommitReceipt>
   readLifeClosure: (turnId: string) => Promise<import('../../../shared/life-closure-contracts').LifeClosureRecord>
   readLifeTurnExecutionEffects: (turnId: string) => Promise<import('../../../shared/life-contracts').LifeEffect[]>
-  readLifeState: () => Promise<LifeStateView>
+  readPendingLifeExecutionEffects: () => Promise<import('../../../shared/life-contracts').LifeEffect[]>
+  readLifeState: (input?: LifeStateReadScope) => Promise<LifeStateView>
+  readLifeObligationHistory: (input: import('../../../shared/life-history-contracts').LifeObligationHistoryRequest) => Promise<import('../../../shared/life-history-contracts').LifeObligationHistoryPage>
   getLifeIngress: (id: string) => Promise<import('../../../shared/life-contracts').LifeIngress | null>
+  readLifeIngressPage: (input: { source: string, afterId?: string, limit?: number }) => Promise<{ cardId: string, entries: import('../../../shared/life-contracts').LifeIngress[], next: string | null }>
+  hasWithdrawnLifeEvidence: (sources: import('../../../shared/life-contracts').LifeEvidenceRef[]) => Promise<boolean>
   getLifeSurface: (id: string) => Promise<import('./life-body-repository').LifeSurfaceRegistration | null>
   getLifeUserInput: (id: string) => Promise<Record<string, unknown> | null>
   getLifeEffect: (id: string) => Promise<import('../../../shared/life-contracts').LifeEffect | null>
@@ -2576,7 +2585,7 @@ export async function setupAlicizationDb(
       const backupPath = join(directory, `life-schema-${from}-to-${to}-${randomUUID()}.db`)
       // SQLite takes a consistent snapshot including WAL pages. Copying only the
       // database file would lose committed data still resident in the WAL.
-      await run(database, 'VACUUM INTO ?', [backupPath])
+      await run(database, 'VACUUM INTO ?', [sqliteFileSystemPath(backupPath)])
     },
     transaction: runInTransaction,
     enqueue: enqueueWrite,
@@ -4175,9 +4184,9 @@ export async function setupAlicizationDb(
 
   async function getMetaValue(key: string, options?: DbWriteOptions) {
     assertWriteNotAborted(options)
-    const row = await get<MetaRow>(lifeReader ?? database, 'SELECT value FROM alicization_meta WHERE key = ? LIMIT 1', [key])
+    const value = await lifeStateStore.readMetaValue(key)
     assertWriteNotAborted(options)
-    return row?.value
+    return value
   }
 
   async function compareAndSetMetaValue(
@@ -4481,10 +4490,16 @@ export async function setupAlicizationDb(
         const audit = await get<{ payload_ref_json: string, payload_hash: string }>(database, `SELECT payload_ref_json, payload_hash FROM life_ingress WHERE card_id = ? AND ingress_id = ? AND source = 'reply-grounding' AND status = 'settled'`, [cardId, input.lifeReplyFence.reviewId])
         if (!audit || createHash('sha256').update(audit.payload_ref_json).digest('hex') !== audit.payload_hash)
           throw new Error('Reply publication has no intact grounding audit')
-        const reviewed = JSON.parse(audit.payload_ref_json) as { accepted: boolean, turnId: string, textHash: string, requestedIntervalHash?: string | null, readOnlyTurnScopeHash?: string | null, claims: Array<{ kind: string, quote: string, binding: { kind: string, id: string, version: string } | null, meaningMatchesBinding: boolean }> }
+        const reviewed = JSON.parse(audit.payload_ref_json) as { accepted: boolean, turnId: string, textHash: string, sourceInputReadSet: unknown, requestedIntervalHash?: string | null, readOnlyTurnScopeHash?: string | null, claims: Array<{ kind: string, quote: string, binding: { kind: string, id: string, version: string } | null, meaningMatchesBinding: boolean }> }
         const textHash = createHash('sha256').update(assistantText).digest('hex')
         if (reviewed.accepted !== true || reviewed.turnId !== turnId || reviewed.textHash !== textHash)
           throw new Error('Reply publication differs from its accepted semantic review')
+        const sourceReadSet = v.safeParse(lifeInputReadSetSchema, reviewed.sourceInputReadSet)
+        if (!sourceReadSet.success || sourceReadSet.output.ingressId !== `user:${turnId}`)
+          throw new Error('Reply publication needs the exact current input read set')
+        // Validate before idempotent commit handling too: an earlier publication
+        // does not authorize speaking again after its source has been held.
+        await assertLifeInputReadSet({ cardId, get: <T>(sql: string, params?: unknown[]) => get<T>(database, sql, params) }, sourceReadSet.output)
         if (reviewed.readOnlyTurnScopeHash) {
           const scope = lifeReadOnlyTurnScope(await lifeStateStore.getTurnExecutionEffectsInside(turnId), turnId)
           if (!scope || scope.fingerprint !== reviewed.readOnlyTurnScopeHash)
@@ -4515,7 +4530,7 @@ export async function setupAlicizationDb(
           if (await get(database, 'SELECT 1 FROM life_obligations WHERE card_id = ? AND obligation_id = ? AND kind = \'personal-project\'', [cardId, claim.binding.id]))
             sharedProjects.push({ type: 'project-share', goalId: claim.binding.id, generation: Number(claim.binding.version), turnId, reviewId: input.lifeReplyFence.reviewId })
         }
-        await lifeStateStore.commitInside({ cardId, operationKey: id, ...createLifeDialogueReadSet(input.lifeReplyFence.owners), changes: [], mutations: [{ type: 'ingress-accept', ingress: { id, kind: 'system', source: 'reply-publication', sourceKey: id, occurredAt: createdAt, payload: { turnId, textHash, reviewId: input.lifeReplyFence.reviewId } } }, { type: 'ingress-settle', id, status: 'settled' }, ...sharedProjects] }, options)
+        await lifeStateStore.commitInside({ cardId, operationKey: id, ...createLifeDialogueReadSet(input.lifeReplyFence.owners), changes: [], mutations: [{ type: 'ingress-accept', ingress: { id, kind: 'system', source: 'reply-publication', sourceKey: id, occurredAt: createdAt, payload: { turnId, textHash, reviewId: input.lifeReplyFence.reviewId } } }, { type: 'ingress-settle', id, status: 'settled' }, ...sharedProjects, lifeInputReadAssertion(sourceReadSet.output)] }, options)
       }
       if (input.outreach && turnId)
         await lifeStateStore.commitInside({ cardId, operationKey: `outreach:${turnId}`, changes: [], mutations: [{ type: 'outreach-reserve', evidenceKey: input.outreach.evidenceKey, turnId }] }, options)
@@ -6064,7 +6079,11 @@ export async function setupAlicizationDb(
       assertWriteNotAborted(options)
       if (input.metadata !== undefined) {
         const previous = await get<{ metadata_json: string | null }>(database, 'SELECT metadata_json FROM task_threads WHERE id = ?', [id])
-        const previousSeries = previous?.metadata_json ? (JSON.parse(previous.metadata_json) as Record<string, unknown>).personalSeries : undefined
+        const previousMetadata = previous?.metadata_json ? JSON.parse(previous.metadata_json) as Record<string, unknown> : null
+        const previousParent = previousMetadata?.workStepParent
+        if (previousParent && executionDigest(previousParent) !== executionDigest(input.metadata?.workStepParent ?? null))
+          throw new Error('A delegated child cannot change or remove its parent work responsibility')
+        const previousSeries = previousMetadata?.personalSeries
         if (previousSeries && JSON.stringify(previousSeries) !== JSON.stringify(input.metadata?.personalSeries))
           throw new Error('An accepted personal project plan cannot be rewritten; cancel it and create a new project')
       }
@@ -7214,7 +7233,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
       // An explicit conversation reset also clears experience-derived life state.
       // SOUL identity and the commit audit remain; dependent rows precede FK roots.
-      for (const table of ['life_surface_sessions', 'life_obligations', 'life_effect_intents', 'life_ingress', 'life_expression_receipts', 'life_appraisals', 'life_evidence_dependencies', 'life_evidence_cleanup_visits', 'life_evidence_cleanup_jobs', 'life_memory_source_withdrawals', 'memory_entity_aliases', 'memory_entities'])
+      for (const table of ['life_surface_sessions', 'life_work_step_results', 'life_work_slices', 'life_work_plans', 'life_execution_contracts', 'life_obligations', 'life_effect_intents', 'life_ingress', 'life_expression_receipts', 'life_appraisals', 'life_evidence_dependencies', 'life_evidence_cleanup_visits', 'life_evidence_cleanup_jobs', 'life_memory_source_withdrawals', 'memory_entity_aliases', 'memory_entities'])
         await deleteCardScoped(table)
       await run(database, `DELETE FROM life_owner_versions WHERE card_id = ? AND owner != 'soul'`, [boundCardId])
       await run(database, `DELETE FROM alicization_meta WHERE (key LIKE 'life:%' AND key != 'life:soul-active') OR key IN ('visual_presence_state_v1','perception_state_v1','self_evolution_version_runtime_v1')`)
@@ -16229,12 +16248,16 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     lifeReader = await openDatabase(dbPath, options?.sqliteDriver, { readOnly: true })
   return {
     dbPath,
-    snapshotLifeDatabase: (path: string) => enqueueWrite(async () => { await run(database, 'VACUUM INTO ?', [path]) }),
+    snapshotLifeDatabase: (path: string) => enqueueWrite(async () => { await run(database, 'VACUUM INTO ?', [sqliteFileSystemPath(path)]) }),
     commitLifeState: lifeStateStore.commit,
     readLifeState: lifeStateStore.read,
+    readLifeObligationHistory: lifeStateStore.readObligationHistory,
     readLifeTurnExecutionEffects: lifeStateStore.getTurnExecutionEffects,
+    readPendingLifeExecutionEffects: lifeStateStore.getPendingExecutionEffects,
     readLifeClosure: lifeStateStore.readClosure,
     getLifeIngress: lifeStateStore.getIngress,
+    readLifeIngressPage: lifeStateStore.readIngressPage,
+    hasWithdrawnLifeEvidence: lifeStateStore.hasWithdrawnEvidence,
     getLifeEffect: lifeStateStore.getEffect,
     getLifeUserInput: lifeStateStore.getUserInput,
     getLifeSurface: lifeStateStore.getSurface,

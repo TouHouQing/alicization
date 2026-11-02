@@ -53,6 +53,45 @@ afterEach(() => {
 })
 
 describe('stage desktop interaction helpers', () => {
+  it('releases drag and wheel ownership when the rendered body becomes unavailable', () => {
+    vi.useFakeTimers()
+    const stageElement = createStageElement()
+    const position = ref({ x: 0, y: 0 })
+    const activity: boolean[] = []
+    let available = true
+    const scope = effectScope()
+    const interactions = scope.run(() => useStageDesktopInteractions({
+      stageElement: ref(stageElement),
+      dialogueElement: () => undefined,
+      stageModelRenderer: ref<'live2d' | 'vrm' | 'disabled'>('live2d'),
+      live2dHandle: () => available ? { characterFrame: () => ({ left: 100, right: 400, top: 100, bottom: 700, centerX: 250, anchorY: 600 }), hitTestClientPoint: () => true } : undefined,
+      vrmHandle: () => undefined,
+      live2dPositionMode: ref<'percent' | 'pixel'>('pixel'),
+      live2dPosition: position,
+      live2dScale: ref(1),
+      vrmModelOffset: ref({ x: 0, y: 0, z: 0 }),
+      vrmCameraDistance: ref(2),
+      vrmBootstrapCameraDistance: ref(2),
+      vrmCameraFov: ref(40),
+      onInteractionChange: active => activity.push(active),
+    }))!
+    try {
+      interactions.handlePointerDown(new PointerEvent('pointerdown', { button: 0, pointerId: 1, clientX: 250, clientY: 400 }))
+      interactions.handleWheel(new WheelEvent('wheel', { clientX: 250, clientY: 400, deltaY: 100, cancelable: true }))
+      expect(interactions.isInteracting.value).toBe(true)
+      const before = { ...position.value }
+      available = false
+      interactions.cancelInteraction()
+      expect(interactions.isInteracting.value).toBe(false)
+      expect(activity.at(-1)).toBe(false)
+      window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 900, clientY: 800 }))
+      vi.advanceTimersByTime(250)
+      expect(position.value).toEqual(before)
+      expect(interactions.isInteracting.value).toBe(false)
+    }
+    finally { scope.stop() }
+  })
+
   it('maps live2d drag to an absolute anchor position on screen', () => {
     expect(applyLive2dAbsoluteAnchor(510, 620, 30, -40, {
       left: 0,

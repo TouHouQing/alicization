@@ -13,6 +13,9 @@ import { promisify } from 'node:util'
 
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 const runFile = promisify(execFile)
+const { assertAuthenticatedNativeQuit } = createRequire(import.meta.url)('./life-acceptance/native-quit-observation.cjs') as { assertAuthenticatedNativeQuit: (shutdown: unknown) => unknown }
+const { assertPackageProductSurface } = createRequire(import.meta.url)('./life-acceptance/package-product-surface.cjs') as { assertPackageProductSurface: (report: unknown, expected: { executable: string, asarSha256: string, mainSha256: string, installerId: string | null }) => { kind: 'host' | 'private', id: string } }
+const { assertExecutedVitestReport } = createRequire(import.meta.url)('./life-acceptance/release-test-report.cjs') as { assertExecutedVitestReport: (report: unknown) => void }
 const digest = (content: string | Uint8Array) => createHash('sha256').update(content).digest('hex')
 async function hashFile(file: string) {
   const hash = createHash('sha256')
@@ -61,8 +64,11 @@ interface ExperienceEvidence {
   interactionIntentVerified?: boolean
   realExperienceVerified?: boolean
   productExperienceVerified?: boolean
+  executionWorkflowsVerified?: boolean
 }
 async function main() {
+  if (!process.argv[2] || !process.argv[3] || process.argv.length !== 4)
+    throw new Error('Provide an explicit release path and evidence manifest, or --snapshot with an output path')
   const sources = await sourceFiles()
   if (process.argv[2] === '--snapshot') {
     const target = ownedEvidencePath(process.argv[3] ?? '')
@@ -70,24 +76,28 @@ async function main() {
     console.info(JSON.stringify({ snapshot: target, sourceFingerprint: digest(JSON.stringify(sources)) }))
     return
   }
-  const release = resolve(process.argv[2] ?? join(workspace, 'apps/stage-tamagotchi/dist/life-phase1-20261005'))
+  const release = resolve(process.argv[2])
   if (!release.startsWith(`${join(workspace, 'apps/stage-tamagotchi/dist')}\\`))
     throw new Error('Release provenance only writes to a workspace desktop artifact directory')
-  const evidence = process.argv[3] ? JSON.parse(await readFile(ownedEvidencePath(process.argv[3]), 'utf8')) as ExperienceEvidence : null
-  if (evidence) {
-    if (evidence.format !== 'life-experience-release-evidence-v1' || !evidence.reports?.length || !evidence.nativeReports?.length || !evidence.logs?.length)
-      throw new Error('Experience release requires tests, native observation evidence and build logs')
-    for (const file of [...evidence.reports, ...evidence.nativeReports, ...evidence.logs]) ownedEvidencePath(file)
-    const before = JSON.parse(await readFile(ownedEvidencePath(evidence.buildSourceSnapshot), 'utf8'))
-    if (before.sourceFingerprint !== digest(JSON.stringify(sources)))
-      throw new Error('Production source inputs changed after the build snapshot')
-  }
+  const evidence = JSON.parse(await readFile(ownedEvidencePath(process.argv[3]), 'utf8')) as ExperienceEvidence
+  if (evidence.format !== 'life-experience-release-evidence-v1' || !evidence.reports?.length || !evidence.nativeReports?.length || !evidence.logs?.length)
+    throw new Error('Experience release requires tests, native observation evidence and build logs')
+  for (const file of [...evidence.reports, ...evidence.nativeReports, ...evidence.logs]) ownedEvidencePath(file)
+  const before = JSON.parse(await readFile(ownedEvidencePath(evidence.buildSourceSnapshot), 'utf8'))
+  if (before.sourceFingerprint !== digest(JSON.stringify(sources)))
+    throw new Error('Production source inputs changed after the build snapshot')
   const compiled = await tree(join(workspace, 'apps/stage-tamagotchi/out'))
   const require = createRequire(join(workspace, 'apps/stage-tamagotchi/package.json'))
   const builderRequire = createRequire(require.resolve('electron-builder'))
   const asarRequire = createRequire(builderRequire.resolve('app-builder-lib'))
   const asar = asarRequire('@electron/asar') as { extractFile: (path: string, file: string) => Buffer }
   const packagedAsar = join(release, 'win-unpacked/resources/app.asar')
+  const metadata = JSON.parse(asar.extractFile(packagedAsar, 'package.json').toString('utf8')) as { name: string, lifeQaInstallerId?: string }
+  const installerId = metadata.lifeQaInstallerId ?? null
+  if (installerId && (!/^20\d{6}-[a-f0-9]{8}$/u.test(installerId) || metadata.name !== `alicization-life-installer-${installerId}`))
+    throw new Error('The QA package metadata has a different installer identity')
+  const executableName = installerId ? `alicization-lifeqa-${installerId}.exe` : 'alicization.exe'
+  const expectedExecutable = join(release, 'win-unpacked', executableName)
   // The installed asar reader resolves archive paths using native separators.
   const packagedMainHash = digest(asar.extractFile(packagedAsar, join('out', 'main', 'index.js')))
   if (packagedMainHash !== await hashFile(join(workspace, 'apps/stage-tamagotchi/out/main/index.js')))
@@ -96,20 +106,40 @@ async function main() {
     if (digest(asar.extractFile(packagedAsar, join('out', ...file.path.split('/')))) !== file.sha256)
       throw new Error(`Packaged output differs: ${file.path}`)
   }
-  for (const name of ['pi-license.txt', 'pi-file-tools-license.txt', 'pi-file-tools-notice.txt', 'neko-license.txt', 'neko-notice.txt', 'talkinghead-license.txt', 'neko-motion/LICENSE.txt', 'neko-motion/NOTICE.txt', 'neko-motion/source-manifest.json']) {
+  for (const name of ['pinyin-pro-license.txt', 'windows-mcp-MIT.txt', 'pi-license.txt', 'pi-file-tools-license.txt', 'pi-file-tools-notice.txt', 'neko-license.txt', 'neko-notice.txt', 'talkinghead-license.txt', 'neko-motion/LICENSE.txt', 'neko-motion/NOTICE.txt', 'neko-motion/source-manifest.json']) {
     const notice = join('resources', 'licenses', name)
     if (digest(asar.extractFile(packagedAsar, notice)) !== await hashFile(join(workspace, 'apps/stage-tamagotchi', notice)))
       throw new Error(`The adapted module must ship its exact upstream license: ${name}`)
   }
   const artifactNames = (await readdir(release)).filter(file => file.endsWith('.exe') || file.endsWith('.blockmap') || file === 'latest.yml')
   const artifacts = await Promise.all(artifactNames.map(async file => ({ path: file, bytes: (await lstat(join(release, file))).size, sha256: await hashFile(join(release, file)) })))
-  const reports = evidence ? [...evidence.reports, ...evidence.nativeReports] : ['output/life-desktop-visible-auth-final-20261005.json', 'output/life-expression-delivery-final-20261005.json', 'output/life-acceptance/nodes.json', 'output/life-acceptance/installer.json', 'output/life-acceptance/configured-persona-pairs.json', 'output/life-acceptance/configured-policy-pairs.json', 'output/life-acceptance/codex-real.json', 'output/life-acceptance/memory-100k.json']
+  const reports = [...evidence.reports, ...evidence.nativeReports]
   const packagedAsarSha256 = await hashFile(packagedAsar)
   const packagedScenes = new Set<string>()
   const actualExperiences: Array<{ path: string, parentReport: string | null }> = []
   const productExperiences: string[] = []
+  const executionExperiences: string[] = []
+  const executionDesktops = new Set<string>()
+  const executionReportDesktops = new Set<string>()
   const verification = await Promise.all(reports.map(async (file) => {
     const report = JSON.parse(await readFile(join(workspace, file), 'utf8'))
+    if (typeof report.numTotalTests === 'number')
+      assertExecutedVitestReport(report)
+    if (evidence?.executionWorkflowsVerified && report.inputDesktopBefore !== undefined) {
+      if (!/^AlicizationQA_[a-f0-9]{32}$/u.test(report.desktop ?? '') || report.childExitCode !== 0 || report.childJobClosed !== true || report.inputDesktopBefore !== 'Default' || report.inputDesktopAfter !== 'Default' || report.switchedInputDesktop !== false)
+        throw new Error(`Execution workflow desktop isolation or process teardown did not pass: ${file}`)
+      executionDesktops.add(report.desktop)
+    }
+    if (evidence?.executionWorkflowsVerified && report.scope === 'execution-work-product-experience') {
+      const normal = report.executionWorkExperiences
+      const repaired = report.executionRepairExperiences
+      const surface = assertPackageProductSurface(report, { executable: expectedExecutable, asarSha256: packagedAsarSha256, mainSha256: packagedMainHash, installerId })
+      if (report.passed !== true || report.rendererFocus !== 'live2d' || report.errors?.length || !report.checks?.length || !report.checks.every((check: { passed: boolean }) => check.passed) || normal?.length !== 3 || repaired?.length !== 3 || !normal.every((item: { modelRequestUsed: boolean }) => item.modelRequestUsed === true) || !repaired.every((item: { originalModifiedAt: number, finalModifiedAt: number }) => item.originalModifiedAt === item.finalModifiedAt))
+        throw new Error(`Execution workflow evidence must cover three actual deliveries and three safe revisions of this exact Live2D package: ${file}`)
+      if (surface.kind === 'private')
+        executionReportDesktops.add(surface.id)
+      executionExperiences.push(file)
+    }
     if (evidence?.nativeReports.includes(file) && (report.diagnosticSource || ['life-actual-experience-diagnostic-v1', 'life-grounding-live-probe-v1', 'life-current-requirements-live-probe-v1'].includes(report.format)))
       throw new Error(`Diagnostic continuation cannot serve as release acceptance: ${file}`)
     if (typeof report.numFailedTests === 'number' && report.numFailedTests !== 0)
@@ -124,10 +154,13 @@ async function main() {
     }
     if (evidence?.nativeReports.includes(file) && report.passed !== true)
       throw new Error(`Native observation did not pass: ${file}`)
+    if (evidence?.nativeReports.includes(file) && typeof report.packagedAsarSha256 === 'string')
+      assertAuthenticatedNativeQuit(report.shutdown)
     if (evidence?.nativeReports.includes(file) && report.format === 'life-product-regression-v1') {
       const requiredPages = ['persona-preview', 'connection-failure', 'model-selected-awaiting-confirmation', 'valid-dropped-card', 'kokoro-offline-feedback', 'tray-about', 'tray-widgets', 'actual-model-reply', 'chat-import-persisted']
-      if (report.packagedAsarSha256 !== packagedAsarSha256 || resolve(report.executable ?? '').toLowerCase() !== join(release, 'win-unpacked/alicization.exe').toLowerCase() || !/^AlicizationQA_[a-f0-9]{32}$/u.test(report.privateDesktop ?? '') || report.nativeRuntime?.privateDesktopVerified !== true || report.nativeRuntime?.desktop !== report.privateDesktop || report.syntheticIdentity !== true || report.credentialsRemoved !== true || report.shutdown?.completed !== true || report.shutdown?.exitCode !== 0 || !Number.isFinite(report.shutdown?.elapsedMs) || report.shutdown.elapsedMs > 60_000 || report.errors?.length !== 0 || report.rawKeyPages?.length !== 0 || report.kokoroOfflineFixture !== true || !report.checks?.length || !report.checks.every((check: { passed: boolean }) => check.passed) || (report.pages?.length ?? 0) < 90 || !requiredPages.every(name => report.pages.some((page: { name: string }) => page.name === name)) || !report.actualReplyText?.includes('小艾'))
-        throw new Error(`Product experience requires complete observations of this exact isolated package and a normal exit: ${file}`)
+      assertPackageProductSurface(report, { executable: expectedExecutable, asarSha256: packagedAsarSha256, mainSha256: packagedMainHash, installerId })
+      if (report.errors?.length !== 0 || report.rawKeyPages?.length !== 0 || report.kokoroOfflineFixture !== true || !report.checks?.length || !report.checks.every((check: { passed: boolean }) => check.passed) || (report.pages?.length ?? 0) < 90 || !requiredPages.every(name => report.pages.some((page: { name: string }) => page.name === name)) || !report.actualReplyText?.includes('小艾'))
+        throw new Error(`Product experience requires complete observations of this exact package and a normal exit: ${file}`)
       for (const page of report.pages) {
         if (!(await lstat(ownedEvidencePath(page.screenshot))).isFile())
           throw new Error(`Product observation screenshot is missing: ${file}, ${page.name}`)
@@ -250,17 +283,51 @@ async function main() {
     throw new Error('Packaged native verification requires exact-package persona and action scenes')
   if (evidence?.productExperienceVerified && productExperiences.length === 0)
     throw new Error('Product experience requires an exact-package product regression report')
+  if (evidence?.executionWorkflowsVerified && executionExperiences.length === 0)
+    throw new Error('Execution workflow verification requires an exact-package report for both three-run workflows')
+  if (evidence?.executionWorkflowsVerified && [...executionReportDesktops].some(desktop => !executionDesktops.has(desktop)))
+    throw new Error('Every execution workflow report needs its actual matching desktop teardown receipt')
   if (evidence?.realExperienceVerified && (actualExperiences.length < 2 || !actualExperiences.some(report => report.parentReport && actualExperiences.some(parent => resolve(workspace, parent.path) === resolve(report.parentReport!)))))
     throw new Error('Real experience requires the same-package first run and resumed identity after restart')
-  const nativeReport = evidence ? null : JSON.parse(await readFile(join(workspace, 'output/life-acceptance/nodes.json'), 'utf8')) as { native: Array<{ log: string }> }
-  const verificationLogs = evidence?.logs ?? ['output/life-workspace-verified-typecheck.log', 'output/life-all-surfaces-final-build.log', 'output/life-last-shared-closure-lint.log', 'output/life-shared-type-fixtures-verified.log', 'output/life-codex-final-route-sandbox-regression.log', 'output/life-codex-real-execution-native-sandbox.log', ...(nativeReport?.native.map(item => relative(workspace, item.log).replaceAll('\\', '/')) ?? [])]
+  const verificationLogs = evidence.logs
   const logs = await Promise.all(verificationLogs.map(async file => ({ path: file, sha256: await hashFile(join(workspace, file)) })))
-  const portableExecutable = { path: 'win-unpacked/alicization.exe', sha256: await hashFile(join(release, 'win-unpacked/alicization.exe')) }
+  const portableExecutable = { path: `win-unpacked/${executableName}`, sha256: await hashFile(expectedExecutable) }
   const nativeResources = await tree(join(release, 'win-unpacked/resources/app.asar.unpacked'))
   const verificationTools = await tree(join(workspace, 'apps/stage-tamagotchi/scripts/life-acceptance'))
   const head = await git(['rev-parse', 'HEAD'])
   const remote = await git(['rev-parse', 'origin/main'])
-  const manifest = { format: 'alicization-local-release-provenance-v1', createdAt: new Date().toISOString(), repository: 'TouHouQing/alicization', baseCommit: head, fetchedRemoteMain: remote, localChangesIncluded: Boolean(await git(['status', '--porcelain'])), sourceScope: 'Desktop production inputs and workspace packages, including pre-existing local changes; this is not an unmodified upstream commit build', ...(evidence ? { nativeObservationScope: evidence.nativeObservationScope, productExperienceVerified: evidence.productExperienceVerified === true, packagedNativeVerified: evidence.packagedNativeVerified, residentLifeVerified: evidence.residentLifeVerified === true, interactionIntentVerified: evidence.interactionIntentVerified === true, realExperienceVerified: evidence.realExperienceVerified === true } : {}), sourceFingerprint: digest(JSON.stringify(sources)), sourceFiles: sources, compiledFingerprint: digest(JSON.stringify(compiled)), compiledFiles: compiled, packagedOutputMatchesCompiled: true, packagedAsarSha256, portableExecutable, nativeResources, artifacts, verification, verificationTools, verificationLogs: logs }
+  const manifest = {
+    format: 'alicization-local-release-provenance-v1',
+    createdAt: new Date().toISOString(),
+    repository: 'TouHouQing/alicization',
+    baseCommit: head,
+    fetchedRemoteMain: remote,
+    localChangesIncluded: Boolean(await git(['status', '--porcelain'])),
+    sourceScope: 'Desktop production inputs and workspace packages, including pre-existing local changes; this is not an unmodified upstream commit build',
+    ...(evidence
+      ? {
+          nativeObservationScope: evidence.nativeObservationScope,
+          productExperienceVerified: evidence.productExperienceVerified === true,
+          executionWorkflowsVerified: evidence.executionWorkflowsVerified === true,
+          packagedNativeVerified: evidence.packagedNativeVerified,
+          residentLifeVerified: evidence.residentLifeVerified === true,
+          interactionIntentVerified: evidence.interactionIntentVerified === true,
+          realExperienceVerified: evidence.realExperienceVerified === true,
+        }
+      : {}),
+    sourceFingerprint: digest(JSON.stringify(sources)),
+    sourceFiles: sources,
+    compiledFingerprint: digest(JSON.stringify(compiled)),
+    compiledFiles: compiled,
+    packagedOutputMatchesCompiled: true,
+    packagedAsarSha256,
+    portableExecutable,
+    nativeResources,
+    artifacts,
+    verification,
+    verificationTools,
+    verificationLogs: logs,
+  }
   const file = join(release, 'release-provenance.json')
   await writeFile(file, JSON.stringify(manifest, null, 2))
   console.info(JSON.stringify({ manifest: file, baseCommit: head, fetchedRemoteMain: remote, sourceFingerprint: manifest.sourceFingerprint, artifacts, packagedOutputMatchesCompiled: true }))

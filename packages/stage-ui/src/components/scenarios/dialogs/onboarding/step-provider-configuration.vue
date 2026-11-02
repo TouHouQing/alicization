@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { ProviderMetadata } from '../../../../stores/providers'
-import type { OnboardingStepNextHandler, OnboardingStepPrevHandler } from './types'
+import type { OnboardingStepNextHandler, OnboardingStepPrevHandler, ProviderConfigData } from './types'
 
+import { errorMessageFrom } from '@moeru/std'
 import { Button, Callout, FieldInput } from '@proj-alicization/ui'
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useProvidersStore } from '../../../../stores/providers'
@@ -27,9 +28,21 @@ const accountId = ref('')
 
 const validation = ref<'unchecked' | 'pending' | 'succeed' | 'failed'>('unchecked')
 const validationError = ref<any>()
+let validationRevision = 0
+
+function invalidateValidation() {
+  // A provider's network check may finish after an edit, back navigation or
+  // unmount. Discard its result; it never validates the new form or next page.
+  validationRevision++
+  validation.value = 'unchecked'
+  validationError.value = undefined
+}
+
+onBeforeUnmount(invalidateValidation)
 
 // Initialize form with default values when provider changes
 function initializeForm() {
+  invalidateValidation()
   const provider = props.selectedProvider
   if (!provider)
     return
@@ -38,21 +51,12 @@ function initializeForm() {
   baseUrl.value = typeof config.baseUrl === 'string' ? config.baseUrl : ''
   apiKey.value = typeof config.apiKey === 'string' ? config.apiKey : ''
   accountId.value = typeof config.accountId === 'string' ? config.accountId : ''
-
-  // Reset validation
-  validation.value = 'unchecked'
-  validationError.value = undefined
 }
 
 // Watch for provider changes
-watch(() => props.selectedProvider?.id, initializeForm)
+watch(() => [props.selectedProviderId, props.selectedProvider?.id], initializeForm, { flush: 'sync' })
 
-watch([apiKey, baseUrl, accountId], () => {
-  if (validation.value === 'failed' || validation.value === 'succeed') {
-    validation.value = 'unchecked'
-    validationError.value = undefined
-  }
-})
+watch([apiKey, baseUrl, accountId], invalidateValidation, { flush: 'sync' })
 
 // Computed properties
 const needsApiKey = computed(() => {
@@ -86,9 +90,13 @@ const primaryActionLabel = computed(() => {
     : t('settings.dialogs.onboarding.next')
 })
 
-async function validateConfiguration() {
-  if (!props.selectedProvider)
-    return
+async function validateConfiguration(): Promise<{ revision: number, config: ProviderConfigData } | null> {
+  if (!props.selectedProvider || !canProceed.value)
+    return null
+
+  const revision = ++validationRevision
+  const providerId = props.selectedProvider.id
+  const input = { apiKey: apiKey.value.trim(), baseUrl: baseUrl.value.trim(), accountId: accountId.value.trim() }
 
   validation.value = 'pending'
   validationError.value = undefined
@@ -98,49 +106,58 @@ async function validateConfiguration() {
     const config: Record<string, unknown> = {}
 
     if (needsApiKey.value)
-      config.apiKey = apiKey.value.trim()
+      config.apiKey = input.apiKey
     if (needsBaseUrl.value)
-      config.baseUrl = baseUrl.value.trim()
-    if (props.selectedProvider.id === 'cloudflare-workers-ai')
-      config.accountId = accountId.value.trim()
+      config.baseUrl = input.baseUrl
+    if (providerId === 'cloudflare-workers-ai')
+      config.accountId = input.accountId
 
     // Validate using provider's validator
-    const metadata = providersStore.getProviderMetadata(props.selectedProvider.id)
+    const metadata = providersStore.getProviderMetadata(providerId)
     const validationResult = await metadata.validators.validateProviderConfig(config)
+    if (revision !== validationRevision)
+      return null
     validation.value = validationResult.valid ? 'succeed' : 'failed'
     if (validation.value === 'failed') {
       validationError.value = validationResult.reason
     }
+    else {
+      return { revision, config: input }
+    }
   }
   catch (error) {
+    if (revision !== validationRevision)
+      return null
     validation.value = 'failed'
     validationError.value = t('settings.dialogs.onboarding.validationError', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessageFrom(error),
     })
   }
+  return null
 }
 
 async function handleNext() {
-  await validateConfiguration()
-  if (validation.value === 'succeed') {
-    await props.onNext({
-      apiKey: apiKey.value,
-      baseUrl: baseUrl.value,
-      accountId: accountId.value,
-    })
-  }
+  const validated = await validateConfiguration()
+  if (validated?.revision === validationRevision)
+    await props.onNext(validated.config)
+}
+
+async function handlePrevious() {
+  invalidateValidation()
+  await props.onPrevious()
 }
 
 async function handleContinueAnyway() {
-  if (!props.selectedProvider)
+  if (!props.selectedProvider || validation.value !== 'failed')
     return
+  const providerId = props.selectedProvider.id
 
   await props.onNext({
-    apiKey: apiKey.value,
-    baseUrl: baseUrl.value,
-    accountId: accountId.value,
+    apiKey: apiKey.value.trim(),
+    baseUrl: baseUrl.value.trim(),
+    accountId: accountId.value.trim(),
   })
-  providersStore.forceProviderConfigured(props.selectedProvider.id)
+  providersStore.forceProviderConfigured(providerId)
 }
 
 // Placeholder helpers
@@ -177,7 +194,7 @@ initializeForm()
 <template>
   <div h-full flex flex-col gap-4>
     <div sticky top-0 z-100 flex flex-shrink-0 items-center gap-2>
-      <button type="button" :aria-label="t('settings.common.back')" outline-none @click="props.onPrevious">
+      <button type="button" :aria-label="t('settings.common.back')" outline-none @click="handlePrevious">
         <div i-solar:alt-arrow-left-line-duotone h-5 w-5 />
       </button>
       <h2 class="flex-1 text-center text-xl text-neutral-800 font-semibold md:text-left md:text-2xl dark:text-neutral-100">

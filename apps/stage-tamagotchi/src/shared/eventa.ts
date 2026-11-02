@@ -436,6 +436,9 @@ export interface ElectronMcpCallToolPayload {
 }
 
 export interface ElectronMcpCallToolResult {
+  sideEffectState?: 'none' | 'unknown'
+  effectMayHaveOccurred?: boolean
+  executionStopped?: boolean
   content?: Array<Record<string, unknown>>
   structuredContent?: Record<string, unknown>
   toolResult?: unknown
@@ -3840,6 +3843,7 @@ export interface AlicizationChatStreamChunkEvent {
   cardId: string
   turnId: string
   text: string
+  delivery?: import('@proj-alicization/stage-shared').AlicizationReplyStreamDelivery
   origin?: SharedAlicizationVisibleArtifactOrigin
   learningPolicy?: SharedAlicizationVisibleArtifactLearningPolicy
   failureSurface?: SharedAlicizationChatFailureSurface | null
@@ -4000,6 +4004,7 @@ export interface AlicizationLlmConfigPayload {
 
 export type AlicizationToolRiskLevel = 'safe' | 'sensitive' | 'danger'
 export type AlicizationToolActionCategory = 'read' | 'write' | 'delete' | 'execute' | 'network' | 'unknown'
+export type AlicizationWindowReviewAction = { kind: 'click', button: 'left' | 'right' | 'middle' } | { kind: 'drag' } | { kind: 'scroll', direction: 'up' | 'down', notches: number }
 
 export interface AlicizationSafetyPermissionRequest {
   cardId: string
@@ -4012,7 +4017,9 @@ export interface AlicizationSafetyPermissionRequest {
   reason: string
   resourceLabel?: string
   resourcePath?: string
-  changePreview?: { operation: 'create' | 'replace', byteLength: number, text: string }
+  changePreview?: { operation: 'create' | 'replace', byteLength: number, text: string, sha256: string, truncated: boolean }
+  interfacePreview?: { text: string, byteLength: number, sha256: string }
+  interfaceImagePreview?: { dataUrl: string, width: number, height: number, sha256: string, markers: Array<{ x: number, y: number, label: string }>, action?: AlicizationWindowReviewAction }
   argumentsSummary?: {
     kind: string
     keyCount?: number

@@ -3,6 +3,8 @@ import type {
   AlicizationSkillLoader,
   AlicizationSkillLoaderFileSystem,
   AlicizationSkillProjectionOptions,
+  CreateAlicizationSkillLoaderOptions,
+  SkillLifecycleSnapshot,
 } from './skill-loader'
 import type { ToolRegistry } from './tool-registry'
 
@@ -59,6 +61,8 @@ function createLoader(
     toolRegistry: ToolRegistry
     onAudit: (event: AlicizationSkillAuditEvent) => void | Promise<void>
     fileSystem: AlicizationSkillLoaderFileSystem
+    readLifecycle: CreateAlicizationSkillLoaderOptions['readLifecycle']
+    persistLifecycle: CreateAlicizationSkillLoaderOptions['persistLifecycle']
   }> = {},
 ): AlicizationSkillLoader {
   return createAlicizationSkillLoader({
@@ -70,6 +74,8 @@ function createLoader(
     availablePermissions: ['memory.read'],
     fileSystem: overrides.fileSystem ?? createFileSystem(),
     onAudit: overrides.onAudit,
+    readLifecycle: overrides.readLifecycle,
+    persistLifecycle: overrides.persistLifecycle,
   })
 }
 
@@ -101,6 +107,77 @@ afterEach(async () => {
 })
 
 describe('alicization skill loader', () => {
+  it('persists disappearance of an active source without disabling another skill or reviving restored bytes', async () => {
+    const source = skillFile(validFrontmatter)
+    const directory = await createSkillsDirectory({ 'memory-review': source, 'other-skill': skillFile(validFrontmatter.replace('skill.memory-review', 'skill.other')) })
+    const tools = createToolRegistry()
+    const audits: AlicizationSkillAuditEvent[] = []
+    let saved: SkillLifecycleSnapshot | null = null
+    let writes = 0
+    const persistence = {
+      readLifecycle: async () => saved,
+      persistLifecycle: async (snapshot: SkillLifecycleSnapshot) => { saved = structuredClone(snapshot); writes++ },
+    }
+    const loader = createLoader(directory, { toolRegistry: tools, ...persistence, onAudit: (event) => { audits.push(event) } })
+    expect(await loader.projectProduction()).toHaveLength(2)
+    await rm(join(directory, 'memory-review'), { recursive: true })
+    expect(await loader.projectProduction()).toMatchObject([{ capabilityId: 'skill.other', activationStatus: 'active' }])
+    expect(tools.get('skill.memory-review')?.activationStatus).toBe('disabled')
+    expect(audits).toContainEqual(expect.objectContaining({ action: 'invalidate-source', id: 'skill.memory-review', reason: 'source-missing' }))
+    expect(writes).toBe(1)
+    await loader.discover()
+    expect(writes).toBe(1)
+    await mkdir(join(directory, 'memory-review'))
+    await writeFile(join(directory, 'memory-review/SKILL.md'), source)
+    const restarted = createLoader(directory, persistence)
+    expect(await restarted.projectProduction()).toMatchObject([{ capabilityId: 'skill.other' }])
+    await expect(restarted.activate('skill.memory-review', '1.0.0')).rejects.toThrow('evaluation')
+  })
+
+  it('invalidates a source lost between discovery and instruction loading', async () => {
+    const directory = await createSkillsDirectory({ 'memory-review': skillFile(validFrontmatter) })
+    let armed = false
+    let reads = 0
+    const tools = createToolRegistry()
+    const audits: AlicizationSkillAuditEvent[] = []
+    const loader = createLoader(directory, { toolRegistry: tools, onAudit: (event) => { audits.push(event) }, fileSystem: createFileSystem(async (filepath) => {
+      if (armed && ++reads === 2)
+        throw new Error('Source reader was revoked')
+      return readFile(filepath, 'utf8')
+    }) })
+    await loader.projectProduction()
+    armed = true
+    await expect(loader.load({ id: 'skill.memory-review', tools: ['tool.memory.workbench'], permissions: ['memory.read'] })).rejects.toThrow('revoked')
+    expect(tools.get('skill.memory-review')?.activationStatus).toBe('disabled')
+    expect(audits).toContainEqual(expect.objectContaining({ action: 'invalidate-source', reason: 'source-read-failed' }))
+    expect(await loader.discover()).toEqual([])
+  })
+
+  it('removes a failed evaluation from the executable projection and requires explicit reactivation after repair', async () => {
+    const directory = await createSkillsDirectory({ 'memory-review': skillFile(validFrontmatter) })
+    const tools = createToolRegistry()
+    const loader = createLoader(directory, { toolRegistry: tools })
+    await loader.projectProduction()
+    await loader.markEvaluation('skill.memory-review', '1.0.0', 'failed')
+    expect(tools.resolveActive('skill.memory-review')).toBeUndefined()
+    expect(await loader.projectProduction()).toEqual([])
+    await loader.markEvaluation('skill.memory-review', '1.0.0', 'approved')
+    expect(await loader.projectProduction()).toEqual([])
+    await loader.activate('skill.memory-review', '1.0.0')
+    await loader.projectProduction()
+    expect(tools.resolveActive('skill.memory-review')?.version).toBe('1.0.0')
+  })
+
+  it('invalidates an approved projection if the same skill version changes its instructions', async () => {
+    const directory = await createSkillsDirectory({ 'memory-review': skillFile(validFrontmatter, 'original reviewed instructions') })
+    const tools = createToolRegistry()
+    const loader = createLoader(directory, { toolRegistry: tools })
+    await loader.projectProduction()
+    await writeFile(join(directory, 'memory-review', 'SKILL.md'), skillFile(validFrontmatter, 'changed instructions without evaluation'))
+    await expect(loader.load({ id: 'skill.memory-review', tools: ['tool.memory.workbench'], permissions: ['memory.read'] })).rejects.toThrow('source changed')
+    expect(tools.resolveActive('skill.memory-review')).toBeUndefined()
+  })
+
   it('discovers YAML metadata without exposing or loading instructions', async () => {
     let readCount = 0
     const skillsDirectory = await createSkillsDirectory({

@@ -39,6 +39,7 @@ interface Live2DActionCapability {
 }
 
 export interface UseStageEmbodimentPresenceOptions {
+  canPresentPerformance?: (source: 'dialogue' | 'presence-pulse', turnId?: string | null, cardId?: string | null) => boolean
   beforeDialogue?: (payload: AlicizationDialogueRespondedPayload) => void
   acceptInteractionScript?: (script: unknown) => void
   applyAttentionPerformance?: (performance: AlicizationDialoguePerformancePayload, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
@@ -46,7 +47,7 @@ export interface UseStageEmbodimentPresenceOptions {
   applyRuntimeEmbodimentEnvelope?: (embodiment: AlicizationDialogueEmbodimentEnvelope | null | undefined) => void
   armPerformance?: (
     performance: AlicizationDialoguePerformancePayload,
-    options?: { source?: 'dialogue' | 'presence-pulse', variationToken?: string | null, segmentId?: string | null },
+    options?: { source?: 'dialogue' | 'presence-pulse', variationToken?: string | null, segmentId?: string | null, turnId?: string | null },
   ) => Promise<void> | void
   primeDigitalLifeEnvelope?: (digitalLife: AlicizationDigitalLifeEnvelope | null | undefined) => Promise<void> | void
   primeSpeechTimeline?: (timeline: AlicizationDialogueSpeechTimeline | null | undefined) => Promise<void> | void
@@ -355,7 +356,7 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     return normalizeAlicizationPerformancePayload({
       baseEmotion: mergedEmotion,
       emotion: mergedEmotion,
-      facialCue: candidate.facialCue ?? resident.facialCue ?? null,
+      facialCue: candidate.facialCue ?? (mergedEmotion === resident.baseEmotion ? resident.facialCue : null) ?? null,
       actionCue: candidate.actionCue
         ?? (
           shouldBiasQuietFallback
@@ -616,6 +617,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     cleanups.push(options.dispatcher.registerEmbodimentController({
       channel: 'attention',
       applyPerformance: async (performance, payload) => {
+        if (options.canPresentPerformance?.('dialogue', payload.turnId, payload.cardId) === false)
+          return
         const variationToken = buildDialogueVariationToken(payload)
         const plannedPerformance = resolvePlannedPerformance(
           performance,
@@ -639,6 +642,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     channel: 'live2d',
     isActive: () => options.stageModelRenderer.value === 'live2d',
     applyPerformance: async (performance, payload) => {
+      if (options.canPresentPerformance?.('dialogue', payload.turnId, payload.cardId) === false)
+        return
       options.beforeDialogue?.(payload)
       options.acceptInteractionScript?.(payload.structured.embodimentScript)
       const variationToken = buildDialogueVariationToken(payload)
@@ -653,6 +658,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       options.applyRuntimeEmbodimentEnvelope?.(resolveAuthoritativeEmbodimentEnvelope(payload, plannedPerformance))
       await options.primeDigitalLifeEnvelope?.(resolveAuthoritativeDialogueDigitalLife(payload, plannedPerformance))
       await options.primeSpeechTimeline?.(resolveAuthoritativeSpeechTimeline(payload, plannedPerformance))
+      if (options.canPresentPerformance?.('dialogue', payload.turnId, payload.cardId) === false)
+        return
       const emotionName = options.normalizePresenceEmotionName(plannedPerformance.baseEmotion)
       options.applyEmotionSpeechStyle(emotionName, resolveAuthoritativeSpeechStyle(payload, plannedPerformance))
       applyPreferredExpressionAliasesFromRendererHints(
@@ -662,7 +669,11 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
         source: 'dialogue',
         variationToken,
         segmentId: payload.structured.embodimentScript?.speechPlan.segments[0]?.id ?? null,
+        turnId: payload.turnId,
       })
+
+      if (options.canPresentPerformance?.('dialogue', payload.turnId, payload.cardId) === false)
+        return
 
       const preferredMotion = resolvePreferredLive2dMotionFromEmbodimentScript(payload, plannedPerformance)
       if (preferredMotion) {
@@ -680,6 +691,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     },
     applyPresencePulse: async (payload) => {
       if (!activityPresence.accept(payload) || !activityPresence.shouldAnimate('live2d', payload))
+        return
+      if (options.canPresentPerformance?.('presence-pulse') === false)
         return
       const variationToken = buildPulseVariationToken(payload)
       const plannedPerformance = resolvePlannedPerformance(
@@ -708,6 +721,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     channel: 'vrm',
     isActive: () => options.stageModelRenderer.value === 'vrm',
     applyPerformance: async (performance, payload) => {
+      if (options.canPresentPerformance?.('dialogue', payload.turnId, payload.cardId) === false)
+        return
       options.beforeDialogue?.(payload)
       options.acceptInteractionScript?.(payload.structured.embodimentScript)
       const variationToken = buildDialogueVariationToken(payload)
@@ -722,6 +737,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       options.applyRuntimeEmbodimentEnvelope?.(resolveAuthoritativeEmbodimentEnvelope(payload, plannedPerformance))
       await options.primeDigitalLifeEnvelope?.(resolveAuthoritativeDialogueDigitalLife(payload, plannedPerformance))
       await options.primeSpeechTimeline?.(resolveAuthoritativeSpeechTimeline(payload, plannedPerformance))
+      if (options.canPresentPerformance?.('dialogue', payload.turnId, payload.cardId) === false)
+        return
       const emotionName = options.normalizePresenceEmotionName(plannedPerformance.baseEmotion)
       options.applyEmotionSpeechStyle(emotionName, resolveAuthoritativeSpeechStyle(payload, plannedPerformance))
       const rendererHints = resolveEmbodimentScriptRendererHints(payload, plannedPerformance)
@@ -730,6 +747,7 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
         source: 'dialogue',
         variationToken,
         segmentId: payload.structured.embodimentScript?.speechPlan.segments[0]?.id ?? null,
+        turnId: payload.turnId,
       })
 
       if (rendererHints?.preferredMotionAliases?.length) {
@@ -740,6 +758,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     },
     applyPresencePulse: async (payload) => {
       if (!activityPresence.accept(payload) || !activityPresence.shouldAnimate('vrm', payload))
+        return
+      if (options.canPresentPerformance?.('presence-pulse') === false)
         return
       const variationToken = buildPulseVariationToken(payload)
       const plannedPerformance = resolvePlannedPerformance(

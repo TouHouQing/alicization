@@ -7891,7 +7891,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     await db.upsertTaskThread({
       id: 'thread-claw-1',
       decisionTraceId: 'mind:l9f3lq:feedfacecafe',
@@ -8050,7 +8050,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     await db.upsertTaskThread({
       id: 'thread-dead-lettered',
       decisionTraceId: 'mind:trace:dead-lettered',
@@ -8175,7 +8175,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     await db.upsertTaskThread({
       id: 'thread-same-timestamp-dead-lettered',
       decisionTraceId: 'mind:trace:same-timestamp-dead-lettered',
@@ -8232,7 +8232,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     const created = await db.upsertTaskThread({
       id: 'thread-task-metadata-cas',
       goal: 'Persist task-thread diagnostics.',
@@ -8371,7 +8371,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     await db.upsertTaskThread({
       id: 'thread-task-cas',
       goal: 'Preserve the newest task-thread owner.',
@@ -8429,7 +8429,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     const base = {
       id: 'thread-task-atomic-create',
       goal: 'Allow only one planner to own this explicit thread id.',
@@ -8499,7 +8499,8 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const userDataPath = await createSandboxUserDataPath()
+    const db = await setupAlicizationDb(userDataPath, { sqliteDriver: actualSqliteDriver })
     await db.upsertTaskThread({
       id: 'thread-codex-live-idempotent',
       goal: 'Persist one Codex progress event once.',
@@ -8532,8 +8533,11 @@ describe('alicization sqlite dao', () => {
     })
     expect(events).toHaveLength(1)
     expect(events[0]?.id).toBe(event.id)
-    expect(runCalls.some(sql => sql.includes('INSERT OR IGNORE INTO executor_events'))).toBe(true)
     await db.close()
+    const reopened = await setupAlicizationDb(userDataPath, { sqliteDriver: actualSqliteDriver })
+    const persisted = await reopened.listExecutionEvents({ threadId: event.threadId, limit: 10 })
+    expect(persisted.map(item => item.id)).toEqual([event.id])
+    await reopened.close()
   })
 
   it('atomically resumes a task thread with exactly one matching resume event', async () => {
@@ -9151,7 +9155,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     await db.upsertTaskThread({
       id: 'thread-duplicate-projection-fence',
       goal: 'Keep duplicate execution evidence idempotent.',
@@ -9208,7 +9212,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     await db.upsertTaskThread({
       id: 'thread-terminal-fence',
       goal: 'Keep a terminal task thread closed when late progress arrives.',
@@ -9270,7 +9274,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     await db.upsertTaskThread({
       id: 'thread-stale-progress-fence',
       goal: 'Keep the newest non-terminal execution projection.',
@@ -9331,7 +9335,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     await db.upsertTaskThread({
       id: 'thread-terminal-precedence',
       goal: 'Settle execution from terminal evidence.',
@@ -9377,7 +9381,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     await db.upsertTaskThread({
       id: 'thread-claw-proactive-1',
       decisionTraceId: 'mind:proactive:feedfacecafe',
@@ -9438,7 +9442,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
 
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), { sqliteDriver: actualSqliteDriver })
     await db.upsertTaskThread({
       id: 'thread-claw-proactive-originless-1',
       decisionTraceId: 'mind:proactive:originless:feedfacecafe',

@@ -20,6 +20,7 @@ import {
 } from '@proj-alicization/stage-shared'
 
 export interface AlicizationRuntimeEmbodimentSeed {
+  userText?: string | null
   authoredActionCue?: string | null
   interactionIntent?: AlicizationInteractionIntent | null
   decisionTraceId?: string | null
@@ -36,6 +37,7 @@ export interface AlicizationRuntimeEmbodimentSeed {
 }
 
 export interface BuildAlicizationRuntimeEmbodimentSeedInput {
+  userText?: string | null
   authoredActionCue?: string | null
   interactionIntent?: AlicizationInteractionIntent | null
   decisionTraceId?: string | null
@@ -145,6 +147,7 @@ export function buildAlicizationRuntimeEmbodimentSeed(
   // authority remains `structured.embodimentScript`.
   return {
     authoredActionCue: input.authoredActionCue ?? null,
+    userText: input.userText ? normalizeSeedText(input.userText, 4_000) : null,
     interactionIntent: (() => {
       const intent = normalizeAlicizationInteractionIntent(input.interactionIntent)
       return intent?.turnId === input.turnId ? intent : null

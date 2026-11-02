@@ -8,6 +8,7 @@ const props = defineProps<{
   placeholder?: string
   disabled?: boolean
   title?: string
+  ariaLabel?: string
   layout?: 'horizontal' | 'vertical'
 }>()
 
@@ -27,5 +28,5 @@ provide('hide', handleHide)
 </script>
 
 <template>
-  <Combobox v-model="modelValue" :default-value="modelValue" :options="[{ groupLabel: '', children: props.options }]" :placeholder="props.placeholder" :disabled="props.disabled" :title="props.title" />
+  <Combobox v-model="modelValue" :default-value="modelValue" :options="[{ groupLabel: '', children: props.options }]" :placeholder="props.placeholder" :disabled="props.disabled" :title="props.title" :aria-label="props.ariaLabel" />
 </template>

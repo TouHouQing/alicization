@@ -32,6 +32,24 @@ const manifestFields: Array<keyof CapabilityManifest> = [
 ]
 
 describe('canonical ToolRegistry', () => {
+  it('exposes window vision and mouse input only after actual Windows helper readiness, with separate privacy and mutation contracts', () => {
+    for (const platform of ['darwin', 'linux']) expect(createCanonicalToolRegistry({ platform, windowsVisualReady: true }).resolveActive('tool.desktop_locate_window')).toBeUndefined()
+    expect(createCanonicalToolRegistry({ platform: 'win32' }).resolveActive('tool.desktop_pointer_action')).toBeUndefined()
+    const registry = createCanonicalToolRegistry({ platform: 'win32', windowsVisualReady: true })
+    expect(registry.resolveActive('tool.desktop_locate_window')).toMatchObject({ permissions: ['screen.read', 'network.write'], effects: { sideEffect: 'read', retryClass: 'manual-only' } })
+    expect(registry.resolveActive('tool.desktop_pointer_action')?.effects).toMatchObject({ sideEffect: 'mutation', retryClass: 'verify-before-retry', verifier: 'independent-goal-proof' })
+    expect(registry.validateInput('tool.desktop_pointer_action', { observationId: 'visual-window:12345678-1234-1234-1234-123456789abc', kind: 'click', button: 'left', targetIndex: 0 }).valid).toBe(true)
+    expect(registry.validateInput('tool.desktop_pointer_action', { observationId: 'visual-window:12345678-1234-1234-1234-123456789abc', kind: 'click', button: 'left', targetIndex: 0, x: 100, y: 100 }).valid).toBe(false)
+  })
+  it('exposes bounded semantic scrolling only on its implemented platform', () => {
+    const windows = createCanonicalToolRegistry({ platform: 'win32' })
+    expect(windows.resolveActive('tool.desktop_scroll')?.effects).toMatchObject({ sideEffect: 'mutation', retryClass: 'verify-before-retry' })
+    expect(windows.validateInput('tool.desktop_scroll', { runtimeId: 'observed:42', action: 'down', amount: 'small' }).valid).toBe(true)
+    for (const input of [{ runtimeId: '', action: 'down' }, { runtimeId: 'observed:42', action: 'javascript' }, { runtimeId: 'observed:42', action: 'down', amount: 99999 }, { runtimeId: 'observed:42', action: 'down', code: 'arbitrary' }])
+      expect(windows.validateInput('tool.desktop_scroll', input).valid).toBe(false)
+    for (const platform of ['darwin', 'linux'])
+      expect(createCanonicalToolRegistry({ platform }).resolveActive('tool.desktop_scroll')).toBeUndefined()
+  })
   it('cannot declare a writer or an unknown remote tool safe for automatic read retries', () => {
     const manifests = createCanonicalToolRegistry()
     const read = manifests.get('tool.filesystem_read_file')!
@@ -44,6 +62,7 @@ describe('canonical ToolRegistry', () => {
     const registry = createCanonicalToolRegistry()
     expect(registry.get('tool.filesystem_read_file')?.effects).toMatchObject({ sideEffect: 'read', retryClass: 'read-only', compensation: 'none' })
     expect(registry.get('tool.filesystem_write_file')?.effects).toMatchObject({ sideEffect: 'mutation', retryClass: 'verify-before-retry', verifier: 'independent-goal-proof', compensation: 'manual-review' })
+    expect(registry.get('tool.browser_upload_files')?.effects).toMatchObject({ sideEffect: 'external', retryClass: 'verify-before-retry' })
     expect(Object.isFrozen(registry.get('tool.filesystem_read_file')?.effects)).toBe(true)
   })
   it('registers the canonical capability representatives with complete manifests', () => {
@@ -68,12 +87,16 @@ describe('canonical ToolRegistry', () => {
       'tool.browser_scroll',
       'tool.browser_search_web',
       'tool.browser_type_text',
+      'tool.browser_upload_files',
       'tool.browser_wait',
       'tool.desktop_click_element',
       'tool.desktop_inspect_scene',
       'tool.desktop_list_interactables',
+      'tool.desktop_locate_window',
       'tool.desktop_open_application',
+      'tool.desktop_pointer_action',
       'tool.desktop_press_keys',
+      'tool.desktop_scroll',
       'tool.desktop_type_text',
       'tool.desktop_wait',
       'tool.executor_capability_snapshot',
@@ -84,6 +107,10 @@ describe('canonical ToolRegistry', () => {
       'tool.filesystem_search_files',
       'tool.filesystem_write_file',
       'tool.life_create_personal_piece',
+      'tool.life_execute_work_plan',
+      'tool.life_list_execution_verifiers',
+      'tool.life_list_learned_procedures',
+      'tool.life_use_learned_procedure',
       'tool.sensory_capture_state',
       'tool.set_reminder',
     ])

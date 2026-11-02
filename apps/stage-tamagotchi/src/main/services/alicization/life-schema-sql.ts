@@ -1,3 +1,5 @@
+import { executionSchemaSql } from './execution/execution-schema'
+
 // Generated from the reviewed schema draft; keep migrations and the design in sync.
 export const lifeSchemaSql = String.raw`
 -- Applied by the versioned desktop migration after a consistent SQLite backup.
@@ -29,6 +31,9 @@ CREATE TABLE IF NOT EXISTS life_ingress (
 );
 CREATE INDEX IF NOT EXISTS idx_life_ingress_due
   ON life_ingress(card_id, status, next_attempt_at, observed_at, ingress_id);
+-- Source-owned history pages must not rescan unrelated lifetime events.
+CREATE INDEX IF NOT EXISTS idx_life_ingress_source
+  ON life_ingress(card_id, source, ingress_id);
 
 -- Current input payloads are raw ingress material, never long-term memory.
 -- Life views carry references; only explicit recovery reads the source body.
@@ -144,6 +149,12 @@ CREATE TABLE IF NOT EXISTS life_obligations (
 );
 CREATE INDEX IF NOT EXISTS idx_life_obligations_due
   ON life_obligations(card_id, status, due_at, obligation_id);
+CREATE INDEX IF NOT EXISTS idx_life_obligations_active
+  ON life_obligations(card_id, updated_at DESC, obligation_id DESC)
+  WHERE status NOT IN ('fulfilled','cancelled','superseded');
+CREATE INDEX IF NOT EXISTS idx_life_obligations_history
+  ON life_obligations(card_id, updated_at DESC, obligation_id DESC)
+  WHERE status IN ('fulfilled','cancelled','superseded');
 
 -- M3: memory owner extensions; memory_facts keeps the existing triple IDs.
 CREATE TABLE IF NOT EXISTS memory_fact_versions (
@@ -296,6 +307,9 @@ CREATE TABLE IF NOT EXISTS life_evidence_cleanup_jobs (
   updated_at INTEGER NOT NULL,
   PRIMARY KEY(card_id, job_id)
 );
+-- Exact withdrawal lookups are shared by memory, file recovery and backups.
+CREATE INDEX IF NOT EXISTS idx_life_evidence_cleanup_source
+  ON life_evidence_cleanup_jobs(card_id, mode, json_extract(source_ref_json, '$.kind'), CAST(json_extract(source_ref_json, '$.id') AS TEXT), CAST(json_extract(source_ref_json, '$.version') AS TEXT));
 CREATE TABLE IF NOT EXISTS life_memory_source_withdrawals (
   card_id TEXT NOT NULL,
   source TEXT NOT NULL,
@@ -311,4 +325,5 @@ CREATE TABLE IF NOT EXISTS life_evidence_cleanup_visits (
   PRIMARY KEY(card_id, job_id, reference_hash),
   FOREIGN KEY(card_id, job_id) REFERENCES life_evidence_cleanup_jobs(card_id, job_id) ON DELETE CASCADE
 );
+${executionSchemaSql}
 `

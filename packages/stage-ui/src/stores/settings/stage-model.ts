@@ -94,13 +94,23 @@ export const useSettingsStageModel = defineStore('settings-stage-model', () => {
     }
 
     if (model.type === 'file') {
-      const nextUrl = URL.createObjectURL(model.file)
-      if (requestId !== stageModelUpdateSequence) {
-        URL.revokeObjectURL(nextUrl)
-        return
-      }
+      const previous = stageModelSelectedDisplayModel.value
+      // Catalogue IDs name imported archives. IndexedDB returns fresh File
+      // wrappers on recovery/rename; renewing their URLs cancels pending OPFS
+      // reads while the serialized model loader is still using the old source.
+      const sameArchive = previous?.type === 'file' && previous.id === model.id && previous.format === model.format
+        && previous.importedAt === model.importedAt && previous.file.size === model.file.size
+        && previous.file.name === model.file.name && previous.file.type === model.file.type
+        && previous.file.lastModified === model.file.lastModified
+      if (!sameArchive || !stageModelSelectedUrl.value?.startsWith('blob:')) {
+        const nextUrl = URL.createObjectURL(model.file)
+        if (requestId !== stageModelUpdateSequence) {
+          URL.revokeObjectURL(nextUrl)
+          return
+        }
 
-      replaceStageModelUrl(nextUrl)
+        replaceStageModelUrl(nextUrl)
+      }
     }
     else {
       replaceStageModelUrl(model.url)

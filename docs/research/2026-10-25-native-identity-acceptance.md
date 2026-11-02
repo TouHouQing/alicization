@@ -1,0 +1,11 @@
+# Native control acceptance and window identity
+
+The existing direct native-control probe omitted the current worker's required process creation time, window class and desktop identity. A real private-desktop RED run failed with `WINDOWS_UIA_WINDOW_IDENTITY_REQUIRED` before mutation. The production worker correctly refused that stale test protocol.
+
+The probe now forwards the exact fields returned by the actual first observation, together with the observed title. It does not weaken the worker's identity checks. Its pre-aborted request stops before creating a worker. Subsequent workers are tracked until their actual close. The fixture receives its own stop-file path and closes its real event loop normally; a failed/unknown close or active worker makes the probe fail and retains the temporary root. Failed test evidence is preserved.
+
+Both WinForms/HWND and WPF/UIA runs passed. They wrote multiline literal UTF-8 through actual native controls, invoked Save, independently read the resulting file, rejected a stale button meaning and refused a different process identity. Both fixture exits were normal code 0 with zero active workers; private desktop jobs closed and Default remained active. Each report's worker SHA-256 exactly matches the primary worker source. The two acceptance files were selectively integrated with a v120 hash guard and original backups.
+
+This is actual semantic-control capability evidence. It does not establish physical keyboard input, a neural plan, a packaged release, the complete popup/menu/DPI matrix or full EX07 completion. Detailed worktree artifacts are referenced by `output/execution-native-winforms-identity-green-20261025.json` and `output/execution-native-wpf-identity-green-20261025.json` in the attached execution-transfer checkout.
+
+The aggregate private-desktop runner now permits an explicit upper bound of 2400 seconds for the full 24-workflow suite. This accounts for the measured multi-minute groups; individual provider, action, 150 ms draw-advance and 60-second native-exit checks are unchanged. A real five-second timeout sentinel still terminates its owned parent and child, records the expected failure and leaves Default active. Its proof is `output/execution-private-timeout-sentinel-20261025.json`. This operational time allowance does not turn an interrupted workflow into a pass.

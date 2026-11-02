@@ -59,11 +59,31 @@ function readCodexStepPayloads(result: Awaited<ReturnType<typeof executeCodexTas
     ))
 }
 
+function observedTurnDiagnostic(result: Awaited<ReturnType<typeof executeCodexTaskThread>>, startedAt: number) {
+  const steps = readCodexStepPayloads(result)
+  return {
+    ok: result.ok,
+    status: result.finalStatus,
+    errorCode: result.errorCode,
+    durationMs: Date.now() - startedAt,
+    connectionFailureObserved: /Connection failed|error sending request|ECONNRESET|socket hang up/iu.test(`${result.errorMessage ?? ''}\n${result.output ?? ''}`),
+    eventCount: steps.length,
+    events: steps.slice(-128).map(payload => ({ type: payload.codexEventType, item: payload.itemType, semantic: payload.semanticProgress === true })),
+    settlements: result.events.filter(event => event.kind === 'result').map(event => ({
+      exitCode: event.payload?.exitCode ?? null,
+      timeoutKind: event.payload?.timeoutKind ?? null,
+      timedOut: event.payload?.timedOut === true,
+      treeStopped: (event.payload?.processTree as { treeStopped?: boolean } | undefined)?.treeStopped ?? null,
+    })),
+  }
+}
+
 describe('codex real CLI replay', () => {
   it.skipIf(!runRealCodex)(
     'completes a real provider turn with semantic progress and a terminal result',
     async () => {
       const events: Array<{ payload?: Record<string, unknown> }> = []
+      const startedAt = Date.now()
       const result = await executeCodexTaskThread({
         thread: createRealCliThread(),
         command: {
@@ -87,8 +107,15 @@ describe('codex real CLI replay', () => {
         workspaceRoot: process.cwd(),
       })
 
-      expect(result.errorMessage ?? '').not.toContain('no semantic progress')
-      expect(result.events).toEqual(expect.arrayContaining([
+      const observed = observedTurnDiagnostic(result, startedAt)
+      const reportPath = process.env.ALICIZATION_CODEX_TURN_REPORT_PATH?.trim()
+      if (reportPath) {
+        await mkdir(dirname(reportPath), { recursive: true })
+        await writeFile(reportPath, `${JSON.stringify(observed, null, 2)}\n`, 'utf8')
+      }
+      const diagnostic = JSON.stringify(observed)
+      expect(result.errorMessage ?? '', diagnostic).not.toContain('no semantic progress')
+      expect(result.events, diagnostic).toEqual(expect.arrayContaining([
         expect.objectContaining({
           kind: 'step',
           payload: expect.objectContaining({
@@ -96,12 +123,12 @@ describe('codex real CLI replay', () => {
           }),
         }),
       ]))
-      expect(events.some(event => event.payload?.codexEventType === 'turn.completed')).toBe(true)
-      expect(result).toMatchObject({
+      expect(events.some(event => event.payload?.codexEventType === 'turn.completed'), diagnostic).toBe(true)
+      expect(result, diagnostic).toMatchObject({
         ok: true,
         finalStatus: 'completed',
       })
-      expect(result.output?.trim()).toBeTruthy()
+      expect(result.output?.trim(), diagnostic).toBeTruthy()
     },
     90_000,
   )
@@ -111,12 +138,17 @@ describe('codex real CLI replay', () => {
     async () => {
       const events: Array<{ payload?: Record<string, unknown> }> = []
       const workspaceRoot = process.cwd()
-      const probeDirectory = await mkdtemp(join(workspaceRoot, '.alicization-codex-command-probe-'))
+      // Generated input belongs with the other owned test artifacts so a
+      // concurrent exact-source build never mistakes it for repository code.
+      const probeRoot = join(workspaceRoot, 'output')
+      await mkdir(probeRoot, { recursive: true })
+      const probeDirectory = await mkdtemp(join(probeRoot, '.alicization-codex-command-probe-'))
       const probeRelativePath = relative(workspaceRoot, join(probeDirectory, 'value.txt'))
       const probeValue = `alicization-command-probe-${randomUUID()}`
       await writeFile(join(workspaceRoot, probeRelativePath), `${probeValue}\n`, 'utf8')
 
       try {
+        const startedAt = Date.now()
         const result = await executeCodexTaskThread({
           thread: createRealCliThread(),
           command: {
@@ -151,14 +183,28 @@ describe('codex real CLI replay', () => {
             || payload?.codexEventType === 'item.completed'
         }).filter(event => event.payload?.itemType === 'command_execution')
 
-        expect(commandProgress.length).toBeGreaterThan(0)
-        expect(commandProgress.some(event => event.payload?.semanticProgress === true)).toBe(true)
-        expect(result).toMatchObject({
+        // Keep the actual failure state when the provider never executes the
+        // requested command. Counts alone used to hide even its terminal code.
+        const diagnosticState = {
+          ...observedTurnDiagnostic(result, startedAt),
+          markerMatched: result.output?.includes(probeValue) === true,
+        }
+        // Write before every assertion: a successful command can still be
+        // followed by a failed provider continuation or process settlement.
+        const diagnosticPath = process.env.ALICIZATION_CODEX_COMMAND_REPORT_PATH?.trim()
+        if (diagnosticPath) {
+          await mkdir(dirname(diagnosticPath), { recursive: true })
+          await writeFile(diagnosticPath, `${JSON.stringify(diagnosticState, null, 2)}\n`, 'utf8')
+        }
+        const diagnostic = JSON.stringify(diagnosticState)
+        expect(commandProgress.length, diagnostic).toBeGreaterThan(0)
+        expect(commandProgress.some(event => event.payload?.semanticProgress === true), diagnostic).toBe(true)
+        expect(result, diagnostic).toMatchObject({
           ok: true,
           finalStatus: 'completed',
         })
-        expect(result.output).toContain(probeValue)
-        expect(result.errorMessage ?? '').not.toContain('no semantic progress')
+        expect(result.output, diagnostic).toContain(probeValue)
+        expect(result.errorMessage ?? '', diagnostic).not.toContain('no semantic progress')
       }
       finally {
         await rm(probeDirectory, { recursive: true, force: true })
@@ -236,6 +282,12 @@ describe('codex real CLI replay', () => {
           turnTerminalEventCount: turnTerminalEvents.length,
           eventTypes,
         },
+        commandObservations: commandEvents.map(payload => ({
+          codexEventType: payload.codexEventType,
+          status: payload.status ?? null,
+          exitCode: payload.exitCode ?? null,
+          outputPreview: payload.outputPreview ?? null,
+        })),
         retry: {
           adapterProcessAttemptCount: 1,
           automaticAdapterRetry: false,
@@ -281,6 +333,10 @@ describe('codex real CLI replay', () => {
         'turn.completed',
       ]))
       expect(commandEvents.length).toBeGreaterThan(0)
+      const completedCommands = commandEvents.filter(payload => payload.codexEventType === 'item.completed' && payload.status === 'completed' && payload.exitCode === 0)
+      const actualOutput = completedCommands.map(payload => String(payload.outputPreview ?? '')).join('\n')
+      for (let phase = 1; phase <= 4; phase++)
+        expect(actualOutput).toContain(`alicization-long-task-phase-${phase}`)
       expect(semanticEvents.length).toBeGreaterThan(0)
       expect(heartbeats.length).toBeGreaterThan(0)
       expect(heartbeats.every(payload => payload.semanticProgress === false)).toBe(true)

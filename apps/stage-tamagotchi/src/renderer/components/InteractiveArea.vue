@@ -205,7 +205,7 @@ async function handleRecoveryAction(action: ChatRecoveryAction) {
 </script>
 
 <template>
-  <div min-h-0 w-full flex="~ col gap-1">
+  <div :aria-busy="sending || preparing || aborting" min-h-0 w-full flex="~ col gap-1">
     <div min-h-0 w-full flex-1 overflow-hidden>
       <p v-if="!historyMessages.length && !sending && !preparing" class="py-8 text-center text-sm text-neutral-500">
         {{ t('stage.chat.empty') }}

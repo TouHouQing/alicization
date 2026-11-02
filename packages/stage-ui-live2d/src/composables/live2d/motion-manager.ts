@@ -728,7 +728,7 @@ export function useMotionUpdatePluginIdleDisable(): MotionManagerPlugin {
     if (ctx.handled)
       return
 
-    if (!ctx.live2dIdleAnimationEnabled.value && ctx.isIdleMotion) {
+    if (!ctx.live2dIdleAnimationEnabled.value && ctx.isIdleMotion && ctx.motionManager.state.reservePriority <= 1) {
       ctx.motionManager.stopAllMotions()
 
       // Gaze and blink each have one post-motion owner, including this path.
@@ -739,8 +739,12 @@ export function useMotionUpdatePluginIdleDisable(): MotionManagerPlugin {
 
 export function useMotionUpdatePluginIdleFocus(idleEyeFocus = useLive2DIdleEyeFocus()): MotionManagerPlugin {
   return (ctx) => {
-    if (!ctx.isIdleMotion || ctx.now < (ctx.pointerFocusUntil ?? Number.NEGATIVE_INFINITY))
+    if (!ctx.isIdleMotion)
       return
+    if (ctx.now < (ctx.pointerFocusUntil ?? Number.NEGATIVE_INFINITY)) {
+      idleEyeFocus.interrupt()
+      return
+    }
 
     idleEyeFocus.update(
       ctx.internalModel,
@@ -1450,6 +1454,10 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     )
 
     const smoothedMouthOpen = smoothValue('ParamMouthOpenYOverlay', mouthOpenTarget, dt, { attack: 26, release: 14 })
+    // A slow/background frame must not prolong the previous voiced vowel into
+    // PCM silence. Keep the current nonverbal target, without a stale audio tail
+    // or the native asset's jaw being blended back through fading ownership.
+    const audioSilent = speech?.audioBound === true && speech.playbackPhase === 'playing' && speechMouthDrive === 0
     const mouthOwnership = smoothValue('mouthOwnership', speechActive ? 1 : 0, dt, { attack: 26, release: 14 })
     const faceOwnership = smoothValue('faceOwnership', emotionProfile.mouthForm !== 0 || facialCueDriveProfile.mouthForm !== 0
       ? Math.max(expressionDrive, facialCueDrive) * companionshipFacialScale
@@ -1533,8 +1541,8 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     })
     applyOverlayParameter({
       model: ctx.model,
-      overlayValue: smoothedMouthOpen,
-      baselineWeight: 1 - mouthOwnership,
+      overlayValue: audioSilent ? mouthOpenTarget : smoothedMouthOpen,
+      baselineWeight: audioSilent ? 0 : 1 - mouthOwnership,
       parameterIds: ['ParamMouthOpenY', 'ParamMouthOpen'],
       fallback: clamp01(params.mouthOpen),
       min: 0,

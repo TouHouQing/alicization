@@ -170,12 +170,17 @@ export function createAlicizationSkillRegistry(input: {
     const manifestKey = key(manifest.id, manifest.version)
     if (manifests.has(manifestKey))
       throw new Error(`skill ${manifestKey} is already registered`)
-    manifests.set(manifestKey, cloneManifest(manifest))
+    if (manifest.activationStatus === 'active' && !productionEvaluationStatuses.has(manifest.evaluationStatus))
+      throw new Error(`active skill ${manifestKey} must have approved evaluation`)
     if (manifest.activationStatus === 'active') {
-      if (!productionEvaluationStatuses.has(manifest.evaluationStatus))
-        throw new Error(`active skill ${manifestKey} must have approved evaluation`)
+      const previousVersion = activeVersions.get(manifest.id)
+      if (previousVersion) {
+        const previous = manifests.get(key(manifest.id, previousVersion))!
+        manifests.set(key(previous.id, previous.version), { ...previous, activationStatus: 'rolled-back' })
+      }
       activeVersions.set(manifest.id, manifest.version)
     }
+    manifests.set(manifestKey, cloneManifest(manifest))
   }
 
   async function discover(options?: { productionOnly?: boolean }) {
@@ -202,6 +207,8 @@ export function createAlicizationSkillRegistry(input: {
       throw new Error(`skill is not active: ${manifest.id}@${manifest.version}`)
     if (!productionEvaluationStatuses.has(manifest.evaluationStatus))
       throw new Error(`skill evaluation has not passed: ${manifest.id}@${manifest.version}`)
+    if (activeVersions.get(manifest.id) !== manifest.version)
+      throw new Error(`skill version is no longer current: ${manifest.id}@${manifest.version}`)
 
     const tools = new Set(normalizeList(request.tools, 'skill request tools'))
     const permissions = new Set(normalizeList(request.permissions, 'skill request permissions'))
@@ -213,6 +220,9 @@ export function createAlicizationSkillRegistry(input: {
       throw new Error(`skill is missing required permission: ${missingPermission}`)
 
     const instructions = normalizeText(await manifest.loadInstructions(), 'skill instructions')
+    // Instruction loading can cross revocation, replacement or failed evaluation.
+    if (getManifest(manifest.id, manifest.version) !== manifest || activeVersions.get(manifest.id) !== manifest.version)
+      throw new Error(`skill changed while its instructions were loading: ${manifest.id}@${manifest.version}`)
     return {
       ...discoveryFromManifest(manifest),
       inputSchema: structuredClone(manifest.inputSchema),
@@ -227,8 +237,11 @@ export function createAlicizationSkillRegistry(input: {
     status: AlicizationSkillEvaluationStatus,
   ) {
     const manifest = getManifest(id, version)
-    const next = { ...manifest, evaluationStatus: status }
+    const demoted = !productionEvaluationStatuses.has(status) && manifest.activationStatus === 'active'
+    const next = { ...manifest, evaluationStatus: status, ...(demoted ? { activationStatus: 'candidate' as const } : {}) }
     manifests.set(key(manifest.id, manifest.version), next)
+    if (demoted && activeVersions.get(manifest.id) === manifest.version)
+      activeVersions.delete(manifest.id)
     return cloneManifest(next)
   }
 

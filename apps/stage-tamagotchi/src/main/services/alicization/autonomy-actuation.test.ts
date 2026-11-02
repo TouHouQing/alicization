@@ -11,6 +11,34 @@ import {
   runAutonomyActuation,
 } from './autonomy-actuation'
 
+describe('grounded autonomous task goals', () => {
+  it.each([
+    ['检查昨天的收据，核对金额', '整理本周的读书笔记，补上目录'],
+    ['检查 report A 的日期', '核对 report A 的金额'],
+  ])('does not merge distinct Chinese intentions into the same initiative signature (%s)', (first, second) => {
+    const signature = (summary: string) => {
+      const spine = createSpine()
+      spine.runtimeSurface.agency.autonomy.executionIntent.summary = summary
+      return deriveAutonomousTaskPlan({ cardId: 'alice', digitalLifeSpine: spine, runtimeDigest: createRuntimeDigest(), capabilities: createCapabilities(['codex']) })?.signature
+    }
+    expect(signature(first)).toBeTruthy()
+    expect(signature(first)).not.toBe(signature(second))
+    expect(signature(first)).toBe(signature(first))
+  })
+
+  it.each(['world-question:thread-not-regrounded', 'thread-not-regrounded', 'current_thread.pending_revalidation'])('does not dispatch the internal placeholder %s as a task', (summary) => {
+    const spine = createSpine()
+    spine.runtimeSurface.agency.autonomy.executionIntent.summary = summary
+    expect(deriveAutonomousTaskPlan({ cardId: 'alice', digitalLifeSpine: spine, runtimeDigest: createRuntimeDigest(), capabilities: createCapabilities(['codex']) })).toBeNull()
+  })
+
+  it.each(['检查整理脚本遗漏的条目，列出需要确认的问题', 'Investigate why the current report was not saved'])('retains a concrete readable intention: %s', (summary) => {
+    const spine = createSpine()
+    spine.runtimeSurface.agency.autonomy.executionIntent.summary = summary
+    expect(deriveAutonomousTaskPlan({ cardId: 'alice', digitalLifeSpine: spine, runtimeDigest: createRuntimeDigest(), capabilities: createCapabilities(['codex']) })?.task.goal).toContain(summary)
+  })
+})
+
 function createCapabilities(channels: string[]) {
   return channels.map(channel => ({
     channel,

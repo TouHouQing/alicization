@@ -97,6 +97,7 @@ catalog:
   onnxruntime-common: ^1.24.2
   pathe: ^2.0.3
   pinia: ^3.0.4
+  pinyin-pro: ^3.29.5
   playwright: 1.58.2
   posthog-js: 1.306.1
   smol-toml: ^1.6.0

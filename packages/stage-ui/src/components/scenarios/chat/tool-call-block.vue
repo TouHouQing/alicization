@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import { Collapsible } from '@proj-alicization/ui'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+import { toolCallLabelKey } from './execution-presentation'
 
 const props = defineProps<{
   toolName: string
   args: string
 }>()
+
+const { t } = useI18n()
+const label = computed(() => t(toolCallLabelKey(props.toolName)))
 
 const formattedArgs = computed(() => {
   try {
@@ -33,7 +39,7 @@ const formattedArgs = computed(() => {
         @click="setVisible(!visible)"
       >
         <div i-solar:sledgehammer-bold-duotone class="mr-1 inline-block translate-y-1 op-50" />
-        <code>{{ toolName }}</code>
+        <span>{{ label }}</span>
       </button>
     </template>
     <div
@@ -42,6 +48,7 @@ const formattedArgs = computed(() => {
         'bg-neutral-100/80 text-sm text-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-200',
       ]"
     >
+      <code class="mb-1 block opacity-65">{{ toolName }}</code>
       <div class="whitespace-pre-wrap break-words font-mono">
         {{ formattedArgs }}
       </div>

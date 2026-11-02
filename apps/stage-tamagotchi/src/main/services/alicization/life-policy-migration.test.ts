@@ -10,6 +10,7 @@ import sqlite3 from 'sqlite3'
 import { describe, expect, it } from 'vitest'
 
 import { setupAlicizationDb } from './db'
+import { lifeSchemaVersion } from './life-schema-version'
 import { createLifeSoulActivationRuntime } from './life-soul-activation-runtime'
 import { writeAlicizationAtomicContent } from './runtime-atomic-write'
 import { createAlicizationRuntimeSelfEvolutionComposition } from './runtime-self-evolution-composition'
@@ -43,14 +44,14 @@ describe('policy proof migration', () => {
       }
       finally { await new Promise<void>((resolve, reject) => connection.close(error => error ? reject(error) : resolve())) }
       db = await setupAlicizationDb(root, { cardId: 'alice', rootDir: root })
-      expect(await db.getMetaValue('life.schema.version')).toBe('5')
+      expect(await db.getMetaValue('life.schema.version')).toBe(String(lifeSchemaVersion))
       const view = await db.readLifeState()
       const migrated = JSON.parse(view.values['legacy-growth'])
       expect(migrated.activeCandidateId).toBeNull()
       expect(migrated.candidates[0]).toMatchObject({ id: candidate.id, status: 'shadow', sourceEvidence: snapshot.candidates[0].sourceEvidence })
       expect(migrated.candidates[0].validation.activationBlockedReasons).toContain('self-evolution:paired-evaluation-required')
       expect(await readFile(soulPath, 'utf8')).toBe(soulBefore)
-      expect((await readdir(join(root, 'backups'))).some(name => /^life-schema-4-to-5-.*\.db$/u.test(name))).toBe(true)
+      expect((await readdir(join(root, 'backups'))).some(name => name.startsWith(`life-schema-4-to-${lifeSchemaVersion}-`) && name.endsWith('.db'))).toBe(true)
     }
     finally { await db.close(); await rm(root, { recursive: true, force: true }) }
   })

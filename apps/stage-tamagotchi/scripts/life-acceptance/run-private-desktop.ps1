@@ -11,7 +11,7 @@ $qaLog = [IO.Path]::GetFullPath($LogPath)
 if (!$qaScript.StartsWith($PSScriptRoot + '\', [StringComparison]::OrdinalIgnoreCase) -or ![IO.File]::Exists($qaScript) -or !($qaScript.EndsWith('.cjs'))) { throw 'Only checked-in acceptance scripts can run on this desktop' }
 if (!$qaLog.StartsWith((Join-Path $qaWorkspace 'output') + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'QA log must stay in workspace output' }
 if (![IO.File]::Exists($NodePath) -or [IO.Path]::GetFileName($NodePath) -ne 'node.exe') { throw 'An explicit Node runtime is required' }
-if ($TimeoutSeconds -lt 5 -or $TimeoutSeconds -gt 900) { throw 'QA timeout must be between 5 and 900 seconds' }
+if ($TimeoutSeconds -lt 5 -or $TimeoutSeconds -gt 2400) { throw 'QA timeout must be between 5 and 2400 seconds' }
 
 # Source: Microsoft STARTUPINFOW / Thread Connection to a Desktop / Job Objects.
 # No input-desktop switching, cursor/keyboard injection, or screen capture API is used.
@@ -74,7 +74,15 @@ $qaInfo = New-Object AlicizationPrivateDesktop+ProcessInfo
 $qaExit = [uint32]1
 $qaAssigned = $false
 $qaRegistered = [Collections.Generic.HashSet[int]]::new()
+$qaFailure = $null
 $qaRegistry = Join-Path $qaWorkspace ('output/private-processes-' + [Guid]::NewGuid().ToString('N') + '.jsonl')
+$qaReceiptPath = $qaLog + '.desktop.json'
+$qaStartedAt = [DateTime]::UtcNow
+$qaHeartbeatAt = $qaStartedAt
+function Save-QaRunningReceipt {
+  $record = @{ format = 'alicization-private-desktop-run-v1'; phase = 'running'; desktop = $qaDesktopName; wrapperPid = $PID; controllerPid = $qaInfo.processId; startedAt = $qaStartedAt.ToString('o'); heartbeatAt = [DateTime]::UtcNow.ToString('o'); inputDesktopBefore = $qaInputBefore; switchedInputDesktop = $false; registeredRuntimePids = @($qaRegistered); log = $qaLog }
+  [IO.File]::WriteAllText($qaReceiptPath, ($record | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+}
 try {
   # No DESKTOP_SWITCHDESKTOP right (0x100) is requested.
   $qaDesktopHandle = [AlicizationPrivateDesktop]::CreateDesktop($qaDesktopName, [IntPtr]::Zero, [IntPtr]::Zero, 0, 0xCB, [IntPtr]::Zero)
@@ -105,9 +113,15 @@ try {
   [AlicizationPrivateDesktop]::Check([AlicizationPrivateDesktop]::CreateProcess($NodePath,$qaCommand,[IntPtr]::Zero,[IntPtr]::Zero,$true,0x08000004,[IntPtr]::Zero,$qaWorkspace,[ref]$qaStartup,[ref]$qaInfo))
   [AlicizationPrivateDesktop]::Check([AlicizationPrivateDesktop]::AssignProcessToJobObject($qaJobHandle,$qaInfo.process))
   $qaAssigned = $true
+  Save-QaRunningReceipt
   [AlicizationPrivateDesktop]::Check([AlicizationPrivateDesktop]::ResumeThread($qaInfo.thread) -ne [uint32]::MaxValue)
   $qaDeadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
   while ([AlicizationPrivateDesktop]::WaitForSingleObject($qaInfo.process,1000) -eq 258) {
+    if (([DateTime]::UtcNow - $qaHeartbeatAt).TotalSeconds -ge 30) {
+      Save-QaRunningReceipt
+      $qaHeartbeatAt = [DateTime]::UtcNow
+      @{ qaRunning = $true; elapsedSeconds = [int]($qaHeartbeatAt - $qaStartedAt).TotalSeconds; registeredRuntimes = $qaRegistered.Count } | ConvertTo-Json -Compress | Write-Output
+    }
     if ([IO.File]::Exists($qaRegistry)) {
       # The native child can append its identity at this exact moment. Read
       # with write sharing and defer an incomplete final NDJSON line.
@@ -140,6 +154,10 @@ try {
   }
   [AlicizationPrivateDesktop]::Check([AlicizationPrivateDesktop]::GetExitCodeProcess($qaInfo.process,[ref]$qaExit))
 }
+catch {
+  $qaFailure = $_.Exception.Message
+  $qaExit = [uint32]1
+}
 finally {
   if ($qaJobHandle -ne [IntPtr]::Zero) { [void][AlicizationPrivateDesktop]::TerminateJobObject($qaJobHandle,1) }
   if (!$qaAssigned -and $qaInfo.process -ne [IntPtr]::Zero) { [void][AlicizationPrivateDesktop]::TerminateProcess($qaInfo.process,1) }
@@ -148,5 +166,7 @@ finally {
   }
   if ($qaDesktopHandle -ne [IntPtr]::Zero) { [void][AlicizationPrivateDesktop]::CloseDesktop($qaDesktopHandle) }
 }
-@{ desktop = $qaDesktopName; childExitCode = $qaExit; inputDesktopBefore = $qaInputBefore; inputDesktopAfter = [AlicizationPrivateDesktop]::InputName(); switchedInputDesktop = $false; childJobClosed = $true; registeredRuntimePids = @($qaRegistered); log = $qaLog } | ConvertTo-Json -Compress
+$qaResult = @{ format = 'alicization-private-desktop-run-v1'; phase = 'closed'; desktop = $qaDesktopName; wrapperPid = $PID; controllerPid = $qaInfo.processId; startedAt = $qaStartedAt.ToString('o'); finishedAt = [DateTime]::UtcNow.ToString('o'); childExitCode = $qaExit; inputDesktopBefore = $qaInputBefore; inputDesktopAfter = [AlicizationPrivateDesktop]::InputName(); switchedInputDesktop = $false; childJobClosed = $true; registeredRuntimePids = @($qaRegistered); log = $qaLog; failure = $qaFailure }
+[IO.File]::WriteAllText($qaReceiptPath, ($qaResult | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+$qaResult | ConvertTo-Json -Compress
 exit $qaExit

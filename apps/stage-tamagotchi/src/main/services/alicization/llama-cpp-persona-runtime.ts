@@ -803,10 +803,12 @@ export function createLlamaCppPersonaRuntime(input?: {
       stderr = `${stderr}${String(chunk)}`.slice(-maxStderrChars)
     })
 
-    const deadline = now() + config.startupTimeoutMs
     let lastHealthError: string | null = null
     try {
       await persistProcessState(spawned, artifact, processInstanceId)
+      // Native identity inspection has its own bounded lifetime. It must not consume
+      // the readiness window before the first health request can reach the server.
+      const deadline = now() + config.startupTimeoutMs
       while (now() < deadline) {
         if (signal.aborted)
           throw signal.reason ?? new Error('Persona runtime load was cancelled')

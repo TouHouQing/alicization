@@ -120,6 +120,8 @@ export default defineConfig({
 
   preload: {
     build: {
+      // Keep the IPC bridge self-contained, matching the bundled main runtime.
+      externalizeDeps: false,
       lib: {
         entry: {
           'index': resolve(join(import.meta.dirname, 'src', 'preload', 'index.ts')),

@@ -11,7 +11,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { Format, LogLevel, setGlobalFormat, setGlobalHookPostLog, setGlobalLogLevel, useLogg } from '@guiiai/logg'
 import { errorMessageFrom } from '@moeru/std'
 import { initScreenCaptureForMain } from '@proj-alicization/electron-screen-capture/main'
-import { app, BrowserWindow, dialog, ipcMain, net, powerMonitor, shell, webContents } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, powerMonitor, session, shell, webContents } from 'electron'
 import { noop } from 'es-toolkit'
 import { createLoggLogger, injeca, lifecycle } from 'injeca'
 import { isLinux } from 'std-env'
@@ -23,7 +23,9 @@ import { registerAppExitSignalHandlers } from './app-exit-signal-handlers'
 import { closeDesktopWindows } from './app/close-windows'
 import { openDebugger, setupDebugger } from './app/debugger'
 import { nullFileLoggerHandle, setupFileLogger } from './app/file-logger'
+import { installHostViewportQa } from './app/host-viewport-qa'
 import { createScreenLockWindowLifecycle } from './app/screen-lock'
+import { createAppStartupBarrier } from './app/startup-barrier'
 import { createStartupFailureHandler } from './app/startup-failure'
 import { createGlobalAppConfig } from './configs/global'
 import { emitAppBeforeQuit, emitAppReady, emitAppWindowAllClosed, onAppBeforeQuit } from './libs/bootkit/lifecycle'
@@ -59,6 +61,16 @@ setGlobalLogLevel(LogLevel.Log)
 const configuredUserDataPath = env.ALICIZATION_USER_DATA_PATH?.trim()
 if (configuredUserDataPath)
   app.setPath('userData', configuredUserDataPath)
+if (env.LIFE_QA_HOST_VIEWPORT === '1') {
+  try {
+    // eslint-disable-next-line antfu/no-top-level-await -- Validate the owned QA profile and install focus guards before any window can be created.
+    await installHostViewportQa(fileURLToPath(import.meta.url))
+  }
+  catch (error) {
+    console.error('[qa-native-error] Background QA identity was refused:', errorMessageFrom(error))
+    app.exit(1)
+  }
+}
 setupDebugger()
 
 const log = useLogg('main').useGlobalConfig()
@@ -126,12 +138,18 @@ else {
 
 let fileLogger: FileLoggerHandle = nullFileLoggerHandle
 let skipFileLogging = false
+const applicationStartup = createAppStartupBarrier()
 
 if (hasSingleInstanceLock) {
-  app.whenReady().then(async () => {
+  applicationStartup.start(async (isStopping) => {
+    await app.whenReady()
+    if (isStopping())
+      return
     setProviderTransport(createDesktopProviderTransport((input, init) => net.fetch(input instanceof URL ? input.href : input, init), globalThis.fetch))
     // Initialize file logger and register the hook
     fileLogger = await setupFileLogger()
+    if (isStopping())
+      return
     try {
       await applyPendingLifeRestore(app.getPath('userData'))
     }
@@ -144,6 +162,8 @@ if (hasSingleInstanceLock) {
       }
       await cancelPendingLifeRestore(app.getPath('userData'))
     }
+    if (isStopping())
+      return
 
     // Register the global hook for file logging
     setGlobalHookPostLog((_, formatted) => {
@@ -211,7 +231,7 @@ if (hasSingleInstanceLock) {
     })
 
     const alicizationRuntime = injeca.provide('modules:alicization-runtime', {
-      build: async () => setupAlicizationRuntime(),
+      build: async () => setupAlicizationRuntime({ storageCache: { size: () => session.defaultSession.getCacheSize(), clear: () => session.defaultSession.clearCache() } }),
     })
 
     // BeatSync will create a background window to capture and process audio.
@@ -277,14 +297,25 @@ if (hasSingleInstanceLock) {
       callback: noop,
     })
 
-    injeca.start().catch(showStartupFailure)
+    await injeca.start()
+    if (isStopping())
+      return
 
     // Lifecycle
-    emitAppReady()
+    await emitAppReady()
+    if (isStopping())
+      return
 
     // Extra
     openDebugger()
-  }).catch(showStartupFailure)
+  }).catch((error) => {
+    // Shutdown observes the rejected startup promise too. A new modal must
+    // not hold an already requested exit while native cleanup is waiting.
+    if (applicationStartup.isStopping())
+      log.withError(error).error('Application startup failed during shutdown')
+    else
+      void showStartupFailure(error)
+  })
 }
 
 let appExiting = false
@@ -319,6 +350,7 @@ async function handleAppExit() {
     return
 
   appExiting = true
+  const startupStopped = applicationStartup.stop()
 
   let exitedNormally = true
 
@@ -339,6 +371,8 @@ async function handleAppExit() {
       log.withError(error).error(`[app-exit] Failed to ${operation}:`)
     }
   }
+
+  await logIfError('finish application startup before shutdown', () => startupStopped)
 
   // NOTICE: Life and window hooks still use services while flushing their state.
   // Disposing those dependencies concurrently can leave shutdown waiting forever.

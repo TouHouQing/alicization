@@ -101,5 +101,13 @@ export function createLifeDatabaseTestPort(options: { cardId: string, values: Ma
     const message = event?.kind === 'user-turn' ? event.payload.currentMessage : null
     return message && typeof message === 'object' && !Array.isArray(message) ? message as Record<string, unknown> : null
   }
-  return { getLifeUserInput, getLifeIngress: async (id: string) => ingress.get(id) ?? null, getLifeEffect: async (id: string) => effects.get(id) ?? null, readLifeState, commitLifeState, resumeLifeEvidenceCleanup: async () => ({ resumed: 0, remaining: 0 }), onLifeCommitted: (listener: (receipt: LifeCommitReceipt) => void) => { listeners.add(listener); return () => listeners.delete(listener) }, readLifeFactVersions: async () => [], hasPublishedLifeTurn: async () => true, listPresentedLifeTurnIds: async (_cardId: string, ids: string[]) => new Set(ids) }
+  const readLifeIngressPage = async (input: { source: string, afterId?: string, limit?: number }) => {
+    const limit = input.limit ?? 64
+    if (!input.source || input.source.length > 128 || !Number.isInteger(limit) || limit < 1 || limit > 64)
+      throw new Error('Test ingress page exceeded its read budget')
+    const records = [...ingress.values()].filter(item => item.source === input.source && item.id > (input.afterId ?? '')).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    const entries = records.slice(0, limit).map(item => structuredClone(item))
+    return { cardId: options.cardId, entries, next: records.length > limit ? entries.at(-1)!.id : null }
+  }
+  return { readLifeIngressPage, getLifeUserInput, getLifeIngress: async (id: string) => ingress.get(id) ?? null, getLifeEffect: async (id: string) => effects.get(id) ?? null, readPendingLifeExecutionEffects: async () => [...effects.values()].filter(effect => effect.kind === 'execute' && ['dispatched', 'uncertain'].includes(effect.status)), readLifeState, commitLifeState, resumeLifeEvidenceCleanup: async () => ({ resumed: 0, remaining: 0 }), onLifeCommitted: (listener: (receipt: LifeCommitReceipt) => void) => { listeners.add(listener); return () => listeners.delete(listener) }, readLifeFactVersions: async () => [], hasPublishedLifeTurn: async () => true, listPresentedLifeTurnIds: async (_cardId: string, ids: string[]) => new Set(ids) }
 }

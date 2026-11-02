@@ -6,13 +6,16 @@ import type {
   AlicizationTaskThreadStatus,
 } from '@proj-alicization/stage-shared'
 
+import type { WindowsProcessJobOutcome } from '../execution/windows-process-job'
+
+import process, { cwd as processCwd, env as processEnv } from 'node:process'
+
 import { Buffer } from 'node:buffer'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { homedir as osHomedir } from 'node:os'
 import { basename, isAbsolute, relative, resolve } from 'node:path'
-import { cwd as processCwd, env as processEnv } from 'node:process'
 
 import { errorMessageFrom } from '@moeru/std'
 import {
@@ -21,6 +24,9 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import { buildAlicizationExecutionEnv } from '../execution-command-env'
+import { markActionNotStarted } from '../execution/action-dispatch-context'
+import { inspectProcessDispatchAuthority, processDispatchRefusal } from '../execution/process-dispatch-authority'
+import { prepareWindowsProcessJob, stopWindowsProcessJob } from '../execution/windows-process-job'
 import { hasOnlyConsoleNodeEffect } from './console-script-policy'
 import { executeOwnedNote } from './owned-note'
 import { requiresPrivateReadConfirmation } from './private-read-policy'
@@ -140,6 +146,8 @@ interface AlicizationCliCommandSpec {
 }
 
 interface AlicizationCliExecutionRuntimeResult {
+  processTree?: WindowsProcessJobOutcome
+  dispatchRefused?: true
   ok: boolean
   stdout: string
   stderr: string
@@ -154,6 +162,7 @@ interface AlicizationCliExecutionRuntimeResult {
 }
 
 export interface AlicizationCliAdapterInput {
+  processJobsRoot?: string
   ownedNoteRoot?: string
   thread: AlicizationTaskThreadRecord
   command: AlicizationCliCommandInput
@@ -166,6 +175,8 @@ export interface AlicizationCliAdapterInput {
 type CliCommandInspectionInput = Pick<AlicizationCliAdapterInput, 'command' | 'workspaceRoot'> & { thread: Pick<AlicizationTaskThreadRecord, 'metadata' | 'origin' | 'turnId'> }
 
 export interface AlicizationCliAdapterResult {
+  effectMayHaveOccurred?: boolean
+  sideEffectState?: 'none' | 'unknown'
   ok: boolean
   summary: string
   output: string | null
@@ -194,7 +205,7 @@ function segmentOutput(raw: string) {
 
 function isWithinRoot(root: string, target: string) {
   const rel = relative(root, target)
-  return rel === '' || (!rel.startsWith('..') && !rel.startsWith('../') && !rel.startsWith('..\\'))
+  return rel === '' || (!isAbsolute(rel) && !rel.startsWith('..') && !rel.startsWith('../') && !rel.startsWith('..\\'))
 }
 
 function normalizeArgs(raw: unknown) {
@@ -296,6 +307,11 @@ function normalizeCliPathTokenAliases(token: string, homeDirectory: string) {
 }
 
 function parseCommandWords(raw: string) {
+  const literal = raw.length > 1 && ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith('\'') && raw.endsWith('\''))) ? raw.slice(1, -1) : raw
+  // An executable path is already one argument. Shell-style backslash parsing
+  // would corrupt Windows paths before execFile receives the explicit argv.
+  if (isAbsolute(literal) && (literal !== raw || !/\s/.test(raw) || existsSync(raw)))
+    return [literal]
   const words: string[] = []
   let current = ''
   let inSingleQuote = false
@@ -415,7 +431,7 @@ function scanShellEffects(commandText: string) {
     }
     if (quote === '\'')
       continue
-    if (char === '`' || char === '$' && commandText[index + 1] === '(')
+    if (char === '`' || (char === '$' && commandText[index + 1] === '('))
       substitution = true
     if (!quote && (char === '>' || char === '<'))
       redirect = true
@@ -1028,10 +1044,13 @@ async function runCliCommand(
     stream: 'stdout' | 'stderr'
     text: string
   }) => void,
+  processJobsRoot?: string,
+  owner = 'standalone-cli',
 ): Promise<AlicizationCliExecutionRuntimeResult> {
   const startedAt = now()
   if (abortSignal?.aborted) {
     return {
+      dispatchRefused: true,
       ok: false,
       stdout: '',
       stderr: '',
@@ -1045,6 +1064,23 @@ async function runCliCommand(
       errorMessage: 'CLI execution was aborted before the process started.',
     }
   }
+  const refusal = await inspectProcessDispatchAuthority('cli', abortSignal, startedAt, now)
+  if (refusal)
+    return { ...refusal, outputTruncated: false }
+  const runtimeEnv = buildCliRuntimeEnv(spec.runtimeContext)
+  const windowsRead = process.platform === 'win32' && spec.mode === 'exec-file' ? resolveWindowsReadCommand(spec) : null
+  let windowsJob: Awaited<ReturnType<typeof prepareWindowsProcessJob>> | undefined
+  if (process.platform === 'win32') {
+    try {
+      windowsJob = await prepareWindowsProcessJob({ command: windowsRead?.command ?? spec.command, args: windowsRead?.args ?? spec.args, cwd: spec.cwd, env: runtimeEnv, shell: spec.mode === 'shell', owner, protectedRoot: processJobsRoot })
+    }
+    catch {
+      return { ok: false, dispatchRefused: true, stdout: '', stderr: '', outputTruncated: false, exitCode: null, signal: null, durationMs: Math.max(0, now() - startedAt), aborted: abortSignal?.aborted === true, timedOut: false, errorCode: 'CLI_PROCESS_PREPARATION_FAILED', errorMessage: 'The owned process supervisor could not be prepared; no target process ran.' }
+    }
+    const finalRefusal = await inspectProcessDispatchAuthority('cli', abortSignal, startedAt, now)
+    if (finalRefusal)
+      return { ...finalRefusal, outputTruncated: false }
+  }
   return await new Promise<AlicizationCliExecutionRuntimeResult>((resolveResult) => {
     let aborted = abortSignal?.aborted === true
     let timedOut = false
@@ -1056,10 +1092,10 @@ async function runCliCommand(
     let stderrTruncated = false
     const stdoutChunks: Buffer[] = []
     const stderrChunks: Buffer[] = []
-    const runtimeEnv = buildCliRuntimeEnv(spec.runtimeContext)
-    const windowsRead = process.platform === 'win32' && spec.mode === 'exec-file' ? resolveWindowsReadCommand(spec) : null
-
-    const child = spec.mode === 'shell'
+    const processJob = windowsJob?.start(async () => !await inspectProcessDispatchAuthority('cli', abortSignal, startedAt, now))
+    processJob?.child.stdin?.end()
+    let processTree: WindowsProcessJobOutcome | undefined
+    const child = processJob?.child ?? (spec.mode === 'shell'
       ? spawn(spec.command, {
           cwd: spec.cwd,
           env: runtimeEnv,
@@ -1075,7 +1111,7 @@ async function runCliCommand(
           detached: process.platform !== 'win32',
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
-        })
+        }))
 
     const finalizeAndResolve = (input: {
       ok: boolean
@@ -1083,6 +1119,7 @@ async function runCliCommand(
       signal: string | null
       errorCode?: string
       errorMessage?: string
+      dispatchRefused?: true
     }) => {
       if (settled)
         return
@@ -1113,6 +1150,8 @@ async function runCliCommand(
         timedOut,
         errorCode: input.errorCode,
         errorMessage: input.errorMessage,
+        dispatchRefused: input.dispatchRefused,
+        ...(processTree ? { processTree } : {}),
       })
     }
 
@@ -1124,6 +1163,8 @@ async function runCliCommand(
         aborted = true
       else
         timedOut = true
+      if (stopWindowsProcessJob(child))
+        return
       if (process.platform !== 'win32' && child.pid) {
         try {
           process.kill(-child.pid, 'SIGTERM')
@@ -1210,21 +1251,33 @@ async function runCliCommand(
               ? 'CLI_COMMAND_NOT_FOUND'
               : 'CLI_EXECUTE_FAILED',
         errorMessage: aborted
-          ? 'CLI execution was aborted by kill switch.'
+          ? 'The originating CLI operation was cancelled.'
           : timedOut
             ? `CLI execution timed out after ${spec.timeoutMs}ms.`
             : errorMessageFrom(error) ?? 'CLI execution failed.',
       })
     })
 
-    child.on('close', (exitCode, signal) => {
+    child.on('close', async (exitCode, signal) => {
+      if (processJob) {
+        processTree = await processJob.completion
+        if (processTree.dispatchRefused) {
+          finalizeAndResolve({ ok: false, dispatchRefused: true, exitCode: null, signal: null, errorCode: aborted ? 'CLI_ABORTED' : 'CLI_DISPATCH_REVOKED', errorMessage: 'The owned child was stopped before its first instruction.' })
+          return
+        }
+        if (!processTree.treeStopped || !processTree.receipt || processTree.receipt.errorCode) {
+          finalizeAndResolve({ ok: false, exitCode, signal, errorCode: 'CLI_PROCESS_TREE_UNVERIFIED', errorMessage: 'The process tree did not provide a verified stop receipt; its effects require reconciliation.' })
+          return
+        }
+        exitCode = processTree.receipt.exitCode
+      }
       if (aborted) {
         finalizeAndResolve({
           ok: false,
           exitCode: exitCode ?? null,
           signal: signal ? String(signal) : 'SIGTERM',
           errorCode: 'CLI_ABORTED',
-          errorMessage: 'CLI execution was aborted by kill switch.',
+          errorMessage: 'The originating CLI operation was cancelled.',
         })
         return
       }
@@ -1304,7 +1357,7 @@ function parseLsEntryName(line: string) {
   if (!normalizedLine || /^total\s+\d+/iu.test(normalizedLine))
     return ''
 
-  const longListingNameMatch = normalizedLine.match(/^(?:\S+\s+){8}(.+)$/u)
+  const longListingNameMatch = normalizedLine.match(/^(?:\S+\s+){8}(\S.*)$/u)
   if (longListingNameMatch?.[1]) {
     const name = longListingNameMatch[1].trim()
     if (name && name !== '.' && name !== '..')
@@ -1332,7 +1385,7 @@ function buildLsOutputSummary(stdout: string, args: string[]) {
     .map(decodeCliDisplayToken)
     .join(', ')
   const extraCount = Math.max(0, uniqueNames.length - 6)
-  const targetScope = args.some(arg => cliDesktopSegmentPattern.test(arg))
+  const targetScope = args.some(arg => /(?:^|[\\/])(?:Desktop|桌面)[\\/]*$/u.test(arg))
     ? 'desktop entries'
     : 'entries'
 
@@ -1374,7 +1427,9 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
       normalized.errorCode,
       resolveCliSafetyGateClassification(input),
     )
-    return {
+    return markActionNotStarted<AlicizationCliAdapterResult & { sideEffectState: 'none', effectMayHaveOccurred: false }>({
+      sideEffectState: 'none',
+      effectMayHaveOccurred: false,
       ok: false,
       summary: buildFailureSummary(thread, normalized.errorMessage),
       output: null,
@@ -1402,7 +1457,7 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
         },
         createdAt,
       }],
-    }
+    })
   }
 
   const spec = normalized.spec
@@ -1437,7 +1492,7 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
   let stderrLiveIndex = 0
   const publishLiveEvent = (event: AlicizationExecutionEventInput) => {
     try {
-      void Promise.resolve(input.onExecutionEvent?.(event)).catch(() => {})
+      void Promise.resolve(input.onExecutionEvent?.(structuredClone(event))).catch(() => {})
     }
     catch {
       // Live observers are diagnostic surfaces and must not change execution semantics.
@@ -1473,7 +1528,13 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
   publishLiveEvent(liveDispatchEvent)
   const runtimeResult = await runCliCommand(spec, input.abortSignal, now, ({ stream, text }) => {
     publishOutput(stream, text)
-  })
+  }, input.processJobsRoot, `${thread.id}:${thread.turnId ?? 'none'}`)
+  if (runtimeResult.dispatchRefused) {
+    const result = processDispatchRefusal(thread, 'cli', runtimeResult, now)
+    for (const event of result.events)
+      publishLiveEvent(event)
+    return input.onExecutionEvent ? { ...result, events: [] } : result
+  }
   const stepBaseAt = Math.max(dispatchCreatedAt + 1, now())
   const stdoutSegments = segmentOutput(runtimeResult.stdout)
   const stderrSegments = segmentOutput(runtimeResult.stderr)
@@ -1527,6 +1588,7 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
       threadStatus: 'cancelled',
       payload: {
         adapter: 'cli',
+        ...(runtimeResult.processTree ? { processTree: runtimeResult.processTree } : {}),
         command: spec.commandLabel,
         args: spec.args,
         cwd: spec.cwd,
@@ -1542,7 +1604,7 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
     publishLiveEvent(cancelEvent)
     return {
       ok: false,
-      summary: 'CLI execution was cancelled because the kill switch changed while the process was running.',
+      summary: 'CLI execution was cancelled while the process was running.',
       output,
       errorCode: runtimeResult.errorCode,
       errorMessage: runtimeResult.errorMessage,
@@ -1575,6 +1637,7 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
     threadStatus: success ? 'completed' : 'failed',
     payload: {
       adapter: 'cli',
+      ...(runtimeResult.processTree ? { processTree: runtimeResult.processTree } : {}),
       command: spec.commandLabel,
       args: spec.args,
       cwd: spec.cwd,

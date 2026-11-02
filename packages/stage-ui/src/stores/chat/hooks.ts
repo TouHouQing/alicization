@@ -10,6 +10,7 @@ import type {
   AlicizationMindTurnGovernance,
   AlicizationRuntimeDigest,
 } from '../alicization-bridge'
+import type { PresentedChatTextUnit } from './text-presentation'
 
 export interface ChatEmbodimentMetaHookPayload {
   governance: AlicizationMindTurnGovernance | null
@@ -26,9 +27,11 @@ export interface ChatHookRegistry {
   onAfterMessageComposed: (cb: (message: string, context: ChatStreamEventContext) => Promise<void>) => () => void
   onBeforeSend: (cb: (message: string, context: ChatStreamEventContext) => Promise<void>) => () => void
   onAfterSend: (cb: (message: string, context: ChatStreamEventContext) => Promise<void>) => () => void
+  onTextPresented: (cb: (presentation: PresentedChatTextUnit, context: ChatStreamEventContext) => Promise<void>) => () => void
   onTokenLiteral: (cb: (literal: string, context: ChatStreamEventContext) => Promise<void>) => () => void
   onTokenSpecial: (cb: (special: string, context: ChatStreamEventContext) => Promise<void>) => () => void
   onStreamEnd: (cb: (context: ChatStreamEventContext) => Promise<void>) => () => void
+  onStreamCancelled: (cb: (reason: string, context: ChatStreamEventContext) => Promise<void>) => () => void
   onEmbodimentMeta: (cb: (meta: ChatEmbodimentMetaHookPayload, context: ChatStreamEventContext) => Promise<void>) => () => void
   onAssistantResponseEnd: (cb: (message: string, context: ChatStreamEventContext) => Promise<void>) => () => void
   onToolCall: (cb: (toolCall: CompletionToolCall, context: ChatStreamEventContext) => Promise<void>) => () => void
@@ -38,9 +41,11 @@ export interface ChatHookRegistry {
   emitAfterMessageComposedHooks: (message: string, context: ChatStreamEventContext) => Promise<void>
   emitBeforeSendHooks: (message: string, context: ChatStreamEventContext) => Promise<void>
   emitAfterSendHooks: (message: string, context: ChatStreamEventContext) => Promise<void>
+  emitTextPresentedHooks: (presentation: PresentedChatTextUnit, context: ChatStreamEventContext) => Promise<void>
   emitTokenLiteralHooks: (literal: string, context: ChatStreamEventContext) => Promise<void>
   emitTokenSpecialHooks: (special: string, context: ChatStreamEventContext) => Promise<void>
   emitStreamEndHooks: (context: ChatStreamEventContext) => Promise<void>
+  emitStreamCancelledHooks: (reason: string, context: ChatStreamEventContext) => Promise<void>
   emitEmbodimentMetaHooks: (meta: ChatEmbodimentMetaHookPayload, context: ChatStreamEventContext) => Promise<void>
   emitAssistantResponseEndHooks: (message: string, context: ChatStreamEventContext) => Promise<void>
   emitToolCallHooks: (toolCall: CompletionToolCall, context: ChatStreamEventContext) => Promise<void>
@@ -54,9 +59,11 @@ export function createChatHooks(): ChatHookRegistry {
   const onAfterMessageComposedHooks: Array<(message: string, context: ChatStreamEventContext) => Promise<void>> = []
   const onBeforeSendHooks: Array<(message: string, context: ChatStreamEventContext) => Promise<void>> = []
   const onAfterSendHooks: Array<(message: string, context: ChatStreamEventContext) => Promise<void>> = []
+  const onTextPresentedHooks: Array<(presentation: PresentedChatTextUnit, context: ChatStreamEventContext) => Promise<void>> = []
   const onTokenLiteralHooks: Array<(literal: string, context: ChatStreamEventContext) => Promise<void>> = []
   const onTokenSpecialHooks: Array<(special: string, context: ChatStreamEventContext) => Promise<void>> = []
   const onStreamEndHooks: Array<(context: ChatStreamEventContext) => Promise<void>> = []
+  const onStreamCancelledHooks: Array<(reason: string, context: ChatStreamEventContext) => Promise<void>> = []
   const onEmbodimentMetaHooks: Array<(meta: ChatEmbodimentMetaHookPayload, context: ChatStreamEventContext) => Promise<void>> = []
   const onAssistantResponseEndHooks: Array<(message: string, context: ChatStreamEventContext) => Promise<void>> = []
   const onToolCallHooks: Array<(toolCall: CompletionToolCall, context: ChatStreamEventContext) => Promise<void>> = []
@@ -99,6 +106,15 @@ export function createChatHooks(): ChatHookRegistry {
     }
   }
 
+  function onTextPresented(cb: (presentation: PresentedChatTextUnit, context: ChatStreamEventContext) => Promise<void>) {
+    onTextPresentedHooks.push(cb)
+    return () => {
+      const index = onTextPresentedHooks.indexOf(cb)
+      if (index >= 0)
+        onTextPresentedHooks.splice(index, 1)
+    }
+  }
+
   function onTokenLiteral(cb: (literal: string, context: ChatStreamEventContext) => Promise<void>) {
     onTokenLiteralHooks.push(cb)
     return () => {
@@ -123,6 +139,15 @@ export function createChatHooks(): ChatHookRegistry {
       const index = onStreamEndHooks.indexOf(cb)
       if (index >= 0)
         onStreamEndHooks.splice(index, 1)
+    }
+  }
+
+  function onStreamCancelled(cb: (reason: string, context: ChatStreamEventContext) => Promise<void>) {
+    onStreamCancelledHooks.push(cb)
+    return () => {
+      const index = onStreamCancelledHooks.indexOf(cb)
+      if (index >= 0)
+        onStreamCancelledHooks.splice(index, 1)
     }
   }
 
@@ -176,9 +201,11 @@ export function createChatHooks(): ChatHookRegistry {
     onAfterMessageComposedHooks.length = 0
     onBeforeSendHooks.length = 0
     onAfterSendHooks.length = 0
+    onTextPresentedHooks.length = 0
     onTokenLiteralHooks.length = 0
     onTokenSpecialHooks.length = 0
     onStreamEndHooks.length = 0
+    onStreamCancelledHooks.length = 0
     onEmbodimentMetaHooks.length = 0
     onAssistantResponseEndHooks.length = 0
     onToolCallHooks.length = 0
@@ -206,6 +233,11 @@ export function createChatHooks(): ChatHookRegistry {
       await hook(message, context)
   }
 
+  async function emitTextPresentedHooks(presentation: PresentedChatTextUnit, context: ChatStreamEventContext) {
+    for (const hook of onTextPresentedHooks)
+      await hook(presentation, context)
+  }
+
   async function emitTokenLiteralHooks(literal: string, context: ChatStreamEventContext) {
     for (const hook of onTokenLiteralHooks)
       await hook(literal, context)
@@ -219,6 +251,11 @@ export function createChatHooks(): ChatHookRegistry {
   async function emitStreamEndHooks(context: ChatStreamEventContext) {
     for (const hook of onStreamEndHooks)
       await hook(context)
+  }
+
+  async function emitStreamCancelledHooks(reason: string, context: ChatStreamEventContext) {
+    for (const hook of onStreamCancelledHooks)
+      await hook(reason, context)
   }
 
   async function emitEmbodimentMetaHooks(meta: ChatEmbodimentMetaHookPayload, context: ChatStreamEventContext) {
@@ -251,9 +288,11 @@ export function createChatHooks(): ChatHookRegistry {
     onAfterMessageComposed,
     onBeforeSend,
     onAfterSend,
+    onTextPresented,
     onTokenLiteral,
     onTokenSpecial,
     onStreamEnd,
+    onStreamCancelled,
     onEmbodimentMeta,
     onAssistantResponseEnd,
     onToolCall,
@@ -263,9 +302,11 @@ export function createChatHooks(): ChatHookRegistry {
     emitAfterMessageComposedHooks,
     emitBeforeSendHooks,
     emitAfterSendHooks,
+    emitTextPresentedHooks,
     emitTokenLiteralHooks,
     emitTokenSpecialHooks,
     emitStreamEndHooks,
+    emitStreamCancelledHooks,
     emitEmbodimentMetaHooks,
     emitAssistantResponseEndHooks,
     emitToolCallHooks,

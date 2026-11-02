@@ -21,7 +21,7 @@ export async function reconcileRestoredLifeGoals(database: sqlite3.Database, car
     try { const result = await task(); await run(db, 'COMMIT'); return result }
     catch (error) { await run(db, 'ROLLBACK'); throw error }
   }) })
-  const rows = await all<ObligationRow>(database, `SELECT * FROM life_obligations WHERE card_id=? AND status NOT IN ('cancelled','superseded','failed') AND json_extract(required_proof_json, '$.kind') IN ('file','setting') ORDER BY updated_at DESC`, [cardId])
+  const rows = await all<ObligationRow>(database, `SELECT * FROM life_obligations WHERE card_id=? AND status NOT IN ('cancelled','superseded','failed') AND json_extract(required_proof_json, '$.kind') IN ('file','setting','composite') ORDER BY updated_at DESC`, [cardId])
   let readCount = 0
   for (const row of rows) {
     const goal = mapLifeObligation(cardId, row)

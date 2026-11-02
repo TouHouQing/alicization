@@ -98,8 +98,10 @@ describe('actual activity during a committed quiet interval', () => {
       expect((await check('安静这段时间我实际完成了 during.txt。')).accepted).toBe(true)
       const omittedAbsence = createLifeReplyGroundingRuntime({ read: db.readLifeState, readUserInput: db.getLifeUserInput, commit: db.commitLifeState, readMemoryEvidence: cardId => db.readLifeFactVersions({ cardId }), now: Date.now, generate: async () => JSON.stringify({ claims: [], hostStatements: [], companionStatements: [], artifactStatements: [], conversationLinks: [] }) })
       const absence = '欢迎回来。刚才这段时间我没有做新的事；更早些时候，我完成了一个文件。'
-      expect(await omittedAbsence({ cardId: 'alice', turnId: 'returned', text: absence, owners: (await db.readLifeState()).owners, signal })).toMatchObject({ accepted: false, issues: [{ code: 'UNRELIABLE_REVIEW', quote: '刚才这段时间我没有做新的事；' }] })
-      expect(await omittedAbsence({ cardId: 'alice', turnId: 'returned', text: '刚才那段安静的时间里，我没有做什么新的事。更早些时候，我写了一个文件。', owners: (await db.readLifeState()).owners, signal })).toMatchObject({ accepted: false, issues: [{ code: 'UNRELIABLE_REVIEW', quote: '刚才那段安静的时间里，我没有做什么新的事。' }] })
+      // An empty review omits both the interval-absence assertion and the
+      // claimed earlier execution. Each needs its own coverage check.
+      expect(await omittedAbsence({ cardId: 'alice', turnId: 'returned', text: absence, owners: (await db.readLifeState()).owners, signal })).toMatchObject({ accepted: false, issues: expect.arrayContaining([{ code: 'UNRELIABLE_REVIEW', quote: '刚才这段时间我没有做新的事；' }, { code: 'UNRELIABLE_REVIEW', quote: '我完成了一个文件。' }]) })
+      expect(await omittedAbsence({ cardId: 'alice', turnId: 'returned', text: '刚才那段安静的时间里，我没有做什么新的事。更早些时候，我写了一个文件。', owners: (await db.readLifeState()).owners, signal })).toMatchObject({ accepted: false, issues: expect.arrayContaining([{ code: 'UNRELIABLE_REVIEW', quote: '刚才那段安静的时间里，我没有做什么新的事。' }, { code: 'UNRELIABLE_REVIEW', quote: '我写了一个文件。' }]) })
       expect((await check('在你安静之前，我实际完成了 during.txt。')).accepted).toBe(false)
       temporalScope = 'explicitly-before-interval'
       expect((await check('之前我实际完成了 during.txt。')).accepted).toBe(true)

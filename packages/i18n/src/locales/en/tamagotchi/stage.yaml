@@ -30,6 +30,10 @@ docs:
   disconnected: WebSocket disconnected
   'open-settings': Open WebSocket settings
 resources:
+  failure:
+    title: Character display unavailable
+    description: Her appearance couldn't be loaded. Try again.
+    retry: Retry loading
   loading:
     pending: Some modules are not ready yet...
     ready: All modules are ready!

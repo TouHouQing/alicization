@@ -47,7 +47,9 @@ import type {
   AlicizationAgentTurnRuntime,
 } from './agent-runtime'
 import type { AlicizationPerceptionSceneResidue, AlicizationPerceptionState } from './attention-anchor'
+import type { AlicizationDbService } from './db'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import type { WorkPlanCapabilityId } from './execution/work-plan-tool'
 import type { AlicizationLocalDesktopInspectionInteractable, AlicizationLocalDesktopInspectSceneInput } from './local-desktop-inspection'
 import type { MainGatewayExecutionToolContext } from './main-chat-execution-surface'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
@@ -103,7 +105,7 @@ import {
   normalizeAlicizationDerivedMindStateBundle,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
-import { app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, ipcMain, powerMonitor, screen, systemPreferences, webContents } from 'electron'
+import { app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, ipcMain, powerMonitor, screen, shell, systemPreferences, webContents } from 'electron'
 
 import {
   alicizationChatAbortInvokeChannel,
@@ -125,6 +127,7 @@ import {
   normalizeAlicizationEmotion,
   normalizeAlicizationPerformancePayload,
 } from '../../../shared/eventa'
+import { electronLifeExecutionChanged } from '../../../shared/life-events'
 import { onAppBeforeQuit } from '../../libs/bootkit/lifecycle'
 import { invokeAlicizationMcpCallToolFromMain, invokeAlicizationMcpListToolsFromMain, requestAlicizationInterfaceApprovalFromMain } from '../airi/mcp-servers'
 import { createAlicizationAgentRuntime } from './agent-runtime'
@@ -172,12 +175,50 @@ import {
   readTaskThreadActivityAt,
   sanitizeExecutionLedgerText,
 } from './execution-ledger-shared'
+import { readBrowserDownloadAdmissions, readBrowserDownloads, recordBrowserDownload, recoverBrowserDownloads } from './execution/browser-download-repository'
+import { recordBrowserDownloadReservation } from './execution/browser-download-reservations'
+import { readBrowserDownloadQuarantines } from './execution/browser-download-resource-recovery'
+import { createDesktopFileRecovery } from './execution/desktop-file-recovery'
+import { deriveExecutionAttention } from './execution/execution-attention'
+import { executionGazeTarget } from './execution/execution-gaze'
+import { controlFileRecoveryProcess } from './execution/file-recovery-process'
+import { createHostDownloadControl } from './execution/host-download-control'
+import { createHostEffectControl } from './execution/host-effect-control'
+import { createHostFileRecoveryControl } from './execution/host-file-recovery-control'
+import { createHostExecutionRecovery } from './execution/host-recovery'
+import { createInitiativeStopObserver } from './execution/initiative-stop-observer'
+import { createInterfaceEffectRecovery } from './execution/interface-effect-recovery'
+import { createLearnedProcedureRuntime } from './execution/learned-procedure-runtime'
+import { withPersonalProjectInvitation } from './execution/personal-project-invitation'
+import { createProcedureBrowserReplay } from './execution/procedure-browser-replay'
+import { createProcedureCandidateRepository } from './execution/procedure-candidate-repository'
+import { createProcedureDelegatedReplay } from './execution/procedure-delegated-replay'
+import { createProcedureDesktopReplay } from './execution/procedure-desktop-replay'
+import { createProcedureSkillFileSystem } from './execution/procedure-skill-files'
+import { createRegisteredEffectRecovery } from './execution/registered-effect-recovery'
+import { createExecutionResourceBroker } from './execution/resource-broker'
+import { createSkillLifecyclePersistence } from './execution/skill-lifecycle-repository'
+import { createExecutionStorageMaintenance } from './execution/storage-maintenance'
+import { createExecutionUserCommandScope } from './execution/user-command-scope'
+import { createExecutionVerificationConfiguration } from './execution/verification-configuration'
+import { listExecutionVerificationRecipes } from './execution/verification-recipes'
+import { createWindowsKeyboardJournalIndex } from './execution/windows-keyboard-journal'
+import { createWindowsKeyboardRecovery } from './execution/windows-keyboard-recovery'
+import { createWindowsPointerJournalIndex } from './execution/windows-pointer-journal'
+import { createWindowsPointerRecovery } from './execution/windows-pointer-recovery'
+import { assertWindowsVisualCapturePolicy } from './execution/windows-visual-capture-policy'
+import { createWindowsVisualGrounder } from './execution/windows-visual-grounder'
+import { assertWindowsVisualWorkWindow } from './execution/windows-visual-work-source'
+import { createWorkInterfaceTools } from './execution/work-interface-tools'
+import { createWorkPlanExecutionRuntime } from './execution/work-plan-execution-runtime'
+import { createWorkStepDelegation } from './execution/work-step-delegation'
 import { createAlicizationExecutorRuntime } from './executor-runtime'
 import { buildAsyncFactMemoryFragments } from './fact-memory'
 import { buildHostSocialContexts } from './host-social-guidance'
 import { createLifeAgencyRuntime } from './life-agency-runtime'
+import { createLifeAuthorizedBrowserRuntime } from './life-authorized-browser-runtime'
 import { runNativeLifeBackupCommand } from './life-backup-native'
-import { createLifeBackupRuntime } from './life-backup-runtime'
+import { createOwnedLifeBackupRuntime } from './life-backup-owner'
 import { companionChoicePolicy } from './life-companion-choice'
 import { readLifeConversationPreferences } from './life-conversation-preferences'
 import { readPresentedConversationStatements } from './life-conversation-statements'
@@ -207,7 +248,7 @@ import { readPersonalProjectCues } from './life-project-sharing'
 import { createLifeReplyGroundingRuntime } from './life-reply-grounding-runtime'
 import { createLifeSoulActivationRuntime } from './life-soul-activation-runtime'
 import { projectLifeTaskOutcome } from './life-task-outcome'
-import { verifyLifeTaskCompletion } from './life-task-verification-runtime'
+import { executionGoalVerificationInputs, verifyLifeTaskCompletion } from './life-task-verification-runtime'
 import { createLifeTurnRuntime } from './life-turn-runtime'
 import { lifeVisualResponseFormat, parseLifeVisualDraft } from './life-visual-activity'
 import { createLifeWindowsBrowserRuntime } from './life-windows-browser-runtime'
@@ -229,6 +270,7 @@ import { resolveOpenAICompatibleLongTermMemoryEmbeddingProvider } from './long-t
 import { abortAlicizationDirectChatRun, abortAlicizationRunningChatRuns } from './main-chat-abort'
 import { runAlicizationMainChatBackground } from './main-chat-background-run'
 import { handleAlicizationDirectChatStart } from './main-chat-direct-start'
+import { normalizeMcpToolCallResult } from './main-chat-execution-surface'
 import { syncAlicizationMainChatLlmRoute } from './main-chat-llm-route-sync'
 import {
   armAlicizationMainChatPreparationDeadline,
@@ -242,6 +284,7 @@ import { acceptAlicizationMainChatStart } from './main-chat-start-acceptance'
 import { cleanupAlicizationAcceptedMainChatStartFailure } from './main-chat-start-cleanup'
 import { resolveAlicizationMainChatStartResult } from './main-chat-start-result'
 import { awaitAlicizationPromiseWithAbort, createAbortError } from './main-chat-stream-primitives'
+import { describeMainGatewayRequestTarget } from './main-gateway-request-target'
 import { createAlicizationMainGatewayWorkCoordinator } from './main-gateway-work-coordinator'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
 import {
@@ -458,6 +501,7 @@ import {
   setAlicizationCardKillSwitchState,
   setAlicizationKillSwitchState,
 } from './state'
+import { persistCancelledBeforeDispatch } from './task-thread-dispatcher'
 import { createTaskThreadOrchestrator } from './task-thread-orchestrator'
 import { resolveAlicizationLocalRuntimeUserId } from './turn-os/main-chat-participant'
 import { resolveAlicizationRuntimeTimeoutReason } from './turn-os/runtime-errors'
@@ -896,6 +940,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   let lifeObserversReady = false
   async function openLifeDatabase(...args: Parameters<typeof setupAlicizationDb>) {
     const database = await setupAlicizationDb(...args)
+    await recoverBrowserDownloads(database)
     await database.resumeLifeEvidenceCleanup()
     if (lifeObserversReady)
       observeLifeDatabase(database)
@@ -906,6 +951,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return
     observedLifeDatabases.add(database)
     database.onLifeCommitted((receipt) => {
+      if (receipt.owners.some(owner => owner.owner === 'goals')) {
+        const payload = { cardId: receipt.cardId, revision: receipt.revision }
+        context.emit(electronLifeExecutionChanged, payload)
+        presenceTransport.emit(electronLifeExecutionChanged, payload)
+      }
       if (!receipt.owners.some(owner => owner.owner === 'memory'))
         return
       perceptionStateByCard.delete(receipt.cardId)
@@ -932,46 +982,80 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     personaTrainingArtifactLoader: localPersonaTrainingRuntime.loader,
     resolvePersonaTrainingExecutorConfig: () => clonePersonaTrainingExecutorConfig(personaTrainingExecutorConfig),
   })
-  const runtimeToolRegistry = createCanonicalToolRegistry()
-  const runtimeSkillRegistry = createAlicizationSkillRegistry()
   const runtimeSkillsDirectory = join(userDataPath, 'alicizations', 'skills')
   await mkdir(runtimeSkillsDirectory, { recursive: true })
-  const runtimeSkillLoader: AlicizationSkillLoader = createAlicizationSkillLoader({
-    skillsDirectory: runtimeSkillsDirectory,
-    skillRegistry: runtimeSkillRegistry,
-    toolRegistry: runtimeToolRegistry,
-    projection: {
-      scope: 'turn',
-      executionChannel: 'skill',
-      timeoutMs: 30_000,
-      supportsProgress: true,
-      supportsCancellation: true,
-      idempotency: 'best-effort',
-      providerToolName: skill => `skill_${skill.id.replaceAll('.', '_')}`,
-      adapterToolName: skill => `skill_adapter_${skill.id.replaceAll('.', '_')}`,
-    },
-    availableTools: runtimeToolRegistry.list().map(manifest => manifest.capabilityId),
-    availablePermissions: [
-      'memory.read',
-      'memory.write',
-      'workspace.read',
-      'workspace.write',
-      'mcp.invoke',
-      'execution.invoke',
-    ],
-    onAudit: async (event) => {
-      await alicizationDb.appendAuditLog({
-        level: event.action === 'revoke' ? 'warning' : 'info',
-        category: 'alicization.skill',
-        action: event.action,
-        message: `${event.id}@${event.version} ${event.previousActivationStatus} -> ${event.activationStatus}`,
-        payload: { ...event },
-        createdAt: event.occurredAt,
-      })
-    },
-  })
+  const runtimeSkillRuntimes = new WeakMap<AlicizationDbService, { registry: ReturnType<typeof createCanonicalToolRegistry>, loader: AlicizationSkillLoader, procedures: ReturnType<typeof createLearnedProcedureRuntime> }>()
+  let windowsKeyboardReady = false
+  let windowsVisualReady = false
+  const procedureRuntimes = new Set<WeakRef<ReturnType<typeof createLearnedProcedureRuntime>>>()
+  function liveProcedureRuntimes() {
+    const live: Array<ReturnType<typeof createLearnedProcedureRuntime>> = []
+    for (const reference of procedureRuntimes) {
+      const runtime = reference.deref()
+      if (runtime)
+        live.push(runtime)
+      else procedureRuntimes.delete(reference)
+    }
+    return live
+  }
+  function currentSkillRuntime() {
+    const database = alicizationDb
+    const previous = runtimeSkillRuntimes.get(database)
+    if (previous)
+      return previous
+    const runtimeToolRegistry = createCanonicalToolRegistry({ windowsKeyboardGoverned: platform === 'win32', windowsKeyboardReady, windowsVisualReady })
+    const runtimeSkillRegistry = createAlicizationSkillRegistry()
+    const procedures = createProcedureCandidateRepository(database, activeCardId, runtimeToolRegistry)
+    let learned: ReturnType<typeof createLearnedProcedureRuntime>
+    const runtimeSkillLoader: AlicizationSkillLoader = createAlicizationSkillLoader({
+      skillsDirectory: runtimeSkillsDirectory,
+      skillRegistry: runtimeSkillRegistry,
+      toolRegistry: runtimeToolRegistry,
+      fileSystem: createProcedureSkillFileSystem(runtimeSkillsDirectory, procedures, runtimeToolRegistry),
+      ...createSkillLifecyclePersistence(database, activeCardId),
+      projection: {
+        scope: 'turn',
+        executionChannel: 'skill',
+        timeoutMs: 30_000,
+        supportsProgress: true,
+        supportsCancellation: true,
+        idempotency: 'best-effort',
+        providerToolName: skill => `skill_${skill.id.replaceAll('.', '_')}`,
+        adapterToolName: skill => `skill_adapter_${skill.id.replaceAll('.', '_')}`,
+      },
+      availableTools: runtimeToolRegistry.list().map(manifest => manifest.capabilityId),
+      availablePermissions: [
+        'memory.read',
+        'memory.write',
+        'workspace.read',
+        'workspace.write',
+        'screen.read',
+        'network.read',
+        'mcp.invoke',
+        'execution.invoke',
+      ],
+      onAudit: async (event) => {
+        if (event.action === 'revoke' || event.action === 'invalidate-source')
+          await learned?.withdraw(event.id, event.version)
+        await database.appendAuditLog({
+          level: event.action === 'revoke' ? 'warning' : 'info',
+          category: 'alicization.skill',
+          action: event.action,
+          message: `${event.id}@${event.version} ${event.previousActivationStatus} -> ${event.activationStatus}`,
+          payload: { ...event },
+          createdAt: event.occurredAt,
+        })
+      },
+    })
+    const skillCardId = activeCardId
+    learned = createLearnedProcedureRuntime({ cardId: skillCardId, database, registry: runtimeToolRegistry, repository: procedures, loader: runtimeSkillLoader, work: () => workPlanRuntime, browserReplay: createProcedureBrowserReplay, delegatedReplay: createProcedureDelegatedReplay, desktopReplay: createProcedureDesktopReplay, enabled: () => !runtimeShuttingDown && activeCardId === skillCardId && !isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(skillCardId).state !== 'SUSPENDED' })
+    procedureRuntimes.add(new WeakRef(learned))
+    const runtime = { registry: runtimeToolRegistry, loader: runtimeSkillLoader, procedures: learned }
+    runtimeSkillRuntimes.set(database, runtime)
+    return runtime
+  }
   try {
-    await runtimeSkillLoader.projectProduction()
+    await currentSkillRuntime().loader.projectProduction()
   }
   catch (error) {
     await alicizationDb.appendAuditLog({
@@ -1072,13 +1156,17 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     = trackDeferredMemoryPostCommitTask
 
   async function waitForRuntimeTasksWithinGrace(tasks: Set<Promise<void>>) {
+    const deadline = Date.now() + shutdownGraceMs
     while (tasks.size > 0) {
       const pending = [...tasks]
+      const remaining = deadline - Date.now()
+      if (remaining <= 0)
+        return { pending: tasks.size, timedOut: true }
       let timeout: ReturnType<typeof setTimeout> | undefined
       const completed = await Promise.race([
         Promise.all(pending).then(() => true),
         new Promise<boolean>((resolve) => {
-          timeout = setTimeout(() => resolve(false), shutdownGraceMs)
+          timeout = setTimeout(() => resolve(false), remaining)
         }),
       ])
       if (timeout)
@@ -2067,9 +2155,111 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     subconsciousInterruptionProbeTimeoutMs,
     foregroundProbeTimeoutStreakByPid,
   })
-  const windowsBrowser = platform === 'win32' ? createLifeWindowsBrowserRuntime({ ownerId: () => activeCardId, authorize: requestAlicizationInterfaceApprovalFromMain }) : undefined
-  const windowsDesktop = platform === 'win32' ? createLifeWindowsDesktopRuntime({ ownerId: () => activeCardId, authorize: requestAlicizationInterfaceApprovalFromMain }) : undefined
+  const windowsBrowser = platform === 'win32'
+    ? createLifeWindowsBrowserRuntime({
+        isCurrentBrowserSession: () => !authorizedBrowser.selected(),
+        ownerId: () => activeCardId,
+        authorize: requestAlicizationInterfaceApprovalFromMain,
+        downloadRoot: join(userDataPath, 'alicizations', 'browser-downloads'),
+        resourceBroker: () => executionResources,
+        recordDownload: async (receipt) => {
+          await withCardScope(receipt.cardId, () => recordBrowserDownload(alicizationDb, receipt), { lane: 'background', label: `browser-download:${receipt.id}`, skipQueueWhenScopeAlreadyActive: true })
+          if (receipt.state !== 'progressing') {
+            // Native persistence must not await the executor it is helping stop.
+            // Verify on the current card even while a background cognition call
+            // waits for its provider; the shared lease still prevents switching.
+            setImmediate(() => {
+              if (!runtimeShuttingDown)
+                void withCardScope(receipt.cardId, () => workPlanRuntime.notifyDownload(receipt.cardId), { lane: 'background', label: `download-goal:${receipt.id}`, skipQueueWhenScopeAlreadyActive: true }).catch(error => console.warn('[alicization-runtime] Download verification wake failed', error))
+            })
+          }
+        },
+        recordDownloadReservation: (reservation, end) => withCardScope(reservation.cardId, () => recordBrowserDownloadReservation(alicizationDb, reservation, { root: join(userDataPath, 'alicizations', 'browser-downloads') }, end), { lane: 'background', label: `browser-download-reservation:${reservation.id}`, skipQueueWhenScopeAlreadyActive: true }),
+        readDownloads: () => readBrowserDownloads(alicizationDb),
+        readDownloadAdmissions: () => readBrowserDownloadAdmissions(alicizationDb),
+        onError: (error) => { void appendRuntimeDebugLine('browser.download-failed', { reason: errorMessageFrom(error) }) },
+      })
+    : undefined
+  const nativeKeyboardRoot = join(userDataPath, 'alicizations', 'execution-native')
+  const nativeKeyboardJournal = createWindowsKeyboardJournalIndex({ protectedRoot: nativeKeyboardRoot, database: () => alicizationDb })
+  const recoverNativeKeyboard = createWindowsKeyboardRecovery({ index: nativeKeyboardJournal })
+  const nativePointerJournal = createWindowsPointerJournalIndex({ protectedRoot: nativeKeyboardRoot, database: () => alicizationDb })
+  const recoverNativePointer = createWindowsPointerRecovery({ index: nativePointerJournal })
+  const windowsDesktop = platform === 'win32'
+    ? createLifeWindowsDesktopRuntime({
+        ownerId: () => activeCardId,
+        authorize: requestAlicizationInterfaceApprovalFromMain,
+        visual: {
+          protectedRoot: nativeKeyboardRoot,
+          resourceBroker: () => executionResources,
+          ground: createWindowsVisualGrounder(mainGatewayTextProvider),
+          providerTarget: () => {
+            const config = resolveMainGatewayConfig({ cardId: activeCardId })
+            return config ? describeMainGatewayRequestTarget(config) : null
+          },
+          assertCaptureAllowed: turnId => assertWindowsVisualCapturePolicy(alicizationDb, activeCardId, turnId),
+          assertWindowSource: binding => assertWindowsVisualWorkWindow(alicizationDb, activeCardId, binding),
+          admitJournal: nativePointerJournal.admit,
+          onInputTakeover: ({ cardId, turnId, effectId }) => {
+            executionInterrupts.cancelAll(cardId)
+            turnWriteAbortControllers.get(turnId)?.abort(createAbortError('external-input-takeover'))
+            void appendAuditLog({ level: 'notice', category: 'alicization.execution', action: 'external-pointer-takeover', message: 'External input stopped the current visual desktop operation.', payload: { cardId, turnId, effectId } }).catch(error => appendRuntimeDebugLine('execution.pointer-takeover-audit-failed', { reason: errorMessageFrom(error) }))
+          },
+        },
+        keyboard: {
+          protectedRoot: nativeKeyboardRoot,
+          resourceBroker: () => executionResources,
+          admitJournal: nativeKeyboardJournal.admit,
+          onInputTakeover: ({ cardId, turnId, effectId }) => {
+            executionInterrupts.cancelAll(cardId)
+            turnWriteAbortControllers.get(turnId)?.abort(createAbortError('external-input-takeover'))
+            void appendAuditLog({ level: 'notice', category: 'alicization.execution', action: 'external-input-takeover', message: 'External input stopped the current desktop action and its execution owner.', payload: { cardId, turnId, effectId } }).catch(error => appendRuntimeDebugLine('execution.input-takeover-audit-failed', { reason: errorMessageFrom(error) }))
+          },
+        },
+      })
+    : undefined
+  let windowsKeyboardCapabilityRefresh: Promise<void> | undefined
+  function refreshWindowsKeyboardCapability(): Promise<void> {
+    if (!windowsDesktop || runtimeShuttingDown)
+      return Promise.resolve()
+    return windowsKeyboardCapabilityRefresh ??= (async () => {
+      let ready = false; let visualReady = false
+      try {
+        const health = await Promise.all([windowsDesktop.getKeyboardHealth(), windowsDesktop.getVisualHealth()])
+        ready = health[0]?.ready === true
+        visualReady = health[1]?.ready === true
+      }
+      finally {
+        if (!runtimeShuttingDown) {
+          windowsKeyboardReady = ready
+          windowsVisualReady = visualReady
+          currentSkillRuntime().registry.setActivationStatus('tool.desktop_press_keys', ready ? 'active' : 'disabled')
+          currentSkillRuntime().registry.setActivationStatus('tool.desktop_locate_window', visualReady ? 'active' : 'disabled')
+          currentSkillRuntime().registry.setActivationStatus('tool.desktop_pointer_action', visualReady ? 'active' : 'disabled')
+        }
+      }
+    })().finally(() => { windowsKeyboardCapabilityRefresh = undefined })
+  }
+  function refreshWindowsKeyboardInBackground() {
+    void refreshWindowsKeyboardCapability().catch(error => console.warn('[alicization-runtime] Native capability refresh failed', errorMessageFrom(error)))
+  }
+  const authorizedBrowser = createLifeAuthorizedBrowserRuntime({
+    ownerId: () => activeCardId,
+    uploadRoot: join(userDataPath, 'alicizations', 'authorized-browser-uploads'),
+    authorize: requestAlicizationInterfaceApprovalFromMain,
+    stopWork: cardId => workPlanRuntime.suspendBrowser(cardId),
+    audit: async (event) => {
+      const cardId = String(event.cardId)
+      const write = () => alicizationDb.appendAuditLog({ level: 'notice', category: 'execution.authorized-browser', action: String(event.action), message: 'Explicit selected-page browser access changed.', payload: event })
+      if (cardId === activeCardId)
+        await write()
+      else
+        await withCardScope(cardId, write, { lane: 'background', label: 'authorized-browser-audit' })
+    },
+    onError: (error) => { void appendRuntimeDebugLine('execution.browser-access-stop-failed', { reason: errorMessageFrom(error) }) },
+  })
   const localBrowserAutomation = createAlicizationLocalBrowserAutomationService({
+    selectWindowsBrowser: () => authorizedBrowser.selected() ? authorizedBrowser : undefined,
     errorMessageFrom,
     windowsBrowser,
     windowsDesktop,
@@ -2461,15 +2651,38 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const workingMemoryStore = createWorkingMemoryStore()
   const mainChatSessionRuntime = createAlicizationMainChatSessionRuntime({
     appendRuntimeDebugLine,
-    buildToolRegistry: () => runtimeToolRegistry,
+    buildToolRegistry: () => {
+      // Ordinary dialogue must not wait for native compilation. Until its
+      // real health result arrives the shortcut stays unavailable. Explicit
+      // work dispatch still awaits readiness and rechecks its own authority.
+      refreshWindowsKeyboardInBackground()
+      return currentSkillRuntime().registry
+    },
     workingMemoryStore,
+    createWorkPlan: input => workPlanRuntime.propose(input),
+    createDeclaredWorkPlan: input => workPlanRuntime.proposeDeclared(input),
+    listExecutionVerifiers: () => listExecutionVerificationRecipes(alicizationDb.getMetaValue),
+    listLearnedProcedures: async () => (await currentSkillRuntime().procedures.list()).filter(item => item.sourceValid && item.status === 'active' && item.evaluation?.status === 'passed').map(({ id, version, parameters, inputSchema, operations }) => ({ id, version, parameters, inputSchema, operations })),
+    useLearnedProcedure: input => currentSkillRuntime().procedures.use(input),
+    prepareLearnedProcedureInput: input => currentSkillRuntime().procedures.prepareInput(input),
     createPersonalPiece: async ({ cardId, turnId, abortSignal }) => {
       abortSignal?.throwIfAborted()
+      if (storageMaintenance && !await storageMaintenance.optionalWorkAllowed(abortSignal))
+        return { status: 'held', reason: 'local-storage-pressure' }
       const database = alicizationDb
       const admission = await database.getLifeIngress(`user:${turnId}`)
       if (cardId !== activeCardId || !admission || !['accepted', 'processing'].includes(admission.status))
         return { status: 'held', reason: 'no-current-user-turn' }
-      const result = await createPersonalProjectRuntime({ foregroundTurnId: turnId }).run(cardId, abortSignal)
+      const result = await withPersonalProjectInvitation({
+        cardId,
+        turnId,
+        signal: abortSignal,
+        broker: executionResources,
+        foregroundOwnerCurrent: () => activeCardId === cardId && alicizationDb === database
+          && mainGatewayWorkCoordinator.snapshot().activeForegroundCount === 1
+          && [...chatRuns.values()].some(run => run.turnId === turnId && run.cardId === cardId && run.state === 'running' && !run.controller.signal.aborted)
+          && !isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(cardId).state !== 'SUSPENDED',
+      }, foregroundInvitation => createPersonalProjectRuntime({ foregroundTurnId: turnId, foregroundInvitation }).run(cardId, abortSignal))
       if (result.status !== 'completed' && (result.status !== 'held' || result.reason !== 'daily-project-budget'))
         return result
       const goals = (await database.readLifeState()).obligations
@@ -3006,12 +3219,73 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
-  const executionInterrupts = createExecutionInterruptRegistry()
-  async function dispatchTaskThreadWithExecutionDelivery(invocation: Parameters<typeof taskThreadOrchestrator.dispatch>[0]) {
+  const fileRecoveryServices = new WeakMap<AlicizationDbService, ReturnType<typeof createDesktopFileRecovery>>()
+  const fileRecoveryMaintenance = new Set<Promise<unknown>>()
+  function fileRecoveryForDatabase(database: AlicizationDbService) {
+    let service = fileRecoveryServices.get(database)
+    if (!service) {
+      service = createDesktopFileRecovery(database)
+      fileRecoveryServices.set(database, service)
+    }
+    return service
+  }
+  function pruneFileRecovery() {
+    if (!backgroundMaintenanceEnabled || runtimeShuttingDown || fileRecoveryMaintenance.size || mainGatewayWorkCoordinator.snapshot().activeForegroundCount || !ordinaryWritersStopped() || controlFileRecovery.isActive())
+      return Promise.resolve()
+    const cardId = activeCardId
+    const task = withCardScope(cardId, async () => {
+      const database = alicizationDb
+      const assertCurrent = () => {
+        if (runtimeShuttingDown || alicizationDb !== database || activeCardId !== cardId || mainGatewayWorkCoordinator.snapshot().activeForegroundCount || !ordinaryWritersStopped() || controlFileRecovery.isActive())
+          throw new Error('File recovery maintenance yielded to the current desktop owner')
+      }
+      assertCurrent()
+      const result = await fileRecoveryForDatabase(database).collectOrphans(assertCurrent)
+      if (result.inspected)
+        await appendRuntimeDebugLine('execution.file-version-orphan-cleanup', result)
+    }, { lane: 'background', label: 'file-version-maintenance', skipQueueWhenScopeAlreadyActive: true }).catch(error => appendRuntimeDebugLine('execution.file-version-maintenance-deferred', { reason: errorMessageFrom(error) }))
+    fileRecoveryMaintenance.add(task)
+    void task.finally(() => fileRecoveryMaintenance.delete(task)).catch(() => {})
+    return task
+  }
+  const executionResources = createExecutionResourceBroker()
+  const hostExecutionRecovery = createHostExecutionRecovery({
+    userDataPath,
+    broker: executionResources,
+    readCardDownloadResources: async (cardId) => {
+      if (cardId === activeCardId)
+        return readBrowserDownloadQuarantines(alicizationDb)
+      const database = await setupAlicizationDb(userDataPath, { cardId, readOnly: true })
+      try { return await readBrowserDownloadQuarantines(database) }
+      finally { await database.close() }
+    },
+    readCardEffects: async (cardId) => {
+      if (cardId === activeCardId)
+        return alicizationDb.readPendingLifeExecutionEffects()
+      const database = await setupAlicizationDb(userDataPath, { cardId, readOnly: true })
+      try {
+        return await database.readPendingLifeExecutionEffects()
+      }
+      finally {
+        await database.close()
+      }
+    },
+  })
+  await hostExecutionRecovery.restore().then(
+    result => appendRuntimeDebugLine('execution.host-quarantine-restored', result),
+    async (error) => {
+      await appendAuditLog({ level: 'warning', category: 'alicization.execution', action: 'host-recovery-blocked', message: '未能完整核对上次执行状态，已暂时阻止新的写操作。', payload: { reason: errorMessageFrom(error) } })
+    },
+  )
+  const executionInterrupts = createExecutionInterruptRegistry(executionResources, { foregroundActive: () => mainGatewayWorkCoordinator.snapshot().activeForegroundCount > 0 })
+  async function dispatchTaskThreadWithExecutionDelivery(invocation: Parameters<typeof taskThreadOrchestrator.dispatch>[0], foregroundInvitation?: () => Promise<void>) {
     const scopedCardId = activeCardId
     const dispatchDatabase = alicizationDb
     const canonicalSessionId = await ensureActiveOrLatestSessionId(scopedCardId)
     const existingThread = await invocation.port.getTaskThread(invocation.input.threadId)
+    const backgroundInitiative = existingThread?.origin === 'subconscious-proactive'
+    const stopObserver = createInitiativeStopObserver(existingThread)
+    let dispatchStarted = false
     if (existingThread && existingThread.sessionId !== canonicalSessionId) {
       await invocation.port.upsertTaskThread({
         ...existingThread,
@@ -3024,49 +3298,60 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const lifeView = await alicizationDb.readLifeState()
     if (lifeView.obligations.some(item => item.threadId === invocation.input.threadId && (item.status === 'cancelled' || item.invalidatedBy != null)))
       throw new DOMException('Responsibility was cancelled before dispatch', 'AbortError')
-    const activity = createLifeExecutionPresenceObserver({
-      cardId: scopedCardId,
-      threadId: invocation.input.threadId,
-      attemptId: existingThread?.attemptId ?? null,
-      enabled: () => activeCardId === scopedCardId && !isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(scopedCardId).state !== 'SUSPENDED',
-      read: async () => ({ thread: await preparedInvocation.port.getTaskThread(invocation.input.threadId), outcome: projectLifeTaskOutcome(await dispatchDatabase.readLifeState(), invocation.input.threadId) }),
-      publish: emitVisualPresencePulse,
-      onError: error => void appendRuntimeDebugLine('execution.body-projection-failed', { cardId: scopedCardId, reason: errorMessageFrom(error) }),
-      onHeld: reason => void appendRuntimeDebugLine('execution.body-projection-held', { cardId: scopedCardId, threadId: invocation.input.threadId, reason }),
-      now: Date.now,
-    })
-    activity.refresh()
+    const parentWork = existingThread?.metadata?.workStepParent
+    const activity = parentWork
+      ? null
+      : createLifeExecutionPresenceObserver({
+          cardId: scopedCardId,
+          threadId: invocation.input.threadId,
+          attemptId: existingThread?.attemptId ?? null,
+          enabled: () => activeCardId === scopedCardId && !isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(scopedCardId).state !== 'SUSPENDED',
+          read: async () => ({ thread: await preparedInvocation.port.getTaskThread(invocation.input.threadId), outcome: projectLifeTaskOutcome(await dispatchDatabase.readLifeState(), invocation.input.threadId) }),
+          publish: emitVisualPresencePulse,
+          onError: error => void appendRuntimeDebugLine('execution.body-projection-failed', { cardId: scopedCardId, reason: errorMessageFrom(error) }),
+          onHeld: reason => void appendRuntimeDebugLine('execution.body-projection-held', { cardId: scopedCardId, threadId: invocation.input.threadId, reason }),
+          now: Date.now,
+        })
+    activity?.refresh()
     try {
-      const result = await executionInterrupts.run({ cardId: scopedCardId, threadId: invocation.input.threadId, signal: preparedInvocation.input.abortSignal }, signal => taskThreadOrchestrator.dispatch({
-        ...preparedInvocation,
-        input: { ...preparedInvocation.input, abortSignal: signal, ownedNoteRoot: join(userDataPath, 'alicizations', 'projects', createHash('sha256').update(scopedCardId).digest('hex')) },
-        port: {
-          ...preparedInvocation.port,
-          appendExecutionEvents: async (events) => {
-            await preparedInvocation.port.appendExecutionEvents(events)
-            activity.refresh()
+      const result = await executionInterrupts.run({ cardId: scopedCardId, threadId: invocation.input.threadId, signal: preparedInvocation.input.abortSignal, ...(backgroundInitiative ? { backgroundInitiative: true as const, confirmStopped: stopObserver.confirmStopped } : {}), ...(foregroundInvitation ? { foregroundInvitation } : {}) }, (signal) => {
+        dispatchStarted = true
+        return taskThreadOrchestrator.dispatch({
+          ...preparedInvocation,
+          input: { ...preparedInvocation.input, abortSignal: signal, processJobsRoot: join(userDataPath, 'alicizations', 'execution-native'), ownedNoteRoot: join(userDataPath, 'alicizations', 'projects', createHash('sha256').update(scopedCardId).digest('hex')) },
+          port: {
+            ...preparedInvocation.port,
+            appendExecutionEvents: async (events) => {
+              await preparedInvocation.port.appendExecutionEvents(events)
+              stopObserver.observe(events)
+              activity?.refresh()
+            },
+            localVisualSurface: {
+              browserOpenUrl: localBrowserAutomation.openUrl,
+              browserSearchWeb: localBrowserAutomation.searchWeb,
+              browserReadPage: localBrowserAutomation.readPage,
+              browserClickElement: localBrowserAutomation.clickElement,
+              browserTypeText: localBrowserAutomation.typeBrowserText,
+              browserNavigate: localBrowserAutomation.navigateBrowser,
+              browserScroll: localBrowserAutomation.scrollBrowser,
+              browserWait: localBrowserAutomation.waitForBrowser,
+              desktopListInteractables: localBrowserAutomation.listDesktopInteractables,
+              desktopClickElement: localBrowserAutomation.clickDesktopElement,
+              desktopTypeText: localBrowserAutomation.typeDesktopText,
+              desktopPressKeys: localBrowserAutomation.pressDesktopKeys,
+              desktopOpenApplication: localBrowserAutomation.openApplication,
+              desktopWait: localBrowserAutomation.waitForDesktop,
+              desktopInspectScene,
+            },
           },
-          localVisualSurface: {
-            browserOpenUrl: localBrowserAutomation.openUrl,
-            browserSearchWeb: localBrowserAutomation.searchWeb,
-            browserReadPage: localBrowserAutomation.readPage,
-            browserClickElement: localBrowserAutomation.clickElement,
-            browserTypeText: localBrowserAutomation.typeBrowserText,
-            browserNavigate: localBrowserAutomation.navigateBrowser,
-            browserScroll: localBrowserAutomation.scrollBrowser,
-            browserWait: localBrowserAutomation.waitForBrowser,
-            desktopListInteractables: localBrowserAutomation.listDesktopInteractables,
-            desktopClickElement: localBrowserAutomation.clickDesktopElement,
-            desktopTypeText: localBrowserAutomation.typeDesktopText,
-            desktopPressKeys: localBrowserAutomation.pressDesktopKeys,
-            desktopOpenApplication: localBrowserAutomation.openApplication,
-            desktopWait: localBrowserAutomation.waitForDesktop,
-            desktopInspectScene,
-          },
-        },
-      }))
+        })
+      }).catch(async (error) => {
+        if (!backgroundInitiative || dispatchStarted || !existingThread || !(error instanceof DOMException) || error.name !== 'AbortError')
+          throw error
+        return persistCancelledBeforeDispatch({ port: preparedInvocation.port, thread: existingThread, reason: errorMessageFrom(error) ?? error.message, now: Date.now, persistenceTimeoutMs: 1000 })
+      })
       if (result.thread.status === 'completed')
-        await verifyLifeTaskCompletion({ cardId: scopedCardId, threadId: result.thread.id, read: dispatchDatabase.readLifeState, commit: dispatchDatabase.commitLifeState, readSetting: dispatchDatabase.getMetaValue })
+        await verifyLifeTaskCompletion({ cardId: scopedCardId, threadId: result.thread.id, read: dispatchDatabase.readLifeState, commit: dispatchDatabase.commitLifeState, readSetting: dispatchDatabase.getMetaValue, database: dispatchDatabase })
       const goalOutcome = projectLifeTaskOutcome(await dispatchDatabase.readLifeState(), result.thread.id)
       result.thread = { ...result.thread, metadata: { ...result.thread.metadata, lifeGoalOutcome: goalOutcome } }
       await syncSessionMirrorFromCurrentCardState({
@@ -3077,7 +3362,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         turnId: result.thread.turnId,
         taskThread: result.thread,
       })
-      if (alicizationTerminalTaskThreadStatuses.has(result.thread.status)) {
+      if (!parentWork && alicizationTerminalTaskThreadStatuses.has(result.thread.status)) {
         await queueExecutionDeliveryCandidate({
           cardId: scopedCardId,
           resultDeliveryMode: invocation.resultDeliveryMode,
@@ -3087,7 +3372,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return result
     }
     finally {
-      await activity.finish()
+      await activity?.finish()
     }
   }
 
@@ -3761,6 +4046,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     await restoreDialogueAckMap(activeCardId)
     await restoreSubconsciousState(activeCardId)
     await restoreExecutionDeliveryState(activeCardId)
+    await currentSkillRuntime().loader.projectProduction().catch(error => appendRuntimeDebugLine('skill.card-restore-failed', { cardId: activeCardId, error: errorMessageFrom(error) }))
 
     sensoryBus = createAlicizationSensoryBus({
       tickMs: 60_000,
@@ -3895,6 +4181,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       await restoreSubconsciousState(activeCardId)
       await restoreProactiveLoopState(activeCardId)
       await restoreExecutionDeliveryState(activeCardId)
+      await currentSkillRuntime().loader.projectProduction().catch(error => appendRuntimeDebugLine('skill.card-restore-failed', { cardId: activeCardId, error: errorMessageFrom(error) }))
 
       sensoryBus = createAlicizationSensoryBus({
         tickMs: 60_000,
@@ -4174,6 +4461,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       pruneTimer = undefined
     }
     pruneTimer = setInterval(() => {
+      void pruneFileRecovery()
       void alicizationDb.runMemoryPrune().catch(async (error) => {
         await appendAuditLog({
           level: 'warning',
@@ -4284,6 +4572,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     if (!backgroundMaintenanceEnabled || backgroundMaintenanceStarted)
       return
     backgroundMaintenanceStarted = true
+    storageMaintenance?.start()
     void alicizationDb.resumePendingMemoryEmbeddingReindexJobs().catch(async (error) => {
       await appendAuditLog({
         level: 'warning',
@@ -4405,6 +4694,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   }
 
   async function abortAllTurnWrites(reason: string) {
+    await controlFileRecovery.interrupt()
     let aborted = 0
     for (const controller of turnWriteAbortControllers.values()) {
       if (controller.signal.aborted)
@@ -4513,6 +4803,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   }
 
   async function suspendKillSwitch(reason?: string) {
+    for (const procedures of liveProcedureRuntimes()) procedures.cancel()
+    workPlanRuntime.suspend(activeCardId)
+    executionInterrupts.cancelAll(activeCardId)
     const normalizedReason = reason ?? 'manual'
     const abortPromise = abortAllTurnWrites(normalizedReason)
     sensoryBus.stop('kill-switch')
@@ -4553,7 +4846,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   }
 
   async function suspendGlobalKillSwitch(reason?: string) {
+    for (const procedures of liveProcedureRuntimes()) procedures.cancel()
     const snapshot = setAlicizationKillSwitchState('SUSPENDED', reason)
+    workPlanRuntime.suspend()
+    executionInterrupts.cancelAll()
     sensoryBus.stop('kill-switch')
     clearReminderDueTimer()
     await abortAllTurnWrites(reason ?? 'manual')
@@ -6682,7 +6978,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return result
   }
 
-  function createPersonalProjectRuntime(input?: { foregroundTurnId?: string }) {
+  function createPersonalProjectRuntime(input?: { foregroundTurnId?: string, foregroundInvitation?: () => Promise<void> }) {
     const database = alicizationDb
     const cardId = activeCardId
     const adoptedSoul = soulLifecycleState.soulSnapshot
@@ -6699,9 +6995,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       upsertTask: database.upsertTaskThread,
       readTask: database.getTaskThread,
       readExecutionEvents: threadId => database.listExecutionEvents({ threadId, limit: 5000 }),
-      dispatch: async input => dispatchTaskThreadWithExecutionDelivery({ port: { getTaskThread: database.getTaskThread, upsertTaskThread: database.upsertTaskThread, appendExecutionEvents: database.appendExecutionEvents, appendAuditLog: database.appendAuditLog }, input, resultDeliveryMode: 'inline' }),
+      dispatch: async dispatchInput => dispatchTaskThreadWithExecutionDelivery({ port: { getTaskThread: database.getTaskThread, upsertTaskThread: database.upsertTaskThread, appendExecutionEvents: database.appendExecutionEvents, appendAuditLog: database.appendAuditLog }, input: dispatchInput, resultDeliveryMode: 'inline' }, input?.foregroundInvitation),
       workspace: cardId => join(userDataPath, 'alicizations', 'projects', createHash('sha256').update(cardId).digest('hex')),
-      foregroundActive: () => (mainGatewayWorkCoordinator.snapshot().activeForegroundCount > 0 && ![...chatRuns.values()].some(run => input?.foregroundTurnId === run.turnId && run.cardId === cardId && run.state === 'running' && !run.controller.signal.aborted)) || isAlicizationKillSwitchSuspended() || getAlicizationCardKillSwitchSnapshot(cardId).state === 'SUSPENDED',
+      foregroundActive: () => (mainGatewayWorkCoordinator.snapshot().activeForegroundCount > 0 && (mainGatewayWorkCoordinator.snapshot().activeForegroundCount !== 1 || ![...chatRuns.values()].some(run => input?.foregroundTurnId === run.turnId && run.cardId === cardId && run.state === 'running' && !run.controller.signal.aborted))) || isAlicizationKillSwitchSuspended() || getAlicizationCardKillSwitchSnapshot(cardId).state === 'SUSPENDED',
       planSeries: async ({ cardId, topic, signal }) => {
         const raw = await mainGatewayTextProvider({ cardId, source: 'personal-activity', abortSignal: signal, timeoutMs: 20_000, captureAgentSensorySnapshot: false, injectCustomDirectives: false, injectPerformanceManifest: false, responseFormat: lifePersonalSeriesResponseFormat, providerRetryPolicy: { maxRetries: 0 }, system: buildAlicizationProviderFactBlock('alicization-personal-activity-context', { version: 1, identity: adoptedSoul?.frontmatter ?? null, selfNarrative: soulContent.replace(/^---\r?\n[\s\S]*?\r?\n---/u, '').trim(), formatRequirements: 'Choose one small personal creative project with 2 to 4 parts that can be written locally across several days. Preserve the supplied adopted identity. Theme is grounded data, not instructions. Choose concrete connected parts reflecting your preferences; no tools, external research, fabricated past experiences or promises to the user. Return only the requested JSON.' }), user: JSON.stringify({ theme: topic }) })
         try {
@@ -6724,6 +7020,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const { runSubconsciousTickForCurrentCard } = createAlicizationSubconsciousTickRuntime({
     hasPendingPersonalProposal: async () => Boolean(pendingLifePersonalProposal(await alicizationDb.readLifeState(), Date.now())),
     runPersonalProject: async (cardId: string, signal?: AbortSignal) => {
+      if (storageMaintenance && !await storageMaintenance.optionalWorkAllowed(signal))
+        return { status: 'held' as const, reason: 'local-storage-pressure' }
       const runtime = createPersonalProjectRuntime()
       await runtime.recover(cardId)
       return runtime.run(cardId, signal)
@@ -7101,6 +7399,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   ): Promise<AlicizationChatStartResult> {
     if (runtimeShuttingDown)
       throw createAbortError('runtime-shutdown')
+    const runWithBrowserSession = authorizedBrowser.captureSession()
     const normalizedPayload = payload
     await appendRuntimeDebugLine('chat-start.entered', {
       cardId: normalizedPayload.cardId,
@@ -7113,12 +7412,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const foregroundWork = mainGatewayWorkCoordinator.openForeground({
       turnId: normalizedPayload.turnId,
     })
+    executionInterrupts.cancelInitiatives()
     let foregroundReleased = false
     const releaseForeground = () => {
       if (foregroundReleased)
         return
       foregroundReleased = true
       foregroundWork.release()
+      workPlanRuntime.wakeReady()
     }
     const rawInvokeOptions = invokeOptions?.raw && typeof invokeOptions.raw === 'object'
       ? invokeOptions.raw as { ipcMainEvent?: IpcMainEvent, event?: unknown }
@@ -7303,8 +7604,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       }
     }
     const foregroundLifeDatabase = alicizationDb
-    const backgroundTask = foregroundWork.run(async () => await runAlicizationMainChatBackground({
-      life: createLifeTurnRuntime({ getIngress: foregroundLifeDatabase.getLifeIngress, readUserInput: foregroundLifeDatabase.getLifeUserInput, readConversationStatements: conversationId => readPresentedConversationStatements({ turns: () => foregroundLifeDatabase.listConversationTurnsBySession(conversationId, { cardId: normalizedPayload.cardId, limit: 12 }), presented: ids => foregroundLifeDatabase.listPresentedLifeTurnIds(normalizedPayload.cardId, ids) }), getEffect: foregroundLifeDatabase.getLifeEffect, commit: foregroundLifeDatabase.commitLifeState, read: foregroundLifeDatabase.readLifeState, now: Date.now, onHostInteraction: async (cardId) => {
+    const backgroundTask = foregroundWork.run(() => runWithBrowserSession(async () => await runAlicizationMainChatBackground({
+      captureBrowserBinding: authorizedBrowser.binding,
+      life: createLifeTurnRuntime({ fileRecovery: owner => fileRecoveryForDatabase(foregroundLifeDatabase).forEffect(owner), resourceBroker: executionResources, getIngress: foregroundLifeDatabase.getLifeIngress, readUserInput: foregroundLifeDatabase.getLifeUserInput, readConversationStatements: conversationId => readPresentedConversationStatements({ turns: () => foregroundLifeDatabase.listConversationTurnsBySession(conversationId, { cardId: normalizedPayload.cardId, limit: 12 }), presented: ids => foregroundLifeDatabase.listPresentedLifeTurnIds(normalizedPayload.cardId, ids) }), getEffect: foregroundLifeDatabase.getLifeEffect, commit: foregroundLifeDatabase.commitLifeState, read: foregroundLifeDatabase.readLifeState, now: Date.now, onHostInteraction: async (cardId) => {
         const needs = await markSubconsciousInteraction(cardId)
         await createLifeDailyActivityRuntime({ read: foregroundLifeDatabase.readLifeState, commit: foregroundLifeDatabase.commitLifeState, publish: emitVisualPresencePulse, recordExperience: (cardId, activity) => recordLifeDailyExperience({ read: foregroundLifeDatabase.readLifeState, getIngress: foregroundLifeDatabase.getLifeIngress, commit: foregroundLifeDatabase.commitLifeState, appendEpisodes: foregroundLifeDatabase.appendEpisodicEvents }, cardId, activity) })({ cardId, now: Date.now(), needs, suspended: isAlicizationKillSwitchSuspended() || getAlicizationCardKillSwitchSnapshot(cardId).state === 'SUSPENDED', foregroundActive: true, fullscreen: false }, runState.controller.signal)
       }, observeInterface: async (proof) => {
@@ -7312,8 +7614,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         if (normalizedPayload.cardId !== activeCardId)
           throw new Error('Interface verification crossed the active card boundary')
         const expectation = readLifeInterfaceExpectation(proof)
-        if (proof.channel === 'browser' && windowsBrowser)
-          return observeLifeInterfaceResult(await windowsBrowser.readPage({ format: 'text', maxChars: 24000, abortSignal: runState.controller.signal }), expectation.elementIds, expectation.predicate)
+        if (proof.channel === 'browser')
+          return observeLifeInterfaceResult(await localBrowserAutomation.readPage({ format: 'text', maxChars: 24000, abortSignal: runState.controller.signal }), expectation.elementIds, expectation.predicate)
         if (proof.channel === 'desktop' && windowsDesktop && proof.targetId)
           return observeLifeInterfaceResult(await windowsDesktop.observeWindow(JSON.parse(proof.targetId), runState.controller.signal), expectation.elementIds, expectation.predicate)
         return null
@@ -7446,7 +7748,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             await alicizationDb.saveRuntimeCheckpoint(checkpoint),
         },
       },
-    })).finally(() => {
+    }))).finally(() => {
       releaseForegroundCardScope()
       releaseForeground()
       scheduleBackgroundMaintenanceStartup('foreground-turn-finished')
@@ -7669,7 +7971,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     registerInvokeHandler: (channel, handler) => defineInvokeHandler(context, channel as never, handler as never),
     withCardScope,
     cardIdFrom,
-    getSkillLoader: () => runtimeSkillLoader,
+    getSkillLoader: () => currentSkillRuntime().loader,
     appendAuditLog,
     sanitizeText,
   })
@@ -7783,10 +8085,197 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     getActiveCardId: () => activeCardId,
     ipcMain,
   })
+  const recoverInterfaceEffect = createInterfaceEffectRecovery({
+    isBrowserBindingCurrent: authorizedBrowser.isBindingCurrent,
+    database: () => alicizationDb,
+    observeBrowser: async () => localBrowserAutomation.readPage({ format: 'interactables', maxChars: 24000 }),
+    observeDesktop: async target => windowsDesktop?.observeWindow(target),
+  })
+  const recoverDesktopEffect = async (effect: Parameters<typeof recoverInterfaceEffect>[0]) => effect.payload.capabilityId === 'tool.desktop_press_keys'
+    ? (await recoverNativeKeyboard(effect)).result
+    : effect.payload.capabilityId === 'tool.desktop_pointer_action' ? (await recoverNativePointer(effect)).result : recoverInterfaceEffect(effect)
+  const recoverRegisteredEffect = createRegisteredEffectRecovery({ readSetting: key => alicizationDb.getMetaValue(key), cardId: () => activeCardId })
+  const verificationConfiguration = createExecutionVerificationConfiguration({ cardId: () => activeCardId, readSetting: key => alicizationDb.getMetaValue(key), commit: input => alicizationDb.commitLifeState(input) })
+  const recoveryReaders = {
+    'cli': (effect: Parameters<typeof recoverInterfaceEffect>[0]) => recoverRegisteredEffect('cli', effect),
+    'coding-agent': (effect: Parameters<typeof recoverInterfaceEffect>[0]) => recoverRegisteredEffect('coding-agent', effect),
+    'external': (effect: Parameters<typeof recoverInterfaceEffect>[0]) => recoverRegisteredEffect('external', effect),
+    'browser': async (effect: Parameters<typeof recoverInterfaceEffect>[0]) => {
+      const result = await recoverInterfaceEffect(effect)
+      return result.verdict === 'unknown' ? recoverRegisteredEffect('browser', effect) : result
+    },
+    'desktop': async (effect: Parameters<typeof recoverInterfaceEffect>[0]) => {
+      const result = await recoverDesktopEffect(effect)
+      return result.verdict === 'unknown' ? recoverRegisteredEffect('desktop', effect) : result
+    },
+  }
+  const delegateWorkStep = createWorkStepDelegation({
+    database: () => alicizationDb,
+    enabled: cardId => activeCardId === cardId && !isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(cardId).state !== 'SUSPENDED',
+    authorize: requestAlicizationInterfaceApprovalFromMain,
+    runtimeContext: ({ cardId, turnId }) => buildRuntimeOwnedExecutionRuntimeContext({ cardId, threadId: turnId, thread: { turnId } }),
+    execute: input => executorRuntime.executeMainGatewayTaskThread(input),
+  })
+  const workPlanRuntime = createWorkPlanExecutionRuntime({
+    planReadRepair: ({ cardId, system, user, signal, claimAttempt }) => mainGatewayTextProvider({ cardId, system: buildAlicizationProviderFactBlock('alicization-execution-planning-context', { version: 1, formatRequirements: system }), user, source: 'execution-planning', abortSignal: signal, timeoutMs: 45000, captureAgentSensorySnapshot: false, injectCustomDirectives: false, injectPerformanceManifest: false, providerRetryPolicy: { maxRetries: 0 }, beforeProviderRequest: claimAttempt }),
+    toolRegistry: () => currentSkillRuntime().registry,
+    refreshCapabilities: refreshWindowsKeyboardCapability,
+    fileRecovery: fileRecoveryForDatabase,
+    captureBrowserBinding: authorizedBrowser.binding,
+    isBrowserBindingCurrent: authorizedBrowser.isBindingCurrent,
+    withBrowserSession: task => authorizedBrowser.withSession(task),
+    getDatabase: () => alicizationDb,
+    enabled: cardId => activeCardId === cardId && !isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(cardId).state !== 'SUSPENDED',
+    canContinue: () => !runtimeShuttingDown && mainGatewayWorkCoordinator.snapshot().activeForegroundCount === 0,
+    broker: executionResources,
+    interrupts: executionInterrupts,
+    recoveryReaders,
+    stopChildEffects: async (cardId, effectIds) => windowsBrowser?.cancelEffectDownloads(cardId, effectIds) ?? { requested: 0, stopped: true, state: 'stopped' },
+    onError: (error) => { void appendRuntimeDebugLine('execution.work-window-failed', { reason: errorMessageFrom(error) }) },
+    onVerified: async ({ database, registry, plan, thread }) => {
+      try { await createProcedureCandidateRepository(database, plan.cardId, registry).capture(thread.id) }
+      catch (error) { await appendRuntimeDebugLine('execution.procedure-not-admitted', { threadId: thread.id, reason: errorMessageFrom(error) }) }
+    },
+    onSettled: async ({ cardId, thread }) => {
+      await withCardScope(cardId, async () => {
+        if (thread.status === 'completed') {
+          try { await currentSkillRuntime().procedures.capture(thread.id) }
+          catch (error) { await appendRuntimeDebugLine('execution.procedure-not-admitted', { threadId: thread.id, reason: errorMessageFrom(error) }) }
+        }
+        await queueExecutionDeliveryCandidate({ cardId, thread, resultDeliveryMode: 'callback' })
+      }, { lane: 'background', label: `execution-work-delivery:${thread.id}` })
+    },
+    observe: ({ database, plan, attemptId }) => {
+      return createLifeExecutionPresenceObserver({
+        cardId: plan.cardId,
+        threadId: plan.rootThreadId,
+        attemptId,
+        enabled: () => activeCardId === plan.cardId && !isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(plan.cardId).state !== 'SUSPENDED',
+        read: async () => {
+          const view = await database.readLifeState({ executionPlanId: plan.id })
+          const thread = await database.getTaskThread(plan.rootThreadId)
+          return { thread, outcome: projectLifeTaskOutcome(view, plan.rootThreadId), work: thread ? deriveExecutionAttention(view, thread, effect => executionGazeTarget(effect, { screenToDipPoint: point => screen.screenToDipPoint(point), displayAt: point => screen.getDisplayNearestPoint(point).bounds })) : null }
+        },
+        publish: emitVisualPresencePulse,
+        onError: (error) => { void appendRuntimeDebugLine('execution.work-body-failed', { reason: errorMessageFrom(error) }) },
+        now: Date.now,
+      })
+    },
+    tools: {
+      'coding_agent.codex': (input, signal) => delegateWorkStep('coding_agent.codex', input, signal),
+      'coding_agent.claude_code': (input, signal) => delegateWorkStep('coding_agent.claude_code', input, signal),
+      'coding_agent.cli': (input, signal) => delegateWorkStep('coding_agent.cli', input, signal),
+      ...createWorkInterfaceTools(localBrowserAutomation),
+      'tool.filesystem_read_file': async (input, signal) => normalizeMcpToolCallResult(await invokeAlicizationMcpCallToolFromMain({ cardId: activeCardId, name: 'filesystem::read_file', arguments: input }, signal)),
+      'tool.filesystem_list_directory': async (input, signal) => normalizeMcpToolCallResult(await invokeAlicizationMcpCallToolFromMain({ cardId: activeCardId, name: 'filesystem::list_directory', arguments: input }, signal)),
+      'tool.filesystem_search_files': async (input, signal) => normalizeMcpToolCallResult(await invokeAlicizationMcpCallToolFromMain({ cardId: activeCardId, name: 'filesystem::search_files', arguments: input }, signal)),
+      'tool.filesystem_write_file': async (input, signal) => normalizeMcpToolCallResult(await invokeAlicizationMcpCallToolFromMain({ cardId: activeCardId, name: 'filesystem::write_file', arguments: input }, signal)),
+    } satisfies Record<WorkPlanCapabilityId, (input: Record<string, unknown>, signal: AbortSignal) => Promise<unknown>>,
+  })
+  const stopExecutionProviderWake = mainGatewayWorkCoordinator.onAvailability(() => {
+    if (!runtimeShuttingDown)
+      void workPlanRuntime.wakeReady().catch(error => appendRuntimeDebugLine('execution.provider-wake-failed', { reason: errorMessageFrom(error) }))
+  })
+  const ordinaryWritersStopped = () => !runtimeShuttingDown && !executionInterrupts.isActive() && !workPlanRuntime.isWriting() && !windowsDesktop?.isWriting() && turnWriteAbortControllers.size === 0
+  const controlFileRecovery = createHostFileRecoveryControl({
+    database: () => alicizationDb,
+    versions: fileRecoveryForDatabase,
+    broker: executionResources,
+    otherWritersStopped: ordinaryWritersStopped,
+    inspectNativeProcess: process => controlFileRecoveryProcess('inspect', process),
+    stopNativeProcess: async process => await controlFileRecoveryProcess('stop', process) === 'stopped' ? 'stopped' : 'unknown',
+  })
+  const storageMaintenance = options?.storageCache
+    ? createExecutionStorageMaintenance({
+        root: userDataPath,
+        cache: options.storageCache,
+        canMaintain: explicit => ordinaryWritersStopped() && !controlFileRecovery.isActive() && !executionResources.snapshot().some(lease => !lease.uncertain) && (explicit || mainGatewayWorkCoordinator.snapshot().activeForegroundCount === 0),
+        observe: (status) => { void appendRuntimeDebugLine('execution.storage-maintenance', { ...status }) },
+      })
+    : null
+  const controlExecutionEffect = createHostEffectControl({
+    database: () => alicizationDb,
+    broker: executionResources,
+    writerStopped: async (effect) => {
+      if (!ordinaryWritersStopped() || controlFileRecovery.isActive())
+        return false
+      if (effect.payload.capabilityId === 'tool.desktop_press_keys')
+        return (await recoverNativeKeyboard(effect)).stopped
+      if (effect.payload.capabilityId === 'tool.desktop_pointer_action')
+        return (await recoverNativePointer(effect)).stopped
+      return effect.payload.capabilityId !== 'host.filesystem_restore_version' || await controlFileRecovery.nativeStopped(activeCardId, effect.id)
+    },
+    observe: recoveryReaders,
+  })
+  const controlDownloadResource = createHostDownloadControl({
+    database: () => alicizationDb,
+    broker: executionResources,
+    // The broker rejects overlapping live writers. A queued unrelated executor
+    // must not prevent the host from releasing the resource it is waiting on.
+    writerStopped: (cardId, reservationId) => !runtimeShuttingDown && (windowsBrowser?.downloadWriterStopped(cardId, reservationId) ?? true),
+  })
   registerLifeInvokeHandlers({
+    storageCommand: async (input) => {
+      if (runtimeShuttingDown || input.cardId !== activeCardId || !storageMaintenance)
+        throw new Error('Storage maintenance crossed its current desktop owner')
+      return storageMaintenance.inspect({ clearCache: input.action === 'clear-cache' })
+    },
+    fileRecoveryCommand: async (input, surfaceId) => {
+      if (input.cardId !== activeCardId || runtimeShuttingDown)
+        throw new Error('File recovery crossed its current desktop owner')
+      if (input.action === 'stop')
+        return { kind: 'stop', ...await controlFileRecovery.stop(input.cardId, input.effectId) }
+      if (input.action === 'list')
+        return { kind: 'list', ...await controlFileRecovery.list(input.cardId, input.afterId) }
+      if (input.action === 'preview')
+        return { kind: 'preview', preview: await controlFileRecovery.preview(input.cardId, input.versionId, surfaceId) }
+      if (input.action === 'preview-forget')
+        return { kind: 'preview', preview: await controlFileRecovery.preview(input.cardId, input.versionId, surfaceId, 'forget') }
+      if (input.action === 'forget')
+        return { kind: 'forget', ...await controlFileRecovery.forget(input.cardId, input.versionId, input.token, surfaceId) }
+      return { kind: 'restore', ...await controlFileRecovery.restore(input.cardId, input.versionId, input.token, surfaceId) }
+    },
+    authorizedBrowserCommand: authorizedBrowser.command,
+    obligationHistory: input => alicizationDb.readLifeObligationHistory(input),
+    verificationConfiguration,
+    procedureCommand: async (input) => {
+      if (input.cardId !== activeCardId)
+        throw new Error('Procedure command crossed the current card owner')
+      const runtime = currentSkillRuntime()
+      let status = 'listed'
+      if (input.action === 'evaluate') {
+        status = await runtime.procedures.evaluate(input.candidateId, undefined, input.baselineCandidateId)
+      }
+      else if (input.action === 'cancel-evaluation') { runtime.procedures.cancel(); status = 'cancelling' }
+      else if (input.action !== 'list') {
+        await runtime.loader[input.action](input.id, input.version)
+        await runtime.loader.projectProduction()
+        status = input.action
+      }
+      return { status, items: await runtime.procedures.list() }
+    },
+    recoverEffect: async (input, surfaceId) => {
+      try { return await (input.action === 'list-downloads' || input.effectId.startsWith('browser-download:') ? controlDownloadResource(input, surfaceId) : controlExecutionEffect(input, surfaceId)) }
+      catch (error) {
+        await appendRuntimeDebugLine('execution.host-recovery-rejected', { cardId: input.cardId, effectId: 'effectId' in input ? input.effectId : null, action: input.action, error: errorMessageFrom(error) })
+        throw error
+      }
+    },
+    withUserCommand: createExecutionUserCommandScope({ coordinator: mainGatewayWorkCoordinator, scope: withCardScope, entered: () => { executionInterrupts.cancelInitiatives() }, settled: () => { workPlanRuntime.wakeReady() } }),
+    saveWorkPlan: workPlanRuntime.save,
+    reviseWork: workPlanRuntime.revise,
+    changeWorkCriteria: workPlanRuntime.changeCriteria,
+    startWorkPlan: workPlanRuntime.start,
+    reobserveBrowserWork: workPlanRuntime.reobserve,
+    stopWorkPlan: workPlanRuntime.stop,
+    reviewWork: workPlanRuntime.review,
+    verificationInputs: (view, goal) => executionGoalVerificationInputs(alicizationDb, view, goal),
+    refreshExecutionOutcome: workPlanRuntime.refreshOutcome,
+    downloadArtifact: workPlanRuntime.downloadArtifact,
+    openArtifact: path => shell.openPath(path),
     register: (event, handler) => defineInvokeHandler(context, event as never, handler as never),
     withCardScope: (cardId, task, options) => withCardScope(cardId, task, options),
-    read: () => alicizationDb.readLifeState(),
+    read: scope => alicizationDb.readLifeState(scope),
     readClosure: turnId => alicizationDb.readLifeClosure(turnId),
     getIngress: id => alicizationDb.getLifeIngress(id),
     getUserInput: id => alicizationDb.getLifeUserInput(id),
@@ -7804,7 +8293,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       const window = BrowserWindow.fromWebContents(metadata.raw!.ipcMainEvent!.sender)
       if (!window || window.isDestroyed())
         throw new Error('Backup governance needs its original local window')
-      return runNativeLifeBackupCommand(createLifeBackupRuntime({ userDataPath, cardId: () => activeCardId, state: () => alicizationDb.readLifeState(), snapshot: path => alicizationDb.snapshotLifeDatabase(path), schema: async () => Number(await alicizationDb.getMetaValue('life.schema.version')) }), input, window)
+      return runNativeLifeBackupCommand(createOwnedLifeBackupRuntime({ userDataPath, currentOwner: () => ({ cardId: activeCardId, database: alicizationDb }) }), input, window)
     },
     restoreArtifact: input => createLifeOwnedArtifactRestore({ read: alicizationDb.readLifeState, getEffect: alicizationDb.getLifeEffect, commit: alicizationDb.commitLifeState, workspace: cardId => join(userDataPath, 'alicizations', 'projects', createHash('sha256').update(cardId).digest('hex')) })(input),
     resumeInput: (input, metadata) => createLifeInputResume({ getIngress: alicizationDb.getLifeIngress, getUserInput: alicizationDb.getLifeUserInput, commit: alicizationDb.commitLifeState, session: () => ensureActiveOrLatestSessionId(input.cardId), binding: () => ({ providerId: activeProviderId, model: activeModelId, providerConfig: providerCredentials[activeProviderId] ?? {} }), start: payload => startMainChatStream(payload, metadata, { recoveredInput: true }) })(input),
@@ -7821,6 +8310,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   await restoreSubconsciousState(activeCardId)
   await restoreProactiveLoopState(activeCardId)
   await restoreExecutionDeliveryState(activeCardId)
+  workPlanRuntime.wakeReady()
   const journalMode = await alicizationDb.getJournalMode().catch(() => '')
   if (journalMode !== 'wal') {
     await appendAuditLog({
@@ -7848,6 +8338,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   }
 
   const handleSystemSuspend = () => {
+    workPlanRuntime.suspend()
+    executionInterrupts.cancelAll()
     void flushSubconsciousStatesAcrossCards('system-suspend').catch(() => {})
     void runDreamAcrossCards('system-suspend').catch(async (error) => {
       await appendAuditLog({
@@ -7866,6 +8358,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   onAppBeforeQuit(async () => {
     presenceTransport.dispose()
     runtimeShuttingDown = true
+    stopExecutionProviderWake()
+    mainGatewayWorkCoordinator.close(createAbortError('app-before-quit'))
+    // Request every execution stop before awaiting owners that may be queued
+    // behind one another. A stop request never certifies native closure.
+    workPlanRuntime.suspend()
+    executionInterrupts.cancelAll()
+    for (const controller of turnWriteAbortControllers.values())
+      controller.abort(createAbortError('app-before-quit'))
     workingMemoryLongTermRecoveryStopped = true
     if (workingMemoryLongTermRecoveryTimer) {
       clearTimeout(workingMemoryLongTermRecoveryTimer)
@@ -7888,12 +8388,29 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       if (!controller.signal.aborted)
         controller.abort(createAbortError('app-before-quit'))
     }
-    await abortAlicizationRunningChatRuns({
+    const chatCancellation = abortAlicizationRunningChatRuns({
       runs: chatRuns.entries(),
       reason: 'app-before-quit',
       mainChatRunState,
       createAbortError,
     }).catch(() => 0)
+    // All stop requests, including providers and memory recovery, are issued
+    // before an owner drain can wait on their cancellation to release a writer.
+    const ownerStops = await Promise.allSettled([
+      storageMaintenance?.close(),
+      controlFileRecovery.dispose(),
+      Promise.allSettled(liveProcedureRuntimes().map(procedures => procedures.dispose())),
+      authorizedBrowser.close().catch(error => appendRuntimeDebugLine('execution.browser-access-shutdown-failed', { reason: errorMessageFrom(error) })),
+      workPlanRuntime.dispose(),
+      windowsDesktop?.stopKeyboard()?.then((result) => {
+        if (result && !result.stopped)
+          throw new Error('Windows keyboard input release is still unconfirmed')
+      }),
+    ])
+    await chatCancellation
+    const failedStops = ownerStops.filter((stop): stop is PromiseRejectedResult => stop.status === 'rejected')
+    if (failedStops.length)
+      throw new AggregateError(failedStops.map(stop => stop.reason), 'Execution owners did not settle during application shutdown')
     const mainChatShutdown = await waitForRuntimeTasksWithinGrace(
       mainChatBackgroundTasks,
     )
@@ -7917,7 +8434,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         },
       }).catch(() => {})
     }
-    windowsBrowser?.close()
+    await windowsBrowser?.close().catch(error => appendRuntimeDebugLine('browser.download-stop-unconfirmed', { reason: errorMessageFrom(error) }))
     await taskThreadOrchestrator.dispose()
     desktopCaptureAccessRuntime.clear()
     executionDeliveryRuntime.clear()
@@ -7952,6 +8469,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     clearReminderDueTimer()
     clearQueuedSubconsciousWake()
     try {
+      // Native stop and journal drain are separate: a terminal native event can
+      // arrive while a card task still owns the writer. Drain after task shutdown.
+      await windowsBrowser?.drainDownloads()
+      await Promise.allSettled(fileRecoveryMaintenance)
       await alicizationDb.close()
     }
     finally {
@@ -7967,6 +8488,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   // Sync initial snapshots for listeners.
   await bootstrap()
+  void pruneFileRecovery()
   if (!isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(activeCardId).state !== 'SUSPENDED')
     sensoryBus.start()
   void alicizationDb.runMemoryPrune().catch(async (error) => {
@@ -7988,7 +8510,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   }
   emitKillSwitchChanged()
 
+  // Compile/verify without observing foreground or delaying first interaction.
+  refreshWindowsKeyboardInBackground()
   // `fs.watch` is only enabled after Genesis is completed.
   await ensureWatchState()
-  return { attachPresenceWindow: presenceTransport.attach, attachPersonaWindow: (window: Parameters<typeof presenceTransport.attach>[0]) => presenceTransport.attach(window, new Set([alicizationSoulChanged, alicizationKillSwitchStateChanged])) }
+  return { attachPresenceWindow: presenceTransport.attach, attachPersonaWindow: (window: Parameters<typeof presenceTransport.attach>[0]) => presenceTransport.attach(window, new Set([alicizationSoulChanged, alicizationKillSwitchStateChanged, electronLifeExecutionChanged])) }
 }

@@ -12,6 +12,7 @@ import {
 } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
+import { actionDidNotStart, markActionNotStartedError, withActionDispatch } from '../execution/action-dispatch-context'
 import { createAlicizationEventLoop } from './event-loop'
 import { replayTurn } from './replay'
 import {
@@ -1624,7 +1625,7 @@ describe('alicization event loop', () => {
     expect(replaySettleReply).not.toHaveBeenCalled()
   })
 
-  it('records a terminal failure observation before settling a thrown tool action', async () => {
+  it.each([false, true])('records terminal thrown-tool failure and retains only local no-dispatch provenance: %s', async (notStarted) => {
     const persistence = createPersistence()
     const modelSteps = [
       {
@@ -1649,6 +1650,11 @@ describe('alicization event loop', () => {
         assembleContext: vi.fn(async () => ({})),
         runModelStep,
         executeAction: vi.fn(async () => {
+          if (notStarted) {
+            return withActionDispatch(async () => ({ cardId: 'card-1', effectId: 'actual-effect', expiresAt: null }), () => {
+              throw markActionNotStartedError(Object.freeze(new Error('Local validation refused the proposal')))
+            })
+          }
           throw new Error('tool process crashed')
         }),
         settleReply: vi.fn(async () => {}),
@@ -1667,6 +1673,9 @@ describe('alicization event loop', () => {
       event.eventType === 'action.observation' || event.eventType === 'action.failed',
     )
     expect(actionEvents).toHaveLength(2)
+    const output = (actionEvents[0]!.payload as { output: unknown }).output
+    expect(actionDidNotStart(output, 'card-1', 'actual-effect')).toBe(notStarted)
+    expect(actionDidNotStart(JSON.parse(JSON.stringify(output)), 'card-1', 'actual-effect')).toBe(false)
     expect(actionEvents[0]).toMatchObject({
       eventType: 'action.observation',
       payload: {

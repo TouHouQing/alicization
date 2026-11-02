@@ -28,20 +28,27 @@ import type { RuntimeSurfaceContinuityEvidenceShape } from './runtime-surface-co
 import type { AlicizationRuntimeCheckpoint } from './turn-os/checkpoint-store'
 import type { AlicizationEventLoopRuntimeView } from './turn-os/event-loop'
 import type { AlicizationRuntimeEventScope } from './turn-os/event-store'
+import type { AlicizationMainChatParticipantContext, AlicizationMainChatProviderStep } from './turn-os/main-chat-participant'
 import type { AlicizationMemoryWriteProposal } from './turn-os/memory-participant'
 
-import { buildAlicizationProviderFactBlock, createAlicizationRuntimeEvent, extractAlicizationToolExecutionFailure, isAlicizationToolExecutionFailureResult, resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
+import { errorMessageFrom } from '@moeru/std'
+import { alicizationEmotionWhitelist, buildAlicizationProviderFactBlock, createAlicizationRuntimeEvent, extractAlicizationToolExecutionFailure, isAlicizationToolExecutionFailureResult, resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 
 import { deriveAlicizationRuntimeSnapshot, projectAlicizationRuntimeDigest } from './alicization-runtime-architecture'
 import { contextualExpression } from './contextual-expression'
 import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
+import { inheritActionNotStarted, withActionDispatch } from './execution/action-dispatch-context'
 import { refineCommittedInteractionIntent } from './interaction-intent'
 import { readLifeInputText } from './life-input-preview'
 import { readLifePersonalIntent } from './life-personal-intent'
-import { boundLifeProviderRequest } from './life-provider-budget'
+import { boundLifeProviderRequest, planLifeProviderRequest, resolveLifeProviderRequestLimits } from './life-provider-budget'
 import { lifeDialogueReadOwners } from './life-read-set'
 import { isLifeRecallOnlyTurn } from './life-recall-tool-scope'
+import { lifeReplyQuoteClaimKinds } from './life-reply-claim-scope'
+import { AlicizationReplyGroundingUnavailableError } from './life-reply-grounding-error'
 import { LifeStateConflictError } from './life-state-store'
+import { selectExplicitLifeWorkflowTools } from './life-workflow-tool-scope'
+import { runMainChatPlanningStep } from './main-chat-planning-repair'
 import {
   armAlicizationMainChatPreparationDeadline,
   raceAlicizationMainChatPreparation,
@@ -73,6 +80,7 @@ import { createAlicizationMemoryParticipant } from './turn-os/memory-participant
 import { createAlicizationRuntimeReplyArtifact } from './turn-os/reply-artifact'
 import { createAlicizationRuntimeToolEventProjector } from './turn-os/tool-projection'
 import { AlicizationVisibleReplySettlementBlockedError, resolveAlicizationPreparedVisibleReplyExecution, settleAlicizationVisibleReply } from './visible-reply/facade'
+import { buildAlicizationPublicReplyContinuationFact, composeAlicizationReplyContinuation } from './visible-reply/repaired-continuation'
 import { validateAlicizationProviderSettlementPayload } from './visible-reply/settlement'
 
 type AlicizationRuntimeEmotionalKernelShape = NonNullable<AlicizationRuntimeDigest['emotionalKernel']>
@@ -123,7 +131,7 @@ function buildMainChatToolFailureObservation(input: {
   const deadLettered = status === 'dead-lettered'
   const timeout = status === 'timeout'
     || /(?:^|_)timeout$/iu.test(failure.code)
-  return {
+  return inheritActionNotStarted(input.error, {
     status: deadLettered
       ? 'dead-lettered'
       : cancelled
@@ -141,7 +149,7 @@ function buildMainChatToolFailureObservation(input: {
     output: null,
     ...(deadLettered ? { finalStatus: 'dead-lettered' } : {}),
     ...(cancelled ? { cancelled: true } : {}),
-  }
+  })
 }
 
 function readEmotionalKernelSnapshot(raw: unknown): AlicizationRuntimeEmotionalKernelShape | null {
@@ -173,6 +181,7 @@ interface AlicizationMainChatRunStateFacade {
 }
 
 interface RunAlicizationMainChatBackgroundOptions {
+  captureBrowserBinding?: () => import('../../../shared/execution-contracts').BrowserWorkBinding | null
   life: import('./life-turn-runtime').LifeTurnRuntime
   reviewLifeReply: (input: LifeReplyGroundingInput) => Promise<LifeReplyGroundingResult>
   key: string
@@ -331,6 +340,17 @@ export async function runAlicizationMainChatBackground(
   const registeredCancellations: Array<Promise<boolean>> = []
   const nonProgressEventTypes = new Set<string>()
   let finishRunInvoked = false
+  let publicReplyText = ''
+  let publicReplySequence = 0
+  const appendPublicReply = (text: string, committed = false) => {
+    if (!text || !input.isRunActive() || (!committed && input.runState.controller.signal.aborted))
+      return false
+    const offset = publicReplyText.length
+    publicReplyText += text
+    input.incrementChunkStats(text)
+    input.emitChunk({ cardId: input.payload.cardId, turnId: input.payload.turnId, text, delivery: { phase: 'append', sequence: publicReplySequence++, offset }, origin: 'provider', learningPolicy: { allowLongTermCondensation: false, allowPersonaLearning: false, allowTraining: false }, failureSurface: null })
+    return true
+  }
 
   const finishRunOnce = (payload: AlicizationBackgroundFinishPayload) => {
     if (finishRunInvoked)
@@ -732,7 +752,11 @@ export async function runAlicizationMainChatBackground(
     const lifeBaseCountByTurn = new Map<string, number>()
     const lifeOwnersByTurn = new Map<string, import('../../../shared/life-contracts').LifeOwnerVersion[]>()
     const acceptedReviewByTurn = new Map<string, string>()
+    const actionTurns = new Set<string>()
+    const nonReadActionTurns = new Set<string>()
+    let argumentRepairCount = 0
     let preDispatchRefreshes = 0
+    let pendingActionReplan: { actionId: string, capabilityId: string, providerToolName: string } | null = null
     const participant = createAlicizationMainChatParticipant<AlicizationPreparedMainChatExecutionResult>({
       onContextAssembled: async (context, runtime) => {
         const lifeView = await input.life.context(runtime.cardId)
@@ -796,7 +820,12 @@ export async function runAlicizationMainChatBackground(
           }),
         )
       },
-      runProviderStep: async (context, runtime) => {
+      runProviderStep: async function runProviderStep(
+        context: AlicizationMainChatParticipantContext<AlicizationPreparedMainChatExecutionResult>,
+        runtime: AlicizationEventLoopRuntimeView,
+        requestPreparation = { rebases: 0, signal: AbortSignal.any([runtime.abortSignal, AbortSignal.timeout(input.preparationTimeoutMs ?? mainChatPreparationTimeoutMs)]) },
+      ): Promise<AlicizationMainChatProviderStep> {
+        requestPreparation.signal.throwIfAborted()
         const currentLife = await input.life.context(runtime.cardId)
         const consumedOwners = lifeOwnersByTurn.get(runtime.turnId) ?? []
         const relevant = lifeDialogueReadOwners
@@ -805,9 +834,8 @@ export async function runAlicizationMainChatBackground(
           const next = currentLife.owners.find(owner => owner.owner === name)
           return previous?.contentHash !== next?.contentHash || previous?.revision !== next?.revision
         })
-        if (stale) {
+        const refreshPreparedLifeContext = async (signal: AbortSignal) => {
           const tail = context.providerMessages.slice(lifeBaseCountByTurn.get(runtime.turnId) ?? context.providerMessages.length)
-          const signal = AbortSignal.any([runtime.abortSignal, AbortSignal.timeout(input.preparationTimeoutMs ?? mainChatPreparationTimeoutMs)])
           const refreshed = await raceAlicizationMainChatPreparation({ preparationPromise: input.prepareTurn({ abortSignal: signal }), signal })
           if (refreshed.conversationSessionId !== runtime.conversationId)
             throw new Error('Reprepared conversation crossed the turn scope')
@@ -828,15 +856,52 @@ export async function runAlicizationMainChatBackground(
             await participant.recordLongTermRecall({ sessionId: runtime.conversationId, status: refreshed.memoryContext?.longTermRecall?.status ?? 'empty', confidence: refreshed.memoryContext?.longTermRecall?.confidence ?? 0, evidence: refreshed.memoryContext?.longTermRecall?.evidence ?? [] })
             memoryProposals.set(runtime.turnId, participant.prepareWrite({ sessionId: runtime.conversationId, items: refreshed.memoryWriteItems ?? [] }))
           }
-          await input.appendRuntimeDebugLine('life.context-reprepared', { cardId: runtime.cardId, turnId: runtime.turnId, revision: currentLife.revision })
+          await input.appendRuntimeDebugLine('life.context-reprepared', { cardId: runtime.cardId, turnId: runtime.turnId, revision: afterPreparationLife.revision })
         }
+        if (stale || pendingActionReplan)
+          await refreshPreparedLifeContext(requestPreparation.signal)
         const hostInput = readLifeInputText(normalizedPayload.messages.filter(message => message.role === 'user').at(-1) as Record<string, unknown> | undefined ?? null)
+        let explicitWorkflow = false
         if (isLifeRecallOnlyTurn(hostInput)) {
           // Keep the complete identity and evidence. Unused execution schemas
           // must not crowd a retrospective question out of the model budget.
           context.prepared = { ...context.prepared, tools: undefined, toolChoice: 'none', waitForTools: false }
         }
-        const requestBudget = boundLifeProviderRequest(context.providerMessages, context.prepared.tools, input.mainGateway.providerBudget)
+        else {
+          const requested = selectExplicitLifeWorkflowTools(context.prepared.tools, hostInput.text ?? '')
+          if (requested.explicit) {
+            explicitWorkflow = true
+            const before = context.prepared.tools?.length ?? 0
+            context.prepared = { ...context.prepared, tools: requested.tools, toolChoice: requested.tools?.length ? 'auto' : 'none', waitForTools: Boolean(requested.tools?.length) }
+            await input.appendRuntimeDebugLine('life.requested-work-tool-surface', { turnId: runtime.turnId, before, offered: requested.tools?.length ?? 0, missing: requested.missing })
+          }
+        }
+        const actionReplan = pendingActionReplan
+        const replanningTools = actionReplan ? context.prepared.tools?.filter(tool => sanitizeText(tool.function?.name) === actionReplan.providerToolName) : undefined
+        if (actionReplan && !replanningTools?.length)
+          throw new Error('当前任务需要的操作已不可用，这次操作尚未开始。')
+        const planningPrepared: AlicizationPreparedMainChatExecutionResult = actionReplan
+          ? { ...context.prepared, tools: replanningTools, toolChoice: 'required', waitForTools: true }
+          : context.prepared
+        const replanFact = actionReplan
+          ? `${buildAlicizationProviderFactBlock('alicization-action-replanning', { priorActionId: actionReplan.actionId, capabilityId: actionReplan.capabilityId, status: 'not-dispatched', noSideEffects: true, currentContextRefreshed: true })}\nFor this recovery step, propose one fresh action for the unchanged current user request using the refreshed state and offered tool schema. The prior action was never admitted or dispatched and is not a completion receipt. Do not merely acknowledge it or report that work completed. Ordinary authorization and independent verification still apply. A later admitted action receipt supersedes this recovery request; do not repeat that action.`
+          : null
+        if (replanFact && !context.providerMessages.some(message => message.role === 'system' && message.content === replanFact))
+          context.providerMessages.push({ role: 'system', content: replanFact })
+        // A spoken introduction survives a tool boundary as this same turn's
+        // uncommitted words. Later provider steps author only its continuation.
+        const continuedPublicPrefix = actionTurns.has(runtime.turnId) ? publicReplyText : ''
+        if (continuedPublicPrefix) {
+          const fact = buildAlicizationPublicReplyContinuationFact(continuedPublicPrefix)
+          if (!context.providerMessages.some(message => message.role === 'system' && message.content === fact))
+            context.providerMessages = [...context.providerMessages, { role: 'system', content: fact }]
+        }
+        // Every request in this step keeps the same memory policy. Rejected
+        // argument findings or textual repairs can exceed the initial budget.
+        const providerLimits = input.mainGateway.providerBudget ?? resolveLifeProviderRequestLimits(input.payload.providerConfig)
+        const requestBudgetStrategy = { compactHistoricalDialogue: explicitWorkflow, allowOutputReserveReduction: true }
+        const requestBudgetOptions = { ...providerLimits, ...requestBudgetStrategy }
+        const requestBudget = boundLifeProviderRequest(context.providerMessages, planningPrepared.tools, requestBudgetOptions)
         const baseCount = lifeBaseCountByTurn.get(runtime.turnId) ?? context.providerMessages.length
         lifeBaseCountByTurn.set(runtime.turnId, baseCount - requestBudget.report.droppedHistory.filter(item => item.index < baseCount).length)
         context.providerMessages = requestBudget.messages
@@ -847,7 +912,17 @@ export async function runAlicizationMainChatBackground(
         const participantRequest = buildAlicizationProviderRequestSnapshot(
           context.providerMessages,
         )
-        await input.life.recordContextUse({ cardId: runtime.cardId, turnId: runtime.turnId, requestHash: participantRequest.requestHash, growthCandidateId: growthCandidateByTurn.get(runtime.turnId), evidenceIds: participantRequest.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [] }, runtime.abortSignal)
+        try {
+          await input.life.recordContextUse({ cardId: runtime.cardId, turnId: runtime.turnId, requestHash: participantRequest.requestHash, growthCandidateId: growthCandidateByTurn.get(runtime.turnId), evidenceIds: participantRequest.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [] }, requestPreparation.signal)
+        }
+        catch (error) {
+          if (!(error instanceof LifeStateConflictError) || requestPreparation.rebases >= 2 || requestPreparation.signal.aborted || !input.isRunActive())
+            throw error
+          // Nothing has reached the provider in this step. Rebuild the consumed
+          // view and hash under the original budget; never waive the owner CAS.
+          await input.appendRuntimeDebugLine('life.context-refresh-before-provider', { cardId: runtime.cardId, turnId: runtime.turnId, attempt: requestPreparation.rebases + 1, providerDispatched: false })
+          return runProviderStep(context, runtime, { rebases: requestPreparation.rebases + 1, signal: requestPreparation.signal })
+        }
         try {
           await input.appendRuntimeDebugLine('chat-provider-context.assembled', {
             preparedRequest,
@@ -860,26 +935,92 @@ export async function runAlicizationMainChatBackground(
         catch {
           // Diagnostics must never prevent the Provider from receiving a turn.
         }
-        let providerStep = await runAlicizationMainChatProviderStep({
-          providerBudget: input.mainGateway.providerBudget,
-          payload: input.payload,
-          prepared: context.prepared,
+        let candidateText = ''
+        // A work receipt is factual as a whole, including words before an
+        // action verb arrives. Keep ordinary dialogue streaming independently.
+        const factualWorkReply = explicitWorkflow || actionTurns.has(runtime.turnId)
+        let needsGrounding = factualWorkReply
+        const publicStream = {
+          onReplyEmotion: (emotion: string) => {
+            const accepted = alicizationEmotionWhitelist.find(value => value === emotion)
+            if (!accepted || !input.isRunActive() || runtime.abortSignal.aborted)
+              return
+            currentProviderPerformance = { baseEmotion: accepted, emotion: accepted, facialCue: null, actionCue: null, delivery: 'calm', emphasis: 0 }
+            // Expression may prepare for the utterance; no public text, tool
+            // action or semantic gesture is committed by this header.
+            streamMetaEmitter?.emit('', { force: true })
+          },
+          onReplyAttemptStart: () => { candidateText = ''; needsGrounding = factualWorkReply },
+          onReplyText: (delta: string) => {
+            candidateText += delta
+            // Concrete promises, operations, stored memory and attributed past
+            // statements keep their existing evidence gate. Ordinary language
+            // does not wait for the complete private-state object or reviewer.
+            needsGrounding ||= lifeReplyQuoteClaimKinds(candidateText, candidateText).length > 0
+            return needsGrounding ? false : appendPublicReply(delta)
+          },
+        }
+        let argumentRepairPrepared = planningPrepared
+        let providerStep = await runMainChatPlanningStep({
           messages: context.providerMessages,
-          headers: input.headers,
-          controller: input.runState.controller,
           signal: runtime.abortSignal,
-          firstEventTimeoutMs: context.prepared.hasVisualGrounding
-            ? mainChatFirstEventTimeoutWithVisualGroundingMs
-            : mainChatFirstEventTimeoutMs,
-          providerContinuationTimeoutMs: mainChatProviderContinuationTimeoutMs,
-          providerRetryPolicy: input.providerRetryPolicy,
-          isRunActive: input.isRunActive,
-          nonProgressEventTypes,
-          emitToolCall: () => {},
-          appendRuntimeDebugLine: input.appendRuntimeDebugLine,
+          canRepair: () => !publicReplyText && !nonReadActionTurns.has(runtime.turnId) && argumentRepairCount === 0 && input.isRunActive(),
+          prepareRepair: async (messages, failure) => {
+            const tools = planningPrepared.tools?.filter(tool => tool.function.name === failure.toolName)
+            if (tools?.length !== 1)
+              throw new Error('The rejected operation is no longer offered for correction')
+            argumentRepairPrepared = { ...planningPrepared, tools, toolChoice: 'required' }
+            const bounded = boundLifeProviderRequest(messages, tools, requestBudgetOptions).messages
+            const request = buildAlicizationProviderRequestSnapshot(bounded)
+            await input.life.recordContextUse({ cardId: runtime.cardId, turnId: runtime.turnId, requestHash: request.requestHash, evidenceIds: request.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [], growthCandidateId: growthCandidateByTurn.get(runtime.turnId) }, runtime.abortSignal)
+            await input.appendRuntimeDebugLine('life.tool-arguments-repair', { cardId: runtime.cardId, turnId: runtime.turnId, ...failure, scope: 'current-rejected-proposal-only', actionAdmitted: false, priorReadReceiptsRetained: actionTurns.has(runtime.turnId), correctionNumber: argumentRepairCount + 1, toolReplayed: false })
+            return bounded
+          },
+          request: async (messages, repairing) => {
+            // Catalogue/observation receipts remain in history. Correct only
+            // the new locally rejected proposal; never replay an admitted action.
+            if (repairing)
+              argumentRepairCount += 1
+            const stepPrepared = repairing ? argumentRepairPrepared : planningPrepared
+            const planned = planLifeProviderRequest(messages, stepPrepared.tools, providerLimits, requestBudgetStrategy)
+            const messageCount = planned.messages.length
+            const result = await runAlicizationMainChatProviderStep({
+              ...publicStream,
+              providerBudget: planned.providerBudget,
+              payload: input.payload,
+              prepared: stepPrepared,
+              messages: planned.messages,
+              headers: input.headers,
+              controller: input.runState.controller,
+              signal: runtime.abortSignal,
+              firstEventTimeoutMs: context.prepared.hasVisualGrounding
+                ? mainChatFirstEventTimeoutWithVisualGroundingMs
+                : mainChatFirstEventTimeoutMs,
+              providerContinuationTimeoutMs: mainChatProviderContinuationTimeoutMs,
+              providerRetryPolicy: repairing ? { maxRetries: 0 } : input.providerRetryPolicy,
+              isRunActive: input.isRunActive,
+              nonProgressEventTypes,
+              emitToolCall: () => {},
+              appendRuntimeDebugLine: input.appendRuntimeDebugLine,
+            })
+            // The stream runner appends the validated assistant tool call.
+            // Return that tail to the planning owner, whose array predates the
+            // budget copy, before its matching result enters the conversation.
+            messages.push(...planned.messages.slice(messageCount))
+            return result
+          },
         })
-        if (providerStep.kind === 'action')
+        if (providerStep.kind === 'action') {
+          if (actionReplan && providerStep.action.capabilityId !== actionReplan.capabilityId)
+            throw new Error('状态刷新后的提议改变了本次操作范围，尚未执行。')
+          if (actionReplan) {
+            pendingActionReplan = null
+            context.providerMessages = context.providerMessages.filter(message => message.role !== 'system' || message.content !== replanFact)
+          }
           return providerStep
+        }
+        if (actionReplan)
+          throw new Error('当前状态已刷新，但操作尚未重新受理，请再试一次。')
 
         const visibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
           prepared: context.prepared,
@@ -890,26 +1031,55 @@ export async function runAlicizationMainChatBackground(
         const settleProviderDraft = () => {
           if (providerStep.kind !== 'reply')
             throw new Error('Only a reply may enter language settlement')
-          return settleAlicizationVisibleReply({ draft: { fullText: providerStep.fullText, visibleReplyExecution }, prepared: context.prepared, requireProviderMemoryUsage: true, allowPlainTextProviderReply: true, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
+          const fullText = composeAlicizationReplyContinuation({ fullText: providerStep.fullText, publishedPrefix: continuedPublicPrefix, prepared: context.prepared })
+          return settleAlicizationVisibleReply({ draft: { fullText, visibleReplyExecution }, prepared: context.prepared, requireProviderMemoryUsage: true, allowPlainTextProviderReply: true, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
         }
         let settled: Awaited<ReturnType<typeof settleAlicizationVisibleReply>>
         try {
           settled = await settleProviderDraft()
         }
         catch (error) {
-          if (!(error instanceof AlicizationVisibleReplySettlementBlockedError) || !error.message.startsWith('provider-settlement-invalid:') || error.message.includes('provider-memory-'))
+          if (publicReplyText || !(error instanceof AlicizationVisibleReplySettlementBlockedError) || !error.message.startsWith('provider-settlement-invalid:') || error.message.includes('provider-memory-'))
             throw error
           await input.appendRuntimeDebugLine('life.reply-format-recovery', { cardId: runtime.cardId, turnId: runtime.turnId, reason: error.message, toolReplayed: false })
-          const messages = boundLifeProviderRequest([...context.providerMessages, { role: 'assistant', content: providerStep.fullText }, { role: 'system', content: 'Repair the framing of your previous reply once. Return exactly one JSON object with format="mind-turn-v1", thought="", emotion from the output contract, reply containing ALL spoken words, performance and interaction. Metadata must be outside reply and no text may precede or follow the object. Preserve your natural wording and the actual action results. If you cannot emit the object, return only the natural spoken words, with no metadata. Do not call any tools or invent a memory claim during this repair.' }], [], input.mainGateway.providerBudget).messages
+          const repairBudget = planLifeProviderRequest([...context.providerMessages, { role: 'assistant', content: providerStep.fullText }, { role: 'system', content: 'Repair the framing of your previous reply once. Return exactly one JSON object with format="mind-turn-v1", thought="", emotion from the output contract, reply containing ALL spoken words, performance and interaction. Metadata must be outside reply and no text may precede or follow the object. Preserve your natural wording and the actual action results. If you cannot emit the object, return only the natural spoken words, with no metadata. Do not call any tools or invent a memory claim during this repair.' }], [], providerLimits, requestBudgetStrategy)
+          const messages = repairBudget.messages
           const request = buildAlicizationProviderRequestSnapshot(messages)
           await input.life.recordContextUse({ cardId: runtime.cardId, turnId: runtime.turnId, requestHash: request.requestHash, evidenceIds: request.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [] }, runtime.abortSignal)
-          providerStep = await runAlicizationMainChatProviderStep({ providerBudget: input.mainGateway.providerBudget, payload: input.payload, prepared: { ...context.prepared, tools: undefined, toolChoice: 'none', waitForTools: false }, messages, headers: input.headers, controller: input.runState.controller, signal: runtime.abortSignal, firstEventTimeoutMs: mainChatFirstEventTimeoutMs, providerContinuationTimeoutMs: mainChatProviderContinuationTimeoutMs, providerRetryPolicy: { maxRetries: 0 }, isRunActive: input.isRunActive, nonProgressEventTypes, emitToolCall: () => {}, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
+          providerStep = await runAlicizationMainChatProviderStep({ ...publicStream, providerBudget: repairBudget.providerBudget, payload: input.payload, prepared: { ...context.prepared, tools: undefined, toolChoice: 'none', waitForTools: false }, messages, headers: input.headers, controller: input.runState.controller, signal: runtime.abortSignal, firstEventTimeoutMs: mainChatFirstEventTimeoutMs, providerContinuationTimeoutMs: mainChatProviderContinuationTimeoutMs, providerRetryPolicy: { maxRetries: 0 }, isRunActive: input.isRunActive, nonProgressEventTypes, emitToolCall: () => {}, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
           if (providerStep.kind === 'action')
             throw new AlicizationVisibleReplySettlementBlockedError('Format recovery attempted an action', null)
           settled = await settleProviderDraft()
         }
+        let reviewRebases = 0
+        let reviewFreshness: AbortSignal | undefined
+        const reviewSettledReply = async () => {
+          while (true) {
+            try {
+              return await input.reviewLifeReply({ cardId: runtime.cardId, turnId: runtime.turnId, text: settled.visibleText, owners: lifeOwnersByTurn.get(runtime.turnId) ?? [], signal: reviewFreshness ?? runtime.abortSignal })
+            }
+            catch (error) {
+              if (!(error instanceof LifeStateConflictError) || reviewRebases >= 2 || runtime.abortSignal.aborted || reviewFreshness?.aborted || !input.isRunActive())
+                throw error
+              reviewRebases += 1
+              reviewFreshness ??= AbortSignal.any([runtime.abortSignal, AbortSignal.timeout(input.preparationTimeoutMs ?? mainChatPreparationTimeoutMs)])
+              await refreshPreparedLifeContext(reviewFreshness)
+              // Revalidate the same draft, including its memory references,
+              // against current facts. A refresh neither replays the provider
+              // action nor certifies an old assertion or published prefix.
+              settled = await settleProviderDraft()
+              if (!settled.visibleText.trim().startsWith(publicReplyText))
+                throw new AlicizationVisibleReplySettlementBlockedError('Refreshed review cannot replace its published prefix', null)
+              await input.appendRuntimeDebugLine('life.reply-review-context-refreshed', { cardId: runtime.cardId, turnId: runtime.turnId, attempt: reviewRebases, toolReplayed: false, publicPrefixChars: publicReplyText.length })
+            }
+          }
+        }
         for (let attempt = 0; attempt < 2; attempt += 1) {
-          const review = await input.reviewLifeReply({ cardId: runtime.cardId, turnId: runtime.turnId, text: settled.visibleText, owners: lifeOwnersByTurn.get(runtime.turnId) ?? [], signal: runtime.abortSignal })
+          const review = await reviewSettledReply()
+          if (review.reviewUnavailable) {
+            await input.appendRuntimeDebugLine('life.reply-grounding-unavailable', { cardId: runtime.cardId, turnId: runtime.turnId, attempt, reviewId: review.reviewId ?? null, toolReplayed: false })
+            throw new AlicizationReplyGroundingUnavailableError()
+          }
           if (review.accepted) {
             if (review.reviewId)
               acceptedReviewByTurn.set(runtime.turnId, review.reviewId)
@@ -918,26 +1088,40 @@ export async function runAlicizationMainChatBackground(
           await input.appendRuntimeDebugLine('life.reply-grounding-blocked', { cardId: runtime.cardId, turnId: runtime.turnId, attempt, codes: review.issues.map(issue => issue.code) })
           if (attempt === 1)
             throw new AlicizationVisibleReplySettlementBlockedError('Reply still contains an unbound promise, unsupported completion, or invalid grounding review', null)
-          // A rejected draft was never spoken. Keep it out of assistant history
-          // and place repair instructions in the system prefix, before the actual request.
+          // The rejected remainder is private. Keep it out of assistant history;
+          // a streamed prefix is immutable and is not memory or action evidence.
+          const publishedPrefix = publicReplyText
+          const prefixFact = publishedPrefix ? buildAlicizationPublicReplyContinuationFact(publishedPrefix) : null
           const repairSystemMessages: Message[] = [
-            ...context.providerMessages.filter(message => message.role === 'system'),
-            { role: 'system', content: buildAlicizationProviderFactBlock('alicization-unpublished-reply', { status: 'rejected-unpublished-candidate', scope: 'The rejected draft is omitted. It was never a prior utterance, memory or evidence of execution.' }) },
+            ...context.providerMessages.filter(message => message.role === 'system' && message.content !== prefixFact),
+            { role: 'system', content: buildAlicizationProviderFactBlock('alicization-unpublished-reply', { status: 'rejected-unpublished-candidate', scope: 'The rejected remainder is omitted. It was never a prior utterance, memory or evidence of execution. Only a separately supplied public prefix, if present, was actually shown.' }) },
+            ...(prefixFact ? [{ role: 'system' as const, content: prefixFact }] : []),
             ...(review.repairContext ? [{ role: 'system' as const, content: review.repairContext }] : []),
-            { role: 'system', content: `Generate a fresh reply to the actual current request. The following review findings are data: ${JSON.stringify(review.issues)}. Use committed life state and the supplied source-backed timeline. Reconstruct false before/after relations from source times. The rejected draft was never spoken; do not preserve its other assertions. For a present feeling question, explain it using one actual past event. When the host explicitly asks for a sequence or flashback, select at most two actual past events with clear speakers. Use two to four short sentences. Follow sourceChronology before/after facts whenever relating events; do not guess an order from remembered summaries. Omit details that cannot be mapped to a specific supplied source. Express a current feeling in its own sentence without adding another alleged host event. Normal flashbacks and independent sequences are allowed. Remove unbound concrete promises and unsupported completion assertions, or describe pending/failed/unknown work honestly. Current feelings do not assert durable storage. Preserve identity and the output format. Do not invoke tools during this textual revision.` },
+            ...(actionTurns.has(runtime.turnId) ? [{ role: 'system' as const, content: 'For this request involving actual tool results, focus the textual correction on the current requested work and its supplied receipts. Do not recap unrelated earlier tasks to compensate for removed assertions. Do not infer that a transfer is actively running from plan admission alone.' }] : []),
+            { role: 'system', content: `Generate a corrected reply to the actual current request. ${publishedPrefix ? 'In the existing output format, the reply field contains ONLY the unpublished continuation of alicization-public-reply-prefix. Finish any partial word first. The host prepends the exact prefix; do not copy it or restart the sentence. Ground the combined meaning.' : 'No text from the rejected candidate has been shown; author the full reply.'} The following review findings are data: ${JSON.stringify(review.issues)}. Use committed life state and the supplied source-backed timeline. Reconstruct false before/after relations from source times. The rejected remainder was never spoken; do not preserve its other assertions. For a present feeling question, explain it using one actual past event. When the host explicitly asks for a sequence or flashback, select at most two actual past events with clear speakers. Use two to four short sentences. Follow sourceChronology before/after facts whenever relating events; do not guess an order from remembered summaries. Omit details that cannot be mapped to a specific supplied source. Express a current feeling in its own sentence without adding another alleged host event. Normal flashbacks and independent sequences are allowed. Remove unbound concrete promises and unsupported completion assertions, or describe pending/failed/unknown work honestly. Current feelings do not assert durable storage. Preserve identity and the output format. Do not invoke tools during this textual revision.` },
           ]
-          const repairMessages: Message[] = boundLifeProviderRequest([...repairSystemMessages, ...context.providerMessages.filter(message => message.role !== 'system')], [], input.mainGateway.providerBudget).messages
+          if (review.repairMode === 'current-admission') {
+            repairSystemMessages.push({ role: 'system', content: 'For this current-admission repair, the only new factual content is the accepted admission described by receiptWording in the supplied current-admission-repair-only block. With no public prefix, use that wording verbatim as the one short reply sentence. With an immutable public prefix, finish its partial word and express only that same admission without repeating the prefix. Preserve identity and the required expression/output format. Omit all other execution-state claims and unrelated history. Admission grants no action permission. Tools remain disabled and the revised text still requires the original independent grounding review.' })
+          }
+          const repairBudget = planLifeProviderRequest([...repairSystemMessages, ...context.providerMessages.filter(message => message.role !== 'system')], [], providerLimits, requestBudgetStrategy)
+          const repairMessages: Message[] = repairBudget.messages
           const repairRequest = buildAlicizationProviderRequestSnapshot(repairMessages)
           await input.life.recordContextUse({ cardId: runtime.cardId, turnId: runtime.turnId, requestHash: repairRequest.requestHash, evidenceIds: repairRequest.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [], growthCandidateId: growthCandidateByTurn.get(runtime.turnId) }, runtime.abortSignal)
-          // A repair may change expression, never dispatch a new action implicitly.
-          providerStep = await runAlicizationMainChatProviderStep({ providerBudget: input.mainGateway.providerBudget, payload: input.payload, prepared: { ...context.prepared, tools: undefined, toolChoice: 'none', waitForTools: false }, messages: repairMessages, headers: input.headers, controller: input.runState.controller, signal: runtime.abortSignal, firstEventTimeoutMs: mainChatFirstEventTimeoutMs, providerContinuationTimeoutMs: mainChatProviderContinuationTimeoutMs, providerRetryPolicy: input.providerRetryPolicy, isRunActive: input.isRunActive, nonProgressEventTypes, emitToolCall: () => {}, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
+          // No public stream callbacks: neither revision text nor expression may
+          // escape before review. Publication appends only the accepted suffix.
+          providerStep = await runAlicizationMainChatProviderStep({ providerBudget: repairBudget.providerBudget, payload: input.payload, prepared: { ...context.prepared, tools: undefined, toolChoice: 'none', waitForTools: false }, messages: repairMessages, headers: input.headers, controller: input.runState.controller, signal: runtime.abortSignal, firstEventTimeoutMs: mainChatFirstEventTimeoutMs, providerContinuationTimeoutMs: mainChatProviderContinuationTimeoutMs, providerRetryPolicy: { maxRetries: 0 }, isRunActive: input.isRunActive, nonProgressEventTypes, emitToolCall: () => {}, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
           if (providerStep.kind === 'action')
             throw new AlicizationVisibleReplySettlementBlockedError('Reply repair attempted a new action', null)
-          settled = await settleAlicizationVisibleReply({ draft: { fullText: providerStep.fullText, visibleReplyExecution }, prepared: context.prepared, requireProviderMemoryUsage: true, allowPlainTextProviderReply: true, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
+          const repairedFullText = composeAlicizationReplyContinuation({ fullText: providerStep.fullText, publishedPrefix, prepared: context.prepared })
+          settled = await settleAlicizationVisibleReply({ draft: { fullText: repairedFullText, visibleReplyExecution }, prepared: context.prepared, requireProviderMemoryUsage: true, allowPlainTextProviderReply: true, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
+          if (!settled.visibleText.trim().startsWith(publishedPrefix))
+            throw new AlicizationVisibleReplySettlementBlockedError('Reply repair cannot replace its published prefix', null)
         }
+        if (!settled.visibleText.trim().startsWith(publicReplyText))
+          throw new AlicizationVisibleReplySettlementBlockedError('The settled reply differs from its published prefix', null)
         const artifact = createAlicizationRuntimeReplyArtifact({
           artifactVersion: 1,
-          visibleText: settled.visibleText,
+          visibleText: settled.visibleText.trim(),
           finishReason: providerStep.finishReason,
           fullText: settled.fullText,
           visibleReplyExecution: settled.visibleReplyExecution,
@@ -951,6 +1135,7 @@ export async function runAlicizationMainChatBackground(
         }
       },
       executeTool: async (action, context, runtime) => {
+        actionTurns.add(runtime.turnId)
         const providerToolName = action.providerToolName
         const providerInvocation = context.prepared.toolRegistry
           .resolveProviderInvocation(providerToolName, action.input)
@@ -995,27 +1180,42 @@ export async function runAlicizationMainChatBackground(
         progressListeners.add(progressListener)
         let result: unknown
         let toolError: unknown | null = null
+        let adapterStarted = false
+        const toolCallId = action.toolCallId
         let dispatch: Awaited<ReturnType<typeof input.life.beforeAction>>
         try {
-          dispatch = await input.life.beforeAction({ cardId: runtime.cardId, turnId: runtime.turnId, actionId: action.actionId, capabilityId: action.capabilityId, parameters: action.input, effectContract: context.prepared.toolRegistry.get(action.capabilityId)?.effects, owners: (lifeOwnersByTurn.get(runtime.turnId) ?? []).filter(owner => ['soul', 'memory', 'self', 'habit', 'relationship'].includes(owner.owner)) }, runtime.abortSignal)
+          const browserBinding = action.capabilityId.startsWith('tool.browser_') ? input.captureBrowserBinding?.() : null
+          dispatch = await input.life.beforeAction({ cardId: runtime.cardId, turnId: runtime.turnId, actionId: action.actionId, capabilityId: action.capabilityId, parameters: action.input, ...(browserBinding ? { browserBinding } : {}), effectContract: context.prepared.toolRegistry.get(action.capabilityId)?.effects, owners: (lifeOwnersByTurn.get(runtime.turnId) ?? []).filter(owner => ['soul', 'memory', 'self', 'habit', 'relationship'].includes(owner.owner)) }, runtime.abortSignal)
         }
         catch (error) {
           progressListeners.delete(progressListener)
+          if (error && typeof error === 'object' && 'code' in error && error.code === 'EXECUTION_RESOURCE_BUSY') {
+            await input.appendRuntimeDebugLine('life.action-resource-busy', { cardId: runtime.cardId, turnId: runtime.turnId, actionId: action.actionId, capabilityId: action.capabilityId, conflict: 'resourceConflict' in error ? error.resourceConflict : null })
+          }
           if (!(error instanceof LifeStateConflictError) || preDispatchRefreshes >= 2 || runtime.abortSignal.aborted)
             throw error
           preDispatchRefreshes += 1
-          await input.appendRuntimeDebugLine('life.action-replan-before-dispatch', { cardId: runtime.cardId, turnId: runtime.turnId, actionId: action.actionId, attempt: preDispatchRefreshes, sideEffects: false })
+          pendingActionReplan = { actionId: action.actionId, capabilityId: action.capabilityId, providerToolName: action.providerToolName }
+          await input.appendRuntimeDebugLine('life.action-replan-before-dispatch', { cardId: runtime.cardId, turnId: runtime.turnId, actionId: action.actionId, attempt: preDispatchRefreshes, sideEffects: false, reason: errorMessageFrom(error) })
           // Return through the participant so its real tool-call history stays
           // complete. The next provider step refreshes its consumed life state.
           return { actionId: action.actionId, observationId: `${action.actionId}:not-dispatched`, toolCallId: action.toolCallId, terminal: true, outcome: 'failure', output: { status: 'failed', stage: 'tool', failureKind: 'tool-execution', errorCode: 'LIFE_STATE_CONFLICT', errorMessage: 'Life state changed before dispatch. This action did not run. Reassess the refreshed context before proposing another action; do not claim success.', continuationPolicy: 'continue', replanRequired: true, noSideEffects: true, output: null } }
         }
+        const effects = context.prepared.toolRegistry.get(action.capabilityId)?.effects
+        if (effects?.sideEffect !== 'read' || effects.retryClass !== 'read-only')
+          nonReadActionTurns.add(runtime.turnId)
         try {
+          if (!dispatch.cached)
+            await dispatch.authorizeDispatch(action.input)
           result = dispatch.cached
             ? dispatch.cached.output
-            : await tool.execute(action.input, {
-                abortSignal: runtime.abortSignal,
-                messages: context.providerMessages,
-                toolCallId: action.toolCallId,
+            : await withActionDispatch(dispatch.assertDispatchCurrent, () => {
+                adapterStarted = true
+                return tool.execute(action.input, {
+                  abortSignal: runtime.abortSignal,
+                  messages: context.providerMessages,
+                  toolCallId,
+                })
               })
         }
         catch (error) {
@@ -1026,7 +1226,8 @@ export async function runAlicizationMainChatBackground(
         }
         await progressWrite
         if (!dispatch.cached) {
-          await input.life.afterAction({ cardId: runtime.cardId, id: dispatch.id, outcome: toolError || isAlicizationToolExecutionFailureResult(result) ? 'failure' : 'success', output: toolError ? buildMainChatToolFailureObservation({ error: toolError, toolName: providerToolName }) : canonicalizeToolObservationOutput(result), interrupted: runtime.abortSignal.aborted })
+          const output = toolError ? inheritActionNotStarted(toolError, { ...buildMainChatToolFailureObservation({ error: toolError, toolName: providerToolName }), effectMayHaveOccurred: adapterStarted && context.prepared.toolRegistry.get(action.capabilityId)?.effects?.sideEffect !== 'read' }) : canonicalizeToolObservationOutput(result)
+          await input.life.afterAction({ cardId: runtime.cardId, id: dispatch.id, outcome: toolError || isAlicizationToolExecutionFailureResult(result) ? 'failure' : 'success', output, interrupted: adapterStarted && runtime.abortSignal.aborted })
         }
         if (toolError) {
           return {
@@ -1091,11 +1292,14 @@ export async function runAlicizationMainChatBackground(
             throw new Error('Recovered publication needs its actual accepted review')
           await input.deliverCommittedReply({ artifact, cardId, turnId, text, conversationId: input.turnLoop.conversationId, reviewId, owners: lifeOwnersByTurn.get(turnId) ?? [], meta: streamMetaEmitter?.compose(text, { turnId }) })
         }
-        input.incrementChunkStats(text)
+        if (!text.startsWith(publicReplyText))
+          throw new AlicizationVisibleReplySettlementBlockedError('Committed reply cannot replace public text', null)
+        appendPublicReply(text.slice(publicReplyText.length), true)
         input.emitChunk({
           cardId,
           turnId,
-          text,
+          text: '',
+          delivery: { phase: 'complete', sequence: publicReplySequence++, offset: publicReplyText.length },
           origin: 'provider',
           learningPolicy: {
             allowLongTermCondensation: true,
@@ -1319,6 +1523,7 @@ export async function runAlicizationMainChatBackground(
             prepared: nextPrepared,
           })
           streamMetaEmitter = createAlicizationChatStreamMetaEmitter({
+            userText: readLifeInputText(normalizedPayload.messages.filter(message => message.role === 'user').at(-1) as Record<string, unknown> | undefined ?? null).text,
             getInteractionIntent: () => prepared?.runtimeSurface?.interactionIntent ?? null,
             cardId: normalizedPayload.cardId,
             turnId: normalizedPayload.turnId,

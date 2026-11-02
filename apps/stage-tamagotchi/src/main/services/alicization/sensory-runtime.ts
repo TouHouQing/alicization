@@ -24,6 +24,7 @@ import {
   activateInvitedInspection,
   releaseInvitedInspection,
 } from './attention-anchor'
+import { projectInspectionDirective, projectInspectionMessages } from './runtime-inspection-directive'
 import {
 
   deriveRuntimeCaptureGovernance,
@@ -353,10 +354,13 @@ interface AlicizationSensoryRuntimeOptions {
 
 export function createAlicizationSensoryRuntime(options: AlicizationSensoryRuntimeOptions) {
   function resolveInspectionIntentFromMessageHistory(input: AlicizationInspectionIntentFromHistoryInput) {
-    const baseIntent = options.detectInvitedInspectionIntent(input.userText)
+    const directive = projectInspectionDirective(input.userText)
+    const baseIntent = options.detectInvitedInspectionIntent(directive.text)
+    if (directive.hasStructuredContent && !baseIntent.active)
+      return false
     const semanticIntent = options.inferAlicizationInspectionIntent({
-      message: input.userText,
-      recentMessages: input.messages.slice(0, -1),
+      message: directive.text,
+      recentMessages: projectInspectionMessages(input.messages.slice(0, -1)),
     })
     const semanticPremarkEligible = semanticIntent.signalProfile?.decisive ?? semanticIntent.active
     if (!baseIntent.active && !semanticIntent.active)
@@ -368,7 +372,7 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
       visualPresenceState: null,
     })
     const ingressSemantics = options.buildDialogueTurnSemantics({
-      userText: input.userText,
+      userText: directive.text,
       previousAssistantText: options.readLatestAssistantMessageText(input.messages),
       context: ingressContext.context,
       currentScene: ingressContext.currentScene,

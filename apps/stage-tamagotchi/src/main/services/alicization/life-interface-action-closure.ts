@@ -40,11 +40,13 @@ export function observeLifeInterfaceResult(raw: unknown, selectedIds?: string[],
   const desktop = result.channel === 'desktop' && result.operation === 'desktop_list_interactables' && typeof result.windowId === 'string' && typeof result.processId === 'number' && typeof result.desktop === 'string'
   if (!browser && !desktop)
     return null
-  const targetId = browser ? String(result.url) : JSON.stringify({ windowId: result.windowId, processId: result.processId, desktop: result.desktop, title: result.title })
+  const targetId = browser ? String(result.url) : JSON.stringify({ windowId: result.windowId, processId: result.processId, processStartTicks: result.processStartTicks, windowClass: result.windowClass, desktop: result.desktop, title: result.title })
   if (targetId.length > 4096)
     return null
   const entries = result.elements.filter(item => item && typeof item === 'object') as Record<string, unknown>[]
-  const key = (item: Record<string, unknown>) => String(browser ? item.selector : item.runtimeId)
+  // Windows exposes stable verification identities separately from its opaque,
+  // single-observation dispatch references. macOS selectors remain stable IDs.
+  const key = (item: Record<string, unknown>) => String(browser ? item.id ?? item.selector : item.runtimeId)
   const ids = selectedIds ?? entries.slice(0, 16).map(key)
   if (ids.length > 16 || ids.some(id => id.length > 400) || new Set(ids).size !== ids.length)
     return null

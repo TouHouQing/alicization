@@ -22,6 +22,29 @@ async function open() {
 }
 
 describe('durable life state', () => {
+  it('keeps a consumed cognition version across maintenance ticks but fences genuinely new observations', async () => {
+    const { db } = await open()
+    const state = { attentionAnchor: null, recentObservations: [{ observedAt: 100, target: { windowId: 'owned-editor' } }], updatedAt: 100 }
+    try {
+      const life = createLifeTurnRuntime({ getIngress: db.getLifeIngress, getEffect: db.getLifeEffect, read: db.readLifeState, commit: db.commitLifeState, now: () => 100 })
+      const signal = new AbortController().signal
+      await life.admit({ cardId: 'alice', turnId: 'cognition-review', conversationId: 'session', messages: [{ role: 'user', content: '继续当前任务' }] }, signal)
+      await db.commitLifeState({ cardId: 'alice', operationKey: 'cognition-observed', changes: [{ owner: 'cognition', key: 'perception_state_v1', value: JSON.stringify(state) }] })
+      const consumed = (await db.readLifeState()).owners
+      expect(consumed.filter(owner => owner.owner === 'cognition')).toHaveLength(1)
+      for (let tick = 1; tick <= 3; tick++) {
+        const maintenance = await db.commitLifeState({ cardId: 'alice', operationKey: `cognition-maintenance-${tick}`, changes: [{ owner: 'cognition', key: 'perception_state_v1', value: JSON.stringify({ ...state, updatedAt: 100 + tick * 2000 }) }] })
+        expect(maintenance.owners).toEqual([])
+      }
+      await expect(life.recordContextUse({ cardId: 'alice', turnId: 'cognition-review', requestHash: 'a'.repeat(64), owners: consumed, evidenceIds: [] }, signal)).resolves.toBeUndefined()
+      expect((await db.readLifeState()).owners).toEqual(consumed)
+      const observation = await db.commitLifeState({ cardId: 'alice', operationKey: 'cognition-new-observation', changes: [{ owner: 'cognition', key: 'perception_state_v1', value: JSON.stringify({ ...state, recentObservations: [{ ...state.recentObservations[0], observedAt: 9000 }], updatedAt: 9000 }) }] })
+      expect(observation.owners).toHaveLength(1)
+      await expect(life.recordContextUse({ cardId: 'alice', turnId: 'cognition-review', requestHash: 'b'.repeat(64), owners: consumed, evidenceIds: [] }, signal)).rejects.toThrow('Consumed life owner cognition became stale')
+    }
+    finally { await db.close() }
+  })
+
   it('keeps idempotence beyond the view window, stores the current input durably, and keeps raw media out of life views', async () => {
     const { db } = await open()
     try {

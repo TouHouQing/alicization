@@ -30,6 +30,7 @@ import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
 import { useSettings, useSettingsAudioDevice } from '@proj-alicization/stage-ui/stores/settings'
 import { useSpeechRuntimeStore } from '@proj-alicization/stage-ui/stores/speech-runtime'
 import { useStageDialogueStore } from '@proj-alicization/stage-ui/stores/stage-dialogue'
+import { Button } from '@proj-alicization/ui'
 import { refDebounced, useFocusWithin, useIntervalFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
@@ -71,6 +72,9 @@ const controlsIslandElement = computed(() => controlsIslandRef.value?.$el as HTM
 const stageCanvas = toRef(() => widgetStageRef.value?.canvasElement())
 const stageDialogueOverlay = toRef(() => widgetStageRef.value?.dialogueOverlayElement())
 const componentStateStage = ref<'pending' | 'loading' | 'mounted'>('pending')
+const stageRenderError = ref<string | null>(null)
+const stageRenderRetryPending = ref(false)
+const stageRecoveryPanel = ref<HTMLElement>()
 
 const isLoading = ref(true)
 
@@ -88,6 +92,7 @@ const openOnboarding = useElectronEventaInvoke(electronOpenOnboarding)
 const { isOutside: isOutsideWindow } = useElectronMouseInWindow()
 const { isOutside } = useElectronMouseInElement(controlsIslandElement)
 const { isOutside: isOutsideDialogueOverlay } = useElectronMouseInElement(stageDialogueOverlay)
+const { isOutside: isOutsideRecoveryPanel } = useElectronMouseInElement(stageRecoveryPanel)
 const isOutsideFor250Ms = refDebounced(isOutside, 250)
 const isOutsideDialogueOverlayFor250Ms = refDebounced(isOutsideDialogueOverlay, 250)
 const { focused: isDialogueOverlayFocused } = useFocusWithin(stageDialogueOverlay)
@@ -183,7 +188,35 @@ function resetDesktopLayout() {
     stageDialogue: stageDialogueStore,
   })
 }
-watch(componentStateStage, () => isLoading.value = componentStateStage.value !== 'mounted', { immediate: true })
+watch(componentStateStage, (state) => {
+  isLoading.value = state !== 'mounted'
+  if (state === 'mounted')
+    stageRenderError.value = null
+}, { immediate: true })
+watch(stageModelRenderer, (renderer) => {
+  if (renderer !== 'live2d')
+    stageRenderError.value = null
+})
+
+function handleStageRenderError(code: string | null) {
+  stageRenderError.value = code
+  if (code) {
+    stageInteractionActive.value = false
+    clearStageLoadRecoveryTimer()
+  }
+}
+
+async function retryStageRenderer() {
+  if (stageRenderRetryPending.value)
+    return
+  stageRenderRetryPending.value = true
+  try {
+    await widgetStageRef.value?.retryRenderer()
+  }
+  finally {
+    stageRenderRetryPending.value = false
+  }
+}
 
 function reportStageBodyHealth() {
   const canvas = stageCanvas.value
@@ -191,10 +224,10 @@ function reportStageBodyHealth() {
   const state = componentStateStage.value
   const model = stageModelSelectedUrl.value
   const visiblePixels = readStagePixelWitness({ mounted: state === 'mounted', bounds: canvas?.getBoundingClientRect() ?? null, readRegion: (x, y) => renderer === 'vrm' ? widgetStageRef.value?.readRenderTargetRegionAtClientPoint(x, y, 1) ?? null : canvas && renderer === 'live2d' ? readLive2dCanvasPixel(canvas, x, y) : null })
-  const errorCode = !model ? 'MODEL_NOT_SELECTED' : state !== 'mounted' ? 'MODEL_OR_RENDERER_LOADING' : visiblePixels === 'unknown' ? 'NO_VISIBLE_PIXEL_WITNESS' : null
+  const errorCode = stageRenderError.value ?? (!model ? 'MODEL_NOT_SELECTED' : state !== 'mounted' ? 'MODEL_OR_RENDERER_LOADING' : visiblePixels === 'unknown' ? 'NO_VISIBLE_PIXEL_WITNESS' : null)
   void lifeExpressionReporter.health(activeCardId.value || 'default', { rendererState: state, renderer: renderer || 'unselected', modelSelected: !!model, canvasPresent: !!canvas, visiblePixels, errorCode })
 }
-watch([componentStateStage, stageModelRenderer, stageModelSelectedUrl, activeCardId, stageCanvas], reportStageBodyHealth, { flush: 'post', immediate: true })
+watch([componentStateStage, stageRenderError, stageModelRenderer, stageModelSelectedUrl, activeCardId, stageCanvas], reportStageBodyHealth, { flush: 'post', immediate: true })
 useIntervalFn(reportStageBodyHealth, 10_000)
 
 const hearingDialogOpen = computed(() => controlsIslandRef.value?.hearingDialogOpen ?? false)
@@ -208,7 +241,7 @@ function resolveDesktopCaptureStateNow() {
     hearingDialogOpen: hearingDialogOpen.value,
     insideControls,
     insideDialogueOverlay,
-    insideStageRecoveryPanel: false,
+    insideStageRecoveryPanel: !!stageRenderError.value && !!stageRecoveryPanel.value && !isOutsideRecoveryPanel.value,
     emergencyPanelHovered: false,
     isOutsideWindow: isOutsideWindow.value,
     stageCharacterHovered: stageCharacterHovered.value,
@@ -316,7 +349,7 @@ async function syncRecentDrivingEventFromMindTrace(
   })
 }
 
-watch([desktopInputReady, isOutsideFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, stageCharacterHovered, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
+watch([desktopInputReady, isOutsideFor250Ms, isOutsideDialogueOverlayFor250Ms, isOutsideRecoveryPanel, stageRecoveryPanel, stageRenderError, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, stageCharacterHovered, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
   syncDesktopMouseCaptureState()
 }, { immediate: true })
 
@@ -672,8 +705,11 @@ async function recoverStageLoading(reason: 'init' | 'watchdog') {
   }
 }
 
-watch([componentStateStage, stageModelRenderer, stageModelSelectedUrl], ([state, renderer, modelUrl]) => {
+watch([componentStateStage, stageModelRenderer, stageModelSelectedUrl, stageRenderError], ([state, renderer, modelUrl, error]) => {
   clearStageLoadRecoveryTimer()
+
+  if (error)
+    return
 
   if (state === 'mounted') {
     stageLoadRecoveryAttempts.value = 0
@@ -767,6 +803,7 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
         @dialogue-rendered="lifeExpressionReporter.rendered($event)"
         @speech-receipt="lifeExpressionReporter.audio($event)"
         @body-activity-receipt="lifeExpressionReporter.bodyActivity($event)"
+        @render-error="handleStageRenderError"
       />
       <ControlsIsland
         ref="controlsIslandRef"
@@ -775,6 +812,30 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
     </div>
     <div v-show="isLoading" class="pointer-events-none absolute left-0 top-0 z-99 h-full w-full flex items-center justify-center overflow-hidden">
       <div
+        v-if="stageRenderError"
+        ref="stageRecoveryPanel"
+        role="alert"
+        :data-stage-render-failure="stageRenderError"
+        :class="[
+          'pointer-events-auto mx-4 max-w-sm flex flex-col gap-3 rounded-xl border p-4',
+          'border-neutral-200 bg-white/95 text-neutral-800 shadow-sm',
+          'dark:border-neutral-700 dark:bg-neutral-950/95 dark:text-neutral-100',
+        ]"
+      >
+        <p class="font-medium">
+          {{ t('tamagotchi.stage.resources.failure.title') }}
+        </p>
+        <p class="text-sm text-neutral-600 dark:text-neutral-300">
+          {{ t('tamagotchi.stage.resources.failure.description') }}
+        </p>
+        <Button
+          :label="t('tamagotchi.stage.resources.failure.retry')"
+          :disabled="stageRenderRetryPending"
+          @click="retryStageRenderer"
+        />
+      </div>
+      <div
+        v-else
         :class="[
           'absolute h-24 w-full overflow-hidden',
           'flex items-center justify-center',

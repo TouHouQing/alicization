@@ -40,6 +40,45 @@ describe('live2d emotion motion resolution', () => {
     localStorageEntries.clear()
   })
 
+  it('does not hydrate or replay transient motion commands between actors', () => {
+    localStorage.setItem('settings/live2d/current-motion', JSON.stringify({ group: 'Tap', index: 1 }))
+    const first = useLive2d()
+    expect(first.currentMotion).toEqual({ group: 'Idle', index: 0 })
+    first.currentMotion = { group: 'FlickUp', index: 0 }
+    const second = useLive2d(createPinia())
+    expect(second.currentMotion).toEqual({ group: 'Idle', index: 0 })
+    expect(first.currentMotion).toEqual({ group: 'FlickUp', index: 0 })
+    expect(JSON.parse(localStorage.getItem('settings/live2d/current-motion')!)).toEqual({ group: 'Tap', index: 1 })
+  })
+
+  it('defaults each model to quiet presence and keeps animation opt-in local to that model', () => {
+    const store = useLive2d()
+    expect(store.getIdleMotionModeForModel('model-pro')).toBe('presence')
+    expect(store.getIdleMotionModeForModel(undefined)).toBe('presence')
+    store.setIdleMotionModeForModel('model-pro', 'animation')
+    expect(store.getIdleMotionModeForModel('model-pro')).toBe('animation')
+    expect(store.getIdleMotionModeForModel('model-free')).toBe('presence')
+    store.resetState()
+    expect(store.getIdleMotionModeForModel('model-pro')).toBe('presence')
+  })
+
+  it('can save a loop preference without firing a foreground motion or suppressing repeated previews', () => {
+    const store = useLive2d()
+    const motion = { fileName: 'idle.motion3.json', motionName: 'Idle', motionIndex: 0 }
+    store.setAvailableMotionsForModel('model-pro', [motion])
+    const before = store.currentMotion
+    const previews = vi.fn()
+    const dispose = store.onPreviewMotion(previews)
+    store.selectPreferredRuntimeMotion('model-pro', motion, { activate: false })
+    expect(store.currentMotion).toBe(before)
+    store.previewMotion('model-pro', motion)
+    store.previewMotion('model-pro', motion)
+    expect(previews).toHaveBeenCalledTimes(2)
+    expect(previews.mock.calls[0][0].requestId).not.toBe(previews.mock.calls[1][0].requestId)
+    expect(store.getIdleMotionModeForModel('model-pro')).toBe('presence')
+    dispose()
+  })
+
   it('keeps manual idle choices per model while transient emotion changes the current motion', () => {
     const store = useLive2d()
     const pro = { fileName: 'pro-idle.motion3.json', motionName: 'ProIdle', motionIndex: 2 }

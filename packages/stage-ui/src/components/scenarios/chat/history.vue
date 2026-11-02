@@ -8,6 +8,9 @@ import ChatAssistantItem from './assistant-item.vue'
 import ChatErrorItem from './error-item.vue'
 import ChatUserItem from './user-item.vue'
 
+import { chatMessageIdentity } from '../../../stores/chat/message-identity'
+import { projectChatHistory } from './history-projection'
+
 const props = withDefaults(defineProps<{
   messages: ChatHistoryItem[]
   streamingMessage?: ChatAssistantMessage & { createdAt?: number }
@@ -53,7 +56,7 @@ const streamingMessageId = computed(() => (streaming.value as ChatHistoryItem | 
 
 function getMessageRenderKey(message: ChatHistoryItem, index: number) {
   if (message.id)
-    return message.id
+    return chatMessageIdentity(message.id)
   if (message.context?.id)
     return message.context.id
   return `${message.role ?? 'unknown'}:${message.createdAt ?? 0}:${index}`
@@ -62,7 +65,7 @@ function getMessageRenderKey(message: ChatHistoryItem, index: number) {
 function shouldShowPlaceholder(message: ChatHistoryItem) {
   const streamId = streamingMessageId.value
   if (streamId)
-    return message.id === streamId
+    return chatMessageIdentity(message.id) === chatMessageIdentity(streamId)
 
   const ts = streamingTs.value
   if (ts == null)
@@ -70,23 +73,7 @@ function shouldShowPlaceholder(message: ChatHistoryItem) {
 
   return message.context?.createdAt === ts || message.createdAt === ts
 }
-const renderMessages = computed<ChatHistoryItem[]>(() => {
-  if (!props.sending)
-    return props.messages
-
-  const streamTs = streamingTs.value
-  if (!streamTs)
-    return props.messages
-
-  const streamId = streamingMessageId.value
-  const hasStreamAlready = streamId
-    ? props.messages.some(msg => msg?.role === 'assistant' && msg?.id === streamId)
-    : streamTs && props.messages.some(msg => msg?.role === 'assistant' && msg?.createdAt === streamTs)
-  if (hasStreamAlready)
-    return props.messages
-
-  return [...props.messages, streaming.value]
-})
+const renderMessages = computed(() => projectChatHistory(props.messages, streaming.value, props.sending))
 </script>
 
 <template>
@@ -101,7 +88,7 @@ const renderMessages = computed<ChatHistoryItem[]>(() => {
         />
       </div>
 
-      <div v-else-if="message.role === 'assistant'" data-chat-message-role="assistant">
+      <div v-else-if="message.role === 'assistant'" data-chat-message-role="assistant" :data-chat-message-id="chatMessageIdentity(message.id)" :data-chat-artifact-origin="message.structured?.origin" :data-chat-contract-failed="message.structured?.contractFailed === true">
         <ChatAssistantItem
           :message="message"
           :label="labels.assistant"
@@ -111,7 +98,7 @@ const renderMessages = computed<ChatHistoryItem[]>(() => {
         />
       </div>
 
-      <div v-else-if="message.role === 'user'" data-chat-message-role="user">
+      <div v-else-if="message.role === 'user'" data-chat-message-role="user" :data-chat-message-id="chatMessageIdentity(message.id)">
         <ChatUserItem
           :message="message"
           :label="labels.user"

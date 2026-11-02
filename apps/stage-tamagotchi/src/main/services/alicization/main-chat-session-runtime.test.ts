@@ -26,6 +26,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createAlicizationAgentRuntime } from './agent-runtime'
 import { setupAlicizationDb } from './db'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
+import { declaredWorkProposal } from './execution/declared-work-proposal'
 import { createEmptyWorkingMemorySnapshot } from './life-core/working-memory'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
 import { filterAlicizationProviderSystemMessages } from './main-chat-runtime-surface'
@@ -532,6 +533,50 @@ function createOpenAgentTurn(getSensorySnapshot: () => Promise<AlicizationSensor
 }
 
 describe('resolvePreparedRuntimeSurfaceSelection', () => {
+  it.each(['text', 'multipart'])('offers the exact current declared request through session composition after a compact prelude: %s', async (transport) => {
+    const content = '保留  两个空格\n第二行🙂'.repeat(200)
+    const proposal = { goal: 'Only the current declared task', criteria: [{ id: 'file', required: true, proofScope: 'structure', predicate: { kind: 'text-content', path: 'C:/owned/current.txt', includes: ['保留  两个空格'] } }], steps: [{ id: 'save', dependsOn: [], capabilityId: 'tool.filesystem_write_file', input: { path: 'C:/owned/current.txt', content }, acceptanceCriterionIds: ['file'] }] }
+    const currentText = `请执行这份参数：${JSON.stringify(proposal)}`
+    expect(currentText.length).toBeGreaterThan(1200)
+    const getSensorySnapshot = vi.fn(async () => ({ running: false, stale: true, ageMs: 0, nextTickAt: null, sample: { collectedAt: 10, time: { iso: '2026-10-26T00:00:00.000Z', local: '2026-10-26 08:00', timezone: 'Asia/Shanghai' }, cpu: { usagePercent: 10, windowMs: 1000 }, memory: { freeMB: 1024, totalMB: 8192, usagePercent: 87.5 } }, capture: null } satisfies AlicizationSensoryCacheSnapshot))
+    const createDeclaredWorkPlan = vi.fn(async () => ({ status: 'accepted' }))
+    const createWorkPlan = vi.fn()
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      createDeclaredWorkPlan,
+      createWorkPlan,
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({ text: '', source: 'none' as const })),
+      resolveCardHostName: vi.fn(async () => 'QA'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({ hostAttitude: '', coreIncarnation: '', activeThoughts: [], retrievedFacts: [], recalledFragments: [] })),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ([])),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const turnId = 'current-declared-source'
+    const prepared = await runtime.prepareExecution({
+      payload: { cardId: 'default', turnId, supportsTools: true, messages: [{ role: 'user', content: transport === 'text' ? currentText : [{ type: 'text', text: currentText }] }] } as AlicizationChatStartPayload,
+      prelude: createPrelude({ messages: [{ role: 'user', content: '当前任务的显示摘要' }] }),
+    })
+    const offered = prepared.tools!.find(tool => tool.function.name === 'life_execute_work_plan')!
+    expect(Object.keys(offered.function.parameters.properties ?? {})).toEqual(['sourceInputId', 'proposalHash'])
+    expect(JSON.stringify(offered.function.parameters)).not.toContain(content)
+    expect(createDeclaredWorkPlan).not.toHaveBeenCalled()
+    const reference = { sourceInputId: `user:${turnId}`, proposalHash: declaredWorkProposal(currentText)!.hash }
+    const abortSignal = new AbortController().signal
+    await offered.execute(reference, { messages: [], toolCallId: 'current', abortSignal })
+    expect(createDeclaredWorkPlan).toHaveBeenCalledExactlyOnceWith({ ...reference, cardId: 'default', turnId, abortSignal })
+    expect(createWorkPlan).not.toHaveBeenCalled()
+  })
   it('forwards the per-tool abort signal through the session resume adapter', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
@@ -597,7 +642,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const outerController = new AbortController()
@@ -762,7 +807,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -953,7 +998,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       resolveTurnRetrievalPolicySnapshot: vi.fn(async () => ({
         policy: {
@@ -1062,7 +1107,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       resolveTurnRetrievalPolicySnapshot: vi.fn(async () => ({
         policy: { reasonCodes: ['simple-greeting'] },
@@ -1146,7 +1191,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -1230,7 +1275,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -1315,7 +1360,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const prelude = createPrelude({
@@ -1435,7 +1480,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const prelude = createPrelude({
@@ -1657,7 +1702,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -1811,7 +1856,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -2000,7 +2045,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -2115,7 +2160,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -2312,7 +2357,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -2421,7 +2466,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -2589,7 +2634,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -2702,7 +2747,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -2811,7 +2856,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -2948,7 +2993,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -3025,7 +3070,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -3145,7 +3190,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -3271,7 +3316,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -3396,7 +3441,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -3538,7 +3583,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -3642,7 +3687,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -3839,7 +3884,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -4034,7 +4079,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -4263,7 +4308,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -4443,7 +4488,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -4611,7 +4656,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -4708,7 +4753,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
     const reflectivePrelude = createReflectivePrelude({
@@ -4799,7 +4844,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       ...overrides,
     })
@@ -5261,7 +5306,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -7729,7 +7774,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -7900,7 +7945,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -8063,7 +8108,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
         scheduleReminderTask: vi.fn(async () => ({ ok: true })),
         tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-        invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+        invokeMcpListTools: vi.fn(async () => ([])),
         invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       })
     }
@@ -8256,7 +8301,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -8384,7 +8429,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -8512,7 +8557,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -8697,7 +8742,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       resolveTurnRetrievalPolicySnapshot: vi.fn(async () => ({
         policy: {

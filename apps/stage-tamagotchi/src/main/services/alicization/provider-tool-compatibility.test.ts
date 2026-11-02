@@ -1,7 +1,11 @@
 import type { Tool } from '@xsai/shared-chat'
 
+import Ajv from 'ajv'
+
+import { tool } from '@xsai/tool'
 import { describe, expect, it, vi } from 'vitest'
 
+import { createWorkPlanToolSpec } from './execution/work-plan-tool'
 import { adaptAlicizationProviderTools } from './provider-tool-compatibility'
 
 function createStrictTool(): Tool {
@@ -48,6 +52,59 @@ function createStrictTool(): Tool {
 }
 
 describe('provider tool compatibility', () => {
+  it('converts an exact literal criterion through the actual SDK without requiring a guessed hash', async () => {
+    const execute = vi.fn(async () => null)
+    const source = await tool(createWorkPlanToolSpec(execute))
+    const converted = adaptAlicizationProviderTools({ providerId: 'openai-compatible', tools: [source] })![0]
+    const input = { goal: 'Write exact text', criteria: [{ id: 'exact', required: true, proofScope: 'bytes', predicate: { kind: 'file-content', path: 'C:/owned/note.txt', content: '中文🙂\r\n' } }], steps: [{ id: 'write', dependsOn: [], capabilityId: 'tool.filesystem_write_file', input: { path: 'C:/owned/note.txt', content: '中文🙂\r\n' } }] }
+    const validate = new Ajv({ strict: false }).compile(converted.function.parameters)
+    expect(validate(input), JSON.stringify(validate.errors)).toBe(true)
+    await converted.execute(input, { messages: [], toolCallId: 'qa-literal-content' })
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ criteria: [{ id: 'exact', required: true, proofScope: 'bytes', predicate: { kind: 'file-bytes', path: 'C:/owned/note.txt', sha256: 'cab52b6386da7c47837bcfb0db1c829b68cf2506765d3eedcb9e6a582c0a9eb7' } }] }), expect.any(Object))
+  })
+
+  it('admits omitted step evidence associations through the real converted schema and callback', async () => {
+    const execute = vi.fn(async () => null)
+    const source = await tool(createWorkPlanToolSpec(execute))
+    const converted = adaptAlicizationProviderTools({ providerId: 'openai-compatible', tools: [source] })![0]
+    const validate = new Ajv({ strict: false }).compile(converted.function.parameters)
+    const input = { goal: 'Read the owned note', criteria: [{ id: 'review', required: true, proofScope: 'user-reported', predicate: { kind: 'user-review', question: 'Is this useful?', artifactIds: [] } }], steps: [{ id: 'read', dependsOn: [], capabilityId: 'tool.filesystem_read_file', input: { path: 'C:/owned/note.txt' } }] }
+    expect(validate(input), JSON.stringify(validate.errors)).toBe(true)
+    const options = { messages: [], toolCallId: 'qa-work-association' }
+    await converted.execute(input, options)
+    expect(execute).toHaveBeenCalledWith({ ...input, steps: [{ ...input.steps[0], acceptanceCriterionIds: [] }] }, options)
+  })
+
+  it('preserves the actual nested browser plan parameters through xsAI conversion and Provider adaptation', async () => {
+    const source = await tool(createWorkPlanToolSpec(async () => null))
+    const converted = adaptAlicizationProviderTools({ providerId: 'openai-compatible', tools: [source] })![0]
+    const validate = new Ajv({ strict: false }).compile(converted.function.parameters)
+    const proposal = { goal: 'Observe and wait on the chosen page', criteria: [{ id: 'receipt', required: true, proofScope: 'structure', predicate: { kind: 'text-content', path: 'C:/owned/receipt.txt', includes: ['saved'] } }], steps: [
+      { id: 'read', dependsOn: [], capabilityId: 'tool.browser_read_page', input: { format: 'interactables', maxChars: 12000 }, acceptanceCriterionIds: [] },
+      { id: 'wait', dependsOn: ['read'], capabilityId: 'tool.browser_wait', input: { text: 'saved', state: 'complete', timeoutMs: 15000 }, acceptanceCriterionIds: ['receipt'] },
+    ] }
+    expect(validate(proposal), JSON.stringify(validate.errors)).toBe(true)
+    const extra = structuredClone(proposal)
+    Object.assign(extra.steps[0].input, { allowAllOrigins: true })
+    expect(validate(extra)).toBe(false)
+    expect(validate.errors?.some(error => error.keyword === 'additionalProperties')).toBe(true)
+    expect(source.function.parameters).toHaveProperty('properties.steps.items.properties.input.properties.format')
+  })
+
+  it('preserves keyword-named properties, definitions and object literals without altering source owners', () => {
+    const source = createStrictTool()
+    const parameters = JSON.parse('{"type":"object","properties":{"format":{"type":"string","format":"uri"},"default":{"$ref":"#/$defs/format"},"__proto__":{"type":"string"},"literal":{"const":{"format":"text","default":"kept","properties":{"format":"literal"}}}},"$defs":{"format":{"type":"string","format":"uri"}},"required":["format","default","__proto__","literal"],"additionalProperties":false}')
+    source.function.parameters = parameters
+    const result = adaptAlicizationProviderTools({ providerId: 'openai-compatible', tools: [source] })![0].function.parameters as Record<string, any>
+    expect(result.properties.format).toEqual({ type: 'string' })
+    expect(result.$defs.format).toEqual({ type: 'string' })
+    expect(result.properties.default).toEqual({ $ref: '#/$defs/format' })
+    expect(Object.hasOwn(result.properties, '__proto__')).toBe(true)
+    expect(Object.getPrototypeOf(result.properties)).toBe(Object.prototype)
+    expect(result.properties.literal.const).toEqual(parameters.properties.literal.const)
+    expect(result.properties.literal.const).not.toBe(parameters.properties.literal.const)
+    expect(parameters.properties.format.format).toBe('uri')
+  })
   it('preserves strict mode for official OpenAI only when every property is required', () => {
     const execute = vi.fn()
     const tool: Tool = {

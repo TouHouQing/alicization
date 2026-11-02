@@ -43,6 +43,17 @@ const rightCharacterFrame = {
 }
 
 describe('stage dialogue utils', () => {
+  it('keeps the stage bubble on the visible prefix while structured settlement already contains the full reply', () => {
+    const message = createAssistantMessage({
+      content: '我',
+      slices: [{ type: 'text', text: '我' }],
+      structured: { thought: 'internal', emotion: 'neutral', reply: '我在这里。', format: 'fallback-v1' },
+      categorization: { speech: '我在这里。', reasoning: '' },
+    })
+    expect(resolveStageBubbleText(message, { visibleOnly: true })).toBe('我')
+    expect(resolveStageBubbleText({ ...message, content: '', slices: [] }, { visibleOnly: true })).toBe('')
+    expect(resolveStageBubbleText(message)).toBe('我在这里。')
+  })
   it('prefers structured reply for the bubble body', () => {
     const message = createAssistantMessage({
       content: 'raw content',

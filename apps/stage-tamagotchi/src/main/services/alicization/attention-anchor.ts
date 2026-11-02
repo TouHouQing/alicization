@@ -7,6 +7,7 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import { inferForegroundWorkloadFromWindow } from './proactive-layered-context'
+import { projectInspectionDirective } from './runtime-inspection-directive'
 
 export interface AlicizationPerceptionTarget {
   appName?: string
@@ -724,7 +725,7 @@ export function getActivePerceptionSceneResidue(
 }
 
 export function detectInvitedInspectionIntent(text: string) {
-  const normalized = sanitizeHintText(text)
+  const normalized = sanitizeHintText(projectInspectionDirective(text).text)
   if (!normalized) {
     return {
       active: false,

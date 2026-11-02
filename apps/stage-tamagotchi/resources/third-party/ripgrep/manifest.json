@@ -1,0 +1,27 @@
+{
+  "format": "alicization-vendored-tool-v1",
+  "name": "ripgrep",
+  "version": "15.2.0",
+  "source": "https://github.com/BurntSushi/ripgrep",
+  "commit": "e89fff89ac9af12e8d4ce9d5fd07beb408ca730f",
+  "archive": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-pc-windows-msvc.zip",
+  "officialAssetApi": "https://api.github.com/repos/BurntSushi/ripgrep/releases/assets/478119643",
+  "archiveSha256": "71b2fef860abe467217a538ff31de02f5258807c0129f771846f87bd029aafc5",
+  "binary": {
+    "path": "win32-x64/rg.exe",
+    "platform": "win32",
+    "arch": "x64",
+    "bytes": 4218880,
+    "sha256": "14231169855ec5205cf5a1b6f1db358ff4aed4247c86b69ce8aae647c77f6680",
+    "modified": false
+  },
+  "licenses": ["win32-x64/COPYING", "win32-x64/LICENSE-MIT", "win32-x64/UNLICENSE"],
+  "referenceImplementation": {
+    "source": "https://github.com/earendil-works/pi",
+    "commit": "35dfa757378bd7a8570670e99c2687bdd1039a06",
+    "path": "packages/coding-agent/src/core/tools/grep.ts",
+    "sha256": "acb567b9c7c778f416d6f7e7bfa5abe3493626df15ca5a5e319ef3301ca0ddeb",
+    "notice": "pi-LICENSE",
+    "adaptedMechanisms": ["fixed-argv-no-config", "json-match-stream", "bounded-output", "cancellation"]
+  }
+}

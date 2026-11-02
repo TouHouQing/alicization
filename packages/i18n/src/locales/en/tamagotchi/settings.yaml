@@ -48,6 +48,19 @@ hitl:
     empty_summary: No argument summary
     none: None
   fields:
+    input_preview: 'Content for this action:'
+    window_preview: Window preview
+    window_foreground_hint: After allowing, switch to this window and release the selection keys. Moving the mouse or pressing a key during execution takes control back.
+    window_target_markers: Numbers mark the exact targets. A drag moves from 1 to 2.
+    window_click: 'Click target 1 with the {button} mouse button.'
+    window_drag: Drag from target 1 to target 2.
+    window_scroll: 'Scroll {direction} by {notches} notches at target 1.'
+    window_button_left: left
+    window_button_right: right
+    window_button_middle: middle
+    window_scroll_up: up
+    window_scroll_down: down
+    preview_truncated: Only the first 600 characters are shown. The size and hash cover the complete content.
     arguments_summary: 'Arguments summary: '
     not_provided: Not provided
     reason: 'Reason: '

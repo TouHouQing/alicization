@@ -3,7 +3,7 @@ import { Application } from '@pixi/app'
 import { extensions } from '@pixi/extensions'
 import { Ticker, TickerPlugin } from '@pixi/ticker'
 import { Live2DModel } from 'pixi-live2d-display/cubism4'
-import { onBeforeMount, onErrorCaptured, onMounted, onUnmounted, ref, watch } from 'vue'
+import { nextTick, onBeforeMount, onErrorCaptured, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const props = withDefaults(defineProps<{
   width: number
@@ -15,12 +15,16 @@ const props = withDefaults(defineProps<{
   maxFps: 0,
 })
 
+const emit = defineEmits<{ renderError: [code: string | null] }>()
 const componentState = defineModel<'pending' | 'loading' | 'mounted'>('state', { default: 'pending' })
-
 const containerRef = ref<HTMLDivElement>()
 const isPixiCanvasReady = ref(false)
 const pixiApp = ref<Application>()
 const pixiAppCanvas = ref<HTMLCanvasElement>()
+let disposed = false
+let failureCode: string | null = null
+let retryPending: Promise<void> | null = null
+let removeContextLossListener: (() => void) | undefined
 
 const live2dCanvasDebugStorageKey = 'devtools/embodiment-debug'
 
@@ -70,14 +74,36 @@ function resolveMaxFps(limit?: number) {
   return Math.max(1, Math.round(limit))
 }
 
+function failRenderer(app: Application | undefined, code: string, error?: unknown) {
+  if (disposed || (app && pixiApp.value !== app) || failureCode === code)
+    return
+  failureCode = code
+  app?.ticker.stop()
+  isPixiCanvasReady.value = false
+  componentState.value = 'loading'
+  console.error('[Live2D] Renderer unavailable.', { code, error })
+  emit('renderError', code)
+}
+
+function destroyCanvas() {
+  removeContextLossListener?.()
+  removeContextLossListener = undefined
+  // A failed destroy keeps its owner for the next retry. Model slots are
+  // unpublished and flushed before this application is destroyed.
+  pixiApp.value?.destroy(true)
+  pixiApp.value = undefined
+  pixiAppCanvas.value = undefined
+}
+
 function installRenderGuard(app: Application) {
   const guardedRender = () => {
+    if (disposed || failureCode || pixiApp.value !== app)
+      return
     try {
       app.render()
     }
     catch (error) {
-      console.error('[Live2D] Pixi render error.', error)
-      app.ticker.stop()
+      failRenderer(app, 'LIVE2D_RENDER_FAILED', error)
     }
   }
 
@@ -109,6 +135,14 @@ async function initLive2DPixiStage(parent: HTMLDivElement) {
   pixiApp.value.stage.scale.set(props.resolution)
 
   pixiAppCanvas.value = pixiApp.value.view
+  const owner = pixiApp.value
+  const canvas = pixiAppCanvas.value
+  const contextLost = (event: Event) => {
+    event.preventDefault()
+    failRenderer(owner, 'LIVE2D_CONTEXT_LOST')
+  }
+  canvas.addEventListener('webglcontextlost', contextLost)
+  removeContextLossListener = () => canvas.removeEventListener('webglcontextlost', contextLost)
 
   // Set CSS styles to make canvas responsive to container
   pixiAppCanvas.value.style.width = '100%'
@@ -122,11 +156,43 @@ async function initLive2DPixiStage(parent: HTMLDivElement) {
   componentState.value = 'mounted'
 }
 
+function retryRenderer() {
+  if (disposed)
+    return Promise.resolve()
+  if (retryPending)
+    return retryPending
+  retryPending = (async () => {
+    isPixiCanvasReady.value = false
+    componentState.value = 'loading'
+    pixiApp.value?.ticker.stop()
+    emit('renderError', null)
+    await nextTick()
+    if (disposed)
+      return
+    try {
+      destroyCanvas()
+      failureCode = null
+      if (containerRef.value)
+        await initLive2DPixiStage(containerRef.value)
+    }
+    catch (error) {
+      failRenderer(pixiApp.value, 'LIVE2D_RENDERER_INITIALIZATION_FAILED', error)
+    }
+  })().finally(() => { retryPending = null })
+  return retryPending
+}
+
 function handleResize() {
-  if (pixiApp.value) {
+  const owner = pixiApp.value
+  if (owner && !failureCode && !disposed) {
     // Update the internal rendering resolution
-    pixiApp.value.renderer.resize(props.width * props.resolution, props.height * props.resolution)
-    pixiApp.value.stage.scale.set(props.resolution)
+    try {
+      owner.renderer.resize(props.width * props.resolution, props.height * props.resolution)
+      owner.stage.scale.set(props.resolution)
+    }
+    catch (error) {
+      failRenderer(owner, 'LIVE2D_RENDER_FAILED', error)
+    }
   }
 
   // The CSS styles handle the display size, so we don't need to manually set view dimensions
@@ -148,26 +214,33 @@ watch(componentState, (state) => {
 
 onMounted(async () => {
   logLive2DCanvasTrace('onMounted-enter')
-  if (containerRef.value)
-    await initLive2DPixiStage(containerRef.value)
+  await retryRenderer()
   logLive2DCanvasTrace('onMounted-exit')
 })
 
 onBeforeMount(() => {
   logLive2DCanvasTrace('onBeforeMount')
 })
-onUnmounted(() => pixiApp.value?.destroy())
+onUnmounted(() => {
+  disposed = true
+  try {
+    destroyCanvas()
+  }
+  catch (error) {
+    console.error('[Live2D] Renderer cleanup failed.', error)
+  }
+})
 
 async function captureFrame() {
   const frame = new Promise<Blob | null>((resolve) => {
-    if (!pixiAppCanvas.value || !pixiApp.value)
+    if (!isPixiCanvasReady.value || !pixiAppCanvas.value || !pixiApp.value)
       return resolve(null)
 
     try {
       pixiApp.value.render()
     }
     catch (error) {
-      console.error('[Live2D] Pixi render error during capture.', error)
+      failRenderer(pixiApp.value, 'LIVE2D_RENDER_FAILED', error)
       return resolve(null)
     }
 
@@ -182,6 +255,7 @@ function canvasElement() {
 }
 
 defineExpose({
+  retryRenderer,
   captureFrame,
   canvasElement,
 })

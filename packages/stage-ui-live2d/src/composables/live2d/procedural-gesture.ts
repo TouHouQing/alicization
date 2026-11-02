@@ -32,8 +32,8 @@ export function createLive2DProceduralGesture() {
   let active: { cue: string, revision: number, startedAt: number, intensity: number, definition: GestureDefinition } | null = null
 
   return {
+    get active() { return active !== null },
     start(input: { cue: string, revision: number, now: number, intensity: number }, supports: (parameter: string) => boolean) {
-      active = null
       const definition = gestures[input.cue]
       if (!definition || !supports(definition.parameter) || !Number.isFinite(input.now) || !Number.isFinite(input.intensity))
         return false

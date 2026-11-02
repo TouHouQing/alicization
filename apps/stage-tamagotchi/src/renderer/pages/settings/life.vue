@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { LifeBackupSummary } from '../../../shared/life-backup-contracts'
 import type { LifeClosureRecord } from '../../../shared/life-closure-contracts'
 import type { LifeEvidenceRef, LifeObligation, LifeOutreachPolicy, LifeStateView } from '../../../shared/life-contracts'
 import type { LifeInputPreview, LifeObligationCommand } from '../../../shared/life-events'
@@ -14,8 +13,19 @@ import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AuthorizedBrowser from './components/authorized-browser.vue'
+import ExecutionRecovery from './components/execution-recovery.vue'
+import ExecutionStorage from './components/execution-storage.vue'
+import ExecutionVerifiers from './components/execution-verifiers.vue'
+import ExecutionWorkPlans from './components/execution-work-plans.vue'
+import FileRecovery from './components/file-recovery.vue'
+import LearnedProcedures from './components/learned-procedures.vue'
+import LifeObligationHistory from './components/life-obligation-history.vue'
+
 import { createDefaultLifeOutreachPolicy } from '../../../shared/life-contracts'
 import { electronLifeArtifactRestore, electronLifeBackupCommand, electronLifeClosure, electronLifeGrowthRollback, electronLifeInputCommand, electronLifeInputPreview, electronLifeObligationCommand, electronLifeOutreachPolicy, electronLifePersonaCommand, electronLifePersonalProposalWithdraw, electronLifePolicyCommand, electronLifeProjectFeedback, electronLifeView } from '../../../shared/life-events'
+import { useLifeBackupPages } from '../../composables/use-life-backup-pages'
+import { useExecutionViewUpdates } from './components/use-execution-view-updates'
 
 const { t } = useI18n()
 const { activeCardId } = storeToRefs(useAiriCardStore())
@@ -23,7 +33,6 @@ const read = useElectronEventaInvoke(electronLifeView)
 const giveProjectFeedback = useElectronEventaInvoke(electronLifeProjectFeedback)
 const withdrawProposal = useElectronEventaInvoke(electronLifePersonalProposalWithdraw)
 const backupCommand = useElectronEventaInvoke(electronLifeBackupCommand)
-const backups = ref<LifeBackupSummary[]>([])
 const personaCommand = useElectronEventaInvoke(electronLifePersonaCommand)
 const policyCommand = useElectronEventaInvoke(electronLifePolicyCommand)
 const personaEvaluationHashes = ref<Record<string, string>>({})
@@ -49,9 +58,27 @@ const originalPolicy = ref<LifeOutreachPolicy>(createDefaultLifeOutreachPolicy()
 const loading = ref(false)
 const pendingId = ref<string | null>(null)
 const error = ref<string | null>(null)
+const backupPages = useLifeBackupPages({
+  cardId: activeCardId,
+  invoke: backupCommand,
+  busy: (busy) => {
+    if (busy)
+      pendingId.value = 'backup'
+    else if (pendingId.value === 'backup')
+      pendingId.value = null
+  },
+  error: message => error.value = message,
+  restarting: () => inputNotice.value = t('settings.life.backup.restarting'),
+  deferred: () => error.value = t('settings.life.backup.busy'),
+})
+const { backups, issuesTotal: backupIssueCount, total: backupTotal, page: backupPage, hasPrevious: backupHasPrevious, hasNext: backupHasNext } = backupPages
 const dueInputs = ref<Record<string, string>>({})
-const openObligations = computed(() => view.value?.obligations.filter(item => !['fulfilled', 'cancelled', 'superseded'].includes(item.status)) ?? [])
-const history = computed(() => view.value?.obligations.filter(item => ['fulfilled', 'cancelled', 'superseded'].includes(item.status)).slice(0, 20) ?? [])
+const workObligationIds = computed(() => new Set(view.value?.execution?.plans.map(plan => plan.rootObligationId) ?? []))
+const openObligations = computed(() => view.value?.obligations.filter(item => !workObligationIds.value.has(item.id) && !['fulfilled', 'cancelled', 'superseded'].includes(item.status)) ?? [])
+const historyHead = computed(() => {
+  const latest = view.value?.obligations.find(item => ['fulfilled', 'cancelled', 'superseded'].includes(item.status))
+  return latest ? `${latest.id}:${latest.generation}:${latest.revision}` : ''
+})
 const sharedProjects = computed(() => view.value?.obligations.filter(item => item.kind === 'personal-project' && item.status === 'fulfilled' && !item.invalidatedBy && item.personalDevelopment?.shares.length).slice(0, 12) ?? [])
 const hostRequestedQuiet = computed(() => Boolean(JSON.parse(view.value?.values['life:initiative'] ?? '{}').outreachHold))
 const withdrawnDocuments = computed(() => view.value?.obligations.filter(item => item.kind === 'personal-project' && item.invalidationMode === 'forget' && item.proof.kind === 'file') ?? [])
@@ -81,6 +108,7 @@ const expression = computed(() => {
   return raw ? JSON.parse(raw) as { body?: { rendererState: string, canvasPresent: boolean, nativeWindowVisible?: boolean, visiblePixels: 'visible' | 'invisible' | 'unknown', modelSelected: boolean, errorCode: string | null, observedAt: number }, lastReceipt?: { state: string, playedMs: number, errorCode: string | null } } : null
 })
 let request = 0
+useExecutionViewUpdates({ cardId: () => activeCardId.value || 'default', revision: () => view.value?.revision ?? -1, refresh: () => refresh(true) })
 
 async function withdrawChoice(proposal: { id: string, sourceReplyHash: string }) {
   pendingId.value = proposal.id
@@ -112,7 +140,7 @@ async function feedbackOnProject(goal: LifeObligation, feedback: 'positive' | 'd
   }
 }
 
-async function refresh() {
+async function refresh(preserveDrafts = false) {
   const token = ++request
   loading.value = true
   try {
@@ -130,8 +158,11 @@ async function refresh() {
         return
       personaEvaluationHashes.value = hashes
       const initiative = next.values['life:initiative'] ? JSON.parse(next.values['life:initiative']) as { outreachPolicy?: LifeOutreachPolicy } : null
-      originalPolicy.value = initiative?.outreachPolicy ?? createDefaultLifeOutreachPolicy()
-      policy.value = { ...originalPolicy.value }
+      const dirty = JSON.stringify(policy.value) !== JSON.stringify(originalPolicy.value)
+      if (!preserveDrafts || !dirty) {
+        originalPolicy.value = initiative?.outreachPolicy ?? createDefaultLifeOutreachPolicy()
+        policy.value = { ...originalPolicy.value }
+      }
       error.value = null
     }
   }
@@ -143,19 +174,6 @@ async function refresh() {
     if (token === request)
       loading.value = false
   }
-}
-
-async function manageBackup(action: 'list' | 'create' | 'restore', backup?: LifeBackupSummary) {
-  pendingId.value = 'backup'
-  error.value = null
-  try {
-    const result = await backupCommand({ cardId: activeCardId.value || 'default', action, ...(backup ? { backupId: backup.id, expectedManifestHash: backup.manifestHash } : {}) })
-    backups.value = result.backups
-    if (result.status === 'restarting')
-      inputNotice.value = t('settings.life.backup.restarting')
-  }
-  catch (caught) { error.value = caught instanceof Error ? caught.message : String(caught) }
-  finally { pendingId.value = null }
 }
 
 async function act(item: LifeObligation, action: LifeObligationCommand['action']) {
@@ -298,7 +316,7 @@ async function updatePolicy() {
 <template>
   <div :class="['mx-auto', 'max-w-4xl', 'space-y-6', 'pb-8']">
     <header :class="['flex', 'justify-end']">
-      <Button :label="t('settings.life.refresh')" :loading="loading" size="sm" icon="i-solar:refresh-bold-duotone" @click="refresh" />
+      <Button :label="t('settings.life.refresh')" :loading="loading" size="sm" icon="i-solar:refresh-bold-duotone" @click="refresh()" />
     </header>
     <p v-if="error" role="alert" class="rounded-xl bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
       {{ error }}
@@ -314,6 +332,11 @@ async function updatePolicy() {
         {{ t('settings.life.manage_personality') }}
       </RouterLink>
     </nav>
+    <ExecutionRecovery v-if="view" :view="view" :refresh="() => refresh(true)" />
+    <ExecutionRecovery v-if="view" :view="view" :refresh="() => refresh(true)" download-resources />
+    <ExecutionWorkPlans v-if="view" :view="view" :refresh="() => refresh(true)" />
+    <FileRecovery v-if="view" :view="view" :refresh="() => refresh(true)" />
+    <ExecutionStorage v-if="view" :card-id="view.cardId" />
     <p v-if="view?.backupRestore" role="status" class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
       {{ t('settings.life.backup.restored') }}
     </p>
@@ -325,12 +348,20 @@ async function updatePolicy() {
         {{ t('settings.life.backup.description') }}
       </p>
       <div class="flex flex-wrap gap-3">
-        <Button size="sm" :label="t('settings.life.backup.create')" :disabled="loading || pendingId !== null" @click="manageBackup('create')" />
-        <Button size="sm" :label="t('settings.life.backup.list')" :disabled="pendingId !== null" @click="manageBackup('list')" />
+        <Button size="sm" :label="t('settings.life.backup.create')" :disabled="loading || pendingId !== null" @click="backupPages.create" />
+        <Button size="sm" :label="t('settings.life.backup.list')" :disabled="pendingId !== null" @click="backupPages.refresh" />
       </div>
+      <p v-if="backupIssueCount" role="status" data-life-backup-issues class="mt-3 text-sm text-amber-700 dark:text-amber-300">
+        {{ t('settings.life.backup.unreadable', { count: backupIssueCount }) }}
+      </p>
       <div v-for="backup in backups" :key="backup.id" class="mt-3 flex items-center justify-between gap-4 border-b border-neutral-200 py-3 text-sm dark:border-neutral-800">
         <time :datetime="new Date(backup.createdAt).toISOString()">{{ new Date(backup.createdAt).toLocaleString() }}</time>
-        <Button size="sm" :label="t('settings.life.backup.restore')" :disabled="pendingId !== null" @click="manageBackup('restore', backup)" />
+        <Button size="sm" :label="t('settings.life.backup.restore')" :disabled="pendingId !== null" @click="backupPages.restore(backup)" />
+      </div>
+      <div v-if="backupTotal" class="mt-3 flex flex-wrap items-center gap-3" data-life-backup-pagination>
+        <span class="text-sm text-neutral-500">{{ t('settings.life.backup.page', { page: backupPage + 1, total: backupTotal }) }}</span>
+        <Button size="sm" :label="t('settings.life.backup.previous')" :disabled="pendingId !== null || !backupHasPrevious" @click="backupPages.previous" />
+        <Button size="sm" :label="t('settings.life.backup.next')" :disabled="pendingId !== null || !backupHasNext" @click="backupPages.next" />
       </div>
     </details>
     <section>
@@ -386,7 +417,7 @@ async function updatePolicy() {
         </div>
       </article>
     </section>
-    <section aria-live="polite">
+    <section v-if="openObligations.length || !workObligationIds.size" aria-live="polite">
       <h2 class="mb-3 text-lg font-medium">
         {{ t('settings.life.responsibilities') }}
       </h2>
@@ -418,6 +449,9 @@ async function updatePolicy() {
         </div>
       </article>
     </section>
+    <LearnedProcedures v-if="view" :card-id="view.cardId" />
+    <ExecutionVerifiers v-if="view" :card-id="view.cardId" />
+    <AuthorizedBrowser v-if="view" :card-id="view.cardId" />
     <section v-if="withdrawnDocuments.length">
       <h2 class="mb-3 text-lg font-medium">
         {{ t('settings.life.withdrawn_documents') }}
@@ -444,14 +478,7 @@ async function updatePolicy() {
         </div>
       </article>
     </section>
-    <details v-if="history.length">
-      <summary class="cursor-pointer text-sm text-neutral-500">
-        {{ t('settings.life.history') }}
-      </summary>
-      <p v-for="item in history" :key="item.id" class="mt-3 text-sm">
-        {{ item.summary }} · {{ t(`settings.life.status.${item.status}`) }}
-      </p>
-    </details>
+    <LifeObligationHistory v-if="view" :card-id="view.cardId" :head="historyHead" />
     <section v-if="growth?.candidates.length">
       <h2 class="mb-3 text-lg font-medium">
         {{ t('settings.life.growth') }}

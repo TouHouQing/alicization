@@ -9,6 +9,38 @@ function fact(type: string, data: unknown) {
 }
 
 describe('alicization guardrails', () => {
+  it('preserves a complete current structured work request beyond the dialogue history budget', () => {
+    const proposal = JSON.stringify({ goal: '完整二十一步分类', steps: Array.from({ length: 21 }, (_, index) => ({ id: `step-${index}`, path: `C:/owned/资料-${index}.txt`, content: `literal [${index}](https://example.invalid/${index}) 中文🙂 ${'content '.repeat(90)}` })) })
+    const messages: Message[] = [{ role: 'user', content: proposal }]
+    const original = JSON.stringify(messages)
+    const result = compactMessagesForPromptAssembly(messages)
+    expect(result.messages).toEqual(messages)
+    expect(JSON.parse(String(result.messages[0].content))).toEqual(JSON.parse(proposal))
+    expect(result.report.afterTokens).toBeGreaterThan(1800)
+    expect(JSON.stringify(messages)).toBe(original)
+  })
+
+  it('preserves all text and image parts of the complete current request', () => {
+    const content = [{ type: 'text' as const, text: 'complete literal '.repeat(1000) }, { type: 'image_url' as const, image_url: { url: 'data:image/png;base64,owned' } }, { type: 'text' as const, text: 'last part must remain separate' }]
+    const result = compactMessagesForPromptAssembly([{ role: 'user', content }])
+    expect(result.messages[0].content).toEqual(content)
+  })
+
+  it('protects the entire current tool exchange when it exceeds message and token history limits', () => {
+    const messages = [{ role: 'user', content: 'current complete request' }, ...Array.from({ length: 12 }, (_, index) => [{ role: 'assistant', content: `call ${index}` }, { role: 'tool', tool_call_id: `call-${index}`, content: `result ${index}` }]).flat()] as Message[]
+    const result = compactMessagesForPromptAssembly(messages, { maxMessages: 6, totalDialogueTokens: 20, minTailMessages: 4 })
+    expect(result.messages).toEqual(messages)
+    expect(result.report.droppedMessageCount).toBe(0)
+  })
+
+  it('removes an older complete tool exchange without orphaning its results or clipping current text', () => {
+    const current: Message[] = [{ role: 'user', content: 'current literal' }, { role: 'assistant', content: 'current reply' }]
+    const messages = [{ role: 'user', content: 'old request' }, { role: 'assistant', content: 'old call' }, { role: 'tool', tool_call_id: 'old', content: 'old result' }, { role: 'assistant', content: 'old conclusion' }, ...current] as Message[]
+    const result = compactMessagesForPromptAssembly(messages, { maxMessages: 4, minTailMessages: 2 })
+    expect(result.messages).toEqual(current)
+    expect(result.report.droppedMessageCount).toBe(4)
+  })
+
   it('redacts sensitive values before outbound model call', () => {
     const messages: Message[] = [
       { role: 'system', content: 'SOUL prompt' },

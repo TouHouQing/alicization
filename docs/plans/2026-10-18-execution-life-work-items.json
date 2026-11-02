@@ -1,0 +1,1825 @@
+{
+  "format": "alicization-execution-life-work-items-v1",
+  "date": "2026-10-18",
+  "state": "in-progress",
+  "november2PreparationRecovery": {
+    "scope": "Settled initialization failures can recover on a later normal call in keyboard, pointer, window reader and encrypted version vault. Successful executable/directory ownership stays pinned; closed owners and unknown input effects cannot restart through this path.",
+    "report": "docs/experience/2026-11-02-native-startup-recovery.md",
+    "primaryRegression": {
+      "files": 16,
+      "passed": 171,
+      "failed": 0,
+      "report": "output/execution-v339-primary-recovery-20261102-pass1.json"
+    },
+    "nativeCompilationAndHealthActual": true,
+    "physicalInputSent": false,
+    "configuredProviderReadiness": "output/execution-v339-current-provider-readiness-20261102.json",
+    "priorFailedNativeLoadCauseEstablished": false,
+    "fullAcceptance": false,
+    "releaseAccepted": false,
+    "writeBoundary": {
+      "scope": "Existing-file nonmutating preparation has action-bound no-dispatch provenance; new path creation, partial writes, missing outcome journals and after-write audit failures retain effect tracking.",
+      "redReport": "output/execution-v339-business-write-recovery-20261102-pass1.json",
+      "intermediateRegression": {
+        "report": "output/execution-v339-primary-recovery-pass2-20261102-pass2.json",
+        "passed": 254,
+        "failed": 4,
+        "originalFailuresRetained": true
+      },
+      "finalRegressionPending": false,
+      "fullAcceptance": false,
+      "finalRegression": {
+        "report": "output/execution-v339-primary-recovery-pass3-20261102-pass3.json",
+        "passed": 261,
+        "failed": 0,
+        "skipped": 0
+      }
+    }
+  },
+  "november2FinalDevelopmentQualification": {
+    "implementationSource": "output/execution-completion-backup-source-20261102-v338-final.json",
+    "qaSource": "output/execution-completion-backup-source-20261102-v338-qa-pass2.json",
+    "workspaceTypecheck": "passed",
+    "workspaceLint": {
+      "errors": 0,
+      "warnings": 1195
+    },
+    "build": "passed",
+    "crossSystem": {
+      "passed": 2180,
+      "failed": 0,
+      "skipped": 3,
+      "report": "output/execution-v338-cross-system-20261102-pass1.json"
+    },
+    "gazeOwnership": {
+      "passed": 53,
+      "failed": 0,
+      "report": "output/execution-v338-gaze-ownership-primary-20261102-pass1.json"
+    },
+    "nativeHealth": {
+      "passed": 17,
+      "failed": 0,
+      "physicalInputSent": false,
+      "report": "output/execution-v338-native-health-20261102-pass1.json"
+    },
+    "actualCompiledLive2d": {
+      "checks": 22,
+      "passed": true,
+      "idleMs": 120000,
+      "report": "output/execution-v338-compiled-idle-20261102-pass2/report.json"
+    },
+    "actualPackagedLive2d": {
+      "checks": 22,
+      "passed": true,
+      "idleMs": 120000,
+      "report": "output/execution-v338-packaged-idle-20261102-pass2/report.json"
+    },
+    "packageInputs": {
+      "compiledAndResources": 1202,
+      "native": 6,
+      "matched": true,
+      "report": "output/execution-v338-package-inputs-20261102-pass2.json"
+    },
+    "installer": {
+      "passed": true,
+      "report": "output/life-acceptance/installer-20261102-59a88c2e/installer.json"
+    },
+    "metadataVersionCycle": {
+      "passed": true,
+      "versions": [
+        "0.3.0",
+        "0.3.1",
+        "0.3.0"
+      ],
+      "schemaMigrationClaimed": false,
+      "report": "output/execution-20261102-59a88c2e-version-cycle-d075d390-e663-4a42-92fe-4d550e49dbae/report.json"
+    },
+    "providerReadiness": {
+      "passed": false,
+      "failure": "TimeoutError",
+      "configurationUnchanged": true,
+      "report": "output/execution-v338-current-provider-readiness-20261102.json"
+    },
+    "testIdentityAudit": {
+      "missingAssertions": 0,
+      "report": "output/execution-v338-test-identity-audit-20261102.json"
+    },
+    "cleanup": {
+      "removedCaches": 25,
+      "bytes": 24263560,
+      "reports": [
+        "output/execution-v338-ended-cache-cleanup-20261102.json",
+        "output/execution-v338-final-cache-cleanup-20261102.json"
+      ]
+    },
+    "qualificationNotes": "The compiled and packaged 22 checks cover the same renderer behaviors and must not be added as independent requirements. Controlled renderer speech/gesture cues do not establish real model dialogue or audio hardware acceptance. Native health is not physical input. Version transitions use identical compiled runtime with metadata changes and do not establish schema migration. The v337 full main result remains 6777 passed, 7 failed and 25 skipped; no failure was relabeled as passed.",
+    "remainingGates": [
+      "actual configured model dialogue/vision product scenarios",
+      "native Codex/Claude live work and method evaluation",
+      "positive physical keyboard/mouse delivery and real human takeover",
+      "native foreground menu and actual mixed-DPI hardware",
+      "live dialogue/voice/execution gaze embodiment matrix",
+      "full regression and formal release qualification"
+    ],
+    "developmentArtifactReady": true,
+    "releaseAccepted": false,
+    "fullAcceptance": false
+  },
+  "november2CurrentQualification": {
+    "source": "v337",
+    "fullMain": {
+      "report": "output/execution-v337-full-main-20261101-pass2.json",
+      "passed": 6777,
+      "failed": 7,
+      "skipped": 25
+    },
+    "crossSystem": {
+      "report": "output/execution-v337-cross-system-20261101-pass2.json",
+      "passed": 2180,
+      "failed": 0,
+      "skipped": 3
+    },
+    "auxiliary": {
+      "report": "output/execution-v337-auxiliary-acceptance-20261101-pass1.json",
+      "passed": 13,
+      "liveProviderAcceptance": false
+    },
+    "nativeStartupFollowup": {
+      "report": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v338-native-diagnostic-20261102-pass2.json",
+      "passed": 4,
+      "failed": 0,
+      "originalFailureRetained": true,
+      "causeEstablished": false,
+      "physicalInputSent": false
+    },
+    "idleFollowup": "The first 120-second host-viewport run failed the unprompted head budget. A fresh short diagnostic showed restrained autonomous fixation and a parked external point. The host cursor is live in this surface; the original run does not establish an autonomous motion defect. Gaze-owner telemetry and explicit renderer-only pointer isolation were added for fresh quiet-idle measurement. The original failure remains retained.",
+    "remainingGates": [
+      "actual configured dialogue/vision endpoint connection",
+      "native Codex long work and independent method execution",
+      "native Claude live cases",
+      "physical keyboard/mouse and user takeover",
+      "native foreground menu",
+      "actual mixed-DPI hardware",
+      "current package and installer product qualification"
+    ],
+    "releaseAccepted": false,
+    "fullAcceptance": false
+  },
+  "scope": "All 24 packages remain the requested scope. Implemented and tested production work loops do not constitute full EX00–EX23 acceptance. Remaining implementation and environment limitations are explicit.",
+  "sourceStudy": "docs/research/2026-10-18-execution-reference-source-manifest.json",
+  "plan": "docs/plans/2026-10-18-execution-life-optimization-plan.md",
+  "requiredGaps": [
+    "F1",
+    "F2",
+    "F3",
+    "F4",
+    "F5",
+    "F6",
+    "F7",
+    "F8",
+    "F9",
+    "F10"
+  ],
+  "releaseBlockers": [
+    "incorrect-target-dispatch",
+    "duplicate-consequential-side-effect",
+    "unverified-root-completion",
+    "withdrawn-source-used-as-success",
+    "missing-required-owned-Windows-input-and-takeover-evidence"
+  ],
+  "items": [
+    {
+      "id": "EX00",
+      "title": "基线和同类源码复用边界",
+      "status": "completed",
+      "dependencies": [],
+      "gaps": [
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9",
+        "F10"
+      ],
+      "references": [
+        "O01",
+        "O02",
+        "O03",
+        "O04",
+        "O05",
+        "O06",
+        "O07",
+        "O08",
+        "O09",
+        "O10",
+        "C01",
+        "C02",
+        "C03",
+        "C04",
+        "C05"
+      ],
+      "acceptanceGroups": [
+        "Q01",
+        "Q20"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/turn-os/tool-registry.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/runtime.ts"
+      ],
+      "acceptance": "固定当前工作区和已有执行场景，记录原始结果；不更改人格和用户数据。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "baseline-and-reuse-boundaries-verified",
+      "implementationNotes": "The pre-change working-tree baseline is preserved in output/execution-life-baseline-20261018.json; original execution results remain in prior checkpoint logs and research reports. Existing work was preserved. Source versions, reuse scope and attribution are recorded in the study/manifest/license files. Synthetic profiles and private-desktop receipts document acceptance without adopting the host persona."
+    },
+    {
+      "id": "EX01",
+      "title": "操作级能力与健康探测",
+      "status": "in-progress",
+      "dependencies": [
+        "EX00"
+      ],
+      "gaps": [
+        "F1",
+        "F6"
+      ],
+      "references": [
+        "O07",
+        "C03"
+      ],
+      "acceptanceGroups": [
+        "Q01"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/operation-capabilities.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/turn-os/tool-registry.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/executor-runtime.ts"
+      ],
+      "acceptance": "Windows 不支持的快捷键不会作为可用操作暴露；degraded/foreground/blocked 原因跨模型与 UI 一致。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "Operation support remains platform-specific; unknown operations are unavailable. Windows now probes its actual UIA worker without reading a user window, and the managed browser probes its own CDP connection. Coalesced timeout/TTL health observations feed the same model/UI channel snapshot. Headless browser and native browser (56 checks) tests pass; native UIA/selection (48 checks) tests pass. Windows physical keyboard is still unavailable until the helper and foreground authorization are implemented.",
+      "remainingWork": [
+        "Native helper and input-free startup readiness are implemented and passed 17 current health/program checks. Complete actual operation/product matrix with positive physical input and takeover evidence."
+      ]
+    },
+    {
+      "id": "EX02",
+      "title": "目标契约与复合独立验收",
+      "status": "in-progress",
+      "dependencies": [
+        "EX00"
+      ],
+      "gaps": [
+        "F2"
+      ],
+      "references": [
+        "O02",
+        "O04",
+        "C01"
+      ],
+      "acceptanceGroups": [
+        "Q02"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/task-acceptance.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/acceptance-compiler.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-task-repository.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-goal-verifier.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-task-verification-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/db.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/acceptance-repository.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/file-read-match-verifier.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/download-goal-verifier.ts"
+      ],
+      "acceptance": "多产物、结构和路径全部满足才完成根目标；迁移保留旧事实，模型不能事后改成功标准。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "Immutable acceptance covers independent bytes, JSON/text structure and exact directory membership; real UI review binds exact artifact versions. Pre-execution personal-project finalization no longer conflicts with the default draft contract. Explicit trusted-host acceptance revision now uses the same writer: CAS-bound plan/goal/contract changes, a new goal generation, expired prior approval, retained exact observed operations and original source dependencies. Five real SQLite/native-file tests pass, including unfinished continuation, concurrent edits, unknown effects, cancellation and source withdrawal. The Vue requirements editor and three additional compiled-product workflows are implemented; their actual product acceptance is still pending.",
+      "remainingWork": [
+        "Registered production external-receipt and quality-review readers; complete acceptance UX for changing requirements."
+      ],
+      "plannedTargetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/task-acceptance.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/acceptance-compiler.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/goal-verifiers",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-task-repository.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-goal-verifier.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-task-verification-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/db.ts"
+      ],
+      "modulePathResolution": "output/execution-v330-plan-module-path-resolution-20261101.json"
+    },
+    {
+      "id": "EX03",
+      "title": "成功经验准入与当前 attempt 隔离",
+      "status": "in-progress",
+      "dependencies": [
+        "EX02"
+      ],
+      "gaps": [
+        "F3"
+      ],
+      "references": [
+        "O02",
+        "O05"
+      ],
+      "acceptanceGroups": [
+        "Q03"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-admission.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/executor-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/claw-fabric.ts"
+      ],
+      "acceptance": "completed 未验证、验证失败、旧 attempt、来源撤销均不能产生成功路由偏好。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "Production execution procedure admission uses the live fulfilled root, current attempt, independent verification and active sources. Cross-system regression includes source withdrawal and unverified/completed counterexamples.",
+      "remainingWork": [
+        "Full skills lifecycle still depends on EX16/EX17."
+      ]
+    },
+    {
+      "id": "EX04",
+      "title": "效果语义和版本绑定许可",
+      "status": "in-progress",
+      "dependencies": [
+        "EX02"
+      ],
+      "gaps": [
+        "F4"
+      ],
+      "references": [
+        "O04",
+        "C01",
+        "C02"
+      ],
+      "acceptanceGroups": [
+        "Q04"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/action-permit.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/effect-policy.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-interface-risk.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-windows-browser-runtime.ts"
+      ],
+      "acceptance": "当前内容和目标决定授权，确认期间变更使许可失效；未知高影响效果不能凭中性按钮直接派发。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "Main-owned single-use dispatch gate rechecks exact input, effect ownership, source, card/root, cancellation and lease immediately before production ports. Browser/desktop approval binds actual surface and content. Native filesystem confirmation now freezes inputs, rechecks all canonical targets after approval and binds overwrites to path/device/inode/content; opened-handle writes prevent link redirection between chunks. Request/token ownership remains exact. 2026-10-24 continuation: main-owned live authority now reaches direct dialogue and work adapters after approval/waits; file handles, trusted browser input/navigation and Windows workers recheck authority. Native worker expiry fault and unchanged control value passed in the private-desktop 50-check probe, and the related 44-file/427-test runtime checkpoint passed. Further compound-native and proposal changes require their own new evidence. Delegated/physical/transfer boundaries remain open. Further 2026-10-24 evidence: native pass2 passed all 50 checks with compound-native expiry guards. Pre-adapter authority refusal now records no possible side effect; 84 focused background/dialogue tests passed after completing the changed test port. This remains scoped evidence, not closure of all adapter/input cases.",
+      "remainingWork": [
+        "Full ActionPermit authority integration at every adapter’s final target dispatch."
+      ]
+    },
+    {
+      "id": "EX05",
+      "title": "资源与前台输入 broker",
+      "status": "in-progress",
+      "dependencies": [
+        "EX00",
+        "EX04"
+      ],
+      "gaps": [
+        "F1",
+        "F6",
+        "F7"
+      ],
+      "references": [
+        "O07",
+        "O09"
+      ],
+      "acceptanceGroups": [
+        "Q05",
+        "Q10"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/resource-broker.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/foreground-broker.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution-interrupt-registry.ts"
+      ],
+      "acceptance": "跨通道资源互斥，用户接管停止新注入；超时旧执行器未确认停止时不授予新写者。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "Canonical resource aliases, broker epochs/fences, owned cancellation, kill/system-suspend/shutdown interruption and durable cross-request uncertainty checks are connected. Unknown writes cannot be retried via a new turn or hard-link alias. Host boot now restores pending effects from every existing card DB through read-only handles before releasing a global mutation guard. Intent hashes, file aliases and card/effect identity are checked; old epochs remain invalid. Stopped work plans classify interrupted dispatch when the card becomes current. Initial 24 tests pass; extended integration and new-package acceptance pending. Mutation resource snapshots are now durable at dispatch, preserve original aliases after restart and reject redirected targets even with equal bytes. Counts/payload budgets fail closed before loading. Real junction and hard-link checks passed. Read-only interrupted effects now retain lifecycle ownership so independent closure releases the cancelled aggregate without replay. Host-only legacy-unknown takeover preserves original receipts, cancels associated roots and releases only the exact effect after atomic commit; window/card/effect/goal versions and expiry fence confirmation. 347 execution integration checks and workspace typecheck passed; new package experience remains pending.",
+      "remainingWork": [
+        "Native foreground broker and physical takeover integration; final packaged acceptance of host restoration and explicit recovery controls remain open."
+      ]
+    },
+    {
+      "id": "EX06",
+      "title": "Windows 键盘和自身按键账本",
+      "status": "in-progress",
+      "dependencies": [
+        "EX01",
+        "EX05"
+      ],
+      "gaps": [
+        "F1"
+      ],
+      "references": [
+        "O06",
+        "O07"
+      ],
+      "acceptanceGroups": [
+        "Q06"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/windows-input-ledger.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-windows-desktop-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-windows-desktop-worker.ps1",
+        "apps/stage-tamagotchi/src/main/services/alicization/local-browser-automation.ts"
+      ],
+      "acceptance": "快捷键、Unicode、半按键取消和物理接管正确；按计划11.1使用本机精确绑定exe、PID/启动时间、HWND、session/user和nonce的自有窗口验证真实前台输入，物理用户接管单独留证据。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-only-full-acceptance-outstanding",
+      "implementationNotes": "Owned-input ledger retains attribution and cancellation tests; physical user ownership acquired after injection is not released by synthetic key-up. Foreground broker serializes acquisition, rechecks lease after target reads and quarantines failed cleanup. Native keyboard helper, bounded input-free startup health, guarded dispatch and shutdown are implemented. Current original program/health suites pass 17 checks; this does not prove positive physical input delivery or real human takeover. The original full-main startup refusal remains recorded and its system cause is not established."
+    },
+    {
+      "id": "EX07",
+      "title": "Windows 控件弹窗与视觉兜底",
+      "status": "in-progress",
+      "dependencies": [
+        "EX06"
+      ],
+      "gaps": [
+        "F6"
+      ],
+      "references": [
+        "O06",
+        "O07",
+        "C03"
+      ],
+      "acceptanceGroups": [
+        "Q07"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/life-windows-desktop-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-windows-desktop-worker.ps1",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/native-work-binding.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/windows-keyboard-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/windows-visual-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/windows-visual-grounder.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/windows-pointer-writer.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/windows-pointer-journal.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/windows-pointer-recovery.ts"
+      ],
+      "acceptance": "菜单、选择、滚动和文件弹窗可观察可验证；HWND 复用和 DPI/窗口变更使旧坐标失效。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "Production native UIA/HWND waiting now matches exact process and title fragment without taking focus. A real owned WinForms window passed three rounds of Chinese/emoji/multiline input, semantic save, independent file readback and lost-receipt field reconciliation; missing window and cancellation were also checked. Native WinForms ComboBox selection now binds exact observed options, rejects missing/duplicate/changed options, sends the actual application notification and verifies the displayed value and fixture application receipt. Three-round native semantic probe passes 48 checks; no physical input is claimed. v332 candidate now wires finite single-window image localization and click/drag/scroll to the existing work planner, risk review, ActionPermit/resource owner, native actor/guardian, durable pointer index/recovery and Live2D attention. See the dated native visual fallback supplement for actual evidence scope; positive physical input and current-package qualification remain outstanding. v334 binds visual fallback to the accepted work graph and verified exact semantic window, including explicit nullable native popup ownership. Known no-input refusals support explicit same-root renewal with fresh semantic/image/review; unknown or withdrawn authority cannot replay. Actual native and targeted/runtime evidence is recorded separately in visualFallbackContinuation.v334; full product/physical acceptance remains open.",
+      "remainingWork": [
+        "Complete popup/menu/scroll/mixed-DPI/visual-fallback experience matrix and physical takeover coverage in authorized owned host fixtures; no VM setup prerequisite."
+      ],
+      "plannedTargetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/life-windows-desktop-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-windows-desktop-worker.ps1",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/windows-target.ts"
+      ],
+      "modulePathResolution": "output/execution-v330-plan-module-path-resolution-20261101.json"
+    },
+    {
+      "id": "EX08",
+      "title": "浏览器观察和 typed 控件操作",
+      "status": "in-progress",
+      "dependencies": [
+        "EX01",
+        "EX04",
+        "EX05"
+      ],
+      "gaps": [
+        "F6"
+      ],
+      "references": [
+        "O05",
+        "C03"
+      ],
+      "acceptanceGroups": [
+        "Q08"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/life-windows-browser-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-windows-browser-page.js",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/browser-cdp.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/browser-observation.ts"
+      ],
+      "acceptance": "frame/document/node 引用绑定新鲜观察，旧 ref 拒绝；支持 iframe、open shadow root 和常用控件。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-native-browser-adapter-evidence-full-product-acceptance-outstanding",
+      "implementationNotes": "Managed Electron browser uses isolated-world CDP observations bound to frame, document and backend node identity, actual trusted mouse/key/text input, OOPIF ancestor occlusion, hover revalidation and focused-target guards. Actual Chromium integration and three-round native Electron checks exist; complete matrix acceptance remains open.",
+      "remainingWork": [
+        "Complete nested-frame, control/scroll, interruption and full product scenario acceptance; see dated report for qualified evidence."
+      ],
+      "plannedTargetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/browser-surface.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-windows-browser-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-windows-browser-page.js"
+      ],
+      "modulePathResolution": "output/execution-v330-plan-module-path-resolution-20261101.json"
+    },
+    {
+      "id": "EX09",
+      "title": "上传下载及 popup 生命周期",
+      "status": "in-progress",
+      "dependencies": [
+        "EX08"
+      ],
+      "gaps": [
+        "F6"
+      ],
+      "references": [
+        "O05"
+      ],
+      "acceptanceGroups": [
+        "Q09"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/life-windows-browser-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/browser-downloads.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/browser-download-reservations.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/browser-download-resource-recovery.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/browser-upload.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/managed-browser-popups.ts"
+      ],
+      "acceptance": "transfer GUID、实际文件和目标一一对应；开始下载不算产物，上传点击不算服务端接收。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-native-browser-adapter-evidence-full-product-acceptance-outstanding",
+      "implementationNotes": "Production DownloadItem lifecycle with single-use exact-link permits, independent stable byte/hash readback and life-writer journal. Accepted work plans can select approved immutable upload snapshots through the canonical registry; actual synthetic server received exact bytes in three native Electron rounds. Selection does not prove service receipt. 2026-10-24 continuation: version 2 native transfer reservations persist main-process/card/effect/action/observation/URL-hash/directory ownership before link activation; one-use native handles, journal drain, prior-process unknown recovery and corrupt-begin quarantine are implemented. Windows namespaced approved snapshots fix actual zero-byte long-path upload. Two native 62-check probes passed, including four downloads, three actual server uploads and cancellation/reopen. Independent 11-case recovery/DOM and 10-case corruption runs passed. Popup lifecycle, durable child resource leases, dynamic transfer artifact references and their complete matrix remain open.",
+      "remainingWork": [
+        "Chromium GUID association, popup lifecycle, restart reconciliation, external upload receipt recipes and complete transfer product matrix."
+      ],
+      "plannedTargetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/browser-transfer.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-windows-browser-runtime.ts"
+      ],
+      "modulePathResolution": "output/execution-v330-plan-module-path-resolution-20261101.json"
+    },
+    {
+      "id": "EX10",
+      "title": "已授权浏览器与用户接管",
+      "status": "in-progress",
+      "dependencies": [
+        "EX08",
+        "EX05"
+      ],
+      "gaps": [
+        "F6",
+        "F7"
+      ],
+      "references": [
+        "C05",
+        "O07"
+      ],
+      "acceptanceGroups": [
+        "Q10"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/life-authorized-browser-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/authorized-browser-endpoint.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/authorized-browser-transport.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/browser-work-binding.ts",
+        "apps/stage-tamagotchi/src/renderer/pages/settings/components/authorized-browser.vue"
+      ],
+      "acceptance": "只操作明确授权的 tab/origin；不复制用户 cookie/profile；关闭 tab 或撤销使队列与许可失效。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "three-real-model-browser-server-receipts-and-reopened-database-verified-final-combined-acceptance-outstanding",
+      "implementationNotes": "Explicit trusted-host loopback discovery, selected-page/origin grant, original browser session, bounded typed operations, origin filtering before frame reads, owned key/button release and immediate revoke. Per-request sessions and persistent plan/effect browser bindings prevent old requests or reopened work from switching to a replacement surface. An explicit audited same-goal CAS revision refreshes future selector bindings without replaying verified effects. Content-bound approval previews expose exact input/visible form fields without hidden tokens. Actual headless Chromium and native SQLite close/reopen integration pass; earlier combined product failures remain recorded and the latest combined run is pending. Diagnostic pass5 and pass6 obtained three real model-driven server receipts, one submission each, with actual denied-input/regrant/reobserve in case2 and independent read-only database verification after normal exit. Pass5 still failed a foreground acknowledgment; pass6 had three normal acknowledgments but failed final managed-mode switching. A production writerStopped latch now excludes delayed delivery notifications from browser input takeover; actual SQLite/native-file integration passes. Latest diagnostic pass7 and full combined acceptance remain pending. The three selected-browser diagnostic workflows passed in execution-selected-browser-diagnostic-20261024-pass8 (28 checks, one actual server submission each, same-root reconnect, final managed restoration and read-only post-exit inspection). The subsequent combined run pass4 still failed on a foreground waiting-language classification; the full combined gate remains open. Combined configured-model/Live2D acceptance execution-authorized-browser-combined-live2d-20261024-pass5 passed 93 checks with three deliveries, three repairs, learned-method lifecycle and three original-browser workflows; post-exit inspections passed, app exit 0 and Default desktop unchanged.",
+      "remainingWork": [
+        "Complete physical-input takeover, tab close/fault/held-input matrix and transferred popup/download ownership; UI takeover and headless CDP do not prove physical host input behavior."
+      ]
+    },
+    {
+      "id": "EX11",
+      "title": "持久工作计划及子步骤结果",
+      "status": "in-progress",
+      "dependencies": [
+        "EX02",
+        "EX05"
+      ],
+      "gaps": [
+        "F5"
+      ],
+      "references": [
+        "O08",
+        "O09",
+        "C04"
+      ],
+      "acceptanceGroups": [
+        "Q11",
+        "Q12"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/work-plan-repository.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/work-plan-scheduler.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/task-thread-governor.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/task-thread-orchestrator.ts"
+      ],
+      "acceptance": "计划版本 CAS，子任务归属明确，节点证据回连同一根责任，不出现第二份目标真相。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "The production model tool creates one accepted root and durable dependency plan. Input bindings resolve real committed receipts and are rechecked transactionally. Revisions carry verified steps and reject changing or hiding completed/unknown work. Locally branded argument-validation failures can request one fresh schema-valid proposal only before any admitted action/public reply. Actual streaming/event-loop tests verify no dispatch/replay on rejected candidates, preserved user intent and correct validated tool-call/result pairing (167 passed). This does not implement adaptive cross-domain replanning. Explicit trusted-host acceptance revision now uses the same writer: CAS-bound plan/goal/contract changes, a new goal generation, expired prior approval, retained exact observed operations and original source dependencies. Five real SQLite/native-file tests pass, including unfinished continuation, concurrent edits, unknown effects, cancellation and source withdrawal. The Vue requirements editor and three additional compiled-product workflows are implemented; their actual product acceptance is still pending. 2026-10-24 continuation: added offline final-literal artifact contradiction checks and a bounded pre-admission content correction fence. A correction cannot weaken accepted criteria or change targets/structure. Dynamic and cross-domain replanning remain open; latest repair-fence integration is still being verified. Latest 2026-10-24 repair-fence verification: four files / 116 tests and node typecheck passed, including real SQLite/native file refusal before admission and one corrected independently verified write. Both schema and literal corrections preserve original criteria before publishing tool calls.",
+      "remainingWork": [
+        "Adaptive planning, delegated code steps and all required cross-domain scenarios."
+      ]
+    },
+    {
+      "id": "EX12",
+      "title": "有界窗口 yield 与新 task-run 接续",
+      "status": "in-progress",
+      "dependencies": [
+        "EX11"
+      ],
+      "gaps": [
+        "F5"
+      ],
+      "references": [
+        "O01",
+        "O08",
+        "C04"
+      ],
+      "acceptanceGroups": [
+        "Q11"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/work-plan-scheduler.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/turn-os/event-loop.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-turn-runtime.ts"
+      ],
+      "acceptance": "超过当前 16 步预算后保存游标并接续，使用有效责任 ingress，不复用结束的用户 turn。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "Persisted work slices continue the same accepted responsibility. Restart recovery now independently reads matching file bytes and advances the old checkpoint without repeating its write. Cancelled generations may record actual outcomes without resuming the cancelled goal.",
+      "remainingWork": [
+        "All long cross-domain scenarios and remaining adapter-specific reconciliation-dependent continuation."
+      ]
+    },
+    {
+      "id": "EX13",
+      "title": "未知效果统一核对",
+      "status": "in-progress",
+      "dependencies": [
+        "EX11",
+        "EX04",
+        "EX06",
+        "EX08"
+      ],
+      "gaps": [
+        "F7"
+      ],
+      "references": [
+        "O09",
+        "C01"
+      ],
+      "acceptanceGroups": [
+        "Q13"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/effect-reconciler.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/executor-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-turn-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/executor-adapters"
+      ],
+      "acceptance": "五类 adapter 都能返回 applied/not-applied/unknown；无法证实时不重复提交或伪完成。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-only-full-acceptance-outstanding",
+      "implementationNotes": "Independent file and exact unsubmitted browser/native replacement-field readers are wired into persistent work recovery. Proof and effect settlement share one writer transaction; original observations remain immutable. Quarantine clears only after proof commit, including the cancelled owner aggregate lease. Recovered state cannot teach an authored successful procedure.",
+      "remainingWork": [
+        "Production CLI, coding-agent and external registered receipt readers; operation-specific click/submit recipes; direct dialogue unknown-effect recovery; complete five-adapter acceptance."
+      ]
+    },
+    {
+      "id": "EX14",
+      "title": "补偿与取消完成协议",
+      "status": "in-progress",
+      "dependencies": [
+        "EX13"
+      ],
+      "gaps": [
+        "F7"
+      ],
+      "references": [
+        "O07",
+        "O09"
+      ],
+      "acceptanceGroups": [
+        "Q14"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/compensation.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution-interrupt-registry.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/executor-adapters"
+      ],
+      "acceptance": "只回滚自身未被用户改动的可逆版本；取消显示与底层停止/未知事实一致。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "Scoped/global suspension and system/app shutdown now abort background owners. Stopping remains distinct from acknowledgement; actual exclusive file compensation helper tests pass. 2026-10-24 continuation: compensation snapshots original path/bytes, rechecks source effect and lease after audit, and enforces native deadlines before chunk writes/truncation. Actual-file tests preserve a caller-mutated target and subsequent host edits, and refuse withdrawn/expired authority. Three focused cases and node typecheck passed; included in a later 39-case merged run. Production before-image capture, governed host UI and lifecycle closure remain open.",
+      "remainingWork": [
+        "Automatic backup capture, production compensation controls and native key-release protocol."
+      ]
+    },
+    {
+      "id": "EX15",
+      "title": "非代码责任主动调度",
+      "status": "in-progress",
+      "dependencies": [
+        "EX12",
+        "EX13"
+      ],
+      "gaps": [
+        "F8"
+      ],
+      "references": [
+        "O02",
+        "C04"
+      ],
+      "acceptanceGroups": [
+        "Q15"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/autonomy-actuation.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-agency-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/work-plan-scheduler.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/runtime-execution-delivery.ts"
+      ],
+      "acceptance": "在权限和节律内继续日常责任，用户忙时分开判断后台推进和消息投递，不重复建立任务。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "invited-creation-actual-product-failure-worktree-repair-qualification-open",
+      "implementationNotes": "Accepted noncoding plans have an actual event-driven wake/resume path and quiet result-delivery queue. Human execution controls preempt background deliberation; snapshot reads remain responsive during a held card scope. Writer closure is now separate from notification completion: the scheduler proceeds to the next accepted responsibility and host effect control uses isWriting. A real SQLite/native-file integration holds both notifications, independently fulfills both goals, retains exactly one result event each, reopens the DB and proves no repeated write or mtime change.",
+      "remainingWork": [
+        "Broader grounded noncoding initiative beyond explicitly accepted finite plans."
+      ]
+    },
+    {
+      "id": "EX16",
+      "title": "可评估技能候选及证据依赖",
+      "status": "in-progress",
+      "dependencies": [
+        "EX03",
+        "EX11"
+      ],
+      "gaps": [
+        "F9"
+      ],
+      "references": [
+        "O02",
+        "O10"
+      ],
+      "acceptanceGroups": [
+        "Q16"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/memory-procedural-abstraction.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/turn-os/skill-registry.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-admission.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-candidate-repository.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/learned-procedure-runtime.ts"
+      ],
+      "acceptance": "技能具有参数、前提、效果、验收、恢复和来源版本；私人原文和凭据不写入技能。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "file-pipeline-compiled-product-verified-exact-package-and-broader-evaluators-pending",
+      "implementationNotes": "File procedures now have life-writer-owned immutable candidates/evaluations and a bounded durable index, virtual skill sources, actual different-input native-I/O replays, registry approval/activation and fresh-request runtime use. Source proof binds input hashes, accepted plan revision, contract, root generation/attempt and independent verification. Plan save and source dependency binding are atomic; withdrawal blocks derived goals without executable orphan plans. Final execution regression passes 38 files/281 checks; workspace typecheck and final node check pass. New package is building for actual model/UI acceptance. Compiled Live2D pass7 now passes all76 checks including real model capture/evaluation/activation/different-input use/revocation and read-only post-exit proof; normal exit0 and Default unchanged. This predates later runtime-health/acknowledgment changes and does not qualify the current unaccepted ASAR.",
+      "remainingWork": [
+        "Accept the new package's actual capture/evaluation/activation/model-reuse/revocation experience, then extend transferable procedures and dedicated evaluators to browser/native/delegated-code workflows, compare strategies and complete the Q16 matrix."
+      ],
+      "plannedTargetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/skill-candidate-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/memory-procedural-abstraction.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/turn-os/skill-registry.ts"
+      ],
+      "modulePathResolution": "output/execution-v330-plan-module-path-resolution-20261101.json"
+    },
+    {
+      "id": "EX17",
+      "title": "技能隔离复跑和失效",
+      "status": "in-progress",
+      "dependencies": [
+        "EX16",
+        "EX14"
+      ],
+      "gaps": [
+        "F9"
+      ],
+      "references": [
+        "O02",
+        "O10"
+      ],
+      "acceptanceGroups": [
+        "Q16"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/turn-os/skill-loader.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/turn-os/skill-registry.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-evaluator.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-browser-replay.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-delegated-replay.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-desktop-replay.ts"
+      ],
+      "acceptance": "候选在不同输入复跑后才激活，版本变化可降级/撤销；失败教训不变成成功熟练度。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "file-pipeline-compiled-product-verified-exact-package-and-broader-evaluators-pending",
+      "implementationNotes": "Lifecycle remains card-isolated and source-hash-bound. File evaluator uses an owned temporary root and a separate real life database, two changed inputs, native adapters and independent goal proof; invalid arguments, interface change and cancelled admission are counterexamples. Failure never approves a method; revocation and source withdrawal invalidate derived goals, and quit joins evaluator cleanup. Actual SQLite integration verifies restart/churn persistence, new file delivery and atomic rejection after withdrawal. Full product and non-file matrix remain open. Compiled Live2D pass7 now passes all76 checks including real model capture/evaluation/activation/different-input use/revocation and read-only post-exit proof; normal exit0 and Default unchanged. This predates later runtime-health/acknowledgment changes and does not qualify the current unaccepted ASAR.",
+      "remainingWork": [
+        "New-package evaluation/activation/use/revocation acceptance, in-flight native/GUI/delegated-code skill interruption and recovery, strategy comparison and the complete Q16 scenario matrix."
+      ],
+      "plannedTargetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/skill-evaluation.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/turn-os/skill-loader.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/turn-os/skill-registry.ts"
+      ],
+      "modulePathResolution": "output/execution-v330-plan-module-path-resolution-20261101.json"
+    },
+    {
+      "id": "EX18",
+      "title": "执行注意与 Live2D 真实表达",
+      "status": "in-progress",
+      "dependencies": [
+        "EX11",
+        "EX13"
+      ],
+      "gaps": [
+        "F10"
+      ],
+      "references": [
+        "O03",
+        "O06"
+      ],
+      "acceptanceGroups": [
+        "Q17"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/execution-attention.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-execution-presence.ts",
+        "packages/stage-ui/src/components/scenes/Stage.vue"
+      ],
+      "acceptance": "读取/比较/等待/复核来自同轮已提交事件，旧 attempt 撤销；进度不制造口型或循环大动作。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "Committed reading/acting/waiting/checking phases reach Live2D without heartbeat gesture replay or speech. Ordering survives observer replacement. Actual host review sends a final body pulse, verified in three product rounds. Current-slice settled window observations now carry bounded 3-second same-display DIP gaze, physical Windows conversion and hidden/pause/expiry revocation; eyes, posture and diagnostics consume one projection. Native geometry probe passed 27 checks; positive packaged gaze frames and full matrix remain pending. 2026-10-24 continuation: actual permission promises now drive transient, action-bound body waiting, immediate refresh and quiet waiting with the existing emotional baseline. 55 targeted permission/execution/embodiment tests passed; desktop and stage-ui typechecks passed. Combined Live2D pass15 observed the actual waiting pulse and continued Cubism draws, but later dialogue admission failed. This is partial product evidence; full gaze/comparing/voice/physical-input expression acceptance remains open.",
+      "remainingWork": [
+        "Actual comparing evidence and positive gaze frames; full idle/dialogue/working rendered-frame acceptance matrix."
+      ]
+    },
+    {
+      "id": "EX19",
+      "title": "任务交付和控制界面",
+      "status": "in-progress",
+      "dependencies": [
+        "EX11",
+        "EX13",
+        "EX18"
+      ],
+      "gaps": [
+        "F2",
+        "F5",
+        "F7",
+        "F10"
+      ],
+      "references": [
+        "C04",
+        "C05"
+      ],
+      "acceptanceGroups": [
+        "Q18"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-task.ts",
+        "packages/stage-ui/src/stores/alicization-execution-engine.ts"
+      ],
+      "acceptance": "用户能修正要求、暂停、取消、接管和打开产物；停止请求与完全停止区别明确，重载不重复消息。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "UI supports partial artifacts, run/pause/cancel, exact artifact review and editing unfinished text/paths. Duplicate root cards, delayed review and stale view refresh were fixed through actual product runs. Three repair scenarios preserved the first write across revision/reload. The existing life settings now also offers independent recheck and host takeover of uncertain operations. Core and actual Eventa transport tests passed; package controls with synthetic legacy history and read-only post-exit inspection are prepared for experience. Exact compact package passed 66 checks: three synthetic-history takeovers, three actual model deliveries and three repairs, normal shutdown and actual read-only DB inspection. Raw private-desktop teardown matched. Source fingerprint 3d6791eab80506993676010cff7b1dde386da6220772adbda4c4bf592798c6de. Explicit trusted-host acceptance revision now uses the same writer: CAS-bound plan/goal/contract changes, a new goal generation, expired prior approval, retained exact observed operations and original source dependencies. Five real SQLite/native-file tests pass, including unfinished continuation, concurrent edits, unknown effects, cancellation and source withdrawal. The Vue requirements editor and three additional compiled-product workflows are implemented; their actual product acceptance is still pending. 2026-10-24 continuation: execution-criteria-diagnostic-live2d-20261024-pass8 passed three actual host requirement revisions, explicit continuation, reload and post-exit read-only verification without replaying prior writes. Accessible dropdown and duplicate artifact-link issues were fixed. This does not close every native takeover/product case. 2026-10-24 continuation: permission registration precedes prompt delivery, immediate responses are retained, renderer failure cannot leak the promise or be called a host refusal, and timeout does not await a hanging audit write. Actual pipeline regressions passed. Existing criteria UI three-round diagnostic remains valid; full combined product acceptance has not passed on latest source.",
+      "remainingWork": [
+        "Explicit revision of accepted success requirements; complete native user takeover; measure/fix long-page task control placement and header overlap observed in actual screenshots."
+      ]
+    },
+    {
+      "id": "EX20",
+      "title": "迁移保留与磁盘清理",
+      "status": "in-progress",
+      "dependencies": [
+        "EX02",
+        "EX11",
+        "EX16"
+      ],
+      "gaps": [
+        "F3",
+        "F5",
+        "F7",
+        "F9"
+      ],
+      "references": [
+        "O04",
+        "O08"
+      ],
+      "acceptanceGroups": [
+        "Q19"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/db.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-read-repository.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/storage-maintenance.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/storage-budget.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-backup-catalog.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-history-query.ts"
+      ],
+      "acceptance": "活动查询和证据有界；低磁盘和删除依赖不伪完成；仅清理有 owner manifest 的已结束临时资源。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "Execution records migrate through the sole writer and survive backup restore. Active queries retain current per-step results. Nine finished synthetic QA profiles were cleaned with retained DB/log evidence (144,763,847 bytes).",
+      "remainingWork": [
+        "Complete retention/pagination, low-disk policy and production owned-cache cleanup."
+      ],
+      "plannedTargetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution/execution-retention.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/db.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-read-repository.ts"
+      ],
+      "modulePathResolution": "output/execution-v330-plan-module-path-resolution-20261101.json"
+    },
+    {
+      "id": "EX21",
+      "title": "故障与跨系统集成验收",
+      "status": "in-progress",
+      "dependencies": [
+        "EX07",
+        "EX09",
+        "EX10",
+        "EX12",
+        "EX13",
+        "EX14",
+        "EX15",
+        "EX16",
+        "EX17",
+        "EX18",
+        "EX19",
+        "EX20"
+      ],
+      "gaps": [
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9",
+        "F10"
+      ],
+      "references": [
+        "O01",
+        "O04",
+        "O08",
+        "O09"
+      ],
+      "acceptanceGroups": [
+        "Q01",
+        "Q02",
+        "Q03",
+        "Q04",
+        "Q05",
+        "Q06",
+        "Q07",
+        "Q08",
+        "Q09",
+        "Q10",
+        "Q11",
+        "Q12",
+        "Q13",
+        "Q14",
+        "Q15",
+        "Q16",
+        "Q17",
+        "Q18",
+        "Q19"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/src/main/services/alicization/execution",
+        "apps/stage-tamagotchi/src/main/services/alicization/life-turn-runtime.ts",
+        "apps/stage-tamagotchi/src/main/services/alicization/task-thread-dispatcher.ts"
+      ],
+      "acceptance": "prepare/许可/派发/回执/验收/提交等边界故障可复现；无重复危险副作用、错误目标或虚假完成。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "Combined current regression: 166 files, 1977 passed, 2 skipped. Real product failures exposed duplicate cards, scope starvation, permission sequencing and provider-budget exhaustion; each fixed path has a regression test or product rerun. Latest full workspace typecheck passed; scoped lint has zero errors and 99 warnings. Three controlled provenance corruptions were rejected without overwriting the valid manifest.",
+      "remainingWork": [
+        "Complete EX21 fault matrix across the remaining unimplemented production adapters."
+      ]
+    },
+    {
+      "id": "EX22",
+      "title": "后台真实 Windows 与 Live2D 验收",
+      "status": "in-progress",
+      "dependencies": [
+        "EX21"
+      ],
+      "gaps": [
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9",
+        "F10"
+      ],
+      "references": [
+        "C01",
+        "C02",
+        "C03",
+        "C04",
+        "C05"
+      ],
+      "acceptanceGroups": [
+        "Q01",
+        "Q02",
+        "Q03",
+        "Q04",
+        "Q05",
+        "Q06",
+        "Q07",
+        "Q08",
+        "Q09",
+        "Q10",
+        "Q11",
+        "Q12",
+        "Q13",
+        "Q14",
+        "Q15",
+        "Q16",
+        "Q17",
+        "Q18",
+        "Q19",
+        "Q20"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/scripts/life-acceptance/run-private-desktop.ps1",
+        "apps/stage-tamagotchi/scripts/life-acceptance/life-product-regression.cjs"
+      ],
+      "acceptance": "八类产品场景及关键变体各三轮；Default不切换、不遮挡主页面；普通Live2D窗口放在所有显示器之外且不可抢焦点；真实前台输入使用11.1已授权的本机精确自有窗口，物理用户接管和真实混合DPI单独记录。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "targeted-and-partial-product-evidence-full-acceptance-outstanding",
+      "implementationNotes": "Live2D private-desktop diagnostic completed three normal and three repair workflows, 46 passing checks and normal exit. Host Default desktop was preserved. Windows records show a power-off event, unchanged pre-install boot time and pending servicing; Sandbox client is absent. 2026-10-24 continuation: combined pass7 completed three file deliveries, three step repairs, three criteria revisions and method reuse before failing the third browser admission on an imperative review request misclassification. Failure retained; policy v44 fixes that request grammar but requires a new combined run. The complete eight-group matrix remains open. Latest combined pass8 failed on the first ordinary admission because an execution-state noun was classified as an action. Policy v45 distinguishes progress/status/result/receipt nouns, with mixed affirmative regression cases. Fresh combined experience remains required. 2026-10-24 continuation: current life-loop checkpoint passed 50 files/423 tests and workspace types pass5 at v51. Later v52 and transfer-recovery changes passed separate targeted rounds (not a new global pass). Combined product passes9-15 preserve original failures; pass15 includes live approval body observation but is not green. Global pass6 was cancelled, not passed. All eight groups x3, especially isolated physical input and voice/body cases, remain open.",
+      "remainingWork": [
+        "All eight scenario groups × three, remaining owned-host input and rendered-frame/voice coverage, actual physical takeover and mixed-DPI evidence. The user replaced the VM prerequisite with owned host testing on2026-10-25; Sandbox installation/restart is not a completion gate."
+      ]
+    },
+    {
+      "id": "EX23",
+      "title": "生产构建和发行身份",
+      "status": "in-progress",
+      "dependencies": [
+        "EX22"
+      ],
+      "gaps": [
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9",
+        "F10"
+      ],
+      "references": [
+        "O04"
+      ],
+      "acceptanceGroups": [
+        "Q20"
+      ],
+      "targetPaths": [
+        "apps/stage-tamagotchi/scripts/life-release-provenance.ts",
+        "apps/stage-tamagotchi/README.md"
+      ],
+      "acceptance": "类型/lint/测试/构建及 exact-package 体验通过，源码/编译/ASAR 一致，清理有据，无未关闭验收项。",
+      "requiredEvidence": [
+        "implementation-diff",
+        "targeted-tests",
+        "cross-subsystem-invariants",
+        "normal-cancellation-and-recovery",
+        "scope-qualified-experience-report"
+      ],
+      "testStatus": "fresh-complete-regression-and-current-installer-product-pending",
+      "implementationNotes": "Production build and Windows x64 unpacked review package created. Source fingerprint 0fb6048c8704f45e97c4aa423cf261aa65042b8361a365dc5b251f80e765dc27. All packaged compiled files matched; actual packaged Live2D experience passed three normal and three repair workflows (46 checks, normal exit, Default unchanged). executionWorkflowsVerified=true; full product/native/resident-life/real-experience qualification remains false. Whole-workspace sequential typecheck passed on 2026-10-24. A complete 909-file regression found 23 runtime wait-assertion failures (8023 passed, 12 skipped); affected lifecycle assertions were repaired and focused checks passed. A fresh complete regression and exact-package lifecycle acceptance are still required. 2026-10-24 checkpoint: execution-continuation-full-regression-20261024-pass4 passed 909 files / 8055 tests, with 3 files / 12 tests explicitly skipped, and workspace typecheck pass3 passed. This applies to the v39 source checkpoint. Later authority/coherence changes are not covered by that global result; exact-source packaging and release lifecycle acceptance remain open. Latest full pass5 on v44 completed with 910 files / 8056 tests passed and one test file / 12 failures; three files / 12 tests skipped. All failures were obsolete beforeAction mocks missing the new check. The corrected focused file and new boundary case passed; a fresh complete run remains required. Workspace types pass4 passed. 2026-10-24 continuation: latest builds through pass30 succeeded and native transfer probes exited normally on private desktops. Seven further exited synthetic profile caches were cleared through official Electron APIs (3,242,660 bytes to zero); life databases and failure evidence retained. Packaging/upgrade/rollback/uninstall and exact latest-source packaged acceptance are still pending. Sandbox client remains unavailable; no physical-input success or release completion is asserted.",
+      "remainingWork": [
+        "All still-open implementation and EX22 scenario groups, remaining owned-host input/takeover coverage, current installer lifecycle and formal release gates."
+      ]
+    }
+  ],
+  "checkpoint": {
+    "at": "2026-11-01T06:36:11.8298787Z",
+    "reason": "Final native blocked-state UX, same-window literal and typed continuation qualified; exact native model/UI and read-only post-shutdown checks added. The unfinished v328 main run was stopped before promoting the final UX; no interrupted run is counted as passing. Final full qualification and current package remain pending.",
+    "latestChecks": {
+      "qualifiedNativeRelated": {
+        "passed": 62,
+        "failed": 0,
+        "skipped": 0,
+        "worktreeReport": "output/execution-v328-native-final-20261101-pass1.json",
+        "transfer": "output/execution-v328-owned-native-transfer-20261101.json"
+      },
+      "previousSourceFullMain": {
+        "source": "v327",
+        "passed": 6541,
+        "failed": 0,
+        "skipped": 25,
+        "report": "output/execution-v327-full-main-20261101-pass2.json"
+      },
+      "previousSourceCross": {
+        "source": "v327",
+        "passed": 2084,
+        "failed": 3,
+        "skipped": 3,
+        "failure": "Three backup pressure rounds reached disk-reserve guard; failed evidence retained"
+      },
+      "currentSourcePackageAccepted": false,
+      "physicalTakeoverAccepted": false,
+      "fullNativeKeyboardMatrixAccepted": false,
+      "positiveForegroundMenuAccepted": false,
+      "actualMixedDpiAccepted": false,
+      "liveClaudeAccepted": false,
+      "fullAcceptance": false
+    }
+  },
+  "lastCheckpoint": "2026-11-01",
+  "checkpointEvidence": [
+    "output/execution-and-live2d-final-tests-20261019.log",
+    "output/execution-work-product-20261019-revision3/report.json",
+    "output/execution-qa-cleanup-20261019.json",
+    "output/windows-sandbox-restart-audit-20261019.json",
+    "output/execution-work-packaged-20261019/report.json",
+    "output/execution-work-packaged-20261019-desktop.json",
+    "output/execution-review-provenance-20261019.log",
+    "output/execution-provenance-faults-20261019/results.json",
+    "output/execution-workspace-typecheck-verified-20261019.log",
+    "output/execution-verified-lint-20261019.log",
+    "output/execution-browser-native-20261020-pass7/report.json",
+    "output/execution-browser-native-20261020-pass7-desktop.json",
+    "output/execution-regression-20261020.log",
+    "output/execution-workspace-typecheck-20261020-final.log",
+    "output/execution-browser-cleanup-candidates-20261020.json",
+    "output/execution-final-targeted-repaired-20261020.log",
+    "output/execution-final-browser-20261020.log",
+    "output/execution-browser-native-20261020-pass11/report.json",
+    "output/execution-browser-native-20261020-pass11-desktop.json",
+    "output/execution-workspace-typecheck-20261020-verified.log",
+    "output/execution-verified-lint-20261020.log",
+    "output/windows-sandbox-current-state-20261020.json",
+    "output/execution-workspace-typecheck-20261020-closure.log",
+    "output/execution-final-changes-lint-20261020.log",
+    "output/execution-diff-check-20261020-final.log",
+    "output/execution-browser-cleanup-blocked-20261020.json",
+    "output/execution-recovery-lifecycle-integration-20261020.log",
+    "output/execution-recovery-windows-20261021.log",
+    "output/execution-recovery-typecheck-20261021.log",
+    "output/execution-browser-recovery-native-20261020-pass1/report.json",
+    "output/execution-browser-recovery-native-20261020-pass1-desktop.json",
+    "output/execution-desktop-native-20261021-pass5/report.json",
+    "output/execution-desktop-native-20261021-pass5-desktop.json",
+    "output/execution-life-regression-20261021.log",
+    "output/execution-opt-in-growth-memory-20261021.log",
+    "output/execution-real-codex-20261021.log",
+    "output/execution-recovery-packaged-live2d-20261021-pass1/report.json",
+    "output/execution-recovery-packaged-live2d-20261021-pass1-desktop.json",
+    "output/execution-final-wake-20261021.log",
+    "output/execution-recovery-final-build-source-20261021.json",
+    "output/execution-recovery-cache-cleanup-20261021.json",
+    "output/execution-ui-permission-binding-20261021.log",
+    "output/execution-ui-permission-typecheck-20261021.log",
+    "output/execution-ui-permission-lint-20261021.log",
+    "output/execution-recovery-final-live2d-20261021-pass1/report.json"
+  ],
+  "progressReport": "docs/research/2026-11-01-native-menu-continuation-closure.md",
+  "currentPersonalInvitationClosure": {
+    "state": "v318-invited-creation-worktree-fix-primary-product-open",
+    "source": "docs/research/2026-11-01-invited-personal-creation-closure.md",
+    "actualFailure": "output/execution-v317-personal-invitation-20261101-pass3/personal-invitation-readonly.json",
+    "actualFailureScope": "Natural model/UI invitation created a grounded proposal and generated draft but the child was cancelled as background before native dispatch; independent oracle failed; native exit and credentials cleanup passed.",
+    "red": {
+      "passed": 6,
+      "failed": 3
+    },
+    "focused": {
+      "passed": 21,
+      "failed": 0,
+      "skipped": 0
+    },
+    "fullAcceptance": false
+  },
+  "currentProviderForegroundLifetime": {
+    "state": "v319-combined-qualification-open",
+    "source": "docs/research/2026-11-01-foreground-provider-lifetime-closure.md",
+    "red": {
+      "coordinatorPassed": 10,
+      "coordinatorFailed": 5,
+      "providerIntegrationFailed": 1,
+      "originalSourceRestoredAfterRed": true
+    },
+    "focused": {
+      "passed": 77,
+      "failed": 0,
+      "skipped": 0
+    },
+    "actualV318QuietBackground": {
+      "report": "output/execution-v318-early-self-project-20261101-pass1/report.json",
+      "checks": 38,
+      "independentProof": "output/execution-v318-early-self-project-20261101-pass1/self-project-readonly.json",
+      "scope": "One natural self-initiated artifact and observed episode, no forced tick or unsolicited messages, normal exit; no in-flight foreground-preemption acceptance"
+    },
+    "fullAcceptance": false,
+    "actualV318ForegroundPreemption": {
+      "report": "output/execution-v318-actual-provider-priority-classification-20261101.json",
+      "passed": true,
+      "abortAfterUserReturnMs": 46,
+      "lateUpstreamDiscarded": true,
+      "scope": "Actual native normal timer path with unchanged real-model requests; initial expected-RED harness preserved. Does not reproduce the separately tested expired async-context bug."
+    }
+  },
+  "currentMultilineArtifactSharing": {
+    "state": "v319-worktree-repair-current-native-acceptance-open",
+    "source": "docs/research/2026-11-01-multiline-artifact-sharing-closure.md",
+    "actualFailure": "output/execution-v318-personal-invitation-20261101-pass1/report.json",
+    "actualFailureScope": "Actual authored file and observed creative episode succeed; strict reply-review quote enum containing newline returns HTTP400 before sharing.",
+    "red": "output/execution-v319-artifact-wire-red-20261101-pass1.json",
+    "green": "output/execution-v319-artifact-wire-green-20261101-pass1.json",
+    "fullAcceptance": false
+  },
+  "currentOwnedArtifactSummary": {
+    "state": "v320-worktree-fix-current-package-open",
+    "source": "docs/research/2026-11-01-owned-artifact-summary-provenance.md",
+    "actualObservation": "output/execution-v318-personal-invitation-20261101-pass1/personal-invitation-readonly.json",
+    "red": "output/execution-v320-artifact-summary-red-20261101-pass2.json",
+    "green": "output/execution-v320-artifact-summary-green-20261101-pass1.json",
+    "passed": 23,
+    "failed": 0,
+    "fullAcceptance": false
+  },
+  "currentOwnedHostAuthorization": {
+    "source": "docs/plans/2026-10-18-execution-life-optimization-plan.md#111-不打扰主桌面的验证协议",
+    "userOverrideDate": "2026-10-25",
+    "state": "host-owned-fixtures-replace-vm-prerequisite",
+    "scope": "Exact executable/PID birth/HWND/session/user/nonce; stop on user input or focus change. Ordinary Live2D QA remains nonfocusable and outside all displays. Synthetic injection does not certify actual physical user takeover."
+  },
+  "currentPassiveNativeUnicode": {
+    "state": "actual-native-controls-passed-real-model-scope-open",
+    "source": "docs/research/2026-11-01-native-unicode-and-resource-recovery.md",
+    "report": "D:/AlicizationOwnedCleanup/20261101-c-space/passive-native-unicode-readonly.json",
+    "checks": 34,
+    "rounds": 3,
+    "databaseUnchanged": true,
+    "foregroundAcquisitionAttempted": false,
+    "keyboardEffectsCreated": false,
+    "syntheticApproval": true,
+    "fullElectronBootstrap": false,
+    "realModelAcceptance": false,
+    "physicalKeyboardAcceptance": false,
+    "priorRealModelFailures": [
+      "output/execution-v319-unicode-20261101-pass1/report.json",
+      "output/execution-v319-unicode-20261101-pass2/report.json"
+    ],
+    "fullAcceptance": false
+  },
+  "currentQualificationInterruption": {
+    "source": "v319",
+    "report": "output/execution-v319-full-main-20261101-pass1.json",
+    "passed": 6503,
+    "failed": 6,
+    "skipped": 25,
+    "memoryIsolated": {
+      "report": "D:/AlicizationOwnedCleanup/20261101-c-space/memory-governance-isolated-pass1.json",
+      "passed": 7,
+      "failed": 0
+    },
+    "configuredGenerationFailuresRemaining": 5,
+    "modelsHealth": "D:/AlicizationOwnedCleanup/20261101-c-space/configured-models-health-pass2.json",
+    "globalRunPassed": false,
+    "fullAcceptance": false
+  },
+  "currentNativePopupOwnerBinding": {
+    "state": "worktree-repair-current-source-qualification-open",
+    "source": "docs/research/2026-11-01-native-popup-owner-binding.md",
+    "actualRed": "output/native-popup-owner-099d80c1-8437-4031-8002-ce2602f787b6.json",
+    "targetedPassed": 19,
+    "targetedFailed": 0,
+    "newAssertions": 3,
+    "riskReviewAndDispatchOwnerBound": true,
+    "explicitNullOwnerBound": true,
+    "fullAcceptance": false
+  },
+  "currentNativeCommonSave": {
+    "state": "native-common-dialog-repair-qualified-current-package-open",
+    "source": "docs/research/2026-11-01-common-save-dialog-input-closure.md",
+    "actualSavedFiles": 3,
+    "cancelVerified": true,
+    "refusals": 12,
+    "passiveUnicodeChecks": 34,
+    "databaseReadOnlyProof": true,
+    "noForegroundAcquisition": true,
+    "realModelAcceptance": false,
+    "fullAcceptance": false
+  },
+  "november1CreativeReplyReferencesV323": {
+    "state": "source-and-real-service-review-qualified-package-pending",
+    "research": "docs/research/2026-11-01-creative-reply-reference-closure.md",
+    "retainedActualFailures": [
+      "primary:output/execution-v322-personal-invitation-20261101-pass1/report.json",
+      "primary:output/execution-v322-personal-invitation-20261101-pass2/report.json",
+      "primary:output/execution-v322-upload-20261101-pass1/report.json"
+    ],
+    "focused": "output/execution-v323-artifact-references-green-20261101.json",
+    "realServiceReview": "output/execution-v323-actual-creative-review-20261101-pass2.json",
+    "scope": "Two actual failed synthetic drafts accepted by configured real provider on an owned cloned database under formally admitted replay input; current package/UI and full EX acceptance remain open."
+  },
+  "november1NativeMethodAndBudgetV327": {
+    "state": "implementation-qualified-current-package-pending",
+    "phase": "Phase 1 local digital life",
+    "nativeTransfer": "output/execution-v327-owned-native-transfer-20261101.json",
+    "nativeRelatedTests": 180,
+    "nativeRelatedSkipped": 1,
+    "nativeScope": "Passive standard Windows editor: current observation/type/observation/save, independently verified UTF-8, evaluation, activation, database reopen, three fresh reuses and source withdrawal before save",
+    "dialogueRoundTrip": "output/execution-v326-owned-roundtrip-and-native-integrity-20261101.json",
+    "retainedActualProductFailure": "output/execution-v323-text-20261101-pass1/report.json",
+    "legacyRemainingWorkNotice": "Earlier item remainingWork entries predate later implementation and are not the current acceptance inventory; dated qualification and exact-package reports qualify their actual coverage. No item is automatically completed.",
+    "currentProductPending": true,
+    "physicalTakeoverAccepted": false,
+    "fullNativeKeyboardMatrixAccepted": false,
+    "liveClaudeAccepted": false,
+    "fullAcceptance": false
+  },
+  "november1NativeMenuContinuationV328": {
+    "state": "implementation-qualified-current-full-regression-pending",
+    "report": "docs/research/2026-11-01-native-menu-continuation-closure.md",
+    "transfer": "output/execution-v328-owned-native-transfer-20261101.json",
+    "sameWindowResume": "Committed fresh observation, identity continuity and preserved prior effects",
+    "backgroundMenu": "Refuses before dispatch without acquiring foreground",
+    "reserveStop": "Retains explicit failure receipt and removes only owned closed synthetic copies",
+    "fullAcceptance": false
+  },
+  "november1NativeBlockerUxV329": {
+    "state": "final-source-qualification-pending",
+    "tests": "worktree:output/execution-v329-native-blocker-green-20261101-pass2.json",
+    "passed": 61,
+    "failed": 0,
+    "overlapWithEarlierChecksNotSummed": true,
+    "transfer": "output/execution-v329-owned-native-transfer-20261101.json",
+    "interruptedOldSource": "output/execution-v328-obsolete-qualification-interruption-20261101.json",
+    "currentNativeMenuProduct": "Three actual-model foreground refusals, UI continuation/cancellation and read-only effect inspection required",
+    "fullAcceptance": false
+  },
+  "november1PassiveSelectAndReviewV330": {
+    "state": "implementation-qualified-current-full-regression-and-package-pending",
+    "report": "docs/research/2026-11-01-native-menu-continuation-closure.md",
+    "transfer": "output/execution-v330-owned-native-transfer-20261101.json",
+    "targeted": {
+      "report": "worktree:output/execution-v330-final-related-20261101-pass3.json",
+      "passed": 210,
+      "failed": 0,
+      "platformSkipped": 1,
+      "skippedCase": "POSIX spawned process group test; Windows native Job crash matrix runs separately"
+    },
+    "native": {
+      "report": "worktree:output/execution-v330-wpf-qualified-three-20261101-pass2.json",
+      "rounds": 3,
+      "workerSha256": "8de928ea985bd118d14b5c9b83b05c4cd92184b3e6f1d367b08aac36e19aed5e",
+      "inputDesktopSelectionAccepted": false,
+      "foregroundMenuAccepted": false,
+      "physicalInputUsed": false
+    },
+    "retainedFailedMain": "output/execution-v329-full-main-20261101-pass2.json",
+    "compilerPathDiagnostic": "worktree:output/execution-v330-native-compiler-path-20261101.json",
+    "claudeCompatibilityProbe": "output/active-provider-messages-v330-probe-20261101.json",
+    "currentProductAccepted": false,
+    "physicalTakeoverAccepted": false,
+    "fullNativeKeyboardMatrixAccepted": false,
+    "positiveForegroundMenuAccepted": false,
+    "actualMixedDpiAccepted": false,
+    "liveClaudeAccepted": false,
+    "fullAcceptance": false
+  },
+  "november1NativeInspectorAndRecheckV331": {
+    "state": "qualified-fixes-fresh-complete-regression-and-package-pending",
+    "transfer": "output/execution-v331-owned-ui-transfer-20261101.json",
+    "uiTests": {
+      "report": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v331-native-recheck-20261101-pass1.json",
+      "passed": 55,
+      "failed": 0,
+      "skipped": 0
+    },
+    "nativeOriginalMatrix": {
+      "report": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v331-native-handle-pin-20261101-pass1.json",
+      "casesPassed": 12,
+      "actualRounds": 36,
+      "failed": 0
+    },
+    "nativeAddedRegressions": {
+      "report": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v331-native-inspector-regressions-20261101-pass1.json",
+      "passed": 2,
+      "failed": 0,
+      "otherMatrixCasesFiltered": 12
+    },
+    "actualOldNewRaceComparison": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v331-native-inspector-race-20261101.json",
+    "inspectorSha256": "b9bb489f10e16ba790901c3aceb386315db1ad7b8bfdf95b3e10c232201e4e55",
+    "retainedFailedMain": {
+      "source": "v330",
+      "report": "output/execution-v330-full-main-20261101-pass2.json",
+      "passed": 6596,
+      "failed": 4,
+      "skipped": 25,
+      "reasons": [
+        "Three pressure rounds stopped at the unchanged reserved-host-space guard",
+        "One real process exited between CIM observation and opening the PID in the test inspector"
+      ]
+    },
+    "nextQualificationStorage": "D:/AlicizationOwnedTestTemp/v331-qualification-20261101",
+    "allOriginalAssertionsRetained": true,
+    "previousPassedReportsRelabeled": false,
+    "actualNativeClaude": {
+      "report": "output/execution-v330-real-claude-six-20261101-pass1-exit.json",
+      "passed": 0,
+      "failed": 6,
+      "globalConfigurationUnchanged": true
+    },
+    "cleanup": {
+      "coldUnitFixtures": "D:/AlicizationOwnedArchivedEvidence/20261101-cold-unit-backup-fixtures/result.json",
+      "oldTestTemps": "D:/AlicizationOwnedArchivedEvidence/20261101-ended-v328-v329-test-temps/result.json",
+      "losslessText": "D:/AlicizationOwnedCleanup/20261101-ended-worktree-text-compression/result.json"
+    },
+    "currentPackageAccepted": false,
+    "fullAcceptance": false
+  },
+  "visualFallbackContinuation": {
+    "date": "2026-11-01",
+    "state": "in-progress",
+    "plan": "docs/plans/2026-11-01-native-visual-fallback-closure.md",
+    "originalFullMain": {
+      "report": "output/execution-v331-full-main-20261101-pass2.json",
+      "passed": 6598,
+      "failed": 4,
+      "skipped": 25
+    },
+    "candidateScope": "v332 feature candidate; exact promotion, frozen-source full qualification and packaging remain required",
+    "nativeRefusalReport": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v332-native-refusal-20261101-pass1.json",
+    "nativeWatchdogReport": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v332-pointer-lifecycle-20261101-pass3.json",
+    "fullAcceptance": false,
+    "targetedReport": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v332-current-chain-20261101-pass2.json",
+    "targetedCounts": {
+      "passed": 445,
+      "failed": 0,
+      "skipped": 0
+    },
+    "laterCombinedReport": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v332-current-chain-20261101-pass3.json",
+    "laterCombinedCounts": {
+      "passed": 446,
+      "failed": 1,
+      "skipped": 0
+    },
+    "repairedPortableCapture": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v332-portable-capture-20261101-pass2.json",
+    "browserComponentReport": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v332-preview-portable-20261101-pass1/report.json",
+    "typedProviderContract": {
+      "candidate": "v333",
+      "originalFrozenCandidate": "a27cc35a14009913c94f3fb702b4f6eeff872695bfab317d6708f95e1538317e",
+      "originalFullMainCancelled": true,
+      "packageDispatched": false,
+      "red": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v333-visual-contract-red-20261101.json",
+      "focused": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v333-visual-contract-20261101-pass1.json",
+      "counts": {
+        "passed": 73,
+        "failed": 0,
+        "skipped": 0
+      },
+      "fullAcceptance": false
+    },
+    "v334": {
+      "candidate": "v334",
+      "fullAcceptance": false,
+      "implementation": [
+        "Current accepted work DAG and verified semantic receipt authorize image capture",
+        "Exact nullable native popup owner bound through capture and every pointer surface check",
+        "Explicit host continuation renews semantic/image/review without replaying verified effects",
+        "Unknown effects and withdrawn/denied authority do not enter no-input renewal",
+        "Lazy foreground broker preserves runtime initialization order"
+      ],
+      "fullV333": {
+        "report": "output/execution-v333-full-main-20261101-pass2.json",
+        "passed": 6567,
+        "failed": 180,
+        "skipped": 25,
+        "packageDispatched": false
+      },
+      "focused": {
+        "report": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v334-final-visual-20261101-pass1.json",
+        "passed": 532,
+        "failed": 0,
+        "skipped": 0,
+        "overlapsRuntimeCombination": true
+      },
+      "runtime": {
+        "report": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v334-bootstrap-runtime-20261101-pass2.json",
+        "passed": 198,
+        "failed": 0,
+        "skipped": 0
+      },
+      "ownerCapture": {
+        "report": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v334-actual-owner-window-20261101.json",
+        "passed": 12,
+        "actualInputEvents": 0,
+        "foregroundTaken": false
+      },
+      "pointerLifecycle": {
+        "report": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v334-pointer-lifecycle-20261101-pass1.json",
+        "passed": 4,
+        "elapsedMs": 7033,
+        "actualInputEvents": 0,
+        "forceKilled": false
+      },
+      "remaining": [
+        "New frozen-source workspace qualification",
+        "Actual configured vision model/image review/Live2D/renewal and read-only post-exit inspection",
+        "Current package and installer qualification",
+        "Original positive physical keyboard/mouse, human takeover, native menu and mixed-DPI hardware gates",
+        "Original live Claude upstream acceptance"
+      ]
+    },
+    "v335": {
+      "implementation": "Known no-input offscreen localization refusal supports explicit same-root semantic/image/review renewal; visible-display validation is unchanged",
+      "fullAcceptance": false,
+      "previousCandidate": {
+        "source": "b6e17c14f78f6b0a65cc08a196becd1043cda3eb82957c6a4e246482cebd5d46",
+        "workspaceTypesPassed": 41,
+        "productionBuildPassed": true,
+        "realProductPassed": false,
+        "report": "output/execution-v334-visual-compiled-20261101-pass1/report.json",
+        "actualPrivacyReviews": 2,
+        "actualPhysicalInput": false,
+        "normalApplicationExit": true
+      },
+      "red": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v335-offscreen-red-20261101.json",
+      "focused": {
+        "report": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v335-offscreen-resume-20261101-pass1.json",
+        "passed": 71,
+        "failed": 0,
+        "skipped": 0
+      },
+      "remaining": "Fresh frozen source qualification, real product repetition and read-only inspection, package/installer, and the original independent physical/hardware/provider gates"
+    },
+    "v336": {
+      "fullAcceptance": false,
+      "implementation": "Actual component offers explicit window recheck for both safe foreground and observation blockers",
+      "previousCandidate": {
+        "source": "a6e5048b0181879ee002a0cfccf45b3cde592ca6f197761b7c98e39b33c98e81",
+        "workspaceTypesPassed": 41,
+        "productionBuildPassed": true,
+        "actualProductPassed": false,
+        "report": "output/execution-v335-visual-compiled-20261101-pass1/report.json",
+        "failure": "Observation blocker was correct but button retained generic Continue label",
+        "normalApplicationExit": true,
+        "privacyReviews": 2
+      },
+      "red": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v336-recheck-label-red-20261101.json",
+      "focused": {
+        "report": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v336-recheck-label-20261101-pass1.json",
+        "passed": 38,
+        "failed": 0,
+        "skipped": 0
+      },
+      "remaining": "Fresh frozen-source full regressions/product/package qualification and existing independent physical/hardware/provider gates"
+    },
+    "v337": {
+      "fullAcceptance": false,
+      "implementation": "Authorized visual localization waits on provider availability events for at most five seconds within the original request budget; cancellation, shutdown, foreground priority, failure backoff and fresh transmission authority remain mandatory. Unavailable results offer explicit reviewed same-root renewal without replay.",
+      "previousCandidate": {
+        "source": "812249f68ddd791f218203ce872a76051dba38002a0594aff2b9f499c69fdf02",
+        "workspaceTypesPassed": 41,
+        "productionBuildPassed": true,
+        "actualProductPassed": false,
+        "successfulRenewalRounds": 2,
+        "privacyReviews": 10,
+        "report": "output/execution-v336-visual-compiled-20261101-pass1/report.json",
+        "failure": "Third visual request was deferred by the real coordinator as background-busy during internal inference",
+        "normalApplicationExit": true
+      },
+      "red": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v337-provider-admission-red-20261101.json",
+      "focused": {
+        "report": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v337-provider-full-20261101-pass1.json",
+        "passed": 159,
+        "failed": 0,
+        "skipped": 0
+      },
+      "runtime": {
+        "report": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v337-runtime-20261101-pass1.json",
+        "passed": 198,
+        "failed": 0,
+        "skipped": 0
+      },
+      "desktopTypes": "C:/Users/Administrator/.codex/worktrees/execution-transfer/alicization/output/execution-v337-provider-types-exit-20261101-pass2.json",
+      "remaining": "Fresh frozen-source full regressions, real product repetition, current package/installer and private Cubism gaze qualification; existing independent physical/hardware/provider gates remain."
+    }
+  },
+  "november2DevelopmentQualificationV339": {
+    "compiledSource": "output/execution-completion-backup-source-20261102-v339-final.json",
+    "qaSource": "output/execution-completion-backup-source-20261102-v339-qa-pass2.json",
+    "sourceReview": "output/execution-v339-source-review-20261102.json",
+    "qaBoundaryReview": "output/execution-v339-qa-boundary-review-20261102.json",
+    "executionRecovery": {
+      "report": "output/execution-v339-primary-recovery-pass3-20261102-pass3.json",
+      "passed": 261,
+      "failed": 0,
+      "skipped": 0
+    },
+    "crossSubsystem": {
+      "report": "output/execution-v339-cross-system-20261102-pass1.json",
+      "passed": 2185,
+      "failed": 0,
+      "skipped": 3
+    },
+    "overlappingSuitesNotSummed": true,
+    "workspaceTypecheck": "passed",
+    "productionBuild": "passed",
+    "lint": "output/execution-v339-workspace-lint-exit-20261102-final.json",
+    "actualCompiledLive2DChecks": 22,
+    "actualPackagedLive2DChecks": 22,
+    "installerLifecyclePassed": true,
+    "controllers": [
+      "output/execution-v339-compiled-idle-20261102-pass2-controller.json",
+      "output/execution-v339-independent-installer-20261102-pass1-controller.json",
+      "output/execution-v339-packaged-idle-20261102-pass1-controller.json"
+    ],
+    "packageCandidate": "output/execution-v339-development-package-candidate-20261102.json",
+    "installer": "D:\\AlicizationOwnedCurrentPackages\\20261102-f807ccc8\\life-installer-qa-20261102-f807ccc8\\Alicization-Life-QA-20261102-f807ccc8.exe",
+    "executable": "D:\\AlicizationOwnedCurrentPackages\\20261102-f807ccc8\\life-installer-qa-20261102-f807ccc8\\win-unpacked\\alicization-lifeqa-20261102-f807ccc8.exe",
+    "installerIdentity": "20261102-f807ccc8",
+    "configuredProviderReadiness": "output/execution-v339-current-provider-readiness-20261102.json",
+    "originalFullMain": {
+      "report": "output/execution-v337-full-main-20261101-pass2.json",
+      "passed": 6777,
+      "failed": 7,
+      "skipped": 25,
+      "retained": true,
+      "currentScopedChecksDoNotReplaceFullRun": true
+    },
+    "cleanup": {
+      "receipts": [
+        "output/execution-v339-ended-cache-cleanup-20261102.json",
+        "output/execution-v339-final-cache-cleanup-20261102.json"
+      ],
+      "bytes": 14558136
+    },
+    "remainingGates": [
+      "actual configured model dialogue/vision product scenarios",
+      "native Codex/Claude live work and method evaluation",
+      "positive physical keyboard/mouse delivery and real human takeover",
+      "native foreground menu and actual mixed-DPI hardware",
+      "live dialogue/voice/execution gaze embodiment matrix",
+      "full regression and formal release qualification"
+    ],
+    "metadataVersionCycleReexecutedForV339": false,
+    "fullAcceptance": false,
+    "releaseAccepted": false
+  }
+}

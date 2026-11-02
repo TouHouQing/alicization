@@ -9,6 +9,10 @@ import { baseUrl, getElectronMainDirname, load } from '../../libs/electron/locat
 export async function setupBeatSync() {
   const window = new BrowserWindow({
     show: false,
+    // This invisible audio worker must never take desktop keyboard focus,
+    // including while Chromium creates its initial native widget.
+    focusable: false,
+    skipTaskbar: true,
     webPreferences: {
       preload: join(dirname(fileURLToPath(import.meta.url)), '../preload/beat-sync.mjs'),
       sandbox: false,

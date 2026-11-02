@@ -14,18 +14,21 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
-const { idleEyeFocusUpdateSpy } = vi.hoisted(() => ({
+const { idleEyeFocusUpdateSpy, idleEyeFocusInterruptSpy } = vi.hoisted(() => ({
   idleEyeFocusUpdateSpy: vi.fn(),
+  idleEyeFocusInterruptSpy: vi.fn(),
 }))
 
 vi.mock('./animation', () => ({
   useLive2DIdleEyeFocus: () => ({
     update: idleEyeFocusUpdateSpy,
+    interrupt: idleEyeFocusInterruptSpy,
   }),
 }))
 
 beforeEach(() => {
   idleEyeFocusUpdateSpy.mockClear()
+  idleEyeFocusInterruptSpy.mockClear()
 })
 
 function createMockModel(initial: Record<string, number>) {
@@ -284,6 +287,7 @@ function createPluginContext(input: {
   speechRenderState?: ReturnType<typeof createSpeechRenderState> | ReturnType<typeof createIdleStageEmbodimentSpeechRenderState>
 }) {
   const posture = createIdleStageEmbodimentPresencePostureState()
+  const motionManager = { state: { currentGroup: null, currentPriority: 0, reservePriority: 0 } }
 
   posture.engaged = true
   posture.mode = input.performanceState.performance.baseEmotion === 'angry'
@@ -305,7 +309,7 @@ function createPluginContext(input: {
     hookedUpdate: undefined,
     internalModel: {
       coreModel: input.model,
-      motionManager: {},
+      motionManager,
     } as never,
     live2dLipSyncExecutionState: ref({
       active: false,
@@ -316,7 +320,7 @@ function createPluginContext(input: {
       settle: null,
       openness: null,
     }),
-    motionManager: {} as never,
+    motionManager: motionManager as never,
     modelParameters: ref(createBaseModelParameters()),
     live2dIdleAnimationEnabled: ref(true),
     live2dAutoBlinkEnabled: ref(true),
@@ -497,6 +501,21 @@ function advanceIdleAutoBlinkFrames(input: {
 }
 
 describe('live2d motion manager performance layers', () => {
+  it('releases a previously voiced vowel on the first quiet frame even under a foreground native motion', async () => {
+    const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
+    const model = createMockModel({ ...createModelParameterIds(), ParamMouthOpenY: 0.8 })
+    const speech = { ...createSpeechRenderState(), audioBound: true }
+    const ctx = createPluginContext({ model, performanceState: createPerformanceState({ baseEmotion: 'neutral', delivery: 'calm', facialCue: 'relaxed' }), speechRenderState: speech })
+    ctx.isIdleMotion = false
+    const plugin = useMotionUpdatePluginPerformanceLayers()
+    drivePlugin(plugin, ctx, 40)
+    expect(readParameter(model, 'ParamMouthOpenY')).toBeGreaterThan(0.1)
+    ctx.speechRenderState.value = { ...speech, dynamics: { ...speech.dynamics, speechEnergy: 0 } }
+    // One render after a long background scheduling gap, rather than dozens of
+    // simulated smooth frames that would hide a stale release envelope.
+    drivePluginWithDelta(plugin, ctx, { now: 1400, timeDeltaSeconds: 0.016 })
+    expect(readParameter(model, 'ParamMouthOpenY')).toBeLessThan(0.05)
+  })
   it('rechecks SDK priority after native update before suppressing idle mouth curves', async () => {
     const { useLive2DMotionManagerUpdate } = await import('./motion-manager')
     const { useMotionUpdatePluginIdleMouth } = await import('./mouth-drive')
@@ -1883,6 +1902,20 @@ describe('live2d auto blink authority', () => {
     ctx.now = 3
     plugin(ctx)
     expect(idleEyeFocusUpdateSpy).toHaveBeenCalledTimes(2)
+    expect(idleEyeFocusInterruptSpy).toHaveBeenCalledOnce()
+  })
+
+  it('preserves a foreground motion reservation when idle is disabled during asynchronous loading', async () => {
+    const { useMotionUpdatePluginIdleDisable } = await import('./motion-manager')
+    const ctx = createPluginContext({ model: createMockModel(createModelParameterIds()), performanceState: createPerformanceState({ baseEmotion: 'neutral', delivery: 'calm', facialCue: 'relaxed' }) })
+    ctx.isIdleMotion = true
+    ctx.live2dIdleAnimationEnabled.value = false
+    ctx.motionManager.state.reservePriority = 3
+    ctx.motionManager.stopAllMotions = vi.fn()
+    useMotionUpdatePluginIdleDisable()(ctx)
+    expect(ctx.motionManager.stopAllMotions).not.toHaveBeenCalled()
+    expect(ctx.handled).toBe(false)
+    expect(ctx.motionManager.state.reservePriority).toBe(3)
   })
 
   it('uses actual SDK priority to distinguish custom idle playback from an owned gesture in the Idle group', async () => {

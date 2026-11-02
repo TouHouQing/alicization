@@ -14,6 +14,10 @@ const mocks = vi.hoisted(() => {
   const broadcastStreamPostMock = vi.fn()
   let broadcastChannelCallCount = 0
   const chatHooks = {
+    onEmbodimentMeta: [] as Array<(meta: any, context: any) => Promise<void>>,
+    onTextPresented: [] as Array<(presentation: any, context: any) => Promise<void>>,
+    onTokenLiteral: [] as Array<(literal: string, context: any) => Promise<void>>,
+    onTokenSpecial: [] as Array<(special: string, context: any) => Promise<void>>,
     onBeforeSend: [] as Array<(message: string, context: any) => Promise<void>>,
     onAssistantMessage: [] as Array<(message: any, messageText: string, context: any) => Promise<void>>,
     onToolCall: [] as Array<(toolCall: any, context: any) => Promise<void>>,
@@ -22,7 +26,14 @@ const mocks = vi.hoisted(() => {
 
   return {
     channels: [] as Array<{ data: { value: any } }>,
+    textPresentedMock: vi.fn(),
+    embodimentMetaMock: vi.fn(),
+    tokenLiteralMock: vi.fn(),
+    tokenSpecialMock: vi.fn(),
+    appendStreamMock: vi.fn(),
     streamEndMock: vi.fn(),
+    streamCancelMock: vi.fn(),
+    resetStreamMock: vi.fn(),
     assistantEndMock: vi.fn(),
     sendMock: vi.fn(),
     ingestMock: vi.fn(),
@@ -87,9 +98,10 @@ vi.mock('../../chat', () => ({
     emitAfterMessageComposedHooks: vi.fn(),
     emitBeforeSendHooks: vi.fn(),
     emitAfterSendHooks: vi.fn(),
-    emitTokenLiteralHooks: vi.fn(),
-    emitTokenSpecialHooks: vi.fn(),
+    emitTokenLiteralHooks: mocks.tokenLiteralMock,
+    emitTokenSpecialHooks: mocks.tokenSpecialMock,
     emitStreamEndHooks: mocks.streamEndMock,
+    emitStreamCancelledHooks: mocks.streamCancelMock,
     emitAssistantResponseEndHooks: mocks.assistantEndMock,
     onBeforeMessageComposed: vi.fn(() => () => {}),
     onAfterMessageComposed: vi.fn(() => () => {}),
@@ -98,9 +110,26 @@ vi.mock('../../chat', () => ({
       return () => {}
     }),
     onAfterSend: vi.fn(() => () => {}),
-    onTokenLiteral: vi.fn(() => () => {}),
-    onTokenSpecial: vi.fn(() => () => {}),
+    onTextPresented: vi.fn((handler) => {
+      mocks.chatHooks.onTextPresented.push(handler)
+      return () => {}
+    }),
+    emitTextPresentedHooks: mocks.textPresentedMock,
+    emitEmbodimentMetaHooks: mocks.embodimentMetaMock,
+    onEmbodimentMeta: vi.fn((handler) => {
+      mocks.chatHooks.onEmbodimentMeta.push(handler)
+      return () => {}
+    }),
+    onTokenLiteral: vi.fn((handler) => {
+      mocks.chatHooks.onTokenLiteral.push(handler)
+      return () => {}
+    }),
+    onTokenSpecial: vi.fn((handler) => {
+      mocks.chatHooks.onTokenSpecial.push(handler)
+      return () => {}
+    }),
     onStreamEnd: vi.fn(() => () => {}),
+    onStreamCancelled: vi.fn(() => () => {}),
     onAssistantResponseEnd: vi.fn(() => () => {}),
     onAssistantMessage: vi.fn((handler) => {
       mocks.chatHooks.onAssistantMessage.push(handler)
@@ -127,8 +156,10 @@ vi.mock('../../chat/session-store', () => ({
 vi.mock('../../chat/stream-store', () => ({
   useChatStreamStore: () => ({
     beginStream: vi.fn(),
-    appendStreamLiteral: vi.fn(),
+    appendStreamLiteral: mocks.appendStreamMock,
     finalizeStream: vi.fn(),
+    resetStream: mocks.resetStreamMock,
+    interruptStream: mocks.resetStreamMock,
   }),
 }))
 
@@ -181,9 +212,18 @@ describe('context bridge store', () => {
     mocks.getProviderInstanceMock.mockClear()
     mocks.resetBroadcastMocks()
     mocks.channels.length = 0
+    mocks.textPresentedMock.mockReset()
+    mocks.embodimentMetaMock.mockReset()
+    mocks.appendStreamMock.mockReset()
     mocks.streamEndMock.mockReset()
+    mocks.streamCancelMock.mockReset()
+    mocks.resetStreamMock.mockReset()
     mocks.assistantEndMock.mockReset()
     mocks.eventListeners.clear()
+    mocks.chatHooks.onTextPresented.length = 0
+    mocks.chatHooks.onEmbodimentMeta.length = 0
+    mocks.chatHooks.onTokenLiteral.length = 0
+    mocks.chatHooks.onTokenSpecial.length = 0
     mocks.chatHooks.onBeforeSend.length = 0
     mocks.chatHooks.onAssistantMessage.length = 0
     mocks.chatHooks.onToolCall.length = 0
@@ -223,6 +263,112 @@ describe('context bridge store', () => {
     await vi.waitFor(() => expect(mocks.assistantEndMock).toHaveBeenCalledOnce())
     expect(mocks.assistantEndMock).toHaveBeenCalledWith('b', context('b'))
     expect(mocks.streamEndMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('carries owned stream embodiment metadata to the stage without duplicating prompt history or accepting cancelled turns', async () => {
+    const { useContextBridgeStore } = await import('./context-bridge')
+    await useContextBridgeStore().initialize()
+    const context = { ...createContext('private prompt '.repeat(10000)), sessionId: 'session-test', message: { role: 'user', id: 'current', content: 'private prompt' } }
+    const meta = { governance: null, embodiment: { emotion: 'happy', performance: { baseEmotion: 'happy', emotion: 'happy', facialCue: 'smile', actionCue: null, delivery: 'gentle', emphasis: 0 } } }
+    expect(mocks.chatHooks.onEmbodimentMeta).toHaveLength(1)
+    await mocks.chatHooks.onEmbodimentMeta[0](meta, context)
+    const event = mocks.broadcastStreamPostMock.mock.calls.at(-1)?.[0]
+    expect(event).toMatchObject({ type: 'embodiment-meta', meta })
+    expect(event.context).toEqual({ sessionId: 'session-test', message: { role: 'user', id: 'current', content: '' }, contexts: {}, composedMessage: [] })
+    expect(JSON.stringify(event).length).toBeLessThan(1024)
+    mocks.broadcastStreamPostMock.mockClear()
+    const receive = async (message: object) => {
+      mocks.channels[1].data.value = message
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    }
+    await receive({ type: 'before-send', message: 'private prompt', sessionId: context.sessionId, context })
+    await receive(event)
+    expect(mocks.embodimentMetaMock).toHaveBeenCalledExactlyOnceWith(meta, context)
+    await receive({ ...event, sessionId: 'foreign-session', context: { ...event.context, sessionId: 'foreign-session' } })
+    await receive({ type: 'stream-cancel', sessionId: context.sessionId, context, reason: 'user-interruption' })
+    await receive(event)
+    expect(mocks.embodimentMetaMock).toHaveBeenCalledOnce()
+    expect(mocks.broadcastStreamPostMock).not.toHaveBeenCalled()
+  })
+
+  it('does not clone history or prompt contents into every presented glyph', async () => {
+    const { useContextBridgeStore } = await import('./context-bridge')
+    await useContextBridgeStore().initialize()
+    const context = { ...createContext('private long user input'), sessionId: 'session-test', message: { role: 'user', id: 'current', content: 'private long user input' } }
+    const presentation = { grapheme: '啊', phoneme: 'a', script: 'pinyin', offset: 0, durationMs: 110, presentedAt: 1000 }
+    await mocks.chatHooks.onTextPresented[0](presentation, context)
+    const event = mocks.broadcastStreamPostMock.mock.calls.at(-1)?.[0]
+    expect(event.type).toBe('text-presented')
+    expect(event.context).toEqual({ sessionId: 'session-test', message: { role: 'user', id: 'current', content: '' }, contexts: {}, composedMessage: [] })
+    expect(context.message.content).toBe('private long user input')
+  })
+
+  it.each(['onTokenLiteral', 'onTokenSpecial'] as const)('keeps %s broadcast size independent of retained prompt history', async (hook) => {
+    const { useContextBridgeStore } = await import('./context-bridge')
+    await useContextBridgeStore().initialize()
+    const text = 'private retained history '.repeat(10000)
+    const context = { ...createContext(text), sessionId: 'session-test', message: { role: 'user', id: 'current', content: text } }
+    await mocks.chatHooks[hook][0]('啊', context)
+    const event = mocks.broadcastStreamPostMock.mock.calls.at(-1)?.[0]
+    expect(JSON.stringify(event).length).toBeLessThan(512)
+    expect(event.context).toEqual({ sessionId: 'session-test', message: { role: 'user', id: 'current', content: '' }, contexts: {}, composedMessage: [] })
+    expect(context.composedMessage[0].content).toBe(text)
+  })
+
+  it('resolves compact tokens against their current initial send context and rejects a cancelled or foreign turn', async () => {
+    const { useContextBridgeStore } = await import('./context-bridge')
+    await useContextBridgeStore().initialize()
+    const full = { ...createContext('actual source prompt'), sessionId: 'session-test', message: { role: 'user', id: 'current', content: 'actual source prompt' } }
+    const compact = { sessionId: 'session-test', message: { role: 'user', id: 'current', content: '' }, contexts: {}, composedMessage: [] }
+    mocks.channels[1].data.value = { type: 'before-send', sessionId: 'session-test', context: full, message: 'actual source prompt' }
+    mocks.channels[1].data.value = { type: 'token-literal', sessionId: 'session-test', context: compact, literal: '啊' }
+    mocks.channels[1].data.value = { type: 'token-special', sessionId: 'session-test', context: compact, special: 'owned cue' }
+    await vi.waitFor(() => expect(mocks.tokenSpecialMock).toHaveBeenCalledOnce())
+    expect(mocks.tokenLiteralMock).toHaveBeenCalledExactlyOnceWith('啊', full)
+    expect(mocks.tokenSpecialMock).toHaveBeenCalledExactlyOnceWith('owned cue', full)
+    mocks.channels[1].data.value = { type: 'token-literal', sessionId: 'another-session', context: { ...compact, sessionId: 'another-session' }, literal: 'foreign' }
+    mocks.channels[1].data.value = { type: 'stream-cancel', sessionId: 'session-test', context: compact, reason: 'user-interrupt' }
+    mocks.channels[1].data.value = { type: 'token-literal', sessionId: 'session-test', context: compact, literal: 'late' }
+    await vi.waitFor(() => expect(mocks.streamCancelMock).toHaveBeenCalledOnce())
+    expect(mocks.tokenLiteralMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['stream-end', 'stream-cancel', 'assistant-end'] as const)('rejects same-id foreign-session %s without consuming the current turn', async (type) => {
+    const { useContextBridgeStore } = await import('./context-bridge')
+    await useContextBridgeStore().initialize()
+    const full = { ...createContext('owned source'), sessionId: 'source-session', message: { role: 'user', id: 'current', content: 'owned source' } }
+    const foreign = { ...full, sessionId: 'foreign-session' }
+    mocks.channels[1].data.value = { type: 'before-send', sessionId: 'source-session', context: full, message: 'owned source' }
+    mocks.channels[1].data.value = { type, sessionId: 'foreign-session', context: foreign, message: 'foreign reply', reason: 'failed' }
+    mocks.channels[1].data.value = { type, sessionId: 'source-session', context: full, message: 'owned reply', reason: 'user-interrupt' }
+    const callback = type === 'stream-end' ? mocks.streamEndMock : type === 'stream-cancel' ? mocks.streamCancelMock : mocks.assistantEndMock
+    await vi.waitFor(() => expect(callback).toHaveBeenCalled())
+    expect(callback).toHaveBeenCalledExactlyOnceWith(...(type === 'stream-end' ? [full] : type === 'stream-cancel' ? ['user-interrupt', full] : ['owned reply', full]))
+  })
+
+  it('shares the visible cursor with mouth observers and rejects stale or cancelled text', async () => {
+    const { useContextBridgeStore } = await import('./context-bridge')
+    await useContextBridgeStore().initialize()
+    const context = (id: string) => ({ ...createContext('你好'), message: { id, role: 'user', content: '你好' } })
+    const presentation = { grapheme: '啊', phoneme: 'a', script: 'pinyin', offset: 0, durationMs: 110, presentedAt: 1000 }
+    for (const [type, id] of [['before-send', 'a'], ['token-literal', 'a'], ['text-presented', 'a'], ['text-presented', 'b'], ['stream-cancel', 'a'], ['text-presented', 'a']])
+      mocks.channels[1].data.value = { type, literal: '完整的语音文本', presentation, reason: 'user-interrupt', sessionId: 'session-test', context: context(id) }
+    await vi.waitFor(() => expect(mocks.streamCancelMock).toHaveBeenCalledOnce())
+    expect(mocks.appendStreamMock).toHaveBeenCalledExactlyOnceWith('啊')
+    expect(mocks.textPresentedMock).toHaveBeenCalledExactlyOnceWith(presentation, context('a'))
+  })
+
+  it('releases a cancelled prepared turn and rejects a stale cancellation for a newer turn', async () => {
+    const { useContextBridgeStore } = await import('./context-bridge')
+    await useContextBridgeStore().initialize()
+    const context = (id: string) => ({ ...createContext('你好'), message: { id, role: 'user', content: '你好' } })
+    for (const [type, id] of [['before-compose', 'a'], ['stream-cancel', 'a'], ['before-send', 'b'], ['stream-cancel', 'a'], ['stream-cancel', 'b']])
+      mocks.channels[1].data.value = { type, reason: 'user-interrupt', sessionId: 'session-test', context: context(id), message: id }
+    await vi.waitFor(() => expect(mocks.streamCancelMock).toHaveBeenCalledTimes(2))
+    expect(mocks.streamCancelMock.mock.calls.map(([, event]) => event.message.id)).toEqual(['a', 'b'])
+    expect(mocks.resetStreamMock).toHaveBeenCalledTimes(2)
+    expect(mocks.assistantEndMock).not.toHaveBeenCalled()
   })
 
   it('continues completion after a hook error and drops queued events when the receiver is disposed', async () => {

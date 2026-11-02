@@ -483,6 +483,7 @@ export function bridgeAlicizationChatChunkEventToStreamEvent(
   return {
     type: 'text-delta',
     text: payload.text,
+    delivery: payload.delivery,
     origin: payload.origin,
     learningPolicy: payload.learningPolicy,
     failureSurface: payload.failureSurface ?? null,

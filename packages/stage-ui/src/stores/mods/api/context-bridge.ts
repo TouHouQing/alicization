@@ -1,7 +1,7 @@
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 import type { CompletionToolCall, UserMessage } from '@xsai/shared-chat'
 
-import type { ChatStreamEvent, ContextMessage } from '../../../types/chat'
+import type { ChatStreamEvent, ChatStreamEventContext, ContextMessage } from '../../../types/chat'
 
 import { errorMessageFrom } from '@moeru/std'
 import { isStageTamagotchi, isStageWeb } from '@proj-alicization/stage-shared'
@@ -136,7 +136,7 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
   const { post: broadcastStreamEvent, data: incomingStreamEvent } = useBroadcastChannel<ChatStreamEvent, ChatStreamEvent>({ name: CHAT_STREAM_CHANNEL_NAME })
 
   const disposeHookFns = ref<Array<() => void>>([])
-  let remoteStreamGuard: { sessionId: string, generation: number, messageId?: string } | null = null
+  let remoteStreamGuard: { sessionId: string, sourceSessionId: string, generation: number, messageId?: string, context: ChatStreamEventContext } | null = null
 
   async function initialize() {
     await mutex.acquire()
@@ -163,6 +163,14 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
       const postBroadcastStreamEvent = (event: ChatStreamEvent) => {
         broadcastStreamEvent(sanitizeBroadcastPayload(event))
       }
+      // The send lifecycle supplies context once. Frequent text events carry
+      // its identity only, avoiding repeated history clones on the body thread.
+      const streamIdentityContext = (context: ChatStreamEventContext): ChatStreamEventContext => ({
+        sessionId: context.sessionId,
+        message: { role: 'user', content: '', id: context.message.id },
+        contexts: {},
+        composedMessage: [],
+      })
 
       disposeHookFns.value.push(serverChannelStore.onEvent('input:text', async (event) => {
         const {
@@ -284,23 +292,40 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
 
           postBroadcastStreamEvent({ type: 'after-send', message, sessionId: chatSession.activeSessionId, context })
         }),
+        chatOrchestrator.onTextPresented(async (presentation, context) => {
+          if (isProcessingRemoteStream)
+            return
+          // A glyph needs turn identity, not a fresh clone of prompt/history.
+          // Keep high-frequency fanout bounded even after months of local use.
+          const cursorContext = streamIdentityContext(context)
+          postBroadcastStreamEvent({ type: 'text-presented', presentation, sessionId: chatSession.activeSessionId, context: cursorContext })
+        }),
+        chatOrchestrator.onEmbodimentMeta(async (meta, context) => {
+          if (isProcessingRemoteStream)
+            return
+          postBroadcastStreamEvent({ type: 'embodiment-meta', meta, sessionId: context.sessionId ?? chatSession.activeSessionId, context: streamIdentityContext(context) })
+        }),
         chatOrchestrator.onTokenLiteral(async (literal, context) => {
           if (isProcessingRemoteStream)
             return
 
-          postBroadcastStreamEvent({ type: 'token-literal', literal, sessionId: chatSession.activeSessionId, context })
+          postBroadcastStreamEvent({ type: 'token-literal', literal, sessionId: chatSession.activeSessionId, context: streamIdentityContext(context) })
         }),
         chatOrchestrator.onTokenSpecial(async (special, context) => {
           if (isProcessingRemoteStream)
             return
 
-          postBroadcastStreamEvent({ type: 'token-special', special, sessionId: chatSession.activeSessionId, context })
+          postBroadcastStreamEvent({ type: 'token-special', special, sessionId: chatSession.activeSessionId, context: streamIdentityContext(context) })
         }),
         chatOrchestrator.onStreamEnd(async (context) => {
           if (isProcessingRemoteStream)
             return
 
           postBroadcastStreamEvent({ type: 'stream-end', sessionId: chatSession.activeSessionId, context })
+        }),
+        chatOrchestrator.onStreamCancelled(async (reason, context) => {
+          if (!isProcessingRemoteStream)
+            postBroadcastStreamEvent({ type: 'stream-cancel', reason, sessionId: context.sessionId ?? chatSession.activeSessionId, context })
         }),
         chatOrchestrator.onAssistantResponseEnd(async (message, context) => {
           if (isProcessingRemoteStream)
@@ -401,6 +426,13 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
           // Use the receiver's active session to avoid clobbering chat state when events come from other windows/devtools.
             switch (event.type) {
               case 'before-compose':
+                remoteStreamGuard = {
+                  sessionId: chatSession.activeSessionId,
+                  sourceSessionId: event.context.sessionId ?? event.sessionId,
+                  generation: chatSession.getSessionGenerationValue(),
+                  messageId: event.context.message.id,
+                  context: { ...event.context, composedMessage: [] },
+                }
                 await chatOrchestrator.emitBeforeMessageComposedHooks(event.message, event.context)
                 break
               case 'after-compose':
@@ -410,53 +442,83 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
                 await chatOrchestrator.emitBeforeSendHooks(event.message, event.context)
                 remoteStreamGuard = {
                   sessionId: chatSession.activeSessionId,
+                  sourceSessionId: event.context.sessionId ?? event.sessionId,
                   generation: chatSession.getSessionGenerationValue(),
                   messageId: event.context.message.id,
+                  context: event.context,
                 }
                 chatOrchestrator.sending = true
-                chatStream.beginStream()
+                chatStream.beginStream(`chat:${event.context.sessionId ?? event.sessionId}:${event.context.message.id}`)
                 break
               case 'after-send':
                 await chatOrchestrator.emitAfterSendHooks(event.message, event.context)
                 break
+              case 'embodiment-meta':
+              case 'text-presented':
               case 'token-literal':
                 if (!remoteStreamGuard)
                   return
                 if (remoteStreamGuard.messageId !== event.context.message.id)
                   return
+                if (remoteStreamGuard.sourceSessionId !== (event.context.sessionId ?? event.sessionId))
+                  return
                 if (remoteStreamGuard.sessionId !== chatSession.activeSessionId)
                   return
                 if (chatSession.getSessionGenerationValue(remoteStreamGuard.sessionId) !== remoteStreamGuard.generation)
                   return
-                chatStream.appendStreamLiteral(event.literal)
-                await chatOrchestrator.emitTokenLiteralHooks(event.literal, event.context)
+                if (event.type === 'embodiment-meta') {
+                  await chatOrchestrator.emitEmbodimentMetaHooks(event.meta, remoteStreamGuard.context)
+                }
+                else if (event.type === 'text-presented') {
+                  chatStream.appendStreamLiteral(event.presentation.grapheme)
+                  await chatOrchestrator.emitTextPresentedHooks(event.presentation, remoteStreamGuard.context)
+                }
+                else {
+                  await chatOrchestrator.emitTokenLiteralHooks(event.literal, remoteStreamGuard.context)
+                }
                 break
               case 'token-special':
                 if (!remoteStreamGuard || remoteStreamGuard.messageId !== event.context.message.id)
                   break
+                if (remoteStreamGuard.sourceSessionId !== (event.context.sessionId ?? event.sessionId))
+                  break
                 if (remoteStreamGuard.sessionId !== chatSession.activeSessionId || chatSession.getSessionGenerationValue(remoteStreamGuard.sessionId) !== remoteStreamGuard.generation)
                   break
-                await chatOrchestrator.emitTokenSpecialHooks(event.special, event.context)
+                await chatOrchestrator.emitTokenSpecialHooks(event.special, remoteStreamGuard.context)
                 break
               case 'stream-end':
                 if (!remoteStreamGuard)
                   break
                 if (remoteStreamGuard.messageId !== event.context.message.id)
                   break
+                if (remoteStreamGuard.sourceSessionId !== (event.context.sessionId ?? event.sessionId))
+                  break
                 if (remoteStreamGuard.sessionId !== chatSession.activeSessionId)
                   break
                 if (chatSession.getSessionGenerationValue(remoteStreamGuard.sessionId) !== remoteStreamGuard.generation)
                   break
                 await chatOrchestrator.emitStreamEndHooks(event.context)
-                chatStream.finalizeStream()
+                // Keep the visible cursor until assistant-end commits the row.
+                // Releasing it here would briefly expose durable replay text.
+                break
+              case 'stream-cancel':
+                if (!remoteStreamGuard || remoteStreamGuard.messageId !== event.context.message.id)
+                  break
+                if (remoteStreamGuard.sourceSessionId !== (event.context.sessionId ?? event.sessionId))
+                  break
+                if (remoteStreamGuard.sessionId !== chatSession.activeSessionId || chatSession.getSessionGenerationValue(remoteStreamGuard.sessionId) !== remoteStreamGuard.generation)
+                  break
+                await chatOrchestrator.emitStreamCancelledHooks(event.reason, event.context)
+                chatStream.interruptStream(event.reason)
                 chatOrchestrator.sending = false
-                // Stream completion flushes tokens; assistant completion closes
-                // the speech intent. Keep its ownership until that second event.
+                remoteStreamGuard = null
                 break
               case 'assistant-end':
                 if (!remoteStreamGuard)
                   break
                 if (remoteStreamGuard.messageId !== event.context.message.id)
+                  break
+                if (remoteStreamGuard.sourceSessionId !== (event.context.sessionId ?? event.sessionId))
                   break
                 if (remoteStreamGuard.sessionId !== chatSession.activeSessionId)
                   break

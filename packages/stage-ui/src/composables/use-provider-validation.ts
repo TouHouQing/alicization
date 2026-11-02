@@ -3,7 +3,7 @@ import type { RemovableRef } from '@vueuse/core'
 import { errorMessageFrom } from '@moeru/std'
 import { useDebounceFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -57,24 +57,55 @@ export function useProviderValidation(providerId: string) {
   const isManualTesting = ref(false)
   const manualTestPassed = ref(false)
   const manualTestMessage = ref('')
+  let disposed = false
+  let configurationRevision = 0
+  let validationRun = 0
+  let manualRun = 0
+  let completionTimer: ReturnType<typeof setTimeout> | undefined
+
+  function invalidatePending() {
+    configurationRevision++
+    clearTimeout(completionTimer)
+    completionTimer = undefined
+    isValidating.value = 0
+    isManualTesting.value = false
+  }
+
+  function configurationSnapshot() {
+    // Nested headers must stay on the endpoint that requested them, even when
+    // the live form changes while a provider performs multiple network checks.
+    const config = structuredClone(toRaw(credentials.value))
+    for (const key of ['apiKey', 'baseUrl', 'accountId']) {
+      if (typeof config[key] === 'string')
+        config[key] = config[key].trim()
+    }
+    return config
+  }
+
+  onBeforeUnmount(() => {
+    disposed = true
+    invalidatePending()
+  })
 
   async function validateConfiguration() {
-    if (!providerMetadata.value)
+    const metadata = providerMetadata.value
+    if (disposed || !metadata)
       return
 
-    isValidating.value++
+    const revision = configurationRevision
+    const run = ++validationRun
+    const current = () => !disposed && revision === configurationRevision && run === validationRun
+    clearTimeout(completionTimer)
+    completionTimer = undefined
+    isValidating.value = 1
     validationMessage.value = ''
     const startValidationTimestamp = performance.now()
     let finalValidationMessage = ''
 
     try {
-      const config = { ...credentials.value }
-      if (config.apiKey)
-        config.apiKey = config.apiKey.trim()
-      if (config.baseUrl)
-        config.baseUrl = config.baseUrl.trim()
-
-      const validationResult = await providerMetadata.value.validators.validateProviderConfig(config)
+      const validationResult = await metadata.validators.validateProviderConfig(configurationSnapshot())
+      if (!current())
+        return
       isValid.value = validationResult.valid
 
       if (!isValid.value)
@@ -89,20 +120,29 @@ export function useProviderValidation(providerId: string) {
       }
     }
     catch (error) {
+      if (!current())
+        return
       isValid.value = false
       finalValidationMessage = t('settings.dialogs.onboarding.validationError', {
         error: errorMessageFrom(error),
       })
     }
     finally {
-      setTimeout(() => {
-        isValidating.value--
-        validationMessage.value = finalValidationMessage
-      }, Math.max(0, debounceTime - (performance.now() - startValidationTimestamp)))
+      if (current()) {
+        completionTimer = setTimeout(() => {
+          if (current()) {
+            isValidating.value = 0
+            validationMessage.value = finalValidationMessage
+            completionTimer = undefined
+          }
+        }, Math.max(0, debounceTime - (performance.now() - startValidationTimestamp)))
+      }
     }
   }
 
-  const debouncedValidateConfiguration = useDebounceFn(() => {
+  const debouncedValidateConfiguration = useDebounceFn((revision: number) => {
+    if (disposed || revision !== configurationRevision)
+      return
     const config = credentials.value
     const hasApiKey = 'apiKey' in config && !!config.apiKey?.trim()
     const hasBaseUrl = 'baseUrl' in config && !!config.baseUrl?.trim()
@@ -125,41 +165,51 @@ export function useProviderValidation(providerId: string) {
   })
 
   watch(credentials, () => {
-    debouncedValidateConfiguration()
+    invalidatePending()
+    isValid.value = false
+    validationMessage.value = ''
+    debouncedValidateConfiguration(configurationRevision)
     // Reset manual test state when credentials change
     manualTestPassed.value = false
     manualTestMessage.value = ''
-  }, { deep: true })
+  }, { deep: true, flush: 'sync' })
 
   async function runManualTest() {
-    if (!providerMetadata.value?.validators.runManualValidation)
+    const validators = providerMetadata.value?.validators
+    if (disposed || !validators?.runManualValidation)
       return
 
+    const revision = configurationRevision
+    const run = ++manualRun
+    const current = () => !disposed && revision === configurationRevision && run === manualRun
     isManualTesting.value = true
+    manualTestPassed.value = false
     manualTestMessage.value = ''
 
     try {
-      const config = { ...credentials.value }
-      if (config?.apiKey)
-        config.apiKey = config.apiKey.trim()
-      if (config?.baseUrl)
-        config.baseUrl = config.baseUrl.trim()
-
-      const result = await providerMetadata.value.validators.runManualValidation(config)
+      const result = await validators.runManualValidation(configurationSnapshot())
+      if (!current())
+        return
       manualTestPassed.value = result.valid
       if (!result.valid)
         manualTestMessage.value = result.reason
     }
     catch (error) {
+      if (!current())
+        return
       manualTestPassed.value = false
       manualTestMessage.value = errorMessageFrom(error) ?? 'Unknown error'
     }
     finally {
-      isManualTesting.value = false
+      if (current())
+        isManualTesting.value = false
     }
   }
 
   function handleResetSettings() {
+    if (disposed)
+      return
+    invalidatePending()
     const defaultOptions = providerMetadata.value?.defaultOptions ? providerMetadata.value.defaultOptions() : {}
     providers.value[providerId] = { ...defaultOptions }
     isValid.value = false
@@ -170,9 +220,11 @@ export function useProviderValidation(providerId: string) {
   }
 
   function forceValid() {
+    if (disposed)
+      return
+    invalidatePending()
     isValid.value = true
     validationMessage.value = ''
-    manualTestPassed.value = true
     manualTestMessage.value = ''
     providersStore.forceProviderConfigured(providerId)
   }

@@ -27,6 +27,17 @@ function coordinate(value = intent(), overrides: Record<string, unknown> = {}, c
 afterEach(() => vi.useRealTimers())
 
 describe('one prepared intent drives language and body without inventing an experience', () => {
+  it('keeps a direct requested nod coherent across the committed body, timeline, script and digital-life frames', () => {
+    vi.useFakeTimers().setSystemTime(now)
+    const requested = coordinate(intent('guide'), { userText: '你能轻轻点一下头回应我吗？' })
+    expect(requested.embodiment?.performance.actionCue).toBe('reassuring_nod')
+    expect(requested.embodiment?.rendererHints?.preferredMotionAliases).toEqual(['reassuring_nod'])
+    expect(requested.speechTimeline?.segments.filter(segment => segment.actionCue).map(segment => segment.actionCue)).toEqual(['reassuring_nod'])
+    expect(requested.embodimentScript?.motionPlan.actionBursts.filter(burst => burst.actionCue).map(burst => burst.actionCue)).toEqual(['reassuring_nod'])
+    expect(requested.digitalLife?.frames.filter(frame => frame.action.actionCue).map(frame => frame.action.actionCue)).toEqual(['reassuring_nod'])
+    expect(coordinate(intent('guide'), { userText: '请不要点头。' }).embodiment?.variationToken).not.toContain('requested-gesture')
+    expect(coordinate(intent('guide'), { userText: '请点头。', reply: '我现在不想点头。' }).embodiment?.variationToken).not.toContain('requested-gesture')
+  })
   it('keeps a greeting through canonical digital-life frames instead of replaying an older happy gesture', () => {
     vi.useFakeTimers().setSystemTime(now)
     const greetingManifest = { ...manifest, supportedBaseEmotions: ['neutral', 'happy'], supportedActions: [...manifest.supportedActions, { key: 'gentle_wave', label: 'Wave' }, { key: 'celebrate_small', label: 'Celebrate' }] }

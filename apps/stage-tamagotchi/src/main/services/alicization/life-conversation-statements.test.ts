@@ -10,6 +10,61 @@ import { createLifeReplyGroundingRuntime } from './life-reply-grounding-runtime'
 import { createLifeTurnRuntime } from './life-turn-runtime'
 
 describe('canonical conversation evidence', () => {
+  it('routes explicit host accomplishments to source-backed host statements without certifying her own execution', () => {
+    for (const quote of ['你已经完成过一张让自己开心、也得到朋友肯定的画稿了。', '你今天完成了画稿，', '你终于做完了那份报告。', '你已经认真完成过一张画稿了。']) {
+      expect(attributesConversationStatement(quote, quote, 'host'), quote).toBe(true)
+      expect(attributesConversationStatement(quote, quote, 'companion'), quote).toBe(false)
+    }
+    for (const quote of ['我今天完成了画稿。', '你明天会完成画稿。', '你完成画稿了吗？', '你以为我完成了画稿。', '你今天完成了画稿，我已经保存了文件。'])
+      expect(attributesConversationStatement(quote, quote, 'host'), quote).toBe(false)
+  })
+
+  it.each(['你已经完成过一张让自己开心、也得到朋友肯定的画稿了。', '你今天完成了画稿，'])('grounds the real comfort reply %s in the actual previous host ingress', async (quote) => {
+    const root = await mkdtemp(join(tmpdir(), 'life-host-accomplishment-'))
+    const db = await setupAlicizationDb(root, { cardId: 'alice' })
+    const signal = new AbortController().signal
+    const life = createLifeTurnRuntime({ getIngress: db.getLifeIngress, getEffect: db.getLifeEffect, read: db.readLifeState, commit: db.commitLifeState, now: Date.now })
+    let fault: 'none' | 'missing' | 'stale' | 'mismatch' | 'speaker' | 'withdrawn' | 'own-work' | 'omitted' | 'punctuation' | 'partial' = 'none'
+    let reference: { kind: 'dialogue', id: string, version: string } | null = null
+    let canonical: { kind: 'dialogue', id: string, version: string } | null = null
+    const draft = () => fault === 'own-work' ? '我今天完成了画稿。' : quote
+    try {
+      await life.admit({ cardId: 'alice', turnId: 'prior-art', conversationId: 'primary', messages: [{ role: 'user', content: '今天画稿终于完成了，还得到了朋友的夸奖，我很开心，想和你分享一下。' }] }, signal)
+      canonical = { kind: 'dialogue', id: 'user:prior-art', version: String((await db.getLifeIngress('user:prior-art'))!.payload.inputHash) }
+      await life.admit({ cardId: 'alice', turnId: 'comfort', conversationId: 'primary', messages: [{ role: 'user', content: '不过我现在有点低落，担心下次画不好。先陪我安静一会儿，再轻轻鼓励我一句，好吗？' }] }, signal)
+      const review = createLifeReplyGroundingRuntime({
+        readUserInput: id => fault === 'withdrawn' && id === 'user:prior-art' ? Promise.resolve(null) : db.getLifeUserInput(id),
+        read: db.readLifeState,
+        commit: db.commitLifeState,
+        readMemoryEvidence: cardId => db.readLifeFactVersions({ cardId }),
+        now: Date.now,
+        generate: async ({ user, responseFormat }) => {
+          const facts = JSON.parse(user)
+          if (fault === 'none') {
+            const source = facts.conversationStatements.find((item: { speaker: string, text: string }) => item.speaker === 'host' && item.text.includes('画稿终于完成了'))
+            expect(source).toBeDefined()
+            reference = source.binding
+            const schema = responseFormat.json_schema.schema.properties
+            expect(schema.hostStatements.items.properties.quote.enum).toContain(quote)
+            expect(schema.claims.maxItems).toBe(0)
+          }
+          const reviewedQuote = fault === 'punctuation' ? draft().slice(0, -1) : fault === 'partial' ? draft().slice(0, -3) : draft()
+          const claim = { quote: reviewedQuote, binding: fault === 'missing' ? null : fault === 'stale' ? { ...reference!, version: 'stale-source-version' } : fault === 'withdrawn' ? canonical : reference, meaningMatchesBinding: fault !== 'mismatch' }
+          return JSON.stringify({ claims: [], hostStatements: ['speaker', 'omitted'].includes(fault) ? [] : [claim], companionStatements: fault === 'speaker' ? [claim] : [], conversationLinks: [] })
+        },
+      })
+      const check = async () => review({ cardId: 'alice', turnId: 'comfort', text: draft(), owners: (await db.readLifeState()).owners, signal })
+      expect((await check()).accepted).toBe(true)
+      fault = 'punctuation'
+      expect((await check()).accepted, 'Omitting terminal punctuation must not omit the factual clause').toBe(true)
+      for (fault of ['missing', 'stale', 'mismatch', 'speaker', 'withdrawn', 'own-work', 'omitted', 'partial'] as const)
+        expect((await check()).accepted, fault).toBe(false)
+      expect((await db.readLifeState()).obligations).toEqual([])
+      expect((await db.readLifeState()).effects).toEqual([])
+    }
+    finally { await db.close(); await rm(root, { recursive: true, force: true }) }
+  })
+
   it('distinguishes an actual requested write and omitted reporting verbs from an independent failed operation', () => {
     const draft = '你回来后先问我做过什么，接着让我实际写入文件；后来又让我读另一个文件，并明确说不要去别处找。'
     expect(attributesConversationStatement(draft, '接着让我实际写入文件；', 'host')).toBe(true)

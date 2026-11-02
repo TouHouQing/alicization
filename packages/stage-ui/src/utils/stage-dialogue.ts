@@ -235,14 +235,16 @@ function avoidCharacterInDefaultPanel(rect: StageDialoguePanelRect, input: Stage
     .rect
 }
 
-export function resolveStageBubbleText(message: StageBubbleMessage) {
+export function resolveStageBubbleText(message: StageBubbleMessage, options?: { visibleOnly?: boolean }) {
   if (!message || message.role !== 'assistant')
     return ''
+  if (message.delivery?.status === 'interrupted')
+    return message.delivery.visibleText
 
-  if ('structured' in message && typeof message.structured?.reply === 'string' && message.structured.reply.trim())
+  if (!options?.visibleOnly && 'structured' in message && typeof message.structured?.reply === 'string' && message.structured.reply.trim())
     return message.structured.reply.trim()
 
-  if ('categorization' in message && typeof message.categorization?.speech === 'string' && message.categorization.speech.trim())
+  if (!options?.visibleOnly && 'categorization' in message && typeof message.categorization?.speech === 'string' && message.categorization.speech.trim())
     return message.categorization.speech.trim()
 
   if ('slices' in message && Array.isArray(message.slices)) {

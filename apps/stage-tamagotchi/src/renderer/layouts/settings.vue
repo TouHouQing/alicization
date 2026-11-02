@@ -2,6 +2,7 @@
 import { isStageTamagotchi } from '@proj-alicization/stage-shared'
 import { PageHeader } from '@proj-alicization/stage-ui/components'
 import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
+import { useElementSize } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterView, useRoute } from 'vue-router'
@@ -14,6 +15,8 @@ const route = useRoute()
 const { t } = useI18n()
 const providersStore = useProvidersStore()
 const scrollContainer = ref<HTMLElement>()
+const headerContainer = ref<HTMLElement>()
+const { height: headerHeight } = useElementSize(headerContainer)
 useRestoreScroll(scrollContainer)
 
 const routeMeta = computed(() => route.meta as {
@@ -79,14 +82,16 @@ const routeHeaderMetadata = computed(() => {
 
       min-h-0 flex-1
     >
-      <div ref="scrollContainer" relative h-full w-full overflow-y-auto scrollbar-none>
-        <div flex="~ col" mx-auto h-full max-w-screen-xl>
-          <PageHeader
-            :title="routeHeaderMetadata?.title ?? ''"
-            :subtitle="routeHeaderMetadata?.subtitle ?? ''"
-            :disable-back-button="isStageTamagotchi() && route.path === '/settings'"
-            px-4
-          />
+      <div ref="scrollContainer" :style="{ scrollPaddingTop: `${headerHeight + 16}px` }" relative h-full w-full overflow-y-auto scrollbar-none>
+        <div flex="~ col" mx-auto min-h-full max-w-screen-xl>
+          <div ref="headerContainer" class="sticky top-0 z-99 shrink-0">
+            <PageHeader
+              :title="routeHeaderMetadata?.title ?? ''"
+              :subtitle="routeHeaderMetadata?.subtitle ?? ''"
+              :disable-back-button="isStageTamagotchi() && route.path === '/settings'"
+              px-4
+            />
+          </div>
           <div min-h-0 flex-1 px-4>
             <RouterView />
           </div>

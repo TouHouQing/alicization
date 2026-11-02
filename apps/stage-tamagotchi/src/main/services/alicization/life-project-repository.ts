@@ -1,13 +1,18 @@
 import type { LifeMutation } from '../../../shared/life-contracts'
 import type { LifeTransaction } from './life-transaction'
 
+import { projectTaskAcceptance } from './execution/acceptance-repository'
 import { boundedJson } from './life-transaction'
 
 export async function bindLifeProject(tx: LifeTransaction, input: Extract<LifeMutation, { type: 'personal-project-bind' }>) {
   const id = `task:${input.threadId}`
-  const task = await tx.get<{ status: string, metadata_json: string | null }>('SELECT status, metadata_json FROM task_threads WHERE id = ?', [input.threadId])
+  const task = await tx.get<{ status: string, metadata_json: string | null, turn_id: string | null }>('SELECT status, metadata_json, turn_id FROM task_threads WHERE id = ?', [input.threadId])
   if (!task || task.status !== 'planned' || input.proof.kind !== 'file' || !input.proof.path || !input.proof.contentHash || !input.evidence.length)
     throw new Error('Personal project requires an unstarted task, fixed file proof and grounded interest')
+  const root = await tx.get<{ generation: number }>('SELECT generation FROM life_obligations WHERE card_id = ? AND obligation_id = ?', [tx.cardId, id])
+  if (!root)
+    throw new Error('Personal project has no task responsibility')
+  await projectTaskAcceptance(tx, { obligationId: id, generation: root.generation, sourceTurnId: task.turn_id, proof: input.proof, planned: true, finalizeBeforeExecution: true })
   const metadata = task.metadata_json ? JSON.parse(task.metadata_json) as { personalActivity?: string, personalTopic?: string, personalOrigin?: string } : null
   const creativeInspiration = ['creative-writing-v1', 'visual-study-v1'].includes(metadata?.personalActivity ?? '')
   for (const ref of input.evidence) {

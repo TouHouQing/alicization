@@ -8,6 +8,13 @@ import {
 } from './alicization-chat-failure-surface'
 
 describe('alicization chat failure surface', () => {
+  it('reports a timeout after actual provider progress without claiming first-response failure or tool completion', () => {
+    const surface = resolveAlicizationChatFailureSurface({ kind: 'timeout', userText: '请继续', timeout: { providerId: 'provider', model: 'model', phase: 'provider-continuation', sawProgress: true, lastEventType: 'tool-call-delta' } })
+    expect(surface.reply).toBe('Provider 已开始响应，但未在时限内完成（provider / model）。重试前请先检查已有操作结果。')
+    expect(surface.reply).not.toMatch(/首个|工具已完成/u)
+    expect(surface.allowPersonaLearning).toBe(false)
+    expect(surface.allowLongTermCondensation).toBe(false)
+  })
   it('renders timeout as direct infrastructure failure instead of persona prose', () => {
     const surface = resolveAlicizationChatFailureSurface({
       kind: 'timeout',
@@ -46,11 +53,11 @@ describe('alicization chat failure surface', () => {
       },
       {
         kind: 'provider-continuation-timeout',
-        reply: '工具已完成，但 Provider 等待最终回复超时（openai-compatible / gpt-5.4）。',
+        reply: '回复生成超时。请先检查已有操作结果，避免重复提交。',
       },
       {
         kind: 'provider-continuation-incomplete',
-        reply: '工具已完成，但 Provider 没有返回最终回复。',
+        reply: '回复没有生成完。请先检查已有操作结果，避免重复提交。',
       },
       {
         kind: 'recall-failure',

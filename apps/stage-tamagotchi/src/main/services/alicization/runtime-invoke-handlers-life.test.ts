@@ -9,17 +9,19 @@ import { join } from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { electronLifeBodyHealth, electronLifeExpressionReceipt, electronLifeInputCommand, electronLifeInputPreview, electronLifeSurfaceSession } from '../../../shared/life-events'
+import { electronLifeAuthorizedBrowser, electronLifeBackupCommand, electronLifeBodyHealth, electronLifeExecutionCriteriaChange, electronLifeExecutionVerifiers, electronLifeExpressionReceipt, electronLifeInputCommand, electronLifeInputPreview, electronLifeProcedure, electronLifeSurfaceSession } from '../../../shared/life-events'
 import { setupAlicizationDb } from './db'
+import { createExecutionUserCommandScope } from './execution/user-command-scope'
 import { lifeRelationshipKey, readLifeConversationPreferences } from './life-conversation-preferences'
 import { createLifeTurnRuntime } from './life-turn-runtime'
+import { createAlicizationMainGatewayWorkCoordinator } from './main-gateway-work-coordinator'
 import { createAlicizationRuntimeCardScopeOrchestrator } from './runtime-card-scope-orchestrator'
 import { registerLifeInvokeHandlers } from './runtime-invoke-handlers-life'
 
-function wire(database: Awaited<ReturnType<typeof setupAlicizationDb>>, senderId: number, visible = () => true, copyText = (_text: string) => {}, url = 'file:///app/renderer/index.html#/', secondDatabase?: Awaited<ReturnType<typeof setupAlicizationDb>>) {
+function wire(database: Awaited<ReturnType<typeof setupAlicizationDb>>, senderId: number, visible = () => true, copyText = (_text: string) => {}, url = 'file:///app/renderer/index.html#/', secondDatabase?: Awaited<ReturnType<typeof setupAlicizationDb>>, authorizedBrowserCommand?: Parameters<typeof registerLifeInvokeHandlers>[0]['authorizedBrowserCommand'], changeWorkCriteria?: Parameters<typeof registerLifeInvokeHandlers>[0]['changeWorkCriteria'], verificationConfiguration?: Parameters<typeof registerLifeInvokeHandlers>[0]['verificationConfiguration'], withUserCommand?: Parameters<typeof registerLifeInvokeHandlers>[0]['withUserCommand'], backupCommand?: Parameters<typeof registerLifeInvokeHandlers>[0]['backupCommand']) {
   const handlers = new Map<unknown, (payload: unknown, metadata: { raw?: { ipcMainEvent?: IpcMainEvent } }) => Promise<unknown>>()
   const sender = Object.assign(new EventEmitter(), { id: senderId, isDestroyed: () => false, getURL: () => url })
-  registerLifeInvokeHandlers({ register: (event, handler) => handlers.set(event, handler), withCardScope: async (cardId, task) => {
+  registerLifeInvokeHandlers({ backupCommand, verificationConfiguration, withUserCommand, changeWorkCriteria, authorizedBrowserCommand, register: (event, handler) => handlers.set(event, handler), withCardScope: async (cardId, task) => {
     if (cardId === 'bob' && secondDatabase) {
       const previous = database
       database = secondDatabase
@@ -35,6 +37,148 @@ function wire(database: Awaited<ReturnType<typeof setupAlicizationDb>>, senderId
 }
 
 describe('desktop presentation recovery', () => {
+  it('admits the real backup renderer page commands while retaining strict bounds and surface/card authority', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'life-backup-ipc-'))
+    const db = await setupAlicizationDb(root, { cardId: 'alice' })
+    const backup = vi.fn(async () => ({ status: 'listed' as const, cardId: 'alice', backups: [], issues: [], page: { total: 0, issuesTotal: 0, nextCursor: null } }))
+    try {
+      const local = wire(db, 201, () => true, () => {}, 'file:///app/renderer/index.html#/settings/life', undefined, undefined, undefined, undefined, undefined, backup)
+      const refresh = { cardId: 'alice', action: 'list', cursor: undefined, refresh: true }
+      await expect(local(electronLifeBackupCommand, refresh)).resolves.toMatchObject({ status: 'listed' })
+      expect(backup).toHaveBeenLastCalledWith(refresh, expect.anything())
+      const next = { cardId: 'alice', action: 'list', cursor: 'reviewed-page.signature', limit: 20, refresh: false }
+      await expect(local(electronLifeBackupCommand, next)).resolves.toMatchObject({ status: 'listed' })
+      expect(backup).toHaveBeenLastCalledWith(next, expect.anything())
+      const restore = { ...next, action: 'restore', backupId: '274b5204-26b3-4869-bb18-0597614bf564', expectedManifestHash: 'a'.repeat(64) }
+      await local(electronLifeBackupCommand, restore)
+      expect(backup).toHaveBeenLastCalledWith(restore, expect.anything())
+      const calls = backup.mock.calls.length
+      for (const malformed of [{ cursor: '' }, { cursor: 'x'.repeat(513) }, { cursor: 12 }, { limit: 0 }, { limit: 101 }, { limit: 1.5 }, { limit: '20' }, { refresh: 'true' }, { bypass: true }, { backupId: 'unreviewed' }, { expectedManifestHash: 'invalid' }])
+        await expect(local(electronLifeBackupCommand, { ...next, ...malformed })).rejects.toThrow()
+      await expect(local(electronLifeBackupCommand, { ...next, cardId: 'bob' })).rejects.toThrow('scope mismatch')
+      const foreign = wire(db, 202, () => true, () => {}, 'https://external.invalid/', undefined, undefined, undefined, undefined, undefined, backup)
+      await expect(foreign(electronLifeBackupCommand, next)).rejects.toThrow()
+      expect(backup).toHaveBeenCalledTimes(calls)
+    }
+    finally {
+      await db.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+  it('keeps verifier listing read-only and restricts configuration changes to exact trusted IPC input', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'life-verifier-control-'))
+    const db = await setupAlicizationDb(root, { cardId: 'alice' })
+    const control = vi.fn(async () => ({ registryHash: 'hash', items: [] }))
+    const userCommand = vi.fn(async (_cardId: string, task: () => Promise<unknown>) => task())
+    try {
+      const foreign = wire(db, 98, () => true, () => {}, 'https://external.invalid/', undefined, undefined, undefined, control)
+      await expect(foreign(electronLifeExecutionVerifiers, { cardId: 'alice', action: 'list' })).rejects.toThrow()
+      expect(control).not.toHaveBeenCalled()
+      const local = wire(db, 99, () => true, () => {}, 'file:///app/renderer/index.html#/settings/life', undefined, undefined, undefined, control, userCommand as Parameters<typeof registerLifeInvokeHandlers>[0]['withUserCommand'])
+      expect(await local(electronLifeExecutionVerifiers, { cardId: 'alice', action: 'list' })).toMatchObject({ items: [] })
+      expect(userCommand).not.toHaveBeenCalled()
+      await expect(local(electronLifeExecutionVerifiers, { cardId: 'alice', action: 'preview', registry: '{}', bypass: true })).rejects.toThrow()
+      expect(control).toHaveBeenCalledTimes(1)
+      await local(electronLifeExecutionVerifiers, { cardId: 'alice', action: 'preview', registry: '{}' })
+      expect(control).toHaveBeenLastCalledWith({ cardId: 'alice', action: 'preview', registry: '{}' }, 99)
+      expect(userCommand).toHaveBeenCalledOnce()
+    }
+    finally {
+      await db.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+  it('admits bounded criteria edits only from the trusted local host control', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'life-criteria-control-'))
+    const db = await setupAlicizationDb(root, { cardId: 'alice' })
+    const change = vi.fn(async () => ({ state: 'criteria-revised' }))
+    try {
+      const input = { cardId: 'alice', planId: 'existing-plan', expectedRevision: 1, expectedGeneration: 1, contractHash: 'current-contract', criteria: [{ id: 'file', required: true, proofScope: 'structure', predicate: { kind: 'text-content', path: join(root, 'report.txt'), includes: ['required'] } }], requestId: 'host-change' }
+      const foreign = wire(db, 94, () => true, () => {}, 'https://external.invalid/', undefined, undefined, change)
+      await expect(foreign(electronLifeExecutionCriteriaChange, input)).rejects.toThrow()
+      expect(change).not.toHaveBeenCalled()
+      const local = wire(db, 95, () => true, () => {}, 'file:///app/renderer/index.html#/settings/life', undefined, undefined, change)
+      await expect(local(electronLifeExecutionCriteriaChange, { ...input, fulfilled: true })).rejects.toThrow()
+      expect(change).not.toHaveBeenCalled()
+      expect(await local(electronLifeExecutionCriteriaChange, input)).toEqual({ state: 'criteria-revised' })
+      expect(change).toHaveBeenCalledExactlyOnceWith(input)
+      await expect(local(electronLifeExecutionCriteriaChange, { ...input, stepChanges: [{ stepId: 'future', changes: { path: 123 } }] })).rejects.toThrow()
+      const combined = { ...input, requestId: 'host-combined-change', stepChanges: [{ stepId: 'future', changes: { path: join(root, 'by-date', 'report.txt') } }] }
+      await expect(foreign(electronLifeExecutionCriteriaChange, combined)).rejects.toThrow()
+      expect(await local(electronLifeExecutionCriteriaChange, combined)).toEqual({ state: 'criteria-revised' })
+      expect(change).toHaveBeenLastCalledWith(combined)
+      const graph = { ...combined, graphChanges: [{ kind: 'insert-after', stepId: 'new-read', templateStepId: 'read', afterStepId: 'observed' }, { kind: 'remove', stepId: 'obsolete' }, { kind: 'dependencies', stepId: 'future', dependsOn: ['new-read'] }] }
+      await expect(foreign(electronLifeExecutionCriteriaChange, graph)).rejects.toThrow()
+      expect(await local(electronLifeExecutionCriteriaChange, graph)).toEqual({ state: 'criteria-revised' })
+      expect(change).toHaveBeenLastCalledWith(graph)
+      const count = change.mock.calls.length
+      for (const malformed of [[], [{ kind: 'insert-after', stepId: 'new', templateStepId: 'read' }], [{ kind: 'remove', stepId: 'a', effect: 'ignore' }], [{ kind: 'dependencies', stepId: 'a', dependsOn: [123] }], Array.from({ length: 257 }, () => ({ kind: 'remove', stepId: 'a' }))])
+        await expect(local(electronLifeExecutionCriteriaChange, { ...input, graphChanges: malformed })).rejects.toThrow()
+      expect(change).toHaveBeenCalledTimes(count)
+    }
+    finally { await db.close(); await rm(root, { recursive: true, force: true }) }
+  })
+  it('lists methods during the same card background work and gives explicit governance control priority', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'life-procedure-control-priority-'))
+    const db = await setupAlicizationDb(root, { cardId: 'alice' })
+    const coordinator = createAlicizationMainGatewayWorkCoordinator()
+    const orchestrator = createAlicizationRuntimeCardScopeOrchestrator({ scopeLifecycleQueueState: { queue: Promise.resolve() }, now: Date.now, getActiveCardId: () => 'alice', normalizeCardId: String, sanitizeText: String, appendRuntimeDebugLine: async () => {}, switchCardScopeInner: async () => {} })
+    const handlers = new Map<unknown, (payload: unknown, metadata: any) => Promise<unknown>>()
+    const command = vi.fn(async (input: { cardId: string, action: string }) => {
+      expect(input.cardId).toBe('alice')
+      expect((await db.readLifeState()).cardId).toBe('alice')
+      return { status: input.action === 'list' ? 'listed' : 'cancelling', items: [] }
+    })
+    registerLifeInvokeHandlers({ register: (event, handler) => handlers.set(event, handler), procedureCommand: command, withUserCommand: createExecutionUserCommandScope({ coordinator, scope: orchestrator.withCardScope, settled: () => {} }), withCardScope: orchestrator.withCardScope, read: db.readLifeState, readClosure: db.readLifeClosure, commit: db.commitLifeState, getIngress: db.getLifeIngress, getUserInput: db.getLifeUserInput, copyText: () => {}, readSetting: db.getMetaValue, hasPublishedTurn: db.hasPublishedLifeTurn, getSurface: db.getLifeSurface, surfaceVisible: () => true, rescheduleTimer: async () => {}, cancelExecution: () => {} })
+    const metadata = { raw: { ipcMainEvent: { sender: { isDestroyed: () => false, getURL: () => 'file:///app/index.html#/settings/life' } } } }
+    const started = Promise.withResolvers<void>()
+    let aborted = false
+    const background = orchestrator.withCardScope('alice', async () => {
+      const lease = coordinator.acquireOneShot({ source: 'counterfactual-deliberation' })
+      if (!lease.accepted)
+        throw new Error('Expected background admission')
+      started.resolve()
+      try { await new Promise<void>(resolve => lease.controller.signal.addEventListener('abort', () => { aborted = true; resolve() }, { once: true })) }
+      finally { lease.release({ status: 'cancelled' }) }
+    }, { lane: 'background', label: 'held-background-dialogue' })
+    try {
+      await started.promise
+      const invoke = (action: string, extra = {}) => handlers.get(electronLifeProcedure)!({ cardId: 'alice', action, ...extra }, metadata)
+      await expect(invoke('list')).resolves.toEqual({ status: 'listed', items: [] })
+      expect(aborted).toBe(false)
+      await expect(invoke('cancel-evaluation')).resolves.toMatchObject({ status: 'cancelling' })
+      expect(aborted).toBe(false)
+      await invoke('evaluate', { candidateId: 'candidate' })
+      await background
+      expect(aborted).toBe(true)
+      expect(command.mock.calls.map(([input]) => input.action)).toEqual(['list', 'cancel-evaluation', 'evaluate'])
+      expect(coordinator.snapshot().activeForegroundCount).toBe(0)
+    }
+    finally {
+      const foreground = coordinator.openForeground({ turnId: 'fixture-cleanup' })
+      await background
+      foreground.release()
+      await db.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps browser grants on the trusted host surface and rejects model-like extra fields', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'life-browser-grant-wire-'))
+    const db = await setupAlicizationDb(root, { cardId: 'alice' })
+    const command = vi.fn(async () => ({ mode: 'managed' as const, status: 'managed' as const, reason: null, target: null, origins: [] }))
+    try {
+      const local = wire(db, 1, () => true, () => {}, 'file:///app/renderer/index.html#/settings/life', undefined, command)
+      await local(electronLifeAuthorizedBrowser, { cardId: 'alice', action: 'takeover' })
+      expect(command).toHaveBeenCalledExactlyOnceWith({ cardId: 'alice', action: 'takeover' })
+      await expect(local(electronLifeAuthorizedBrowser, { cardId: 'alice', action: 'inspect', endpoint: 'http://127.0.0.1:9222', allowAllOrigins: true })).rejects.toThrow()
+      const remote = wire(db, 2, () => true, () => {}, 'https://untrusted.example/', undefined, command)
+      await expect(remote(electronLifeAuthorizedBrowser, { cardId: 'alice', action: 'takeover' })).rejects.toThrow('trusted local')
+      expect(command).toHaveBeenCalledTimes(1)
+    }
+    finally { await db.close(); await rm(root, { recursive: true, force: true }) }
+  })
+
   it('discards only requirements owned by the held input, preserving newer corrections and relationship state', async () => {
     const root = await mkdtemp(join(tmpdir(), 'life-input-requirement-discard-'))
     const db = await setupAlicizationDb(root, { cardId: 'alice' })

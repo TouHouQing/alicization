@@ -20,6 +20,7 @@ import type {
 
 import type { AliyunRealtimeSpeechExtraOptions } from './providers/aliyun/stream-transcription'
 
+import { errorMessageFrom } from '@moeru/std'
 import { isStageTamagotchi, isUrl } from '@proj-alicization/stage-shared'
 import { computedAsync, useIntervalFn, useLocalStorage } from '@vueuse/core'
 import {
@@ -44,7 +45,7 @@ import {
   createUnVolcengine,
   listVoices,
 } from 'unspeech'
-import { computed, ref, watch } from 'vue'
+import { computed, markRaw, onScopeDispose, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { listProviders as listDefinedProviders } from '../libs/providers'
@@ -55,6 +56,7 @@ import { createAliyunNLSProvider as createAliyunNlsStreamProvider } from './prov
 import { convertProviderDefinitionsToMetadata } from './providers/converters'
 import { models as elevenLabsModels } from './providers/elevenlabs/list-models'
 import { buildOpenAICompatibleProvider } from './providers/openai-compatible-builder'
+import { createProviderRequestOwnership } from './providers/request-ownership'
 import { createWebSpeechAPIProvider } from './providers/web-speech-api'
 
 const ALIYUN_NLS_REGIONS = [
@@ -1741,9 +1743,47 @@ export const useProvidersStore = defineStore('providers', () => {
 
   // const validatedCredentials = ref<Record<string, string>>({})
   const providerRuntimeState = ref<Record<string, ProviderRuntimeState>>({})
-  const providerValidationInFlight = new Map<string, Promise<boolean>>()
+  const requests = createProviderRequestOwnership(id => providerCredentials.value[id])
+  type RequestOwner = ReturnType<typeof requests.start>
+  const providerValidationInFlight = new Map<string, { owner: RequestOwner, promise: Promise<boolean> }>()
+  const providerCreationInFlight = new Map<string, { owner: RequestOwner, promise: Promise<unknown> }>()
   const providerRevalidationLoops = new Map<string, { resume: () => void }>()
   const providerValidationBackoffState = new Map<string, { failures: number, nextRetryAt: number }>()
+  const credentialHashes = new Map<string, string>()
+
+  // Revoke before another request can start, including nested edits, deletion,
+  // reset, and A -> B -> A edits within one Vue flush.
+  watch(providerCredentials, (credentials) => {
+    for (const id of new Set([...credentialHashes.keys(), ...Object.keys(credentials)])) {
+      const hash = credentials[id] ? JSON.stringify(credentials[id]) : undefined
+      if (credentialHashes.get(id) === hash)
+        continue
+      if (hash === undefined)
+        credentialHashes.delete(id)
+      else
+        credentialHashes.set(id, hash)
+      requests.invalidate(id)
+      providerValidationInFlight.delete(id)
+      clearValidationFailure(id)
+      const state = providerRuntimeState.value[id]
+      if (state) {
+        state.isConfigured = false
+        state.validatedCredentialHash = undefined
+        state.models = []
+        state.isLoadingModels = false
+        state.modelLoadError = null
+      }
+      void disposeProviderInstance(id).catch(error => console.error('Provider disposal failed:', errorMessageFrom(error)))
+    }
+  }, { deep: true, immediate: true, flush: 'sync' })
+
+  onScopeDispose(() => {
+    requests.close()
+    providerValidationInFlight.clear()
+    for (const id of Object.keys(providerInstanceCache.value)) {
+      void disposeProviderInstance(id).catch(error => console.error('Provider disposal failed:', errorMessageFrom(error)))
+    }
+  })
 
   const configuredProviders = computed(() => {
     const result: Record<string, boolean> = {}
@@ -1805,43 +1845,57 @@ export const useProvidersStore = defineStore('providers', () => {
 
     const configString = JSON.stringify(config || {})
     const runtimeState = providerRuntimeState.value[providerId]
-    const cacheKey = `${providerId}:${configString}`
     const forceValidation = options.force === true
 
     if (!forceValidation && runtimeState?.validatedCredentialHash === configString && typeof runtimeState.isConfigured === 'boolean')
       return runtimeState.isConfigured
 
     if (!forceValidation) {
-      const pending = providerValidationInFlight.get(cacheKey)
-      if (pending) {
-        return pending
+      const pending = providerValidationInFlight.get(providerId)
+      if (pending?.owner.isCurrent()) {
+        return pending.promise
       }
     }
 
+    const owner = requests.start(providerId, 'validation')
     const runValidation = async () => {
-      const validationResult = await metadata.validators.validateProviderConfig(config || {})
-
-      if (providerRuntimeState.value[providerId]) {
-        providerRuntimeState.value[providerId].isConfigured = validationResult.valid
-        providerRuntimeState.value[providerId].validatedCredentialHash = configString
+      try {
+        const validationResult = await metadata.validators.validateProviderConfig(owner.config)
+        if (!owner.isCurrent() || !providerRuntimeState.value[providerId])
+          return false
+        const state = providerRuntimeState.value[providerId]
+        const refreshModels = validationResult.valid && (!state.isConfigured || state.validatedCredentialHash !== owner.hash)
+        state.isConfigured = validationResult.valid
+        state.validatedCredentialHash = owner.hash
+        if (validationResult.valid) {
+          clearValidationFailure(providerId)
+          if (refreshModels && metadata.capabilities.listModels)
+            void fetchModelsForProvider(providerId)
+        }
+        else {
+          markValidationFailure(providerId)
+        }
         // Auto-mark Web Speech API as added if valid and available
         if (validationResult.valid && ['browser-web-speech-api', 'player2'].includes(providerId)) {
           markProviderAdded(providerId)
         }
+        return validationResult.valid
       }
-
-      return validationResult.valid
+      catch (error) {
+        if (owner.isCurrent() && providerRuntimeState.value[providerId]) {
+          providerRuntimeState.value[providerId].isConfigured = false
+          markValidationFailure(providerId)
+        }
+        throw error
+      }
     }
 
-    if (forceValidation) {
-      return runValidation()
-    }
-
-    const task = runValidation()
-    providerValidationInFlight.set(cacheKey, task)
-    return task.finally(() => {
-      providerValidationInFlight.delete(cacheKey)
+    const task = runValidation().finally(() => {
+      if (providerValidationInFlight.get(providerId)?.owner === owner)
+        providerValidationInFlight.delete(providerId)
     })
+    providerValidationInFlight.set(providerId, { owner, promise: task })
+    return task
   }
 
   // Create computed properties for each provider's configuration status
@@ -1905,17 +1959,9 @@ export const useProvidersStore = defineStore('providers', () => {
         if (backoffState && backoffState.nextRetryAt > Date.now())
           return
 
-        void validateProvider(providerId, { force: true })
-          .then((isValid) => {
-            if (isValid) {
-              clearValidationFailure(providerId)
-              return
-            }
-            markValidationFailure(providerId)
-          })
-          .catch(() => {
-            markValidationFailure(providerId)
-          })
+        // Validation owns its state and backoff; an obsolete callback must not
+        // apply either to the current endpoint.
+        void validateProvider(providerId, { force: true }).catch(() => {})
       }, intervalMs, { immediate: false, immediateCallback: false })
       loop.resume()
       providerRevalidationLoops.set(providerId, loop)
@@ -1928,22 +1974,10 @@ export const useProvidersStore = defineStore('providers', () => {
       .filter(providerId => shouldRunRuntimeValidation(providerId))
       .map(async (providerId) => {
         try {
-          if (providerRuntimeState.value[providerId]) {
-            const isValid = await validateProvider(providerId)
-            providerRuntimeState.value[providerId].isConfigured = isValid
-            if (isValid) {
-              clearValidationFailure(providerId)
-            }
-            else {
-              markValidationFailure(providerId)
-            }
-          }
+          await validateProvider(providerId)
         }
         catch {
-          if (providerRuntimeState.value[providerId]) {
-            providerRuntimeState.value[providerId].isConfigured = false
-          }
-          markValidationFailure(providerId)
+          // The exact validation owner already recorded a current failure.
         }
       }))
   }
@@ -1987,6 +2021,9 @@ export const useProvidersStore = defineStore('providers', () => {
   }
 
   function forceProviderConfigured(providerId: string) {
+    requests.invalidate(providerId, 'validation')
+    providerValidationInFlight.delete(providerId)
+    clearValidationFailure(providerId)
     if (providerRuntimeState.value[providerId]) {
       providerRuntimeState.value[providerId].isConfigured = true
       // Also cache the current config to prevent re-validation from overwriting
@@ -2018,16 +2055,17 @@ export const useProvidersStore = defineStore('providers', () => {
       return []
 
     const runtimeState = providerRuntimeState.value[providerId]
+    const owner = requests.start(providerId, 'models')
     if (runtimeState) {
       runtimeState.isLoadingModels = true
       runtimeState.modelLoadError = null
     }
 
     try {
-      const models = metadata.capabilities.listModels ? await metadata.capabilities.listModels(config) : []
+      const models = metadata.capabilities.listModels ? await metadata.capabilities.listModels(owner.config) : []
 
       // Transform and store the models
-      if (runtimeState) {
+      if (owner.isCurrent() && runtimeState && runtimeState === providerRuntimeState.value[providerId]) {
         runtimeState.models = uniqBy(models.filter(model => !!model.id), m => m.id)
           .map(model => ({
             id: model.id,
@@ -2042,14 +2080,14 @@ export const useProvidersStore = defineStore('providers', () => {
       return []
     }
     catch (error) {
-      console.error(`Error fetching models for ${providerId}:`, error)
-      if (runtimeState) {
-        runtimeState.modelLoadError = error instanceof Error ? error.message : 'Unknown error'
+      if (owner.isCurrent() && runtimeState) {
+        console.error(`Error fetching models for ${providerId}:`, errorMessageFrom(error))
+        runtimeState.modelLoadError = errorMessageFrom(error) ?? 'Unknown error'
       }
       return []
     }
     finally {
-      if (runtimeState) {
+      if (owner.isCurrent() && runtimeState) {
         runtimeState.isLoadingModels = false
       }
     }
@@ -2077,33 +2115,6 @@ export const useProvidersStore = defineStore('providers', () => {
       }
     }
   }
-  const previousCredentialHashes = ref<Record<string, string>>({})
-
-  // Watch for credential changes and refetch models accordingly
-  watch(providerCredentials, (newCreds) => {
-    const changedProviders: string[] = []
-
-    for (const providerId in newCreds) {
-      const currentConfig = newCreds[providerId]
-      const currentHash = JSON.stringify(currentConfig)
-      const previousHash = previousCredentialHashes.value[providerId]
-
-      if (currentHash !== previousHash) {
-        changedProviders.push(providerId)
-        previousCredentialHashes.value[providerId] = currentHash
-      }
-    }
-
-    for (const providerId of changedProviders) {
-      // Since credentials changed, dispose the cached instance so new creds take effect.
-      void disposeProviderInstance(providerId)
-
-      // If the provider is configured and has the capability, refetch its models
-      if (providerRuntimeState.value[providerId]?.isConfigured && providerMetadata[providerId]?.capabilities.listModels) {
-        fetchModelsForProvider(providerId)
-      }
-    }
-  }, { deep: true, immediate: true })
 
   // Function to get localized provider metadata
   function getProviderMetadata(providerId: string) {
@@ -2169,23 +2180,40 @@ export const useProvidersStore = defineStore('providers', () => {
     if (!config && providerId !== 'browser-web-speech-api')
       throw new Error(`Provider credentials for ${providerId} not found`)
 
-    try {
-      const instance = await metadata.createProvider(config || {}) as R
-      providerInstanceCache.value[providerId] = instance
+    const pending = providerCreationInFlight.get(providerId)
+    if (pending?.owner.isCurrent())
+      return await pending.promise as R
+
+    const owner = requests.start(providerId, 'instance')
+    const task = (async () => {
+      const instance = await metadata.createProvider(owner.config)
+      if (!owner.isCurrent()) {
+        await disposeInstance(instance)
+        throw new Error(`Provider configuration changed before instance creation completed: ${providerId}`)
+      }
+      providerInstanceCache.value[providerId] = markRaw(instance)
       return instance
-    }
-    catch (error) {
-      console.error(`Error creating provider instance for ${providerId}:`, error)
-      throw error
-    }
+    })().finally(() => {
+      if (providerCreationInFlight.get(providerId)?.owner === owner)
+        providerCreationInFlight.delete(providerId)
+    })
+    providerCreationInFlight.set(providerId, { owner, promise: task })
+    return await task as R
+  }
+
+  async function disposeInstance(instance: unknown) {
+    const disposable = instance as { dispose?: () => Promise<void> | void } | undefined
+    if (disposable?.dispose)
+      await disposable.dispose()
   }
 
   async function disposeProviderInstance(providerId: string) {
-    const instance = providerInstanceCache.value[providerId] as { dispose?: () => Promise<void> | void } | undefined
-    if (instance?.dispose)
-      await instance.dispose()
-
+    requests.invalidate(providerId, 'instance')
+    providerCreationInFlight.delete(providerId)
+    const instance = providerInstanceCache.value[providerId]
+    // Detach before awaiting teardown: a replacement can be created meanwhile.
     delete providerInstanceCache.value[providerId]
+    await disposeInstance(instance)
   }
 
   const availableProvidersMetadata = computedAsync<ProviderMetadata[]>(async () => {

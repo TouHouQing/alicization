@@ -13,10 +13,13 @@ import type { AlicizationResolvedInspectionIntent } from './sensory-runtime'
 
 import { describe, expect, it, vi } from 'vitest'
 
+import { boundLifeProviderRequest } from './life-provider-budget'
+import { createAlicizationInspectionIntentRuntime } from './runtime-inspection-intent'
 import {
 
   createAlicizationSensoryRuntime,
 } from './sensory-runtime'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 function createPerceptionState(): AlicizationPerceptionState {
   return {
@@ -173,7 +176,7 @@ function createSensoryRuntimeHarness() {
   const rememberSceneResidue = vi.fn(async () => createPerceptionState())
   const resolveForegroundDecisionTarget = vi.fn(input => input.snapshotForeground ?? input.probedForeground ?? input.attentionAnchor)
   const resolveHostAttitude = vi.fn(async () => '')
-  const resolveInspectionIntentForChatTurn = vi.fn(() => ({
+  const resolveInspectionIntentForChatTurn = vi.fn<Parameters<typeof createAlicizationSensoryRuntime>[0]['resolveInspectionIntentForChatTurn']>(() => ({
     active: false,
     confidence: 0,
     reasonCodes: [],
@@ -276,11 +279,44 @@ function createSensoryRuntimeHarness() {
     ensureVisualPresenceState,
     inferAlicizationInspectionIntent,
     resolveDesktopCaptureAccess,
+    resolveInspectionIntentForChatTurn,
+    rememberPerceptionObservation,
     runtime,
   }
 }
 
 describe('sensory runtime', () => {
+  it('keeps fictional writing exact and within budget without calling screen capture after a shared view', async () => {
+    const harness = createSensoryRuntimeHarness()
+    const now = Date.now()
+    const state = createPerceptionState()
+    state.invitedInspection = { requestedAt: now - 1000, activeUntil: now + 5000, hintText: '看看雨天窗边的画作' }
+    state.recentSceneResidue = { ...createSceneResidue(), observedAt: now, summary: '雨天窗边的光、纸张、颜料和雨声。' }
+    const visual = createDefaultVisualPresenceState(now)
+    visual.watchMode = 'invited-inspection'
+    harness.ensurePerceptionState.mockResolvedValue(state)
+    harness.ensureVisualPresenceState.mockResolvedValue(visual)
+    harness.rememberPerceptionObservation.mockResolvedValue(state)
+    const inspector = createAlicizationInspectionIntentRuntime({ normalizeOrganicRecallText: raw => String(raw).trim(), readLatestAssistantMessageText: () => '我在看着画纸。', readTransportContentAsText: content => typeof content === 'string' ? content : '' })
+    harness.resolveInspectionIntentForChatTurn.mockImplementation(input => inspector.resolveInspectionIntentForChatTurn(input))
+    const userText = '请写一篇八百字的雨天绘画散文，细致描述窗边的光、纸张、颜料和雨声。'
+    const messages = [{ role: 'user' as const, content: userText }]
+    const prepared = await harness.runtime.prepareInteractivePerceptionPrelude({ cardId: 'default', userText, messages })
+    expect(prepared.inspectionRequested).toBe(false)
+    expect(prepared.inspectionIntent.releaseCarry).toBe(true)
+    expect(prepared.messages).toEqual(messages)
+    expect(harness.resolveDesktopCaptureAccess).not.toHaveBeenCalled()
+    expect(harness.buildChatInspectionGroundingParts).not.toHaveBeenCalled()
+    expect(boundLifeProviderRequest([{ role: 'system', content: 'The same stable identity.' }, ...prepared.messages], [], { contextTokens: 2048, outputReserve: 512, safetyReserve: 256 }).messages.at(-1)?.content).toBe(userText)
+  })
+  it('cannot inherit desktop capture permission from structured workflow data', () => {
+    const harness = createSensoryRuntimeHarness()
+    const text = '执行参数：{"capabilityId":"tool.browser_read_page","question":"看看桌面上的报告？"}'
+    expect(harness.runtime.resolveInspectionIntentFromMessageHistory({ userText: text, messages: [{ role: 'user', content: '看看屏幕' }, { role: 'user', content: text }] })).toBe(false)
+    expect(harness.inferAlicizationInspectionIntent).not.toHaveBeenCalled()
+    expect(harness.resolveDesktopCaptureAccess).not.toHaveBeenCalled()
+  })
+
   it('restores perception and visual presence state concurrently for a chat turn', async () => {
     const harness = createSensoryRuntimeHarness()
     let releasePerception!: () => void

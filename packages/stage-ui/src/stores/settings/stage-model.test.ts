@@ -69,6 +69,48 @@ describe('settings stage model store', () => {
     mockState.storageValues = new Map()
   })
 
+  it('keeps an in-flight archive readable across recovery refreshes and renamed IndexedDB File wrappers', async () => {
+    const archive = { id: 'display-model-owned', format: 'live2d-zip', type: 'file', name: 'Imported model', importedAt: 1000, file: new File(['actual owned archive'], 'model.ZIP', { lastModified: 1000 }) }
+    mockState.storageValues.set(stageModelStorageKey, archive.id)
+    mockState.models.set(archive.id, archive)
+    const store = useSettingsStageModel()
+    await store.initializeStageModel()
+    const source = store.stageModelSelectedUrl!
+    const cacheRead = Promise.withResolvers<void>()
+    const loading = cacheRead.promise.then(() => fetch(source).then(response => response.text()))
+    try {
+      // IndexedDB returns a new File wrapper; renaming changes catalogue text.
+      mockState.models.set(archive.id, { ...archive, name: 'Renamed model', file: new File([archive.file], archive.file.name, { lastModified: 1000 }) })
+      await store.initializeStageModel()
+      await store.updateStageModel()
+      cacheRead.resolve()
+      await expect(loading).resolves.toBe('actual owned archive')
+      expect(store.stageModelSelectedUrl).toBe(source)
+      expect(store.stageModelSelectedDisplayModel?.name).toBe('Renamed model')
+    }
+    finally {
+      cacheRead.resolve()
+      await loading.catch(() => {})
+      await store.resetState()
+    }
+  })
+
+  it('replaces and revokes an imported archive when its source version changes', async () => {
+    const archive = { id: 'display-model-owned', format: 'live2d-zip', type: 'file', name: 'Imported model', importedAt: 1000, file: new File(['old bytes'], 'model.zip', { lastModified: 1000 }) }
+    mockState.storageValues.set(stageModelStorageKey, archive.id)
+    mockState.models.set(archive.id, archive)
+    const store = useSettingsStageModel()
+    await store.initializeStageModel()
+    const previous = store.stageModelSelectedUrl!
+    try {
+      mockState.models.set(archive.id, { ...archive, importedAt: 2000, file: new File(['replacement bytes'], 'model.zip', { lastModified: 2000 }) })
+      await store.updateStageModel()
+      await expect(fetch(previous)).rejects.toThrow()
+      await expect(fetch(store.stageModelSelectedUrl!).then(response => response.text())).resolves.toBe('replacement bytes')
+    }
+    finally { await store.resetState() }
+  })
+
   it('falls back to the default stage model when the saved model id is missing', async () => {
     mockState.storageValues.set(stageModelStorageKey, 'deleted-model')
     mockState.models.set(defaultStageModelId, {

@@ -1,0 +1,13 @@
+# UIA cancellation and native closure
+
+The desktop UIA runtime previously cleared its busy state and removed its private worker script after an `execFile` AbortError/timeout callback. That callback can precede native `close`, permitting an overlapping command while the first worker was still unconfirmed.
+
+The runtime now observes actual `close`. It waits up to five seconds for closure during normal settlement. If closure is still unconfirmed, it retains the busy owner and private script; a late close performs cleanup and releases ownership. Cleanup failure does not invent a running writer after actual native closure. Pending UIA mutations are exposed separately from reads, and the existing host recovery/file-version safety predicate includes that mutation owner. A health probe or read alone cannot block unrelated file restoration.
+
+The regression uses real temporary worker files and a controlled child-process event port: AbortError arrives before close, the return deadline elapses, the script remains, and another command is refused. Only a subsequent close removes the script and allows another operation. An independent interrupted-read case checks active ownership without misclassifying a reader as a writer. The existing immutable target/approval, health, wait and title tests remain enabled.
+
+Worktree evidence: initial RED reproduced overlap; the first closure/runtime integration passed 176 tests and node types. The actual native semantic UIA probe passed 50 checks in three rounds, including Chinese text, save/readback and select controls. Its owned fixture and controller exited normally, the Default input desktop remained unchanged, and v9 source hashes matched. Subsequent reader/writer distinction passed seven targeted tests; final integration and merge acceptance are pending.
+
+This does not implement or certify physical SendInput, held physical-key ownership, a low-level takeover hook, persisted UIA worker process identity across app crashes, a native watchdog, or isolated Windows foreground-input acceptance. Those EX05/EX06 boundaries remain open. An actual close proves that helper ended; it does not prove rollback, final application state or the original goal.
+
+Subsequently, the final reader/writer ownership version passed 177 integration tests and node types, plus the real native semantic probe passed 50 checks again with normal private fixture/controller exit and unchanged Default desktop. Exact v10 source hashes matched before/after. The five reviewed files have now been selectively merged with original/candidate hash checks; merged product validation remains pending.

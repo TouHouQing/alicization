@@ -5742,10 +5742,18 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
   }
 }
 
+/** UTF-16 body positions, never provider JSON. Completion carries no repeated text. */
+export interface AlicizationReplyStreamDelivery {
+  phase: 'append' | 'complete'
+  sequence: number
+  offset: number
+}
+
 export type AlicizationBridgeChatStreamEvent
   = | {
     type: 'text-delta'
     text: string
+    delivery?: AlicizationReplyStreamDelivery
     origin?: AlicizationVisibleArtifactOrigin
     learningPolicy?: AlicizationVisibleArtifactLearningPolicy
     failureSurface?: AlicizationChatFailureSurface | null

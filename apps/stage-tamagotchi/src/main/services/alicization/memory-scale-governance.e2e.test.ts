@@ -85,7 +85,9 @@ async function waitForEmbeddingReindex(
   jobId: string,
 ) {
   let latest: Awaited<ReturnType<typeof db.reindexMemoryWorkbenchEmbeddings>> | null = null
-  const deadlineAt = Date.now() + 15_000
+  // The real SQLite writer also serves these status reads. A tight5ms poll
+  // competes with the indexing work this test is waiting to observe.
+  const deadlineAt = Date.now() + 30_000
   while (Date.now() < deadlineAt) {
     latest = await db.reindexMemoryWorkbenchEmbeddings({
       cardId,
@@ -95,8 +97,8 @@ async function waitForEmbeddingReindex(
     if (['completed', 'cancelled', 'failed'].includes(latest.status ?? ''))
       return latest
     const retryDelay = latest.progress?.nextRetryAt
-      ? Math.max(5, Math.min(100, latest.progress.nextRetryAt - Date.now()))
-      : 5
+      ? Math.max(25, Math.min(100, latest.progress.nextRetryAt - Date.now()))
+      : 25
     await new Promise(resolve => setTimeout(resolve, retryDelay))
   }
   throw new Error(`embedding reindex did not reach a terminal state: ${jobId}; latest=${JSON.stringify(latest)}`)

@@ -36,6 +36,10 @@ import { errorMessageFrom } from '@moeru/std'
 import { createAlicizationProviderVisibleArtifact, extractAlicizationToolExecutionFailure, isAlicizationProviderSchemaUnsupportedError, isAlicizationToolExecutionFailureResult } from '@proj-alicization/stage-shared'
 import { streamText } from '@xsai/stream-text'
 
+import { restoreDeclaredWorkContent } from './execution/declared-work-content'
+import { declaredWorkProposal, matchesDeclaredWorkProposal } from './execution/declared-work-proposal'
+import { isDeclaredWorkReference } from './execution/declared-work-reference'
+import { assertWorkProposalRepair, inspectWorkProposalCoherence, workProposalIntentFence, workProposalRepairFence } from './execution/work-proposal-coherence'
 import { buildLifeExpressionResponseFormat } from './life-expression-output-contract'
 import { lifeProviderOutputOptions, resolveLifeProviderRequestLimits } from './life-provider-budget'
 import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-policy'
@@ -56,6 +60,7 @@ import {
   waitForAlicizationProviderRetry,
 } from './provider-retry-policy'
 import { adaptAlicizationProviderTools } from './provider-tool-compatibility'
+import { projectProviderToolInput } from './provider-tool-input'
 import { parseReminderToolResultForDebug, sanitizeBriefText } from './runtime-realtime'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 import { createAlicizationMainWatchdogAbortError } from './turn-os/runtime-errors'
@@ -64,6 +69,7 @@ import {
   AlicizationVisibleReplySettlementBlockedError,
   validateAlicizationProviderSettlementPayload,
 } from './visible-reply/settlement'
+import { createVisibleReplyStreamDecoder } from './visible-reply/stream-decoder'
 
 type StreamTextInvoker = (input: Record<string, unknown>) => unknown
 type AlicizationStreamEmotionalKernelShape = AlicizationEmotionalKernelSnapshot
@@ -238,7 +244,8 @@ function isExplicitlyParameterlessTool(tool: Tool | undefined) {
 
 function createProviderToolProtocolError(
   code: 'chat-provider-tool-arguments-invalid'
-    | 'chat-provider-parallel-tool-calls',
+    | 'chat-provider-parallel-tool-calls'
+    | 'chat-provider-tool-call-missing',
   message: string,
 ) {
   return Object.assign(
@@ -248,6 +255,55 @@ function createProviderToolProtocolError(
       name: 'AlicizationProviderProtocolError',
     },
   )
+}
+
+export interface ProviderArgumentFailure {
+  toolName: string
+  issues: Array<{ keyword: string, field?: string }>
+  proposalFence?: string
+  intentFence?: string
+}
+
+const providerArgumentFailures = new WeakMap<object, ProviderArgumentFailure>()
+
+function assertProviderWorkProposal(toolName: string, capabilityId: string, input: Record<string, unknown>, sourceText: string, onProjection?: (evidence: NonNullable<ReturnType<typeof restoreDeclaredWorkContent>['projection']>) => void) {
+  if (capabilityId === 'tool.life_execute_work_plan' && isDeclaredWorkReference(input)) {
+    if (declaredWorkProposal(sourceText)?.hash !== input.proposalHash)
+      throw createProviderToolProtocolError('chat-provider-tool-arguments-invalid', 'The work reference does not match the complete current request')
+    return input
+  }
+  if (capabilityId === 'tool.life_execute_work_plan') {
+    const restored = restoreDeclaredWorkContent(input, sourceText)
+    input = restored.input
+    if (restored.projection)
+      onProjection?.(restored.projection)
+  }
+  try {
+    assertWorkProposalRepair(capabilityId, input)
+  }
+  catch {
+    throw createProviderToolProtocolError('chat-provider-tool-arguments-invalid', 'The corrected work proposal changed its goal, criteria, targets or plan structure')
+  }
+  if (capabilityId !== 'tool.life_execute_work_plan')
+    return input
+  const declared = declaredWorkProposal(sourceText)
+  if (declared && !matchesDeclaredWorkProposal(input as unknown as import('../../../shared/execution-contracts').ExecutionWorkProposal, declared)) {
+    const error = createProviderToolProtocolError('chat-provider-tool-arguments-invalid', 'The proposed work changed the exact parameters supplied in the current user request. Copy its original goal, criteria, paths, content and steps exactly before admission.')
+    providerArgumentFailures.set(error, { toolName, issues: [{ keyword: 'declaredParameterMismatch', field: 'request.parameters' }], proposalFence: workProposalRepairFence(declared.proposal), intentFence: workProposalIntentFence(declared.proposal) ?? undefined })
+    throw error
+  }
+  const issues = inspectWorkProposalCoherence(input)
+  if (!issues.length)
+    return input
+  const error = createProviderToolProtocolError('chat-provider-tool-arguments-invalid', 'The planned final literal file contradicts its required acceptance criteria; preserve the requirements and correct the write content before admission.')
+  providerArgumentFailures.set(error, { toolName, issues, proposalFence: workProposalRepairFence(input), intentFence: workProposalIntentFence(input) ?? undefined })
+  throw error
+}
+
+/** Only failures minted by local pre-dispatch schema validation are recoverable. */
+export function readProviderArgumentFailure(error: unknown): ProviderArgumentFailure | null {
+  const failure = error && typeof error === 'object' ? providerArgumentFailures.get(error) : null
+  return failure ? structuredClone(failure) : null
 }
 
 function assertProviderToolArguments(
@@ -269,7 +325,7 @@ function assertProviderToolArguments(
       return
 
     const unknownFields = (validate.errors ?? []).filter(error => error.keyword === 'additionalProperties').map(error => String(error.params.additionalProperty).slice(0, 80)).slice(0, 8)
-    throw createProviderToolProtocolError(
+    const error = createProviderToolProtocolError(
       'chat-provider-tool-arguments-invalid',
       `Provider arguments for tool "${tool.function.name}" failed schema validation: ${
         providerToolArgumentsValidator.errorsText(validate.errors, {
@@ -278,6 +334,12 @@ function assertProviderToolArguments(
         })
       }${unknownFields.length ? `; unknown fields: ${unknownFields.join(', ')}` : ''}`,
     )
+    const intentFence = tool.function.name === 'life_execute_work_plan' ? workProposalIntentFence(input) : null
+    providerArgumentFailures.set(error, { toolName: tool.function.name, ...(intentFence ? { intentFence } : {}), issues: (validate.errors ?? []).slice(0, 8).map((issue) => {
+      const field = issue.keyword === 'additionalProperties' ? issue.params.additionalProperty : issue.keyword === 'required' ? issue.params.missingProperty : null
+      return { keyword: issue.keyword, ...(typeof field === 'string' && /^[a-z]\w{0,79}$/iu.test(field) ? { field } : {}) }
+    }) })
+    throw error
   }
   catch (error) {
     if (
@@ -390,6 +452,9 @@ export type AlicizationMainChatProviderStepResult
   }
 
 export interface RunAlicizationMainChatProviderStepOptions {
+  onReplyText?: (delta: string) => boolean | void
+  onReplyAttemptStart?: () => void
+  onReplyEmotion?: (emotion: string) => void
   useResponseSchema?: boolean
   providerBudget?: LifeProviderRequestLimits
   payload: AlicizationChatStartPayload
@@ -829,7 +894,7 @@ async function runAlicizationMainChatProviderAttempt(
         timeoutPhase: 'liveness-timeout',
         timeoutStage: 'provider',
         timeoutMs: input.firstEventTimeoutMs,
-        elapsedMs: Date.now(),
+        elapsedMs: Date.now() - startedAt,
         lastEventType: lastEventType || null,
         sawAnyEvent,
         sawProgress: outputObserved,
@@ -866,7 +931,7 @@ async function runAlicizationMainChatProviderAttempt(
       timeoutPhase: 'first-event-timeout',
       timeoutStage: 'provider',
       timeoutMs: input.firstEventTimeoutMs,
-      elapsedMs: Date.now(),
+      elapsedMs: Date.now() - startedAt,
       lastEventType: lastEventType || null,
       sawAnyEvent,
       sawProgress: outputObserved,
@@ -877,13 +942,14 @@ async function runAlicizationMainChatProviderAttempt(
     && providerRetryDeadlineAt !== null
     && providerRetryDeadlineAt !== undefined
   ) {
+    const retryBudgetMs = Math.max(0, providerRetryDeadlineAt - startedAt)
     providerRetryDeadlineTimeout = setTimeout(() => {
       if (!providerController.signal.aborted) {
         providerController.abort(createAlicizationMainWatchdogAbortError({
           timeoutPhase: 'idle-timeout',
           timeoutStage: 'provider',
-          timeoutMs: Math.max(0, providerRetryDeadlineAt - Date.now()),
-          elapsedMs: Date.now(),
+          timeoutMs: retryBudgetMs,
+          elapsedMs: Date.now() - startedAt,
           lastEventType: lastEventType || null,
           sawAnyEvent,
           sawProgress: outputObserved,
@@ -1033,14 +1099,20 @@ async function runAlicizationMainChatProviderAttempt(
       hasReader: Boolean(reader),
     })
     const fullTextParts: string[] = []
+    let replyDelta = ''
+    input.onReplyAttemptStart?.()
+    const replyDecoder = input.onReplyText ? createVisibleReplyStreamDecoder(text => replyDelta += text, { allowPlainText: input.useResponseSchema === false && (!providerTools?.length || input.prepared.toolChoice === 'none'), onEmotion: input.onReplyEmotion }) : null
     let finishReason: string | null = null
     let finishObserved = false
+    let drainToolProposalsAfterFinish = false
 
-    const handleEvent = (rawEvent: unknown): AlicizationMainChatProviderStepResult | null => {
+    const handleEvent = async (rawEvent: unknown): Promise<AlicizationMainChatProviderStepResult | null> => {
       const event = rawEvent && typeof rawEvent === 'object'
         ? rawEvent as Record<string, unknown>
         : {}
       const eventType = normalizeMainGatewayStreamEventType(event.type)
+      const wireFinishReason = sanitizeText(event.finishReason ?? event.finish_reason ?? event.reason, 'stop')
+      const toolFinish = eventType === 'finish' && (wireFinishReason === 'tool_calls' || wireFinishReason === 'tool-calls')
       if (eventType) {
         sawAnyEvent = true
         lastEventType = eventType
@@ -1052,11 +1124,11 @@ async function runAlicizationMainChatProviderAttempt(
           clearFirstEventWatchdog()
         clearLivenessWatchdog()
         outputObserved = true
-        if (eventType === 'finish') {
+        if (eventType === 'finish' && !toolFinish) {
           clearIdleWatchdog()
           clearContinuationWatchdog()
         }
-        else if (eventType === 'tool-call') {
+        else if (eventType === 'tool-call' || eventType === 'finish') {
           clearIdleWatchdog()
           armContinuationWatchdog()
         }
@@ -1071,11 +1143,27 @@ async function runAlicizationMainChatProviderAttempt(
       }
 
       if (eventType === 'text-delta') {
-        fullTextParts.push(readRawTextDelta(event))
+        const delta = readRawTextDelta(event)
+        fullTextParts.push(delta)
+        if (replyDecoder && !pendingAction) {
+          replyDelta = ''
+          replyDecoder.push(delta)
+          if (replyDelta && input.isRunActive() && !input.signal?.aborted) {
+            // Once public text leaves this attempt it must never be replayed.
+            const alreadyVisible = input.attemptReplayState.hasVisibleProgress
+            input.attemptReplayState.hasVisibleProgress = true
+            if (input.onReplyText!(replyDelta) === false)
+              input.attemptReplayState.hasVisibleProgress = alreadyVisible
+            if (!alreadyVisible && input.attemptReplayState.hasVisibleProgress)
+              appendDebugLine('chat-provider-request.first-public-body', { observedAt: Date.now(), providerAttempt, requestHash: providerRequestSnapshot.requestHash })
+          }
+        }
         return null
       }
 
       if (eventType === 'tool-call') {
+        // A spoken introduction is immutable, but does not replace action
+        // admission. Retry stays forbidden after that public prefix.
         if (pendingAction) {
           throw createProviderToolProtocolError(
             'chat-provider-parallel-tool-calls',
@@ -1089,7 +1177,7 @@ async function runAlicizationMainChatProviderAttempt(
         const providerTool = providerTools?.find(
           tool => sanitizeText(tool.function.name) === toolName,
         )
-        const toolInput = toolArguments.status === 'present'
+        let toolInput = toolArguments.status === 'present'
           ? toolArguments.value
           : toolArguments.status === 'missing'
             && isExplicitlyParameterlessTool(providerTool)
@@ -1112,6 +1200,14 @@ async function runAlicizationMainChatProviderAttempt(
             `Provider tool "${toolName}" is not registered, is not eligible for this input, or has been revoked`,
           )
         }
+        toolInput = await projectProviderToolInput(providerTool, toolInput, AbortSignal.any([input.controller.signal, providerController.signal]), evidence => appendDebugLine('life.procedure-content-transcription', evidence))
+        toolInput = assertProviderWorkProposal(toolName, providerInvocation.capabilityId, toolInput, readProviderMessageText(input.messages.findLast(message => message.role === 'user')?.content ?? ''), evidence => appendDebugLine('life.work-content-transcription', evidence))
+        assertProviderToolArguments(providerTool, toolInput)
+        input.controller.signal.throwIfAborted()
+        if (!input.isRunActive())
+          throw createAbortError()
+        if (input.prepared.toolRegistry.resolveProviderInvocation(toolName, toolInput)?.capabilityId !== providerInvocation.capabilityId)
+          throw createProviderToolProtocolError('chat-provider-tool-arguments-invalid', 'Tool was revoked before publication')
         const toolCallId = toolCallIdentity.resolveProviderToolCall({
           arguments: toolInput,
           phase: 'call',
@@ -1129,11 +1225,13 @@ async function runAlicizationMainChatProviderAttempt(
       }
 
       if (eventType === 'finish') {
+        appendDebugLine('chat-provider-request.output-finished', { observedAt: Date.now(), providerAttempt, requestHash: providerRequestSnapshot.requestHash })
         finishObserved = true
-        finishReason = sanitizeText(
-          event.finishReason ?? event.finish_reason ?? event.reason,
-          'stop',
-        )
+        finishReason = wireFinishReason
+        // xsAI emits the wire finish before completing its tool proposals.
+        // Drain those events through EOF so none are lost, including a second
+        // proposal that must still fail the single-action policy.
+        drainToolProposalsAfterFinish ||= toolFinish
         return null
       }
 
@@ -1162,10 +1260,10 @@ async function runAlicizationMainChatProviderAttempt(
             ),
           })
         }
-        const step = handleEvent(next.value)
+        const step = await handleEvent(next.value)
         if (step)
           return step
-        if (finishObserved)
+        if (finishObserved && !drainToolProposalsAfterFinish)
           break
       }
     }
@@ -1177,12 +1275,14 @@ async function runAlicizationMainChatProviderAttempt(
           const eventType = normalizeMainGatewayStreamEventType(
             (event as { type?: unknown } | null)?.type,
           )
-          const step = handleEvent(event)
+          const step = await handleEvent(event)
           if (step)
             return step
-          if (eventType === 'finish')
+          if (eventType === 'finish' && !drainToolProposalsAfterFinish)
             terminalEventObserved = true
         }
+        if (drainToolProposalsAfterFinish && pendingAction)
+          terminalEventObserved = true
         if (terminalEventObserved)
           break
 
@@ -1199,6 +1299,8 @@ async function runAlicizationMainChatProviderAttempt(
       }
     }
 
+    if (!pendingAction)
+      replyDecoder?.finish()
     const fullText = fullTextParts.join('')
     const text = fullText.trim()
     const completedAction = pendingAction as (
@@ -1226,6 +1328,8 @@ async function runAlicizationMainChatProviderAttempt(
         action: completedAction,
       }
     }
+    if (drainToolProposalsAfterFinish)
+      throw createProviderToolProtocolError('chat-provider-tool-call-missing', 'Provider announced a tool finish without a completed tool proposal')
     if (!finishObserved)
       throw createProviderFinishMissingError()
     if (!text && !outputObserved)
@@ -1244,7 +1348,6 @@ async function runAlicizationMainChatProviderAttempt(
   catch (error) {
     input.attemptReplayState.hasToolCall = pendingAction !== null
     input.attemptReplayState.hasToolSideEffect = false
-    input.attemptReplayState.hasVisibleProgress = false
     const cause = error instanceof Error ? error.cause : null
     appendDebugLine('chat-provider-request.error', {
       errorName: error instanceof Error ? error.name : 'unknown',
@@ -1262,9 +1365,7 @@ async function runAlicizationMainChatProviderAttempt(
         signal: input.signal ?? input.controller.signal,
         deadlineAt: providerRetryDeadlineAt,
         replayState: {
-          // Provider-step text is still provisional. The EventLoop settles and
-          // publishes it only after the complete payload passes visible-reply
-          // validation, so a partial delta has not become user-visible yet.
+          // Public prefix delivery is irreversible even before final settlement.
           hasVisibleProgress: input.attemptReplayState.hasVisibleProgress,
           hasToolCall: input.attemptReplayState.hasToolCall,
           hasToolSideEffect: input.attemptReplayState.hasToolSideEffect,
@@ -1739,8 +1840,26 @@ export async function runAlicizationMainChatStream(
     return {
       ...providerTool,
       execute: async (toolInput: unknown, executeOptions: Record<string, unknown>) => {
-        const result = await providerTool.execute(toolInput as never, executeOptions as never)
+        // SDK execution may precede its tool-call notification. Validate and
+        // restore the same source bytes at this actual dispatch boundary too.
         const toolName = sanitizeText(providerTool.function?.name) || 'tool'
+        if (toolInput === undefined && isExplicitlyParameterlessTool(providerTool))
+          toolInput = {}
+        if (!toolInput || typeof toolInput !== 'object' || Array.isArray(toolInput))
+          throw createProviderToolProtocolError('chat-provider-tool-arguments-invalid', 'Tool arguments must be an object before execution')
+        assertProviderToolArguments(providerTool, toolInput as Record<string, unknown>)
+        const invocation = input.prepared.toolRegistry.resolveProviderInvocation(toolName, toolInput as Record<string, unknown>)
+        if (!invocation)
+          throw createProviderToolProtocolError('chat-provider-tool-arguments-invalid', 'Tool is unavailable before execution')
+        toolInput = await projectProviderToolInput(providerTool, toolInput as Record<string, unknown>, input.controller.signal, evidence => appendStreamDebugLine('life.procedure-content-transcription', evidence))
+        toolInput = assertProviderWorkProposal(toolName, invocation.capabilityId, toolInput as Record<string, unknown>, readProviderMessageText(providerMessages.findLast(message => message.role === 'user')?.content ?? ''), evidence => appendStreamDebugLine('life.work-content-transcription', evidence))
+        assertProviderToolArguments(providerTool, toolInput as Record<string, unknown>)
+        input.controller.signal.throwIfAborted()
+        if (!input.isRunActive())
+          throw createAbortError()
+        if (input.prepared.toolRegistry.resolveProviderInvocation(toolName, toolInput as Record<string, unknown>)?.capabilityId !== invocation.capabilityId)
+          throw createProviderToolProtocolError('chat-provider-tool-arguments-invalid', 'Tool was revoked before execution')
+        const result = await providerTool.execute(toolInput as never, executeOptions as never)
         const failure = isAlicizationToolExecutionFailureResult(result)
           ? extractAlicizationToolExecutionFailure(result, toolName)
           : null
@@ -1786,8 +1905,17 @@ export async function runAlicizationMainChatStream(
       && providerRetryDeadlineAt !== null
       && providerRetryDeadlineAt !== undefined
       ? setTimeout(() => {
-          if (!providerController.signal.aborted)
-            providerController.abort(createAbortError('chat-provider-retry-deadline'))
+          if (!providerController.signal.aborted) {
+            providerController.abort(createAlicizationMainWatchdogAbortError({
+              timeoutPhase: 'idle-timeout',
+              timeoutStage: 'provider',
+              timeoutMs: Math.max(0, providerRetryDeadlineAt - startedAt),
+              elapsedMs: Date.now() - startedAt,
+              lastEventType: lastEventType || null,
+              sawAnyEvent,
+              sawProgress: sawProgressEvent || pendingProgressEventObserved,
+            }, 'chat-provider-retry-deadline'))
+          }
         }, Math.max(0, providerRetryDeadlineAt - Date.now()))
       : undefined
   const firstEventGraceTimeoutMs = Math.max(
@@ -2307,7 +2435,7 @@ export async function runAlicizationMainChatStream(
             tool => sanitizeText(tool.function.name) === observedToolName,
           )
           const toolArgumentsResult = readStreamToolArgumentsResult(event)
-          const toolInput = toolArgumentsResult.status === 'present'
+          let toolInput = toolArgumentsResult.status === 'present'
             ? toolArgumentsResult.value
             : toolArgumentsResult.status === 'missing'
               && isExplicitlyParameterlessTool(providerTool)
@@ -2330,6 +2458,14 @@ export async function runAlicizationMainChatStream(
               `Provider tool "${observedToolName}" is not registered, is not eligible for this input, or has been revoked`,
             )
           }
+          toolInput = await projectProviderToolInput(providerTool, toolInput, input.controller.signal, evidence => appendStreamDebugLine('life.procedure-content-transcription', evidence))
+          toolInput = assertProviderWorkProposal(observedToolName, providerInvocation.capabilityId, toolInput, readProviderMessageText(providerMessages.findLast(message => message.role === 'user')?.content ?? ''), evidence => appendStreamDebugLine('life.work-content-transcription', evidence))
+          assertProviderToolArguments(providerTool, toolInput)
+          input.controller.signal.throwIfAborted()
+          if (!input.isRunActive())
+            throw createAbortError()
+          if (input.prepared.toolRegistry.resolveProviderInvocation(observedToolName, toolInput)?.capabilityId !== providerInvocation.capabilityId)
+            throw createProviderToolProtocolError('chat-provider-tool-arguments-invalid', 'Tool was revoked before publication')
           markProviderStreamPhase('tool-running', 'chat-stream.tool-execution-started', {
             toolName: observedToolName || null,
             toolCallId: sanitizeText(event.toolCallId) || null,

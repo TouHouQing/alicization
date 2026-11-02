@@ -43,6 +43,9 @@ describe('real personal activity through the existing execution adapter', () => 
       const artifact = await readFile(goal.proof.path!, 'utf8')
       expect(artifact).toContain('虚构作品，不代表真实经历')
       expect(artifact).toContain('纸上的句子')
+      const authored = (await db.readLifeState()).effects.find(effect => effect.id === goal.personalAuthorship?.effectId)
+      expect(authored?.receipt?.output).toHaveProperty('summary', expect.any(String))
+      expect((authored?.receipt?.output as { summary: string }).summary).not.toMatch(/兴趣札记|来源引用/u)
       const episode = (await db.listRecentEpisodicEvents(10)).find(episode => episode.turnId === goal.threadId)!
       expect(episode).toMatchObject({ provenance: 'observed', sourceKind: 'execution-result' })
       expect(episode.whatHappened).toContain('作品中的故事不作为真实经历')

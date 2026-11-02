@@ -15,7 +15,9 @@ import {
   isSelfPerceptionTarget,
 } from './attention-anchor'
 import { inferForegroundWorkloadFromWindow } from './proactive-layered-context'
+import { isCreativeRequestWithoutVisualSource } from './runtime-creative-inspection-scope'
 import { isFileActionWithoutVisualInspection } from './runtime-file-inspection-scope'
+import { projectInspectionDirective } from './runtime-inspection-directive'
 import { sanitizeBriefText } from './runtime-realtime'
 import { sanitizeText } from './runtime-soul'
 
@@ -51,10 +53,10 @@ export function isGenericScreenInspectionRequest(userText: string) {
 }
 
 export function shouldInjectInteractivePerceptionForUserText(userText: string) {
-  if (isFileActionWithoutVisualInspection(userText))
+  if (isFileActionWithoutVisualInspection(userText) || isCreativeRequestWithoutVisualSource(userText))
     return false
   return inferAlicizationInspectionIntent({
-    message: userText,
+    message: projectInspectionDirective(userText).text,
   }).active
 }
 

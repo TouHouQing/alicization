@@ -215,6 +215,7 @@ import {
 } from './alicization-session-recovery-projection'
 import { initializeStageThreeRuntimeTraceBridge } from './bridges/stage-three-runtime-trace'
 import { useAlicizationPermissionQueue } from './composables/use-alicization-permission-queue'
+import { initializeDesktopView } from './desktop-view-bootstrap'
 import { useServerChannelSettingsStore } from './stores/settings/server-channel'
 import { useStageWindowLifecycleStore } from './stores/stage-window-lifecycle'
 
@@ -1943,20 +1944,22 @@ onMounted(async () => {
 
   analyticsStore.initialize()
   cardStore.initialize()
-  const llmConfigHydration = hydrateMainLlmConfig()
-  await alicizationEpoch1Store.initialize()
-
-  await chatSessionStore.initialize()
-  await llmConfigHydration
-  scheduleMainLlmConfigSync()
+  await initializeDesktopView({
+    restoreConversation: () => chatSessionStore.initialize(),
+    restoreModels: async () => {
+      await displayModelsStore.loadDisplayModelsFromIndexedDB()
+      await settingsStore.initializeStageModel()
+    },
+    hydrateConfiguration: hydrateMainLlmConfig,
+    configurationReady: scheduleMainLlmConfigSync,
+    initializeLife: () => alicizationEpoch1Store.initialize(),
+  })
   if (activeSessionId.value?.trim()) {
     await Promise.all([
       backfillProactiveTurnsForSession(activeSessionId.value),
       reconcileSessionTurnsFromMain(activeSessionId.value),
     ])
   }
-  await displayModelsStore.loadDisplayModelsFromIndexedDB()
-  await settingsStore.initializeStageModel()
 
   const serverChannelConfig = await getServerChannelConfig()
   serverChannelSettingsStore.websocketTlsConfig = serverChannelConfig.tlsConfig

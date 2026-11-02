@@ -525,7 +525,9 @@ export function resolveAlicizationChatFailureSurface(input: {
     : undefined
   const repairPath = input.kind === 'timeout' && input.timeout?.phase === 'preparation'
     ? 'preparation-timeout'
-    : failureKindRepairPath[input.kind]
+    : input.kind === 'timeout' && (input.timeout?.sawProgress || input.timeout?.descriptor?.sawProgress)
+      ? 'provider-progress-timeout'
+      : failureKindRepairPath[input.kind]
   const params = input.kind === 'provider-request'
     ? {
         provider: input.providerRequest?.providerId || 'unknown-provider',

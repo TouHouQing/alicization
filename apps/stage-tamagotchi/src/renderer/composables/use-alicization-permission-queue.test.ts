@@ -37,7 +37,7 @@ describe('permission display lifecycle', () => {
     const first = request('one')
     queue.push(first)
     queue.push(request('two'))
-    const decision = queue.decide({ allow: true, rememberSession: true })
+    const decision = queue.decide({ requestId: first.requestId, token: first.token, allow: true, rememberSession: true })
     queue.close(first)
     expect(queue.current.value?.token).toBe('two')
     expect(queue.resolving.value).toBe(false)
@@ -58,6 +58,38 @@ describe('permission display lifecycle', () => {
     expect(queue.pending.value).toHaveLength(0)
     expect(queue.current.value?.token).toBe('one')
     queue.clear()
+    expect(queue.current.value).toBeNull()
+    scope.stop()
+  })
+
+  it('never applies a click captured from the previous dialog to its replacement', async () => {
+    const scope = effectScope()
+    const resolve = vi.fn(async () => {})
+    const queue = scope.run(() => useAlicizationPermissionQueue({ isCurrentCard: () => true, resolve }))!
+    const first = request('one')
+    const second = { ...request('two'), requestId: first.requestId }
+    queue.push(first)
+    queue.push(second)
+    queue.close(first)
+    await queue.decide({ token: first.token, requestId: first.requestId, allow: true, rememberSession: true })
+    expect(resolve).not.toHaveBeenCalled()
+    expect(queue.current.value?.token).toBe(second.token)
+    await queue.decide({ token: second.token, requestId: second.requestId, allow: false, rememberSession: false })
+    expect(resolve).toHaveBeenCalledOnce()
+    expect(resolve).toHaveBeenCalledWith(expect.objectContaining({ token: second.token, allow: false }))
+    scope.stop()
+  })
+
+  it('rejects a click after expiry even when the expiry timer has not run yet', async () => {
+    vi.useFakeTimers()
+    const scope = effectScope()
+    const resolve = vi.fn(async () => {})
+    const queue = scope.run(() => useAlicizationPermissionQueue({ isCurrentCard: () => true, resolve }))!
+    const first = request('one')
+    queue.push(first)
+    vi.setSystemTime(Date.now() + 1001)
+    await queue.decide({ token: first.token, requestId: first.requestId, allow: true, rememberSession: false })
+    expect(resolve).not.toHaveBeenCalled()
     expect(queue.current.value).toBeNull()
     scope.stop()
   })

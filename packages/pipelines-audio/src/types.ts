@@ -204,6 +204,11 @@ export interface IntentHandle {
   stream: ReadableStream<TextToken>
 }
 
+export interface SpeechIntentCancelPayload {
+  intentId: string
+  reason?: string
+}
+
 export interface SpeechPipelineEvents<TAudio> {
   onSegment: (segment: TextSegment) => void
   onSpecial: (segment: TextSegment) => void
@@ -218,7 +223,7 @@ export interface SpeechPipelineEvents<TAudio> {
   onPlaybackReject: (event: PlaybackRejectEvent<TAudio>) => void
   onIntentStart: (intentId: string) => void
   onIntentEnd: (intentId: string) => void
-  onIntentCancel: (intentId: string, reason?: string) => void
+  onIntentCancel: (event: SpeechIntentCancelPayload) => void
 }
 
 export interface LoggerLike {

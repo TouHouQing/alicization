@@ -2,7 +2,7 @@ import type { LifeConversationStatement } from './life-conversation-statements'
 
 import * as v from 'valibot'
 
-import { attributesConversationStatement } from './life-conversation-statements'
+import { attributesConversationStatement, isHostReportedAccomplishment } from './life-conversation-statements'
 
 export const lifeStatementReviewSchema = v.strictObject({
   quote: v.pipe(v.string(), v.minLength(1), v.maxLength(4000)),
@@ -17,6 +17,7 @@ export function buildLifeStatementReviewFormat(draft: string, candidates: string
   const bindings = records.filter(record => record.speaker === speaker).map(record => record.binding)
   return {
     type: 'array',
+    minItems: speaker === 'host' && quotes.some(isHostReportedAccomplishment) ? 1 : 0,
     maxItems: quotes.length ? 32 : 0,
     items: {
       type: 'object',

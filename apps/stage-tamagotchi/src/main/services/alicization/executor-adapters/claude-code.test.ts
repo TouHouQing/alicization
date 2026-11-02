@@ -1,7 +1,10 @@
 import type { AlicizationTaskThreadRecord } from '@proj-alicization/stage-shared'
 
+import process from 'node:process'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { actionDidNotStart, withActionDispatch } from '../execution/action-dispatch-context'
 import { executeClaudeCodeTaskThread } from './claude-code'
 
 const { execFileMock } = vi.hoisted(() => ({
@@ -11,6 +14,13 @@ const { execFileMock } = vi.hoisted(() => ({
 vi.mock('node:child_process', () => ({
   execFile: execFileMock,
 }))
+
+// These callback-port unit tests exercise the POSIX transport. Windows Job
+// admission, real descendants and signed receipts have native integration tests.
+vi.mock('node:process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:process')>()
+  return { ...actual, platform: 'darwin' }
+})
 
 function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): AlicizationTaskThreadRecord {
   return {
@@ -48,6 +58,44 @@ function parseProviderFact(raw: string) {
 }
 
 describe('claude-code executor adapter', () => {
+  it.skipIf(process.platform !== 'win32')('refuses a different-drive working directory before native dispatch', async () => {
+    execFileMock.mockImplementation(() => {
+      throw new Error('No child may start for a cross-drive refusal')
+    })
+    const result = await withActionDispatch(async () => ({ cardId: 'alice', effectId: 'owned-refusal', expiresAt: null }), () => executeClaudeCodeTaskThread({ thread: createThread(), command: { prompt: 'Owned boundary test; never run', cwd: 'D:\\private-outside' }, workspaceRoot: 'C:\\owned-fixture' }))
+    expect(result).toMatchObject({ ok: false, errorCode: 'CLAUDE_CODE_CWD_OUTSIDE_BOUNDARY' })
+    expect(execFileMock).not.toHaveBeenCalled()
+    expect(actionDidNotStart(result, 'alice', 'owned-refusal')).toBe(true)
+    expect(actionDidNotStart(result, 'bob', 'owned-refusal')).toBe(false)
+  })
+  it('rechecks the current action after binary resolution and refuses revoked authority before spawning', async () => {
+    execFileMock.mockImplementation((_command, _args, _options, callback) => {
+      queueMicrotask(() => callback(null, 'inert mocked provider output', ''))
+      return { kill: vi.fn() }
+    })
+    let checks = 0
+    const check = vi.fn(async () => {
+      if (++checks > 1)
+        throw new Error('source withdrawn after admission')
+      return { expiresAt: Date.now() + 60000 }
+    })
+    const result = await withActionDispatch(check, () => executeClaudeCodeTaskThread({ thread: createThread(), command: { prompt: 'Inspect the owned fixture without tools.' }, workspaceRoot: process.cwd() }))
+    expect(result).toMatchObject({ ok: false, errorCode: 'CLAUDE_CODE_DISPATCH_REVOKED', effectMayHaveOccurred: false, sideEffectState: 'none' })
+    expect(check).toHaveBeenCalledTimes(2)
+    expect(execFileMock).not.toHaveBeenCalled()
+  })
+
+  it('does not spawn a process for an already cancelled request', async () => {
+    execFileMock.mockImplementation((_command, _args, _options, callback) => {
+      queueMicrotask(() => callback(null, 'inert cancelled output', ''))
+      return { kill: vi.fn() }
+    })
+    const controller = new AbortController()
+    controller.abort()
+    const result = await executeClaudeCodeTaskThread({ thread: createThread(), command: { prompt: 'Inspect only the inert fixture.' }, workspaceRoot: process.cwd(), abortSignal: controller.signal })
+    expect(result).toMatchObject({ ok: false, finalStatus: 'cancelled' })
+    expect(execFileMock).not.toHaveBeenCalled()
+  })
   it.each(['bypassPermissions', 'dontAsk', 'delegate'] as const)('blocks unapproved delegated permission override %s before starting a process', async (permissionMode) => {
     const result = await executeClaudeCodeTaskThread({ thread: createThread({ metadata: { task: { effect: 'mutate', permissionMode: 'implicit' } } }), command: { prompt: 'Make an ordinary workspace edit.', allowTools: true, permissionMode } })
     expect(result).toMatchObject({ ok: false, errorCode: 'CLAUDE_CODE_PERMISSION_REQUIRED' })

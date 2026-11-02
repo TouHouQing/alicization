@@ -186,6 +186,7 @@ export function createLifePersonalProjectRuntime(options: {
       const effect = await life.beforeAction({ cardId, turnId: threadId, actionId: 'create-note', capabilityId: 'owned-note', parameters: cli }, signal ?? new AbortController().signal)
       if (!effect.cached) {
         try {
+          await effect.authorizeDispatch(cli)
           const result = await options.dispatch({ threadId, cli, workspaceRoot, abortSignal: signal })
           await life.afterAction({ cardId, id: effect.id, outcome: result.thread.status, output: { summary: result.thread.summary }, interrupted: result.thread.status === 'cancelled' || signal?.aborted === true })
         }

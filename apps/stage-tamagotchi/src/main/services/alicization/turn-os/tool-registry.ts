@@ -4,6 +4,9 @@ import type { LifeCapabilityEffects } from '../../../../shared/life-contracts'
 
 import Ajv from 'ajv'
 
+import { localFilesystemInputSchemas } from '../../airi/mcp-servers/local-filesystem-schema'
+import { probeOperationCapability } from '../execution/operation-capabilities'
+
 export type CapabilityKind = 'tool' | 'skill'
 export type CapabilityScope = 'user' | 'card' | 'conversation' | 'turn'
 export type CapabilityRisk = 'low' | 'medium' | 'high' | 'critical'
@@ -84,6 +87,11 @@ export interface DiscoveredMcpCapability {
 
 export interface CreateToolRegistryOptions {
   mcpAllowlist?: readonly string[]
+  platform?: string
+  windowsKeyboardReady?: boolean
+  windowsKeyboardGoverned?: boolean
+  windowsVisualReady?: boolean
+  foregroundAuthorized?: boolean
 }
 
 const defaultMcpAllowlist = [
@@ -163,60 +171,11 @@ const localVisualInputSchema: JsonSchema = {
   additionalProperties: true,
 }
 
-const mcpReadFileInputSchema: JsonSchema = {
-  type: 'object',
-  properties: {
-    path: { type: 'string', minLength: 1 },
-  },
-  required: ['path'],
-  additionalProperties: false,
-}
+const mcpReadFileInputSchema: JsonSchema = localFilesystemInputSchemas.read_file
+const mcpWriteFileInputSchema: JsonSchema = localFilesystemInputSchemas.write_file
+const mcpListDirectoryInputSchema: JsonSchema = localFilesystemInputSchemas.list_directory
 
-const mcpWriteFileInputSchema: JsonSchema = {
-  type: 'object',
-  properties: {
-    path: { type: 'string', minLength: 1 },
-    content: { type: 'string' },
-  },
-  required: ['path', 'content'],
-  additionalProperties: false,
-}
-
-const mcpListDirectoryInputSchema: JsonSchema = {
-  type: 'object',
-  properties: {
-    path: { type: 'string', minLength: 1 },
-    recursive: { type: 'boolean' },
-  },
-  required: ['path'],
-  additionalProperties: false,
-}
-
-const mcpSearchFilesInputSchema: JsonSchema = {
-  type: 'object',
-  properties: {
-    path: { type: 'string', minLength: 1 },
-    query: { type: 'string', minLength: 1 },
-    recursive: { type: 'boolean' },
-    maxResults: { type: 'integer', minimum: 1 },
-    caseSensitive: { type: 'boolean' },
-    regex: { type: 'boolean' },
-    includeGlobs: {
-      type: 'array',
-      items: { type: 'string' },
-    },
-    excludeGlobs: {
-      type: 'array',
-      items: { type: 'string' },
-    },
-    pathMode: {
-      type: 'string',
-      enum: ['absolute', 'raw', 'relative'],
-    },
-  },
-  required: ['path', 'query'],
-  additionalProperties: false,
-}
+const mcpSearchFilesInputSchema: JsonSchema = localFilesystemInputSchemas.search_files
 
 const genericBuiltInToolInputSchema: JsonSchema = {
   type: 'object',
@@ -475,6 +434,48 @@ function createCanonicalManifests(mcpAllowlist: ReadonlySet<string>): Capability
       risk: 'low',
       idempotency: 'best-effort',
     })),
+    createBuiltInManifest('desktop_locate_window', {
+      type: 'object',
+      additionalProperties: false,
+      required: ['windowTitle', 'targets'],
+      properties: { windowTitle: { type: 'string', minLength: 1, maxLength: 180 }, targets: { type: 'array', minItems: 1, maxItems: 2, items: { type: 'string', minLength: 1, maxLength: 500 } } },
+    }, { description: 'After desktop_list_interactables, capture that exact observed window and locate one or two visible targets with the configured vision provider. Local capture and external image transmission each require the host privacy policy. Return bounded image points and a short-lived observationId; ambiguous or missing targets cannot act. Never use under a no-screenshot instruction.', permissions: ['screen.read', 'network.write'], risk: 'high', supportsCancellation: true, timeoutMs: 60_000, idempotency: 'none', effects: { version: 'life-capability-effects-v1', sideEffect: 'read', retryClass: 'manual-only', verifier: 'returned-observation', compensation: 'none' } }),
+    createBuiltInManifest('desktop_pointer_action', {
+      type: 'object',
+      additionalProperties: false,
+      required: ['observationId', 'kind', 'targetIndex'],
+      properties: {
+        observationId: { type: 'string', pattern: '^visual-window:[a-f0-9-]{36}$' },
+        kind: { type: 'string', enum: ['click', 'drag', 'scroll'] },
+        targetIndex: { type: 'integer', minimum: 0, maximum: 1 },
+        toIndex: { type: 'integer', minimum: 0, maximum: 1 },
+        button: { type: 'string', enum: ['left', 'right', 'middle'] },
+        direction: { type: 'string', enum: ['up', 'down'] },
+        notches: { type: 'integer', minimum: 1, maximum: 10 },
+      },
+    }, { description: 'Use one exact desktop_locate_window observation once, in the same work run. Bind observationId from that committed dependency. Click requires button; drag requires toIndex from the same image; scroll requires direction and notches. No coordinates, HWND, separate down/up, focus acquisition or replay. Host review, physical resource lease, fresh identical image and independent actor/guardian delivery/release are mandatory. Input delivery does not prove task success.', permissions: ['input.write'], risk: 'high', supportsCancellation: true, timeoutMs: 45_000, idempotency: 'none' }),
+    createBuiltInManifest('desktop_scroll', {
+      type: 'object',
+      properties: { runtimeId: { type: 'string', minLength: 1, maxLength: 512 }, windowTitle: { type: 'string', minLength: 1, maxLength: 180 }, action: { type: 'string', enum: ['up', 'down', 'top', 'bottom'] }, amount: { type: 'string', enum: ['small', 'large'] } },
+      required: ['runtimeId', 'action'],
+      additionalProperties: false,
+    }, { version: '1.0.0', description: 'Scroll one exact observed Windows UIA container through a durable work plan. Bind runtimeId from desktop_list_interactables; changed viewport or window identity requires a fresh observation. Semantic scrolling leaves foreground focus unchanged.', permissions: ['input.write'], risk: 'medium', supportsCancellation: true, idempotency: 'none' }),
+    createBuiltInManifest('browser_upload_files', {
+      type: 'object',
+      properties: { selector: { type: 'string', minLength: 1, maxLength: 512 }, files: { type: 'array', minItems: 1, maxItems: 4, items: { type: 'string', minLength: 1, maxLength: 4096 } } },
+      required: ['selector', 'files'],
+      additionalProperties: false,
+    }, { version: '1.1.0', description: 'Select exact, approved file snapshots in an observed managed-browser file input. Selection can transmit data and does not prove server receipt.', permissions: ['workspace.read', 'network.write', 'input.write'], risk: 'high', supportsCancellation: true, idempotency: 'none' }),
+    createBuiltInManifest('life_execute_work_plan', genericBuiltInToolInputSchema, {
+      description: 'Accept a durable work plan from the current user request with frozen goal criteria.',
+      permissions: ['workspace.write'],
+      risk: 'medium',
+      supportsCancellation: true,
+      idempotency: 'required',
+    }),
+    createBuiltInManifest('life_list_learned_procedures', { type: 'object', properties: {}, required: [], additionalProperties: false }, { description: 'List approved active independently replayed procedures.', permissions: ['workspace.read'], risk: 'low', idempotency: 'best-effort' }),
+    createBuiltInManifest('life_list_execution_verifiers', { type: 'object', properties: {}, required: [], additionalProperties: false }, { description: 'List content-bound host verification recipes without paths or keys.', permissions: ['workspace.read'], risk: 'low', idempotency: 'best-effort' }),
+    createBuiltInManifest('life_use_learned_procedure', { type: 'object', additionalProperties: false, required: ['id', 'version', 'goal', 'arguments'], properties: { id: { type: 'string', minLength: 1, maxLength: 512 }, version: { type: 'string', pattern: '^[a-f0-9]{64}$' }, goal: { type: 'string', minLength: 1, maxLength: 2000 }, arguments: { type: 'array', minItems: 1, maxItems: 64, items: { type: 'object', additionalProperties: false, required: ['name', 'value'], properties: { name: { type: 'string', pattern: '^input[0-9]+$' }, value: { anyOf: [{ type: 'string', maxLength: 64000 }, { type: 'array', maxItems: 512, items: { type: 'string', maxLength: 4096 } }] } } } } } }, { description: 'Admit fresh governed work using an exact independently replayed procedure version.', permissions: ['workspace.write'], risk: 'medium', supportsCancellation: true, idempotency: 'required' }),
     createBuiltInManifest('life_create_personal_piece', { type: 'object', properties: {}, required: [], additionalProperties: false }, {
       description: 'Create one bounded personal fictional piece in the owned local project workspace, with persistent evidence and independent file verification.',
       permissions: ['workspace.write'],
@@ -482,32 +483,17 @@ function createCanonicalManifests(mcpAllowlist: ReadonlySet<string>): Capability
       supportsCancellation: true,
       idempotency: 'required',
     }),
-    createBuiltInManifest('filesystem_read_file', {
-      type: 'object',
-      properties: {
-        path: { type: 'string', minLength: 1 },
-        maxReturnBytes: { type: 'number' },
-      },
-      required: ['path'],
-      additionalProperties: false,
-    }, {
+    createBuiltInManifest('filesystem_read_file', mcpReadFileInputSchema, {
+      version: '1.3.0',
       description: 'Read a local file through the filesystem bridge.',
       permissions: ['workspace.read'],
       risk: 'low',
       supportsCancellation: true,
       idempotency: 'best-effort',
     }),
-    createBuiltInManifest('filesystem_write_file', {
-      type: 'object',
-      properties: {
-        path: { type: 'string', minLength: 1 },
-        content: { type: 'string' },
-        expectedHash: { type: 'string' },
-      },
-      required: ['path', 'content'],
-      additionalProperties: false,
-    }, {
-      description: 'Write a local file through the filesystem bridge.',
+    createBuiltInManifest('filesystem_write_file', mcpWriteFileInputSchema, {
+      version: '1.2.0',
+      description: 'Write a local file through the filesystem bridge. A low-capacity refusal occurs before opening or modifying the target.',
       permissions: ['workspace.write'],
       risk: 'medium',
       supportsCancellation: true,
@@ -527,40 +513,15 @@ function createCanonicalManifests(mcpAllowlist: ReadonlySet<string>): Capability
       supportsCancellation: true,
       idempotency: 'required',
     }),
-    createBuiltInManifest('filesystem_list_directory', {
-      type: 'object',
-      properties: {
-        path: { type: 'string', minLength: 1 },
-        recursive: { type: 'boolean' },
-        maxReturnBytes: { type: 'number' },
-        maxEntries: { type: 'number' },
-      },
-      required: ['path'],
-      additionalProperties: false,
-    }, {
+    createBuiltInManifest('filesystem_list_directory', mcpListDirectoryInputSchema, {
+      version: '1.2.0',
       description: 'List a local directory through the filesystem bridge.',
       permissions: ['workspace.read'],
       risk: 'low',
       supportsCancellation: true,
       idempotency: 'best-effort',
     }),
-    createBuiltInManifest('filesystem_search_files', {
-      type: 'object',
-      properties: {
-        path: { type: 'string', minLength: 1 },
-        query: { type: 'string', minLength: 1 },
-        recursive: { type: 'boolean' },
-        maxResults: { type: 'number' },
-        maxReturnBytes: { type: 'number' },
-        caseSensitive: { type: 'boolean' },
-        regex: { type: 'boolean' },
-        includeGlobs: { type: 'array', items: { type: 'string' } },
-        excludeGlobs: { type: 'array', items: { type: 'string' } },
-        pathMode: { type: 'string', enum: ['absolute', 'raw', 'relative'] },
-      },
-      required: ['path', 'query'],
-      additionalProperties: false,
-    }, {
+    createBuiltInManifest('filesystem_search_files', localFilesystemInputSchemas.search_files, {
       description: 'Search local files through the filesystem bridge.',
       permissions: ['workspace.read'],
       risk: 'low',
@@ -571,6 +532,7 @@ function createCanonicalManifests(mcpAllowlist: ReadonlySet<string>): Capability
 
   if (mcpAllowlist.has('filesystem::read_file')) {
     manifests.push(createManifest('mcp.filesystem::read_file', mcpReadFileInputSchema, {
+      version: '1.3.0',
       description: 'Read a file through the allowlisted filesystem MCP capability.',
       executionChannel: 'mcp',
       permissions: ['workspace.read'],
@@ -585,6 +547,7 @@ function createCanonicalManifests(mcpAllowlist: ReadonlySet<string>): Capability
 
   if (mcpAllowlist.has('filesystem::write_file')) {
     manifests.push(createManifest('mcp.filesystem::write_file', mcpWriteFileInputSchema, {
+      version: '1.2.0',
       description: 'Write a file through the allowlisted filesystem MCP capability.',
       executionChannel: 'mcp',
       permissions: ['workspace.write'],
@@ -599,6 +562,7 @@ function createCanonicalManifests(mcpAllowlist: ReadonlySet<string>): Capability
 
   if (mcpAllowlist.has('filesystem::list_directory')) {
     manifests.push(createManifest('mcp.filesystem::list_directory', mcpListDirectoryInputSchema, {
+      version: '1.2.0',
       description: 'List a directory through the allowlisted filesystem MCP capability.',
       executionChannel: 'mcp',
       permissions: ['workspace.read'],
@@ -706,8 +670,8 @@ function createManifestSnapshot(manifest: CapabilityManifest) {
 
 function withEffectContract(manifest: CapabilityManifest): CapabilityManifest {
   const readOnly = new Set(['filesystem_read_file', 'filesystem_list_directory', 'filesystem_search_files', 'filesystem::read_file', 'filesystem::list_directory', 'filesystem::search_files', 'browser_read_page', 'browser_wait', 'desktop_inspect_scene', 'desktop_list_interactables', 'desktop_wait', 'executor_capability_snapshot', 'sensory_capture_state'])
-  const reader = readOnly.has(manifest.adapterToolName) || readOnly.has(manifest.capabilityId.replace(/^mcp\./u, ''))
-  const external = manifest.adapterToolName === 'browser_open_url' || manifest.adapterToolName === 'browser_search_web' || manifest.executionChannel === 'openclaw'
+  const reader = ['life_list_learned_procedures', 'life_list_execution_verifiers'].includes(manifest.adapterToolName) || readOnly.has(manifest.adapterToolName) || readOnly.has(manifest.capabilityId.replace(/^mcp\./u, ''))
+  const external = manifest.adapterToolName === 'browser_open_url' || manifest.adapterToolName === 'browser_search_web' || manifest.adapterToolName === 'browser_upload_files' || manifest.executionChannel === 'openclaw'
   const unknown = manifest.permissions.includes('mcp.invoke')
   const effects = manifest.effects ?? { version: 'life-capability-effects-v1', sideEffect: unknown ? 'unknown' : reader ? 'read' : external ? 'external' : 'mutation', retryClass: unknown ? 'manual-only' : reader ? 'read-only' : 'verify-before-retry', verifier: reader ? 'returned-observation' : 'independent-goal-proof', compensation: reader ? 'none' : 'manual-review' } as LifeCapabilityEffects
   if (effects.version !== 'life-capability-effects-v1' || !['read', 'mutation', 'external', 'unknown'].includes(effects.sideEffect) || !['read-only', 'verify-before-retry', 'manual-only'].includes(effects.retryClass) || !['returned-observation', 'independent-goal-proof'].includes(effects.verifier) || !['none', 'manual-review'].includes(effects.compensation) || effects.retryClass === 'read-only' && effects.sideEffect !== 'read')
@@ -1044,8 +1008,19 @@ export function createCanonicalToolRegistry(
   const mcpAllowlist = new Set(options.mcpAllowlist ?? defaultMcpAllowlist)
   const registry = createToolRegistry({ mcpAllowlist: [...mcpAllowlist] })
 
-  for (const manifest of createCanonicalManifests(mcpAllowlist))
-    registry.register(manifest)
+  for (const manifest of createCanonicalManifests(mcpAllowlist)) {
+    if (manifest.adapterToolName.startsWith('browser_') || manifest.adapterToolName.startsWith('desktop_')) {
+      const availability = probeOperationCapability(manifest.adapterToolName, { ...options, platform: options.platform ?? process.platform })
+      const governedKeyboard = (options.platform ?? process.platform) === 'win32' && manifest.adapterToolName === 'desktop_press_keys' && options.windowsKeyboardGoverned === true
+      const inputSchema = governedKeyboard ? { type: 'object', properties: { shortcut: { type: 'string', minLength: 1, maxLength: 96 }, repeat: { type: 'integer', minimum: 1, maximum: 5 } }, required: ['shortcut'], additionalProperties: false } : manifest.inputSchema
+      // Catalogue availability is distinct from a per-action foreground grant.
+      // Only the integrated adapter can obtain that grant at actual dispatch.
+      const governedVisual = ['desktop_locate_window', 'desktop_pointer_action'].includes(manifest.adapterToolName) && (options.platform ?? process.platform) === 'win32' && options.windowsVisualReady === true
+      const available = availability.status === 'ready' || (governedKeyboard && options.windowsKeyboardReady === true) || governedVisual
+      registry.register({ ...manifest, inputSchema, activationStatus: available ? manifest.activationStatus : 'disabled', description: `${manifest.description} [${governedKeyboard ? 'foreground: one chord, repeat 1..5; fresh observation, current action authority and exclusive input owner required; task results need independent readback' : `${availability.status}: ${availability.reason ?? availability.mode}`}]` })
+    }
+    else { registry.register(manifest) }
+  }
 
   return registry
 }

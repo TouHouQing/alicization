@@ -247,34 +247,26 @@ export function compactMessagesForPromptAssembly(messages: Message[], options?: 
   }
 
   const compactedDialogue: Message[] = dialogueMessages.slice(cutoffIndex)
-  while (compactedDialogue.length > cfg.maxMessages && compactedDialogue.length > cfg.minTailMessages) {
-    compactedDialogue.shift()
-  }
-
-  const isProtectedIndex = (index: number) => index >= Math.max(0, compactedDialogue.length - cfg.minTailMessages)
+  const latestUser = compactedDialogue.findLastIndex(message => message.role === 'user')
+  const tailStart = Math.max(0, compactedDialogue.length - Math.max(1, Math.floor(cfg.minTailMessages)))
+  let protectedStart = Math.min(tailStart, Math.max(0, latestUser))
+  // Protect complete request/exchange groups, including a repair turn reached
+  // by the recent tail. A tool result cannot outlive its originating request.
+  while (protectedStart > 0 && compactedDialogue[protectedStart]?.role !== 'user')
+    protectedStart--
   let dialogueTokens = compactedDialogue.reduce((sum, message) => sum + estimateMessageTokens(message), 0)
-
-  while (dialogueTokens > cfg.totalDialogueTokens && compactedDialogue.length > cfg.minTailMessages) {
-    const removableIndex = compactedDialogue.findIndex((_, index) => !isProtectedIndex(index))
-    if (removableIndex < 0)
+  while ((compactedDialogue.length > cfg.maxMessages || dialogueTokens > cfg.totalDialogueTokens) && protectedStart > 0) {
+    let end = 1
+    while (end < compactedDialogue.length && compactedDialogue[end]?.role !== 'user')
+      end++
+    if (end > protectedStart)
       break
-    dialogueTokens -= estimateMessageTokens(compactedDialogue[removableIndex]!)
-    compactedDialogue.splice(removableIndex, 1)
+    const removed = compactedDialogue.splice(0, end)
+    dialogueTokens -= removed.reduce((sum, message) => sum + estimateMessageTokens(message), 0)
+    protectedStart -= end
   }
-
-  if (dialogueTokens > cfg.totalDialogueTokens && compactedDialogue.length > 0) {
-    const trimIndex = compactedDialogue.findIndex((_, index) => !isProtectedIndex(index))
-    const targetIndex = trimIndex >= 0 ? trimIndex : 0
-    const targetMessage = compactedDialogue[targetIndex]
-    if (targetMessage) {
-      const overflow = Math.max(0, dialogueTokens - cfg.totalDialogueTokens)
-      const currentTokens = estimateMessageTokens(targetMessage)
-      const nextBudget = Math.max(24, currentTokens - overflow)
-      const nextText = trimTextToTokenBudget(readMessageText(targetMessage), nextBudget, 'middle')
-      compactedDialogue[targetIndex] = writeMessageText(targetMessage, nextText) as Message
-      dialogueTokens = compactedDialogue.reduce((sum, message) => sum + estimateMessageTokens(message), 0)
-    }
-  }
+  // This is a history budget, not permission to change current literal data.
+  // The provider's hard context guard rejects an oversized protected request.
 
   const nextMessages = [...systemMessages, ...compactedDialogue]
   const afterTokens = nextMessages.reduce((sum, message) => sum + estimateMessageTokens(message), 0)

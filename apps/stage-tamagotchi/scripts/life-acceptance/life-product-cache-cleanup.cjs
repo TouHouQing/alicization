@@ -8,7 +8,7 @@ const process = require('node:process')
 
 const { _electron } = require('playwright')
 
-const { launchOptions, registerPrivateRuntime, closePrivateRuntime } = require('./electron-launch.cjs')
+const { launchOptions, registerPrivateRuntime, closePrivateRuntime, isOwnedHostViewport } = require('./electron-launch.cjs')
 
 async function main() {
   const output = path.resolve('output')
@@ -25,7 +25,10 @@ async function main() {
     const report = JSON.parse(await fs.readFile(target, 'utf8'))
     const shutdown = isAudit ? JSON.parse(await fs.readFile(path.join(root, 'shutdown.json'), 'utf8')) : report.shutdown
     assert.ok((shutdown.completed && shutdown.exitCode === 0) || shutdown.forcedQaCleanup === true)
-    assert.equal(report.nativeRuntime.privateDesktopVerified, true)
+    if (isOwnedHostViewport(report))
+      assert.ok(shutdown.completed && shutdown.exitCode === 0 && !shutdown.forcedQaCleanup)
+    else
+      assert.equal(report.nativeRuntime.privateDesktopVerified, true)
     let running = false
     try { process.kill(report.nativeRuntime.pid, 0); running = true }
     catch (error) {

@@ -9,11 +9,10 @@ import process from 'node:process'
 
 import { createHash, randomUUID } from 'node:crypto'
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { register } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-
-import { dispatchTaskThread } from '../src/main/services/alicization/task-thread-dispatcher'
 
 export const codexAcceptanceScenarios = [
   'long-task',
@@ -1356,6 +1355,8 @@ async function runScenario(
   const runtimeContext = createAcceptanceRuntimeContext(thread)
 
   const run = async () => {
+    // Load after the standalone entry has registered its two native text sources.
+    const { dispatchTaskThread } = await import('../src/main/services/alicization/task-thread-dispatcher')
     if (scenario === 'restart-recovery') {
       const runningAt = Date.now()
       await taskStore.upsertTaskThread({
@@ -1631,6 +1632,8 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  // tsx handles TypeScript; the desktop bundler normally supplies these raw assets.
+  register('./execution-raw-loader.mjs', import.meta.url)
   main().catch((error) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
     process.exitCode = 1

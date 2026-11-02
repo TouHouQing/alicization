@@ -6,7 +6,7 @@ import { presentCreativeChoice } from './life-personal-proposals'
 
 const id = v.pipe(v.string(), v.minLength(1), v.maxLength(512))
 export const lifeDialogueClaimSchema = v.strictObject({
-  kind: v.picklist(['future-task', 'task-complete', 'execution-step-complete', 'execution-step-outcome', 'memory-stored', 'interaction-boundary', 'daily-activity-complete', 'conversation-statement']),
+  kind: v.picklist(['future-task', 'task-acknowledgment', 'task-complete', 'execution-step-complete', 'execution-step-outcome', 'memory-stored', 'interaction-boundary', 'daily-activity-complete', 'conversation-statement']),
   quote: v.pipe(v.string(), v.minLength(1), v.maxLength(4000)),
   binding: v.nullable(v.strictObject({ kind: v.picklist(['obligation', 'effect', 'memory-fact', 'boundary', 'activity', 'dialogue']), id, version: id })),
   meaningMatchesBinding: v.boolean(),
@@ -17,6 +17,14 @@ export const lifeDialogueClaimSchema = v.strictObject({
 // a negated failure ("I did not fail") must still pass normal evidence review.
 export function isPureNonCompletionStatement(text: string) {
   const clause = text.trim()
+  // A missing receipt says nothing about the action's outcome. Keep contrast
+  // and double negation subject to evidence even without punctuation.
+  if (/但|不过|然而|实际上|其实|并非|不是|失败|\b(?:but|however|actually|fail(?:ed|ure)?)\b/iu.test(clause))
+    return false
+  if (/^我?(?:目前|现在)?(?:还没有|尚未|没有|未曾)收到[^\r\n，,。；;！？!?]{0,120}(?:结果|回执|证据)[。！？!?，,；;]?$/u.test(clause))
+    return true
+  if (/^(?:I\s+)?(?:have not|haven't|did not|didn't)\s+(?:yet\s+)?received?\s+(?:any\s+)?(?:completion|execution|verification)\s+(?:result|receipt|evidence)s?[.!?]?$/iu.test(clause))
+    return true
   return /^(?:这次|目前|现在|刚才|这段(?:安静)?时间里?)?(?:我|文件|测试文件|作品)?\s*(?:没有|没能|还没有?|尚未|未能|不曾)(?:实际|被我)?(?:做(?:别的|其他|任何)|完成|创作|保存|执行|写入|读回|进行)[^\r\n，,。；;！？!?]{0,300}[。！？!?，,；;]?$/u.test(clause)
     || /^(?:我|所以|因此)?还?(?:不能|不敢|没法)(?:[说称算]|宣称)(?:已经)?完成了?[。！？!?]?$/u.test(clause)
     || /^(?:I\s+)?(?:did not|have not|could not|haven't|didn't|couldn't)\s+(?:actually\s+)?(?:do|complete|finish|create|save|execute|write|read)\b[^\r\n,;.!?]{0,300}[.!?]?$/iu.test(clause)

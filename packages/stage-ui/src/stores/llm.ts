@@ -30,6 +30,7 @@ export type StreamEvent
   = | {
     type: 'text-delta'
     text: string
+    delivery?: import('@proj-alicization/stage-shared').AlicizationReplyStreamDelivery
     origin?: AlicizationVisibleArtifactOrigin
     learningPolicy?: AlicizationVisibleArtifactLearningPolicy
     failureSurface?: AlicizationChatFailureSurface | null

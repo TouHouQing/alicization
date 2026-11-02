@@ -38,12 +38,12 @@ dialogs:
     baseUrlHelp: API 端点 URL（如果不确定请使用默认值）
     accountId: 账户 ID
     validationSuccess: 配置验证成功
-    validationPartial: Configuration partially validated
+    validationPartial: 基础连接验证通过
     validationFailed: 配置验证失败
     validationError: '验证错误：{error}'
-    testGeneration: Test Generation
-    testGenerationRunning: Testing...
-    testGenerationFailed: Generation test failed
+    testGeneration: 测试生成
+    testGenerationRunning: 正在测试生成…
+    testGenerationFailed: 生成测试未通过
     skipForNow: 暂时跳过
     saveAndContinue: 保存并继续
     next: 下一步
@@ -282,10 +282,13 @@ live2d:
         description: 覆写该情绪下更偏好的 `actionCue`，让 planner 更懂这个模型适合怎么动。
   parameters:
     title: 参数
-    idle-animation: 待机动画
+    idle-animation: 自然待机
+    quiet-presence-description: 默认安静陪伴，保留呼吸、眨眼和轻微姿态变化；对话和互动时再表达动作。
+    loop-model-motions: 循环播放模型待机动作（会重复动作和表情）
     motion-selector:
       auto: 跟随当前状态
       pending: 当前动作结束后，会使用这项待机动画。
+      preview-once: 选择动作仅预览一次；开启循环后才会持续播放。
       select: 选择动作
       empty: 暂无可用动作
     auto-blink: 自动眨眼
@@ -2840,6 +2843,273 @@ wip:
     此功能正在开发中，尚未公开发布。请在未来的更新中再次查看此功能。
 
 life:
+  browser_access:
+    title: 浏览器访问
+    description: 可连接你已配置的本机浏览器，仅访问选定的标签页和来源。登录凭据保留在原浏览器中。
+    connect: 连接已有浏览器
+    setup: 使用单独配置并开放本机调试端口的浏览器。不会修改或复制你的主浏览器档案。
+    endpoint: 本机浏览器连接地址
+    inspect: 查看可连接页面
+    origins: 允许的来源（包含协议和端口，多个来源用英文逗号分隔）
+    grant: 允许访问所选页面
+    takeover: 我要接管
+    revoke: 撤销访问
+    managed: 使用应用的独立浏览器
+    empty: 没有可选择的网页，请先在该浏览器打开网页，再重新查看。
+    disconnected: 页面、连接或授权已变化。请重新选择当前页面；原任务可在工作进展中继续处理。
+    unknown: 尚未确认自身输入已释放。请先关闭对应标签页或浏览器，再确认。原任务的未知结果仍会保留。
+    closed: 我已关闭对应标签页或浏览器
+    confirm_closed: 确认已关闭
+    states:
+      managed: 使用应用的独立浏览器
+      connected: 已连接所选页面
+      disconnected: 需要重新连接
+      stopping: 正在停止操作
+      release-unknown: 等待确认输入已释放
+    errors:
+      changed: 页面或授权已变化，请重新查看并选择当前页面。
+      failed: 未能完成连接操作。请检查连接地址和浏览器状态；已有任务进度会保留。
+  procedures:
+    title: 学习到的方法
+    description: 从已独立验收的任务中学习方法。使用不同测试内容复跑通过后，才可以启用并用于新任务。
+    refresh: 刷新方法
+    empty: 合适的任务独立验收通过后，学习到的方法会出现在这里。
+    method: '学习方法 · {id}'
+    page_copy: '按顺序保存 {count} 个网页'
+    evaluation: '{passed} / {total} 项复跑检查通过'
+    evaluate: 用不同内容测试
+    comparison_auto: 自动与已有版本对比
+    comparison_select: 选择对比的旧方法
+    comparison_before: '旧版：完成 {completed}/{total} · 操作 {operations} 次 · 返工 {rework} 次 · 确认请求 {approvals} 次 · {seconds} 秒'
+    comparison_after: '候选：完成 {completed}/{total} · 操作 {operations} 次 · 返工 {rework} 次 · 确认请求 {approvals} 次 · {seconds} 秒'
+    comparison_scope: 两个版本使用相同的两组测试内容。确认请求衡量确认成本；耗时包含本机调度时间。
+    comparison_unavailable: 对比证据还不完整，此版本暂不能启用。请排除复跑失败原因后重新测试。
+    comparison_verdict:
+      improved: 候选版本通过了更多相同内容的测试。
+      non-regressing: 完成率、返工、操作数和确认次数没有退步。
+      regressed: 候选版本出现退步，不能启用。
+      incomparable: 两边测试内容未对齐，这次对比不能用于启用候选。
+    activate: 启用
+    revoke: 停用此版本
+    rollback: 恢复此版本
+    cancel: 停止测试
+    error: 操作未完成，请刷新后检查当前状态。
+    repair_hint: 新任务的独立核验未通过，此版本已停止使用。请按当前要求重新完成任务；新候选通过复跑后才能启用。已有文件和失败记录保留。
+    status:
+      candidate: 待启用
+      active: 已启用
+      revoked: 已停用
+      rolled-back: 历史版本
+      withdrawn: 来源已失效
+      needs-repair: 需要修复并重新评估
+    notices:
+      passed: 测试通过，可以启用此方法。
+      failed: 测试未通过，此方法仍不可执行。
+      activate: 已启用，可用于新的任务。
+      revoke: 已停用此版本，并中断依赖它的进行中任务。
+      rollback: 已恢复历史版本。
+      cancelling: 正在停止测试。
+      cancelled: 测试已停止，此方法尚未启用。
+  execution:
+    native_recheck: 重新检查窗口
+    blocker:
+      foreground-required: 此操作需要目标窗口保持前台，目前尚未执行。“重新检查窗口”会核对原窗口，条件满足后继续未完成的操作；否则保持暂停。
+      window-changed: 目标窗口的身份已经变化，我已停止操作。请核对目标，重新发起需要操作新窗口的任务。已完成的成果会保留。
+      native-target-required: 这项操作缺少原窗口的有效观察，我已停止操作。请核对目标窗口，重新发起尚未完成的操作。已完成的成果会保留。
+      observation-required: 需要更新这次窗口观察。请检查目标窗口，再点“重新检查窗口”。已完成的步骤会保留。
+      provider-unavailable: 视觉服务暂时忙碌或未返回可用结果，尚未执行操作。请检查连接，再点“重新检查窗口”；新图像仍会请你确认。
+      result-unknown: 上次操作的结果还不能确定。请先在“执行恢复”中核对结果，避免重复操作。
+    reobserve: 在当前已授权页面重新观察并继续
+    criteria:
+      title: 修改验收要求
+      hint: 可同时调整验收要求和未完成步骤。保存后一起生效，已核验的操作保留；点击“继续处理”后按新要求执行和检查。
+      future_steps: 同时调整未完成步骤
+      future_hint: 选择后续步骤，修改路径或内容。切换步骤会保留草稿，和上方要求一起保存。
+      future_count: '已调整 {count} 个步骤'
+      future_reset: 撤回当前步骤的草稿
+      graph_title: 增删步骤和执行顺序
+      graph_hint: 从已有操作复制新步骤，填写新的目标或指令，并在上方补充需要检查的结果。已处理的操作会保留。
+      graph_no_pending: 现有步骤都已处理。可以补充后续操作，或调整上方验收条件。
+      graph_template: 从哪个已有步骤复制
+      graph_after: 放在这一步之后
+      graph_insert: 复制为新步骤
+      graph_remove: 删除所选未完成步骤
+      graph_dependencies: 执行前需要完成
+      graph_count: '已记录 {count} 项步骤结构调整'
+      graph_reset: 撤回计划结构调整
+      graph_invalid: 这项调整无法保留。请检查步骤依赖和验收条件；任务状态变化时可撤回调整后重试。
+      graph_new_target: 新增写入操作需要不同的目标或指令，不能与已有操作重复。请修改新步骤后再保存。
+      required: 必须满足此条件
+      choose: 新条件类型
+      add: 添加条件
+      remove: 移除此条件
+      includes: 文件必须包含的文字，每行一项
+      keys: JSON 必须包含的字段，每行一项
+      members: 文件夹必须包含的成员，每行一项
+      exact: 只允许列出的成员
+      hash: 预期文件 SHA-256
+      download_step: 触发下载的步骤
+      minimum_bytes: 文件至少包含的字节数
+      optional_hash: 预期文件 SHA-256（可选）
+      download_artifact: '步骤 {step} 下载的文件'
+      question: 需要你确认的问题
+      review_files: 这项人工确认需要检查的文件
+      read_step: 用于全文比对的读取步骤
+      unnamed: 尚未填写文件路径
+      fixed: 此条件依赖原先绑定的验证来源。可保留或移除，需要其他验证方式时请新增条件。
+      save: 保存新要求
+      saved: 新要求已保存，旧验收已失效。点击“继续处理”后将重新核验。
+      failed: 条件未保存。请检查内容，并确认任务已暂停、没有待核对的操作。
+      diagnostics: 查看具体原因
+      kind:
+        text-content: 文件包含指定文字
+        json-structure: JSON 包含指定字段
+        file-bytes: 文件内容完全一致
+        file-matches-read: 与已读取的源文件全文一致
+        browser-download: 下载文件及内容
+        directory-members: 文件夹成员
+        user-review: 由我确认结果
+        setting: 设置值
+        interface-state: 界面显示状态
+        external-receipt: 外部操作回执
+        quality-review: 交付质量评审
+    file_recovery:
+      title: 文件版本与恢复
+      forget: 清理此恢复版本
+      forget_hint: 清理当前角色保存的这份恢复内容，现有文件保持原样。此操作后，早于本次清理的整卡备份也将无法还原。
+      confirm_forget: 我确认不再需要这个恢复版本，并了解旧整卡备份会失效
+      forget_confirmed: 确认清理恢复版本
+      version: '{time} · 写入前 {bytes} 字节'
+      version_details: 核对版本信息
+      original_hash: 写入前的版本：
+      written_hash: 写入后的版本：
+      hint: 保留她写入前的本地文件版本。恢复前会核对文件是否被改动；恢复只改变这个文件，相关未完成任务会结束。
+      empty: 还没有可恢复的文件版本。
+      preview: 查看恢复内容
+      refresh: 刷新文件版本
+      more: 下一批
+      first: 返回第一批
+      stop: 停止恢复程序
+      restore-original: 将文件恢复到此次写入前的内容。
+      remove-created: 这个文件由此次操作新建，恢复会移除它。
+      cancel_goals: 以下未完成任务将结束：
+      confirm: 我已核对文件和恢复内容，并同意结束相关任务
+      restore: 确认恢复这个文件
+      expired: 确认已过期，请重新查看恢复内容。
+      failed: 文件或操作状态已变化。请刷新并重新核对；已有文件会保留。
+      state:
+        recorded: 已保存写入前的版本
+        forgotten: 已清理恢复版本，现有文件保持原样。
+        forget-pending: 恢复版本已撤回，但清理尚未完成，可以重新核对后继续清理。
+        unknown: 结果暂未确定，请核对文件与操作记录。
+        restore-unknown: 上次恢复结果未确定，请先停止恢复程序，再核对或接管。
+        restored: 已完成文件恢复，相关任务结果仍按原记录保留。
+        not-restored: 没有完成恢复，请刷新后核对。
+        stopping: 正在停止恢复程序，尚未确认停止。
+        stopped: 已确认恢复程序停止，文件结果仍需核对。
+        file-changed: 文件已被改动或替换，已保留当前内容。
+        no-observed-version: 上次写入结果未能核实，暂不能恢复。
+        source-unsettled: 原写入操作尚未确定，暂不能恢复。
+        unresolved-restore: 先前恢复仍需核对，请先停止程序并处理未知操作。
+        already-restored: 这个版本已恢复，无需重复操作。
+        attempt-budget: 恢复尝试过多，请先处理已有操作。
+        busy: 相关操作仍在进行，请先停止任务。
+    recovery:
+      title: 尚未确定的操作
+      download_title: 需要核对的下载占用
+      download_hint: 上次下载可能留下部分文件。停止相关程序后可以由你接管并释放占用；文件和任务结果仍需另行核对。
+      more: 查看更多占用
+      first: 返回第一批
+      hint: 中断时可能已发生部分操作。你可以重新核对结果，或在确认停止相关程序后接管。
+      other_operation: 其他操作
+      unknown: 结果仍未确定，已暂停后续操作。
+      recheck: 重新核对
+      review_takeover: 由我接管
+      takeover_hint: 接管会结束相关任务，保留未知结果和原始记录。已有文件或外部操作需要你自行检查。
+      confirm_stopped: 我已停止相关程序，并会自行处理已有结果
+      takeover: 确认接管并结束任务
+      expired: 确认已过期，请重新选择“由我接管”。
+      failed: 操作状态已变化或相关程序仍在运行。请先停止任务，刷新后重新核对。
+      result:
+        applied: 已核对到操作结果，目标仍按原要求验收。
+        not-applied: 未发现预期操作结果，已保留原记录。
+        unknown: 暂时无法独立核对，请检查相关程序或选择由你接管。
+        host-taken-over: 已记录你的接管决定并结束相关任务，原操作结果仍保留为未知。
+    edit:
+      title: 调整未完成步骤
+      hint: 修改文字或路径，保存后点击“继续处理”。已完成的步骤会保留。
+      step: 选择步骤
+      save: 保存调整
+      close: 收起
+      saved: 调整已保存，可以继续处理。
+      args_hint: 填写 JSON 数组，例如 ["--format", "json"]；每一项作为一个独立参数传入。
+      field:
+        path: 文件路径
+        content: 文件内容
+        url: 网页地址
+        text: 文字内容
+        targetText: 控件文字
+        windowTitle: 窗口名称
+        prompt: 交给代码执行器的任务
+        command: 命令或可执行文件
+        cwd: 工作文件夹
+        args: 命令参数
+    reviewing: 正在确认结果…
+    confirmed: 结果已确认
+    operation:
+      coding_agent:
+        codex: 使用 Codex 处理代码步骤
+        claude_code: 使用 Claude Code 处理代码步骤
+        cli: 执行本地命令步骤
+      browser_download: 下载文件
+      filesystem_list_directory: 查看文件夹
+      filesystem_read_file: 读取文件
+      filesystem_write_file: 写入文件
+      browser_open_url: 打开网页
+      browser_read_page: 查看网页
+      browser_click_element: 操作网页控件
+      browser_type_text: 填写网页内容
+      desktop_list_interactables: 查看应用窗口
+      desktop_click_element: 操作应用控件
+      desktop_type_text: 填写应用内容
+    open_artifact: '打开 {name}'
+    approve: 我确认结果符合要求
+    reject: 还需要修改
+    failed: 操作未完成，请查看当前任务状态。
+    title: 工作进展
+    progress: '已观察到结果：{done} / {total} 步'
+    details: 查看步骤
+    resume: 继续处理
+    pause: 暂停
+    cancel: 停止任务
+    updated: 进展已更新
+    notice:
+      satisfied: 所有要求均已确认。
+      not-satisfied: 已记录需要修改，已有成果会保留。
+      unknown: 仍有结果需要核对。
+      accepted: 已接受，正在开始处理。
+      already-accepted: 该请求已经接受。
+      reconciliation-required: 上次操作的结果仍需核对，暂时不能继续。
+      browser-access-changed: 浏览器连接或授权已变化，请连接当前页面后选择“重新观察并继续”。
+      browser-rebound: 已绑定当前页面，后续操作会先使用新的页面观察。
+      stopping: 正在停止，已经发生的操作会保留记录。
+      stopped: 已停止派发。
+      already-requested: 已收到停止请求。
+    window:
+      ready: 准备开始
+      running: 正在处理
+      yielded: 进展已保存，等待下一个工作窗口
+      waiting: 等待结果核对或补充信息
+      stopping: 正在停止或核对尚未确定的操作
+      stopped: 当前工作窗口已结束
+    step:
+      pending: 尚未开始
+      running: 正在执行
+      awaiting-verification: 结果待核对
+      verified: 操作结果已观察，目标仍需验收
+      waiting: 等待处理
+      blocked: 需要处理
+      cancelled: 已取消
   personal_choices: 她现在想尝试的事
   personal_choices_description: 这些是暂时的想法。只有实际完成并核验的作品，才会成为已做过的经历。
   withdraw_choice: 撤回这个想法
@@ -2869,7 +3139,12 @@ life:
     title: 本地备份与恢复
     description: 保存人格与记忆的一致快照。恢复会重启软件，保留恢复前的数据，并暂停自动活动，等待核对任务结果。
     create: 创建备份
+    busy: 当前互动还在保存，请稍后再创建备份。已有备份不受影响。
     list: 查看备份
+    page: 第 {page} 页 · 共 {total} 份备份
+    previous: 上一页
+    next: 下一页
+    unreadable: 有 {count} 份本地备份记录暂时无法读取。备份文件已保留。
     restore: 恢复此备份
     restarting: 备份已核验，正在重启并恢复。
     restored: 已恢复人格与记忆。恢复前的数据已保留，自动活动已暂停。请核对任务实际结果，再决定恢复活动；已发生的操作不会自动重放。
@@ -2985,6 +3260,41 @@ life:
   report_completed: 我确认目标已完成
   awaiting_proof: 执行或生成已经结束，仍需实际结果或投递证明。
   history: 最近的完成与取消记录
+  verifiers:
+    title: 结果验收规则
+    description: 导入可信来源提供的规则，检查文件质量或核验外部结果。导入后先预览，确认后才生效。
+    import: 导入规则配置
+    preview: 确认本次变更
+    trust: 请只应用来自可信来源的规则，并核对下面的文件路径和公钥指纹。
+    clear: 此配置会撤销所有已注册规则；未取得证明的任务会继续等待核验。
+    confirm: 应用已核对的规则
+    dismiss: 取消预览
+    empty: 尚未添加规则。普通文件验收和人工确认仍可使用。
+    failed: 暂时无法读取或保存规则，请检查配置后重试。
+    saved: 验收规则已保存。
+    scope:
+      quality: 质量检查
+      external: 外部回执
+      reconciliation: 结果核对
+  storage:
+    title: 本地存储
+    pressure_unknown: 正在检查存储空间…
+    pressure_normal: 存储空间可用。
+    pressure_low: 存储空间不足，新的自主创作将在空间恢复后继续。
+    cache_size: '临时网页缓存：{size} MB'
+    deferred: 当前工作停止后再清理。
+    cleaning: 清理仍在进行，可以刷新查看结果。
+    released: '上次清理释放了 {size} MB 缓存。'
+    description: 清理临时网页缓存，保留记忆、对话、模型和已下载的文件。
+    clear: 清理临时缓存
+    refresh: 刷新存储状态
+    failed: 暂时无法检查或清理存储，请重试。
+  history_updates: 有新的记录
+  history_more: 查看更早记录
+  history_refresh: 刷新记录
+  history_empty: 还没有完成或取消的约定。
+  history_loading: 正在读取记录…
+  history_failed: 记录读取失败，请刷新重试。
   diagnostics: 连续性诊断
   revision: 已提交的生命版本
   uncertain: 结果待核验的操作

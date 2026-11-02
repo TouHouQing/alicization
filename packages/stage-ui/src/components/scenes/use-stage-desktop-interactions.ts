@@ -327,13 +327,19 @@ export function useStageDesktopInteractions(options: UseStageDesktopInteractions
     options.onInteractionChange?.(active)
   }, { flush: 'sync', immediate: true })
 
-  onScopeDispose(() => {
+  function cancelInteraction() {
     if (wheelTimer)
       clearTimeout(wheelTimer)
+    wheelTimer = undefined
+    setWheelActive(false)
     removePointerListeners()
-  })
+    clearDragInteraction()
+  }
+
+  onScopeDispose(cancelInteraction)
 
   return {
+    cancelInteraction,
     characterFrame: computed(() => getCharacterHandle()?.characterFrame() ?? null),
     handlePointerDown,
     handleWheel,

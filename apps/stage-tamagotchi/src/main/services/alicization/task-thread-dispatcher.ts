@@ -19,6 +19,8 @@ import {
   normalizeAlicizationExecutionRuntimeContext,
 } from '@proj-alicization/stage-shared'
 
+import { inheritActionNotStarted } from './execution/action-dispatch-context'
+import { markTaskNotStarted } from './execution/task-no-dispatch-proof'
 import { resolveExecutionTransportChannel } from './executor-adapters/embodied-channel'
 import { resolveAdapterFailureDisposition } from './executor-adapters/failure-settlement'
 import {
@@ -38,6 +40,7 @@ type TaskThreadDispatchPort = Pick<{
 export type AlicizationTaskThreadDispatchPort = TaskThreadDispatchPort
 
 export interface AlicizationDispatchTaskThreadRuntimeInput extends AlicizationDispatchTaskThreadInput {
+  processJobsRoot?: string
   ownedNoteRoot?: string
   killSwitchSuspended?: boolean
   abortSignal?: AbortSignal
@@ -334,7 +337,7 @@ function readAdapterSideEffectState(error: unknown) {
     : undefined
 }
 
-async function persistCancelledBeforeDispatch(input: {
+export async function persistCancelledBeforeDispatch(input: {
   port: TaskThreadDispatchPort
   thread: AlicizationTaskThreadRecord
   reason: string
@@ -382,6 +385,7 @@ async function persistCancelledBeforeDispatch(input: {
 
   const cancelEvent: AlicizationExecutionEventInput = {
     threadId: input.thread.id,
+    attemptId: latestThread.attemptId ?? null,
     decisionTraceId: latestThread.decisionTraceId,
     turnId: latestThread.turnId,
     sessionId: latestThread.sessionId,
@@ -389,13 +393,14 @@ async function persistCancelledBeforeDispatch(input: {
     channel: latestThread.selectedChannel,
     kind: 'cancel',
     threadStatus: 'cancelled',
-    payload: {
+    payload: markTaskNotStarted({
       failureKind: 'tool-execution',
       errorCode: 'TASK_THREAD_ABORTED_BEFORE_DISPATCH',
       errorMessage: input.reason,
       reason: input.reason,
       source: 'task-thread-dispatcher',
-    },
+      adapter: latestThread.selectedChannel,
+    }, latestThread),
     createdAt,
   }
   const cancelledThread: AlicizationTaskThreadUpsertInput = {
@@ -1187,6 +1192,7 @@ export async function dispatchTaskThread(
   try {
     result = await preparedDispatch.run({
       ownedNoteRoot: input.ownedNoteRoot,
+      processJobsRoot: input.processJobsRoot,
       abortSignal: input.abortSignal,
       onExecutionEvent: persistAndPublishLiveEvent,
       workspaceRoot: input.workspaceRoot,
@@ -1469,7 +1475,7 @@ export async function dispatchTaskThread(
     },
   }).catch(() => {})
 
-  return {
+  return inheritActionNotStarted(result, {
     thread: summarizedThread,
     createdEventKinds,
     ok: resolvedOk,
@@ -1480,5 +1486,5 @@ export async function dispatchTaskThread(
     errorMessage: resolvedNewerTerminal
       ? resolvedSummary
       : result.errorMessage,
-  }
+  })
 }

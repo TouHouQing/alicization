@@ -1,12 +1,19 @@
 import type sqlite3 from 'sqlite3'
 
-import type { LifeCommitInput, LifeCommitReceipt, LifeMetaChange, LifeOwner, LifeOwnerVersion, LifeStateView } from '../../../shared/life-contracts'
+import type { LifeCommitInput, LifeCommitReceipt, LifeEvidenceRef, LifeMetaChange, LifeOwner, LifeOwnerVersion, LifeStateReadScope, LifeStateView } from '../../../shared/life-contracts'
 import type { LifeSurfaceRegistration } from './life-body-repository'
 import type { EffectRow, IngressRow } from './life-read-repository'
 import type { LifeTransaction, LifeTransactionHandle } from './life-transaction'
 
 import { createHash, randomUUID } from 'node:crypto'
 
+import { reviseExecutionCriteria } from './execution/criteria-revision-repository'
+import { assertHostRecoveryBinding } from './execution/host-recovery-snapshot'
+import { applyProcedureFailure } from './execution/procedure-failure-repository'
+import { bindExecutionProcedureSource } from './execution/procedure-source-binding'
+import { applyExecutionVerificationConfiguration } from './execution/verification-configuration'
+import { applyExecutionWork } from './execution/work-plan-repository'
+import { applyExecutionWorkStop } from './execution/work-stop-repository'
 import { applyLifeAppraisal } from './life-appraisal-repository'
 import { applyLifeBody } from './life-body-repository'
 import { readLifeClosure } from './life-closure-query'
@@ -15,6 +22,7 @@ import { applyLifeEffect } from './life-effect-repository'
 import { applyLifeEvidenceInvalidation } from './life-evidence-repository'
 import { applyLifeExpression } from './life-expression-repository'
 import { applyLifeGrowth, parseLifeGrowthSnapshot } from './life-growth-repository'
+import { readLifeObligationHistoryPage } from './life-history-query'
 import { applyLifeIngress } from './life-ingress-repository'
 import { serializeLifeUserInput } from './life-input-payload'
 import { recordLifeFactVersion, registerLifeEntity } from './life-memory-repository'
@@ -28,14 +36,13 @@ import { mapLifeEffect, mapLifeIngress, readLifeDomains } from './life-read-repo
 import { lifeSchemaSql } from './life-schema-sql'
 import { lifeSchemaVersion, readSupportedLifeSchemaVersion } from './life-schema-version'
 import { applyLifeSoul } from './life-soul-repository'
+import { LifeStateConflictError } from './life-state-conflict'
 import { projectLifeTask } from './life-task-repository'
-import { activeLifeTransaction, afterLifeTransactionCommit, assertLifeTransaction } from './life-transaction'
+import { activeLifeTransaction, afterLifeTransactionCommit, assertLifeId, assertLifeTransaction } from './life-transaction'
 
 const owners = new Set<LifeOwner>(['self', 'reflection', 'motivation', 'habit', 'presence', 'cognition', 'emotion', 'relationship', 'goals', 'memory', 'expression', 'soul', 'initiative', 'growth'])
 
-export class LifeStateConflictError extends Error {
-  readonly code = 'LIFE_STATE_CONFLICT'
-}
+export { LifeStateConflictError }
 
 interface LifeStoreOptions {
   database: sqlite3.Database
@@ -166,7 +173,7 @@ export function createLifeStateStore(options: LifeStoreOptions) {
     })
   }
 
-  async function readInside(includeDomains = false, sourceDatabase = database): Promise<LifeStateView> {
+  async function readInside(includeDomains = false, sourceDatabase = database, scope?: LifeStateReadScope): Promise<LifeStateView> {
     const clock = await get<{ revision: number }>(sourceDatabase, `SELECT COALESCE(MAX(revision), 0) AS revision FROM life_commits WHERE card_id = ?`, [cardId])
     const rows = await all<VersionRow>(sourceDatabase, `SELECT owner, revision, content_hash, payload_ref_json FROM life_owner_versions WHERE card_id = ? ORDER BY owner`, [cardId])
     const versions = rows.map(parseVersion)
@@ -177,17 +184,21 @@ export function createLifeStateStore(options: LifeStoreOptions) {
         throw new LifeStateConflictError(`Life owner ${version.owner} no longer matches its committed state`)
       values[version.metaKey] = row.value
     }
-    const domains = includeDomains ? await readLifeDomains({ cardId, all: (sql, params) => all(sourceDatabase, sql, params) }) : { obligations: [], ingress: [], effects: [], soulActivations: [] }
+    const domains = includeDomains ? await readLifeDomains({ cardId, all: (sql, params) => all(sourceDatabase, sql, params) }, scope) : { obligations: [], ingress: [], effects: [], soulActivations: [] }
     const restore = await get<{ value: string }>(sourceDatabase, `SELECT value FROM alicization_meta WHERE key = 'life:backup-restore'`)
     const backupRestore = restore ? JSON.parse(restore.value) : undefined
     return { cardId, revision: clock?.revision ?? 0, owners: versions, values, ...domains, ...(backupRestore ? { backupRestore: { backupId: backupRestore.backupId, status: backupRestore.status } } : {}) }
   }
 
-  async function readOne<T>(select: (reader: sqlite3.Database) => Promise<T>) {
+  async function queueRead<T>(select: (reader: sqlite3.Database) => Promise<T>) {
     if (readsClosed)
       throw new Error('Life reader is closing')
-    const pending = reads.then(async () => {
-      const reader = options.readDatabase()
+    const pending = reads.then(() => select(options.readDatabase()))
+    reads = pending.catch(() => {})
+    return pending
+  }
+  function readOne<T>(select: (reader: sqlite3.Database) => Promise<T>) {
+    return queueRead(async (reader) => {
       await run(reader, 'BEGIN DEFERRED')
       try {
         const view = await select(reader)
@@ -199,10 +210,29 @@ export function createLifeStateStore(options: LifeStoreOptions) {
         throw error
       }
     })
-    reads = pending.catch(() => {})
-    return pending
   }
-  const read = () => readOne(reader => readInside(true, reader))
+  const read = async (input?: LifeStateReadScope) => {
+    if (input?.obligationIds !== undefined && !Array.isArray(input.obligationIds))
+      throw new TypeError('Historical life roots require a bounded array')
+    if ((input?.obligationIds?.length ?? 0) > 32)
+      throw new Error('Historical life roots exceeded their read budget')
+    const scope = input ? { executionPlanId: input.executionPlanId, obligationId: input.obligationId, obligationIds: input.obligationIds?.slice() } : undefined
+    if (scope?.executionPlanId !== undefined)
+      assertLifeId(scope.executionPlanId)
+    if (scope?.obligationId !== undefined)
+      assertLifeId(scope.obligationId)
+    for (const id of scope?.obligationIds ?? []) assertLifeId(id)
+    if (new Set([...(scope?.obligationIds ?? []), ...(scope?.obligationId ? [scope.obligationId] : [])]).size > 32)
+      throw new Error('Historical life roots exceeded their read budget')
+    return readOne(reader => readInside(true, reader, scope))
+  }
+  // Metadata shares the reader connection with life snapshots. Queue it too,
+  // otherwise a post-commit SELECT can join an older BEGIN DEFERRED snapshot.
+  const readMetaValue = (key: string) => queueRead(async (reader) => {
+    const row = await get<{ value: string }>(reader, 'SELECT value FROM alicization_meta WHERE key = ? LIMIT 1', [key])
+    return row?.value
+  })
+  const readObligationHistory = (input: import('../../../shared/life-history-contracts').LifeObligationHistoryRequest) => readOne(reader => readLifeObligationHistoryPage({ cardId, all: (sql, params) => all(reader, sql, params) }, input))
   async function readUserInput(reader: sqlite3.Database, id: string) {
     const row = await get<{ body_json: string | null, input_hash: string, lifecycle: string }>(reader, 'SELECT body_json, input_hash, lifecycle FROM life_input_payloads WHERE card_id = ? AND ingress_id = ?', [cardId, id])
     if (!row || row.lifecycle === 'unavailable')
@@ -228,6 +258,34 @@ export function createLifeStateStore(options: LifeStoreOptions) {
     return ingress
   }
   const getIngress = (id: string) => readOne(reader => readIngress(reader, id))
+  // Recovery cannot use the recent presentation window as a complete ledger.
+  const readIngressPage = (input: { source: string, afterId?: string, limit?: number }) => readOne(async (reader) => {
+    const limit = input.limit ?? 64
+    if (!input.source || input.source.length > 128 || (input.afterId?.length ?? 0) > 512 || !Number.isInteger(limit) || limit < 1 || limit > 64)
+      throw new Error('Ingress recovery page crossed its read budget')
+    const ids = await all<{ id: string, bytes: number }>(reader, 'SELECT ingress_id AS id, LENGTH(CAST(payload_ref_json AS BLOB)) AS bytes FROM life_ingress WHERE card_id=? AND source=? AND ingress_id>? ORDER BY ingress_id LIMIT ?', [cardId, input.source, input.afterId ?? '', limit + 1])
+    if (ids.slice(0, limit).reduce((sum, row) => sum + row.bytes, 0) > 1024 * 1024)
+      throw new Error('Ingress recovery page exceeded its byte budget')
+    const entries = []
+    for (const row of ids.slice(0, limit)) {
+      const ingress = await readIngress(reader, row.id)
+      if (!ingress || ingress.source !== input.source)
+        throw new LifeStateConflictError('Ingress recovery page lost its source binding')
+      entries.push(ingress)
+    }
+    return { cardId, entries, next: ids.length > limit ? entries.at(-1)!.id : null }
+  })
+  const hasWithdrawnEvidence = (sources: LifeEvidenceRef[]) => readOne(async (reader) => {
+    if (sources.length > 64 || sources.some(source => source.cardId !== cardId || !source.kind || !source.id || !source.version))
+      throw new Error('Evidence withdrawal query crossed its owner or budget')
+    for (const source of sources) {
+      if (source.kind === 'life_ingress' && await get(reader, `SELECT 1 FROM life_input_payloads WHERE card_id=? AND ingress_id=? AND lifecycle IN ('withdrawn','unavailable') LIMIT 1`, [cardId, source.id]))
+        return true
+      if (await get(reader, `SELECT 1 FROM life_evidence_cleanup_jobs WHERE card_id = ? AND json_extract(source_ref_json,'$.kind') = ? AND json_extract(source_ref_json,'$.id') = ? AND (json_extract(source_ref_json,'$.version') = '*' OR json_extract(source_ref_json,'$.version') = ?) LIMIT 1`, [cardId, source.kind, source.id, source.version]))
+        return true
+    }
+    return false
+  })
   async function readTurnExecutionEffects(reader: sqlite3.Database, turnId: string) {
     const rows = await all<EffectRow & { intent_hash: string }>(reader, 'SELECT * FROM life_effect_intents WHERE card_id = ? AND turn_id = ? AND kind = \'execute\' ORDER BY effect_id', [cardId, turnId])
     if (rows.some(row => hash(row.payload_ref_json) !== row.intent_hash))
@@ -235,6 +293,15 @@ export function createLifeStateStore(options: LifeStoreOptions) {
     return rows.map(mapLifeEffect)
   }
   const getTurnExecutionEffects = (turnId: string) => readOne(reader => readTurnExecutionEffects(reader, turnId))
+  const getPendingExecutionEffects = () => readOne(async (reader) => {
+    const budget = await get<{ count: number, bytes: number }>(reader, `SELECT COUNT(*) AS count, COALESCE(SUM(LENGTH(CAST(payload_ref_json AS BLOB)) + COALESCE(LENGTH(CAST(receipt_ref_json AS BLOB)),0)),0) AS bytes FROM life_effect_intents WHERE card_id = ? AND kind = 'execute' AND status IN ('dispatched','uncertain')`, [cardId])
+    if (!budget || budget.count > 4096 || budget.bytes > 16 * 1024 * 1024)
+      throw new Error('Pending execution exceeds its recovery read budget')
+    const rows = await all<EffectRow & { intent_hash: string }>(reader, `SELECT * FROM life_effect_intents WHERE card_id = ? AND kind = 'execute' AND status IN ('dispatched','uncertain') ORDER BY created_at,effect_id LIMIT 4097`, [cardId])
+    if (rows.some(row => hash(row.payload_ref_json) !== row.intent_hash))
+      throw new LifeStateConflictError('Pending execution no longer matches its durable intents')
+    return rows.map(mapLifeEffect)
+  })
   const getTurnExecutionEffectsInside = async (turnId: string) => {
     if (!activeLifeTransaction(database))
       throw new Error('Publication execution scope needs the current writer transaction')
@@ -317,7 +384,9 @@ export function createLifeStateStore(options: LifeStoreOptions) {
         const stored = await get<{ value: string }>(database, `SELECT value FROM alicization_meta WHERE key = ?`, [change.key])
         if ('expectedValue' in change && (stored?.value ?? null) !== change.expectedValue)
           throw new LifeStateConflictError(`Life owner ${change.owner} changed before commit`)
-        if (stored && ['self', 'habit', 'reflection', 'motivation', 'relationship'].includes(change.owner)) {
+        // Maintenance ticks do not change the facts a reply consumed. Keep
+        // nested observation times and attention expiry in the semantic value.
+        if (stored && ['self', 'habit', 'reflection', 'motivation', 'relationship', 'cognition'].includes(change.owner)) {
           const semanticValue = (raw: string) => {
             const value = JSON.parse(raw)
             if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -343,11 +412,27 @@ export function createLifeStateStore(options: LifeStoreOptions) {
       for (const change of input.changes)
         await updateOwner(change)
       assertSignal(writeOptions.signal)
-      await run(database, `INSERT INTO life_commits(card_id, revision, commit_id, operation_key, request_hash, base_revision, ingress_ids_json, read_set_json, owner_changes_json, runtime_event_refs_json, reducer_version, committed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [cardId, revision, commitId, input.operationKey, requestHash, current.revision, JSON.stringify(input.ingressIds ?? []), JSON.stringify({ version: 'life-readset-v2', present: input.expectedOwners ?? [], absent: input.expectedAbsentOwners ?? [], wholeRevision: input.expectedRevision ?? null, baseOwners: current.owners }), JSON.stringify(changedVersions), '[]', 'life-state-v1', committedAt])
+      await run(database, `INSERT INTO life_commits(card_id, revision, commit_id, operation_key, request_hash, base_revision, ingress_ids_json, read_set_json, owner_changes_json, runtime_event_refs_json, reducer_version, committed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [cardId, revision, commitId, input.operationKey, requestHash, current.revision, JSON.stringify(input.ingressIds ?? []), JSON.stringify({ version: 'life-readset-v3', present: input.expectedOwners ?? [], absent: input.expectedAbsentOwners ?? [], inputs: input.mutations?.flatMap(mutation => mutation.type === 'input-assert-current' ? [mutation.readSet] : []) ?? [], wholeRevision: input.expectedRevision ?? null, baseOwners: current.owners }), JSON.stringify(changedVersions), '[]', 'life-state-v1', committedAt])
       const tx: LifeTransaction = { cardId, revision, commitId, now: committedAt, run: (sql, params) => run(database, sql, params), get: (sql, params) => get(database, sql, params), all: (sql, params) => all(database, sql, params), updateOwner }
       await beforeMutations?.(tx)
       for (const mutation of input.mutations ?? []) {
         switch (mutation.type) {
+          case 'execution-verifiers-configure': await applyExecutionVerificationConfiguration(tx, mutation)
+            break
+          case 'execution-criteria-revise': await reviseExecutionCriteria(tx, mutation.command)
+            break
+          case 'execution-work-stop': await applyExecutionWorkStop(tx, mutation.command)
+            break
+          case 'execution-recovery-assert': await assertHostRecoveryBinding(tx, mutation)
+            break
+          case 'execution-procedure-bind': await bindExecutionProcedureSource(tx, mutation)
+            break
+          case 'execution-procedure-observe-failure': await applyProcedureFailure(tx, mutation)
+            break
+          case 'execution-plan':
+          case 'execution-step-result':
+          case 'execution-slice': await applyExecutionWork(tx, mutation)
+            break
           case 'project-experience-indexed': await settleLifeProjectExperience(tx, mutation)
             break
           case 'project-share':
@@ -369,6 +454,7 @@ export function createLifeStateStore(options: LifeStoreOptions) {
           case 'growth-adopt': await applyLifePolicyEvaluation(tx, mutation)
             break
           case 'ingress-accept':
+          case 'input-assert-current':
           case 'input-resume':
           case 'ingress-settle': await applyLifeIngress(tx, mutation)
             break
@@ -442,7 +528,7 @@ export function createLifeStateStore(options: LifeStoreOptions) {
       throw new Error('Life mutation requires the current writer transaction')
     return commit(input, writeOptions, beforeMutations, handle)
   }
-  return { initialize, read, getIngress, getEffect, getUserInput, getSurface, readClosure, getTurnExecutionEffects, getTurnExecutionEffectsInside, readConversationPreferencesInside, commit, subscribe, commitWith: commit, commitInside, stopReads: async () => {
+  return { initialize, read, readMetaValue, readObligationHistory, getIngress, readIngressPage, hasWithdrawnEvidence, getEffect, getUserInput, getSurface, readClosure, getTurnExecutionEffects, getPendingExecutionEffects, getTurnExecutionEffectsInside, readConversationPreferencesInside, commit, subscribe, commitWith: commit, commitInside, stopReads: async () => {
     readsClosed = true
     await reads
   } }

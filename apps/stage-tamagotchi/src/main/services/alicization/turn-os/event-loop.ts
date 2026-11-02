@@ -26,6 +26,7 @@ import {
   parseAlicizationActionObservation,
 } from '@proj-alicization/stage-shared'
 
+import { inheritActionNotStarted } from '../execution/action-dispatch-context'
 import {
   createAlicizationRuntimeReplyDeliveryIntent,
   parseAlicizationRuntimeReplyArtifact,
@@ -242,7 +243,7 @@ function toolFailureOutput(
         ? 'cancelled'
         : 'failed'
   const message = errorMessage(error)
-  return {
+  return inheritActionNotStarted(error, {
     status,
     stage: 'tool',
     failureKind: 'tool-execution',
@@ -253,7 +254,7 @@ function toolFailureOutput(
     continuationPolicy: 'model',
     output: null,
     ...(finalStatus === 'dead-lettered' ? { finalStatus } : {}),
-  }
+  })
 }
 
 function normalizeTerminalToolObservation(

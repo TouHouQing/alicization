@@ -9,6 +9,8 @@ import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 import type { AlicizationGovernedTaskThreadPlanningResult } from './task-execution-governor'
 import type { AlicizationDispatchTaskThreadRuntimeInput } from './task-thread-dispatcher'
 
+import { createHash } from 'node:crypto'
+
 import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
 
 import { deriveExecutionInteractionLearningProfile } from './execution-interaction-learning'
@@ -72,11 +74,18 @@ function sanitizeText(raw: unknown, maxChars = 220) {
 }
 
 function normalizeSignatureText(raw: unknown, maxChars = 72) {
-  return sanitizeText(raw, maxChars)
+  const slug = sanitizeText(raw, maxChars)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, maxChars)
+  const text = sanitizeText(raw, 2048).toLowerCase()
+  if (!/\P{ASCII}/u.test(text))
+    return slug
+  // Keep distinct Chinese intentions distinct even when their ASCII labels match.
+  const suffix = createHash('sha256').update(text.normalize('NFKC')).digest('hex').slice(0, Math.min(16, maxChars))
+  const prefix = slug.slice(0, Math.max(0, maxChars - suffix.length - 1))
+  return prefix ? `${prefix}-${suffix}` : suffix
 }
 
 function clampMinutes(value: number) {
@@ -334,7 +343,8 @@ export function deriveAutonomousTaskPlan(input: {
     180,
   )
   const goalSummary = baseGoalSummary
-  if (!goalSummary)
+  // World-model identifiers describe bookkeeping, not a grounded action goal.
+  if (!goalSummary || /^[\w.:/\\-]+$/iu.test(goalSummary))
     return null
 
   const signature = [

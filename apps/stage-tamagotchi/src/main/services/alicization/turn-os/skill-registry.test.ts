@@ -26,6 +26,32 @@ function createManifest(overrides: Partial<AlicizationSkillManifest> = {}): Alic
 }
 
 describe('alicization SkillRegistry', () => {
+  it('keeps rejected registration atomic and makes a replacement version the only loadable active version', async () => {
+    const registry = createAlicizationSkillRegistry()
+    expect(() => registry.register(createManifest({ activationStatus: 'active' }))).toThrow('approved evaluation')
+    expect(await registry.discover({ productionOnly: false })).toEqual([])
+    registry.register(createManifest({ evaluationStatus: 'approved', activationStatus: 'active' }))
+    registry.register(createManifest({ version: '2.0.0', evaluationStatus: 'approved', activationStatus: 'active' }))
+    expect((await registry.discover({ productionOnly: false })).find(item => item.version === '1.0.0')?.activationStatus).toBe('rolled-back')
+    await expect(registry.load({ id: 'skill.memory-review', version: '1.0.0', tools: ['memory.workbench'], permissions: ['memory:read'] })).rejects.toThrow('not active')
+  })
+
+  it.each(['revoke', 'failed-evaluation', 'replacement'] as const)('rejects an in-flight instruction load after %s', async (change) => {
+    let finish!: (text: string) => void
+    const registry = createAlicizationSkillRegistry({ manifests: [createManifest({ evaluationStatus: 'approved', activationStatus: 'active', loadInstructions: () => new Promise((resolve) => { finish = resolve }) })] })
+    const load = registry.load({ id: 'skill.memory-review', tools: ['memory.workbench'], permissions: ['memory:read'] })
+    if (change === 'revoke')
+      await registry.revoke('skill.memory-review', '1.0.0')
+    else if (change === 'failed-evaluation')
+      await registry.markEvaluation('skill.memory-review', '1.0.0', 'failed')
+    else
+      registry.register(createManifest({ version: '2.0.0', evaluationStatus: 'approved', activationStatus: 'active' }))
+    finish('instructions fetched before the governance change')
+    await expect(load).rejects.toThrow('changed while')
+    if (change !== 'replacement')
+      expect(await registry.discover()).toEqual([])
+  })
+
   it('discovers lightweight metadata without loading full instructions', async () => {
     let loadCount = 0
     const registry = createAlicizationSkillRegistry({

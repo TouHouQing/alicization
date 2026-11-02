@@ -9,6 +9,7 @@ import type { AlicizationPerceptionSceneResidue, AlicizationPerceptionState } fr
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationExecutionCallbackContext } from './execution-callback-runtime'
 import type { AlicizationMainGatewayGenerateTextProviderOptions, AlicizationMainGatewaySource } from './main-gateway-contract'
+import type { MainGatewayRequestTarget } from './main-gateway-request-target'
 import type { AlicizationMainGatewayWorkCoordinator } from './main-gateway-work-coordinator'
 import type { AlicizationProviderRetryOverrides } from './provider-retry-policy'
 import type {
@@ -42,8 +43,11 @@ import {
   isAlicizationUnregisteredMainGatewaySource,
   resolveAlicizationMainGatewayAuditFamilyForSource,
 } from './main-gateway-contract'
+import { describeMainGatewayRequestTarget } from './main-gateway-request-target'
+import { acquireMainGatewayWork } from './main-gateway-work-admission'
 import {
   isMainGatewayForegroundPreemption,
+  isMainGatewayWorkShutdown,
   mainGatewayForegroundPreemptionReason,
 } from './main-gateway-work-coordinator'
 import { parseScreenSemanticSummary, pickScreenSemanticCaptureCandidate } from './proactive-screen-semantic'
@@ -91,6 +95,8 @@ export interface AlicizationMainGatewayTextProviderOptions extends AlicizationMa
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   responseFormat?: AlicizationMainGatewayResponseFormat
   providerRetryPolicy?: AlicizationProviderRetryOverrides
+  waitForProviderAvailability?: boolean
+  beforeProviderRequest?: (target?: MainGatewayRequestTarget) => Promise<void>
   onFailure?: (failure: {
     reason: string
     providerId: string
@@ -110,6 +116,21 @@ export interface AlicizationMainGatewayTextProvider {
   (input: AlicizationMainGatewayTextProviderOptions): Promise<string | null>
 }
 
+function oneShotSensitiveMessageValues(messages: Message[]) {
+  return messages.flatMap((message) => {
+    if (typeof message.content === 'string')
+      return [message.content]
+    return (Array.isArray(message.content) ? message.content : []).flatMap((part) => {
+      if (part.type === 'text')
+        return [part.text]
+      if (part.type !== 'image_url')
+        return []
+      const url = part.image_url.url
+      return url.startsWith('data:image/') ? [url, url.slice(url.indexOf(',') + 1)] : []
+    })
+  })
+}
+
 function sanitizeOneShotProviderError(
   error: unknown,
   sensitiveValues: string[] = [],
@@ -123,6 +144,8 @@ function sanitizeOneShotProviderError(
       errorMessageFrom(error) ?? String(error ?? 'main-gateway-failed'),
     )
   return raw
+    .replace(/data:image\/[a-z0-9.+-]+;base64,[A-Z0-9+/=\r\n]+/giu, '[redacted-image]')
+    .replace(/\b[A-Z0-9+/]{128,}={0,2}/giu, '[redacted-image-data]')
     .replace(/Authorization\s*:\s*Bearer\s+[\w.~+/=-]+/giu, 'Authorization: Bearer [redacted]')
     .replace(/(["']?(?:authorization|api[_ -]?key|token|secret|password)["']?\s*[:=]\s*["']?)(?:Bearer\s+)?[^"'\s,;}]+/giu, '$1[redacted]')
     .replace(/(["']?user[_ -]?input["']?\s*[:=]\s*["']?)[^"',;}]+/giu, '$1[redacted-input]')
@@ -211,7 +234,7 @@ interface CreateAlicizationMainGatewayOneShotRuntimeOptions {
     residue: AlicizationPerceptionSceneResidue
     signal?: AbortSignal
   }) => Promise<AlicizationPerceptionState>
-  providerWorkCoordinator?: Pick<AlicizationMainGatewayWorkCoordinator, 'acquireOneShot'>
+  providerWorkCoordinator?: Pick<AlicizationMainGatewayWorkCoordinator, 'acquireOneShot' | 'signal' | 'onAvailability'>
 }
 
 function resolveOneShotTextPromptBudgetChars(source: AlicizationMainGatewaySource | null | undefined) {
@@ -448,6 +471,10 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       allowed.add('alicization-personal-activity-context')
     if (source === 'persona-evaluation')
       allowed.add('alicization-persona-evaluation-context')
+    if (source === 'execution-planning')
+      allowed.add('alicization-execution-planning-context')
+    if (source === 'screen-semantic')
+      allowed.add('alicization-native-window-localization-context')
     return allowed
   }
   function sanitizeOneShotStructuredValue(raw: unknown): unknown {
@@ -760,9 +787,10 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       agentTurn.ingestDigitalLifeArchitecture(initialOneShotDigitalLifeSpine?.architecture ?? null)
     }
 
-    const config = options.resolveMainGatewayConfig({
+    const resolvedConfig = options.resolveMainGatewayConfig({
       cardId: oneShotCardId,
     })
+    const config = resolvedConfig ? { ...resolvedConfig, ...(resolvedConfig.headers ? { headers: Object.freeze({ ...resolvedConfig.headers }) } : {}), ...(resolvedConfig.probeHeaders ? { probeHeaders: Object.freeze({ ...resolvedConfig.probeHeaders }) } : {}) } : null
     if (!config) {
       generateOptions.onFailure?.({
         reason: 'Main gateway Provider configuration is unavailable.',
@@ -912,14 +940,20 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       }, oneShotCardId)
     }
 
-    const workLease = options.providerWorkCoordinator?.acquireOneShot({
-      source: generateOptions.source,
-    }) ?? {
-      accepted: true as const,
-      lane: 'background' as const,
-      controller: new AbortController(),
-      release: () => {},
-    }
+    const admissionStartedAt = Date.now()
+    const requestedTimeoutMs = Math.max(1_000, generateOptions.timeoutMs ?? 18_000)
+    const workLease = options.providerWorkCoordinator
+      ? await acquireMainGatewayWork(options.providerWorkCoordinator, {
+          source: generateOptions.source,
+          waitMs: generateOptions.waitForProviderAvailability ? Math.min(5000, requestedTimeoutMs - 1000) : 0,
+          signal: generateOptions.abortSignal,
+        })
+      : {
+          accepted: true as const,
+          lane: 'background' as const,
+          controller: new AbortController(),
+          release: () => {},
+        }
     if (!workLease.accepted) {
       if (generateOptions.source === 'memory-quality-trial') {
         generateOptions.onFailure?.({
@@ -947,6 +981,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
 
     const controller = workLease.controller
     let workOutcome: 'success' | 'failure' | 'cancelled' = 'cancelled'
+    let providerDispatched = false
     const forwardExternalAbort = () => {
       if (!controller.signal.aborted) {
         controller.abort(
@@ -959,7 +994,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       forwardExternalAbort()
     else
       generateOptions.abortSignal?.addEventListener('abort', forwardExternalAbort, { once: true })
-    const timeoutMs = Math.max(1_000, generateOptions.timeoutMs ?? 18_000)
+    const timeoutMs = Math.max(1_000, requestedTimeoutMs - (generateOptions.waitForProviderAvailability ? Date.now() - admissionStartedAt : 0))
     const providerRetryDeadlineAt = resolveAlicizationProviderRetryDeadline(({
       deadlineAt: generateOptions.providerRetryPolicy?.deadlineAt,
       baseDelayMs: generateOptions.providerRetryPolicy?.baseDelayMs,
@@ -977,6 +1012,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
         }, Math.max(1_000, providerRetryDeadlineAt - Date.now()))
 
     try {
+      controller.signal.throwIfAborted()
+      controller.signal.throwIfAborted()
       const runGeneration = async () => {
         const generationStartedAt = Date.now()
         let retryCount = 0
@@ -1015,6 +1052,11 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
 
             try {
               const providerSignal = attemptController.signal
+              // Revalidate each actual transmission, including retries. A
+              // queued or retried image must retain its approved destination.
+              await generateOptions.beforeProviderRequest?.(describeMainGatewayRequestTarget(config))
+              providerSignal.throwIfAborted()
+              providerDispatched = true
               const providerPromise = generateText({
                 ...withProviderFetch(config.provider.chat(config.model)),
                 maxSteps: 1,
@@ -1045,7 +1087,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
               maxRetries: retry.maxRetries,
               status: retry.status,
               delayMs: retry.delayMs,
-              reason: retry.reason,
+              reason: sanitizeOneShotProviderError(retry.reason, oneShotSensitiveMessageValues(generationMessages)),
             })
           },
           onRetryStarted: async (retry) => {
@@ -1059,7 +1101,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
               maxRetries: retry.maxRetries,
               status: retry.status,
               delayMs: retry.delayMs,
-              reason: retry.reason,
+              reason: sanitizeOneShotProviderError(retry.reason, oneShotSensitiveMessageValues(generationMessages)),
             })
           },
           onRetryExhausted: async (retry) => {
@@ -1130,9 +1172,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
               : 'one-shot completed with empty response',
             summarizeError: error => sanitizeBriefText(sanitizeOneShotProviderError(
               error,
-              generationMessages.flatMap(message =>
-                typeof message.content === 'string' ? [message.content] : [],
-              ),
+              oneShotSensitiveMessageValues(generationMessages),
             ), 160),
           })
         : await runGeneration()
@@ -1154,11 +1194,9 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     catch (error) {
       const reason = sanitizeOneShotProviderError(
         error,
-        generationMessages.flatMap(message =>
-          typeof message.content === 'string' ? [message.content] : [],
-        ),
+        oneShotSensitiveMessageValues(generationMessages),
       )
-      if (generateOptions.abortSignal?.aborted) {
+      if (generateOptions.abortSignal?.aborted || isMainGatewayWorkShutdown(controller.signal)) {
         await options.appendRuntimeDebugLine('main-gateway.one-shot-aborted', {
           cardId: oneShotCardId,
           source: generateOptions.source,
@@ -1188,6 +1226,14 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
           gatewaySourceRegistered: gatewayAuditDescriptor.registered,
           lane: workLease.lane,
           reason: mainGatewayForegroundPreemptionReason,
+        })
+        return null
+      }
+      if (!providerDispatched) {
+        await options.appendRuntimeDebugLine('main-gateway.one-shot-admission-failed', {
+          cardId: oneShotCardId,
+          source: generateOptions.source,
+          reason,
         })
         return null
       }

@@ -2,6 +2,7 @@
 /* eslint-disable unicorn/prefer-dom-node-text-content -- Assert rendered product text rather than hidden content. */
 const assert = require('node:assert/strict')
 const { Buffer } = require('node:buffer')
+const { execFileSync } = require('node:child_process')
 const { createHash } = require('node:crypto')
 const fs = require('node:fs/promises')
 const { createServer } = require('node:net')
@@ -9,26 +10,426 @@ const os = require('node:os')
 const path = require('node:path')
 const process = require('node:process')
 
+const backgroundQaSurface = process.env.LIFE_QA_PRIVATE_DESKTOP || process.env.LIFE_QA_HOST_VIEWPORT === '1'
+
 const { _electron } = require('playwright')
 
-const { closePrivateRuntime, launchOptions, packageIdentity, registerPrivateRuntime } = require('./electron-launch.cjs')
+const { prepareAtomicRequirementsProductChecks } = require('./atomic-requirements-product-checks.cjs')
+const { runAuthorizedBrowserProductChecks } = require('./authorized-browser-product-checks.cjs')
+const { runBrowserProcedureProductChecks } = require('./browser-procedure-product-checks.cjs')
+const { runBusinessFormProductChecks } = require('./business-form-product-checks.cjs')
+const { runDownloadGoalProductChecks } = require('./download-goal-product-checks.cjs')
+const { runDownloadRecoveryProductChecks } = require('./download-recovery-product-checks.cjs')
+const { runElectronKeyboardProductChecks } = require('./electron-keyboard-product-checks.cjs')
+const { closePrivateRuntime, launchOptions, nativeRuntimeProcess, packageIdentity, registerPrivateRuntime } = require('./electron-launch.cjs')
+const { runExecutionStorageProductChecks } = require('./execution-storage-product-checks.cjs')
+const { runExecutionVerifiersProductChecks } = require('./execution-verifiers-product-checks.cjs')
+const { runExecutionRepairProductChecks, runExecutionWorkProductChecks } = require('./execution-work-product-checks.cjs')
+const { inspectFileRecoveryAfterShutdown, runFileRecoveryProductChecks } = require('./file-recovery-product-checks.cjs')
+const { runHostRecoveryProductChecks } = require('./host-recovery-product-checks.cjs')
+const { runLearnedProcedureProductChecks } = require('./learned-procedure-product-checks.cjs')
+const { runLifeBackupProductChecks } = require('./life-backup-product-checks.cjs')
 const { startSpeechQa } = require('./life-current-speech-qa.cjs')
+const { runLifeHistoryProductChecks } = require('./life-history-product-checks.cjs')
+const { runLive2DDialogueCoherenceChecks } = require('./live2d-dialogue-coherence-checks.cjs')
 const { observeLive2DExpression, readLive2DExpression, sampleLive2DSpeech } = require('./live2d-expression-observer.cjs')
 const { runLive2DProductChecks, sampleLive2D } = require('./live2d-product-checks.cjs')
+const { runLive2DTextDialogueChecks } = require('./live2d-text-dialogue-checks.cjs')
+const { inspectLocalMutationAfterShutdown, runLocalMutationProductChecks } = require('./local-mutation-product-checks.cjs')
+const { inspectLocalSearchAfterShutdown, runLocalSearchProductChecks } = require('./local-search-product-checks.cjs')
+const { runLongWorkProductChecks } = require('./long-work-product-checks.cjs')
+const { runMultiPageProcedureProductChecks } = require('./multi-page-procedure-product-checks.cjs')
+const ownedNativeCapture = require('./native-capture-observer.cjs')
+const { observeNativeDownloads, readNativeDownloads } = require('./native-download-observer.cjs')
+const { runNativeMethodProductChecks } = require('./native-method-product-checks.cjs')
+const { observeProviderTransport, releaseProviderTransportObservation } = require('./provider-transport-observer.cjs')
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
+async function inspectAuthorizedBrowserAfterShutdown({ report, profile, root, check, redact }) {
+  if (process.env.LIFE_PRODUCT_AUTHORIZED_BROWSER !== '1')
+    return
+  try {
+    assert.ok(report.shutdown.completed && report.shutdown.exitCode === 0)
+    if (process.env.LIFE_PRODUCT_BUSINESS_FORM === '1') {
+      execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'business-form-inspection.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+      report.businessFormInspection = JSON.parse(await fs.readFile(path.join(root, 'business-form-after-shutdown.json'), 'utf8'))
+      check('Read-only inspection binds three iframe/select/upload/service/export workflows to exact actual effects and bytes', report.businessFormInspection.passed)
+      return
+    }
+    execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'authorized-browser-inspection.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+    report.authorizedBrowserInspection = JSON.parse(await fs.readFile(path.join(root, 'authorized-browser-after-shutdown.json'), 'utf8'))
+    check('Read-only inspection binds three browser-only plans to real server receipts and excludes ungranted frames', report.authorizedBrowserInspection.passed)
+  }
+  catch (error) {
+    report.passed = false
+    report.failure ||= `Authorized browser inspection failed: ${redact(error.message)}`
+    process.exitCode = 1
+  }
+}
+
+async function inspectExecutionProductAfterShutdown({ report, profile, root, check, redact }) {
+  if (process.env.LIFE_PRODUCT_LOCAL_MUTATION_ONLY === '1') {
+    try { await inspectLocalMutationAfterShutdown({ report, profile, root, check }) }
+    catch (error) { report.passed = false; report.failure ||= `Local mutation inspection failed: ${redact(error.message)}`; process.exitCode = 1 }
+  }
+  if (process.env.LIFE_PRODUCT_LOCAL_SEARCH_ONLY === '1') {
+    try { await inspectLocalSearchAfterShutdown({ report, profile, root, check }) }
+    catch (error) { report.passed = false; report.failure ||= `Local search inspection failed: ${redact(error.message)}`; process.exitCode = 1 }
+  }
+  if (process.env.LIFE_PRODUCT_LONG_WORK === '1' && report.longWorkExperiences?.length === 3 && report.longWorkExperiences.every(item => item.completed)) {
+    try {
+      assert.ok(report.shutdown.completed && report.shutdown.exitCode === 0)
+      execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'long-work-inspection.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+      report.longWorkInspection = JSON.parse(await fs.readFile(path.join(root, 'long-work-after-shutdown.json'), 'utf8'))
+      check('Read-only reopen binds three complete twenty-one-step product tasks to sixty-three settled effects and six work windows', report.longWorkInspection.passed)
+    }
+    catch (error) {
+      report.passed = false
+      report.failure ||= `Long-work inspection failed: ${redact(error.message)}`
+      process.exitCode = 1
+    }
+  }
+  if (process.env.LIFE_PRODUCT_HISTORY === '1' && report.historyExperiences?.length === 3) {
+    try {
+      assert.ok(report.shutdown.completed && report.shutdown.exitCode === 0)
+      execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'life-history-inspection.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+      report.historyInspection = JSON.parse(await fs.readFile(path.join(root, 'life-history-after-shutdown.json'), 'utf8'))
+      check('Read-only inspection retains sixty-five historical responsibilities after real paginated UI browsing', report.historyInspection.passed)
+    }
+    catch (error) {
+      report.passed = false
+      report.failure ||= `History inspection failed: ${redact(error.message)}`
+      process.exitCode = 1
+    }
+  }
+  if (process.env.LIFE_PRODUCT_VERIFIERS === '1' && report.verifierExperiences?.length === 3) {
+    try {
+      assert.ok(report.shutdown.completed && report.shutdown.exitCode === 0)
+      execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'execution-verifiers-inspection.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+      report.verifierInspection = JSON.parse(await fs.readFile(path.join(root, 'execution-verifiers-after-shutdown.json'), 'utf8'))
+      check('Read-only verification confirms six atomic verifier configuration audits and final revocation', report.verifierInspection.passed)
+    }
+    catch (error) {
+      report.passed = false
+      report.failure ||= `Verifier configuration inspection failed: ${redact(error.message)}`
+      process.exitCode = 1
+    }
+  }
+  if (process.env.LIFE_PRODUCT_NATIVE_KEYS === '1') {
+    try {
+      assert.ok(report.shutdown.completed && report.shutdown.exitCode === 0)
+      await fs.writeFile(path.join(root, 'electron-keyboard-shutdown.json'), JSON.stringify({ profile, runtimePid: report.nativeRuntime.pid, ...report.shutdown }))
+      execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'electron-keyboard-inspection.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+      report.electronKeyboardInspection = JSON.parse(await fs.readFile(path.join(root, 'electron-keyboard-after-shutdown.json'), 'utf8'))
+      check('Read-only reopen binds three actual Electron approvals, native effects and original saved Unicode artifacts', report.electronKeyboardInspection.passed)
+    }
+    catch (error) {
+      report.passed = false
+      report.failure ||= `Electron native keyboard inspection failed: ${redact(error.message)}`
+      process.exitCode = 1
+    }
+  }
+  if (process.env.LIFE_PRODUCT_FILE_RECOVERY_DIAGNOSTIC === '1') {
+    try { await inspectFileRecoveryAfterShutdown({ report, profile, root, check }) }
+    catch (error) { report.passed = false; report.failure ||= `File recovery inspection failed: ${redact(error.message)}`; process.exitCode = 1 }
+  }
+  if (process.env.LIFE_PRODUCT_DOWNLOAD_RECOVERY === '1') {
+    try {
+      assert.ok(report.shutdown.completed && report.shutdown.exitCode === 0)
+      execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'download-recovery-fixture.ts'), profile, root, '--verify'], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+      report.downloadRecoveryInspection = JSON.parse(await fs.readFile(path.join(root, 'download-recovery-after-shutdown.json'), 'utf8'))
+      check('Read-only reopen preserves native host release without upgrading partial bytes to success', report.downloadRecoveryInspection.passed)
+    }
+    catch (error) {
+      report.passed = false
+      report.failure ||= `Native download recovery inspection failed: ${redact(error.message)}`
+      process.exitCode = 1
+    }
+  }
+  if (process.env.LIFE_PRODUCT_EXECUTION_DOWNLOAD === '1') {
+    try {
+      assert.ok(report.shutdown.completed && report.shutdown.exitCode === 0)
+      execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'download-goal-inspection.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+      report.downloadGoalInspection = JSON.parse(await fs.readFile(path.join(root, 'download-goals-after-shutdown.json'), 'utf8'))
+      check('Read-only inspection confirms three actual download artifacts and their current accepted contracts', report.downloadGoalInspection.passed)
+    }
+    catch (error) {
+      report.passed = false
+      report.failure ||= `Download goal inspection failed: ${redact(error.message)}`
+      process.exitCode = 1
+    }
+  }
+  if (process.env.LIFE_PRODUCT_LEARNED_PROCEDURE === '1') {
+    try {
+      assert.ok(report.shutdown.completed && report.shutdown.exitCode === 0)
+      const browser = process.env.LIFE_PRODUCT_BROWSER_PROCEDURE === '1'
+      const multiplePages = process.env.LIFE_PRODUCT_MULTI_PAGE_PROCEDURE === '1'
+      const native = process.env.LIFE_PRODUCT_NATIVE_METHOD_ONLY === '1'
+      execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, native ? 'native-method-inspection.ts' : process.env.LIFE_PRODUCT_INTERACTIVE_FORM === '1' || process.env.LIFE_PRODUCT_UPLOAD_METHOD === '1' ? 'interactive-form-inspection.ts' : multiplePages ? 'multi-page-procedure-inspection.ts' : browser ? 'browser-procedure-inspection.ts' : 'learned-procedure-inspection.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+      report.learnedProcedureInspection = JSON.parse(await fs.readFile(path.join(root, native ? 'native-method-after-shutdown.json' : multiplePages ? 'multi-page-procedure-after-shutdown.json' : browser ? 'browser-procedure-after-shutdown.json' : 'learned-procedure-after-shutdown.json'), 'utf8'))
+      check('Read-only inspection confirms learned source binding, independent new delivery and persistent revocation', report.learnedProcedureInspection.passed)
+    }
+    catch (error) {
+      report.passed = false
+      report.failure ||= `Learned procedure inspection failed: ${redact(error.message)}`
+      process.exitCode = 1
+    }
+  }
+  await inspectAuthorizedBrowserAfterShutdown({ report, profile, root, check, redact })
+  if (process.env.LIFE_PRODUCT_EXECUTION_REPAIR === '1') {
+    try {
+      assert.ok(report.shutdown.completed && report.shutdown.exitCode === 0)
+      // The final report is written after all inspectors; persist this actual
+      // close receipt before the read-only subprocess checks it.
+      await fs.writeFile(path.join(root, 'work-repair-shutdown.json'), JSON.stringify({ profile, runtimePid: report.nativeRuntime.pid, ...report.shutdown }))
+      execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'work-repair-inspection.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+      report.executionRepairInspection = JSON.parse(await fs.readFile(path.join(root, 'work-repair-after-shutdown.json'), 'utf8'))
+      check('Read-only inspection confirms three host step repairs, one original write and the corrected read', report.executionRepairInspection.passed)
+    }
+    catch (error) {
+      report.passed = false
+      report.executionRepairInspectionError = redact(error.message)
+      report.failure ||= `Work repair inspection failed: ${redact(error.message)}`
+      process.exitCode = 1
+    }
+  }
+  if (process.env.LIFE_PRODUCT_CRITERIA_CHANGE === '1') {
+    try {
+      assert.ok(report.shutdown.completed && report.shutdown.exitCode === 0)
+      execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'criteria-revision-inspection.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+      report.executionCriteriaInspection = JSON.parse(await fs.readFile(path.join(root, 'criteria-revision-after-shutdown.json'), 'utf8'))
+      check('Read-only inspection confirms three revised contracts, original task identities and no replayed writes', report.executionCriteriaInspection.passed)
+    }
+    catch (error) {
+      report.passed = false
+      report.failure ||= `Requirements inspection failed: ${redact(error.message)}`
+      process.exitCode = 1
+    }
+  }
+  if (process.env.LIFE_PRODUCT_HOST_RECOVERY === '1') {
+    try {
+      assert.ok(report.shutdown.completed && report.shutdown.exitCode === 0)
+      execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'host-recovery-fixture.ts'), profile, root, '--verify'], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+      report.hostRecoveryInspection = JSON.parse(await fs.readFile(path.join(root, 'host-recovery-after-shutdown.json'), 'utf8'))
+      check('Read-only inspection after normal exit preserves unknown receipts and cancelled roots', report.hostRecoveryInspection.passed)
+    }
+    catch (error) {
+      report.passed = false
+      report.failure ||= `Host recovery inspection failed: ${redact(error.message)}`
+      process.exitCode = 1
+    }
+  }
+  if (process.env.LIFE_PRODUCT_SHUTDOWN_ORDER === '1') {
+    const markers = ['[app-exit] Saving life and window state', '[app-exit] State hooks completed; stopping services', '[app-exit] Services stopped; draining file logs', '[FileLogger] File closed successfully', '[app-exit] File logs drained; closing desktop windows', '[app-exit] Desktop windows closed; exiting']
+    const positions = markers.map(marker => report.mainExitMessages.findIndex(message => message.includes(marker)))
+    const passed = positions.every((position, index) => position >= 0 && (!index || position > positions[index - 1]))
+    report.checks.push({ name: 'Shutdown saves life and drains file logs before native window teardown', passed, detail: { markers, positions } })
+    if (!passed) { report.passed = false; report.failure ||= 'Shutdown resource ordering was not observed' }
+  }
+}
+
+async function runExecutionExperience(context) {
+  if (process.env.LIFE_PRODUCT_NATIVE_METHOD_ONLY === '1') {
+    assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d' && process.env.LIFE_PRODUCT_LEARNED_PROCEDURE === '1')
+    context.report.format = 'life-native-learned-method-product-v1'
+    context.report.scope = 'actual-model-passive-native-source-evaluation-activation-three-reuses-and-revocation'
+    await runNativeMethodProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_LOCAL_MUTATION_ONLY === '1') {
+    assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    context.report.format = 'life-local-mutation-product-v1'
+    context.report.scope = 'actual-model-explicit-write-edit-patch-tools-owned-before-images-permission-and-independent-shutdown-inspection'
+    await runLocalMutationProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_LOCAL_SEARCH_ONLY === '1') {
+    assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    context.report.format = 'life-local-search-product-v1'
+    context.report.scope = 'actual-model-unknown-name-content-search-full-read-native-stop-and-unchanged-owned-files'
+    await runLocalSearchProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_BACKUP_ONLY === '1') {
+    assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    context.report.format = 'life-backup-product-v1'
+    context.report.scope = 'actual-settings-eventa-sqlite-backups-four-corrupt-manifest-cases-and-explicit-metadata-repair-with-live2d'
+    await runLifeBackupProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_BUSINESS_FORM === '1') {
+    assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d' && process.env.LIFE_PRODUCT_AUTHORIZED_BROWSER === '1')
+    context.report.format = 'life-business-form-product-v1'
+    context.report.scope = 'three-owned-authenticated-iframe-select-upload-service-receipt-and-public-token-export-workflows'
+    await runBusinessFormProductChecks(context)
+    return
+  }
+  const { report } = context
+  if (process.env.LIFE_PRODUCT_ATOMIC_REQUIREMENTS_ONLY === '1') {
+    assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    report.format = 'life-atomic-requirements-preparation-v1'
+    report.scope = 'Three actual 25-step tasks, seventeen retained writes and one host revision of seven future paths plus criteria each; paused before native restart. Completion requires the separate restart controller and read-only inspection.'
+    const source = path.join(__dirname, 'atomic-requirements-product-checks.cjs')
+    report.qaDraft = { source, sha256: createHash('sha256').update(await fs.readFile(source)).digest('hex'), productionRuntimeUnmodified: true }
+    await prepareAtomicRequirementsProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_BROWSER_PROCEDURE_ONLY === '1') {
+    assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d' && process.env.LIFE_PRODUCT_LEARNED_PROCEDURE === '1' && process.env.LIFE_PRODUCT_BROWSER_PROCEDURE === '1')
+    if (process.env.LIFE_PRODUCT_MULTI_PAGE_PROCEDURE === '1') {
+      report.format = 'life-multi-page-procedure-product-v2'
+      report.scope = 'actual-dialogue-distinct-pages-version2-evaluation-three-uses-failed-second-page-fresh-repair-and-revocation'
+      await runMultiPageProcedureProductChecks(context)
+      return
+    }
+    report.format = 'life-browser-procedure-product-v1'
+    report.scope = process.env.LIFE_PRODUCT_BROWSER_PROCEDURE_REPAIR === '1' ? 'actual-dialogue-browser-method-failure-downgrade-fresh-repaired-version-three-uses-and-revocation' : 'actual-dialogue-source-seven-case-browser-evaluation-activation-three-fresh-pages-and-revocation'
+    await runBrowserProcedureProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_LONG_WORK === '1') {
+    assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    report.format = 'life-long-work-product-v1'
+    report.scope = 'three-actual-model-ui-twenty-one-step-tasks-with-two-durable-work-windows-each'
+    await runLongWorkProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_STORAGE_ONLY === '1') {
+    assert.ok(process.env.LIFE_PRODUCT_STORAGE === '1' && backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    report.format = 'life-execution-storage-product-v1'
+    report.scope = 'three-native-cache-ui-workflows-only'
+    await runExecutionStorageProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_VERIFIERS_ONLY === '1') {
+    assert.ok(process.env.LIFE_PRODUCT_VERIFIERS === '1' && backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    report.format = 'life-execution-verifiers-product-v1'
+    report.scope = 'three-trusted-verifier-configuration-ui-workflows-only'
+    if (process.env.LIFE_PRODUCT_HISTORY === '1') {
+      report.scope = 'three-verifier-and-three-history-ui-workflows-only'
+      await runLifeHistoryProductChecks(context)
+    }
+    await runExecutionVerifiersProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_NATIVE_KEYS === '1') {
+    assert.ok(process.env.LIFE_QA_HOST_VIEWPORT === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    assert.ok(['LIFE_PRODUCT_EXECUTION_REPAIR', 'LIFE_PRODUCT_EXECUTION_DOWNLOAD', 'LIFE_PRODUCT_AUTHORIZED_BROWSER', 'LIFE_PRODUCT_HOST_RECOVERY', 'LIFE_PRODUCT_DOWNLOAD_RECOVERY', 'LIFE_PRODUCT_LEARNED_PROCEDURE', 'LIFE_PRODUCT_CRITERIA_CHANGE'].every(key => process.env[key] !== '1'))
+    report.format = 'life-owned-host-electron-keyboard-product-v1'
+    report.scope = 'three-actual-electron-keyboard-approvals-and-saved-artifacts-only'
+    await runElectronKeyboardProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_APPROVAL_DIAGNOSTIC === '1') {
+    assert.ok(process.env.LIFE_QA_PRIVATE_DESKTOP && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    assert.ok(['LIFE_PRODUCT_FILE_RECOVERY_DIAGNOSTIC', 'LIFE_PRODUCT_DOWNLOAD_DIAGNOSTIC', 'LIFE_PRODUCT_AUTHORIZED_BROWSER', 'LIFE_PRODUCT_HOST_RECOVERY', 'LIFE_PRODUCT_LEARNED_PROCEDURE', 'LIFE_PRODUCT_CRITERIA_CHANGE', 'LIFE_PRODUCT_EXECUTION_DOWNLOAD', 'LIFE_PRODUCT_DOWNLOAD_RECOVERY'].every(key => process.env[key] !== '1'))
+    report.format = 'life-live2d-approval-product-diagnostic-v1'
+    report.scope = 'three-actual-work-approval-and-body-workflows-only-diagnostic'
+    for (let repetition = 0; repetition < 3; repetition++)
+      await runExecutionWorkProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_FILE_RECOVERY_DIAGNOSTIC === '1') {
+    assert.ok(process.env.LIFE_QA_PRIVATE_DESKTOP && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    assert.ok(['LIFE_PRODUCT_AUTHORIZED_BROWSER', 'LIFE_PRODUCT_HOST_RECOVERY', 'LIFE_PRODUCT_LEARNED_PROCEDURE', 'LIFE_PRODUCT_CRITERIA_CHANGE', 'LIFE_PRODUCT_EXECUTION_DOWNLOAD', 'LIFE_PRODUCT_DOWNLOAD_RECOVERY'].every(key => process.env[key] !== '1'))
+    report.format = 'life-file-recovery-product-diagnostic-v1'
+    report.scope = 'three-file-version-host-confirmation-workflows-only-diagnostic'
+    await runFileRecoveryProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_DOWNLOAD_DIAGNOSTIC === '1') {
+    assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d' && process.env.LIFE_PRODUCT_EXECUTION_DOWNLOAD === '1')
+    assert.ok(['LIFE_PRODUCT_AUTHORIZED_BROWSER', 'LIFE_PRODUCT_HOST_RECOVERY', 'LIFE_PRODUCT_LEARNED_PROCEDURE', 'LIFE_PRODUCT_CRITERIA_CHANGE', 'LIFE_PRODUCT_DOWNLOAD_RECOVERY'].every(key => process.env[key] !== '1'))
+    report.format = 'life-native-download-product-diagnostic-v1'
+    report.scope = 'three-native-download-closure-workflows-only-diagnostic'
+    await runDownloadGoalProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_CRITERIA_DIAGNOSTIC === '1') {
+    assert.ok(process.env.LIFE_PRODUCT_CRITERIA_CHANGE === '1' && process.env.LIFE_PRODUCT_AUTHORIZED_BROWSER !== '1' && process.env.LIFE_PRODUCT_HOST_RECOVERY !== '1' && process.env.LIFE_PRODUCT_LEARNED_PROCEDURE !== '1' && process.env.LIFE_PRODUCT_BROWSER_DIAGNOSTIC !== '1')
+    report.format = 'life-criteria-change-product-diagnostic-v1'
+    report.scope = 'three-host-criteria-change-workflows-only-diagnostic'
+    for (let repetition = 0; repetition < 3; repetition++)
+      await runExecutionRepairProductChecks({ ...context, reviseCriteria: true })
+    return
+  }
+  if (process.env.LIFE_PRODUCT_BROWSER_DIAGNOSTIC === '1') {
+    assert.ok(process.env.LIFE_PRODUCT_AUTHORIZED_BROWSER === '1' && process.env.LIFE_PRODUCT_HOST_RECOVERY !== '1' && process.env.LIFE_PRODUCT_LEARNED_PROCEDURE !== '1' && process.env.LIFE_PRODUCT_CRITERIA_CHANGE !== '1')
+    report.format = 'life-selected-browser-product-diagnostic-v1'
+    report.scope = 'three-selected-browser-workflows-only-diagnostic'
+    await runAuthorizedBrowserProductChecks(context)
+    return
+  }
+  report.scope = 'execution-work-product-experience'
+  if (process.env.LIFE_PRODUCT_STORAGE === '1')
+    await runExecutionStorageProductChecks(context)
+  if (process.env.LIFE_PRODUCT_HISTORY === '1')
+    await runLifeHistoryProductChecks(context)
+  if (process.env.LIFE_PRODUCT_VERIFIERS === '1')
+    await runExecutionVerifiersProductChecks(context)
+  if (process.env.LIFE_PRODUCT_DOWNLOAD_RECOVERY === '1')
+    await runDownloadRecoveryProductChecks(context)
+  if (process.env.LIFE_PRODUCT_HOST_RECOVERY === '1')
+    await runHostRecoveryProductChecks(context)
+  for (let repetition = 0; repetition < 3; repetition++) {
+    await runExecutionWorkProductChecks(context)
+    if (process.env.LIFE_PRODUCT_EXECUTION_REPAIR === '1')
+      await runExecutionRepairProductChecks(context)
+    if (process.env.LIFE_PRODUCT_CRITERIA_CHANGE === '1')
+      await runExecutionRepairProductChecks({ ...context, reviseCriteria: true })
+  }
+  if (process.env.LIFE_PRODUCT_EXECUTION_DOWNLOAD === '1')
+    await runDownloadGoalProductChecks(context)
+  if (process.env.LIFE_PRODUCT_LEARNED_PROCEDURE === '1') {
+    if (process.env.LIFE_PRODUCT_BROWSER_PROCEDURE === '1')
+      await runBrowserProcedureProductChecks(context)
+    else
+      await runLearnedProcedureProductChecks(context)
+  }
+  if (process.env.LIFE_PRODUCT_AUTHORIZED_BROWSER === '1')
+    await runAuthorizedBrowserProductChecks(context)
+}
+
 async function main() {
   const root = path.resolve(process.env.LIFE_PRODUCT_REGRESSION_ROOT || 'output/product-regression-20261014')
   assert.ok(root.startsWith(`${path.resolve('output')}${path.sep}`))
   await fs.mkdir(root, { recursive: true })
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'alicization-life-product-regression-'))
-  const identity = await packageIdentity() || { compiledMainSha256: createHash('sha256').update(await fs.readFile('apps/stage-tamagotchi/out/main/index.js')).digest('hex'), scope: 'compiled-development-runtime' }
+  const targetProject = path.resolve(process.env.LIFE_QA_PROJECT_ROOT || process.cwd())
+  const package_ = await packageIdentity()
+  const identity = { ...package_, ...(process.env.LIFE_QA_HOST_VIEWPORT === '1' || !package_ ? { compiledMainSha256: createHash('sha256').update(await fs.readFile(path.join(targetProject, 'apps/stage-tamagotchi/out/main/index.js'))).digest('hex') } : {}), ...(!package_ ? { scope: 'compiled-development-runtime' } : {}) }
   const configuration = JSON.parse(await fs.readFile(path.join(process.env.APPDATA, 'com.tohoqing.alicization/alicizations/llm-config.json'), 'utf8'))
   const selected = configuration.providerCredentials[configuration.activeProviderId]
   assert.ok(['openai-compatible', 'openai'].includes(configuration.activeProviderId))
   const secret = selected.apiKey
   const redact = value => String(value).replaceAll(secret, '[redacted]')
   const fastExpression = process.env.LIFE_PRODUCT_FAST_EXPRESSION === '1'
+  const workOnly = process.env.LIFE_PRODUCT_WORK_ONLY === '1'
+  if (workOnly) {
+    if (process.env.LIFE_PRODUCT_NATIVE_METHOD_ONLY === '1')
+      assert.ok(!fastExpression && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_LEARNED_PROCEDURE === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    else if (process.env.LIFE_PRODUCT_LOCAL_SEARCH_ONLY === '1' || process.env.LIFE_PRODUCT_LOCAL_MUTATION_ONLY === '1')
+      assert.ok(!fastExpression && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    else if (process.env.LIFE_PRODUCT_BACKUP_ONLY === '1')
+      assert.ok(!fastExpression && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    else if (process.env.LIFE_PRODUCT_BUSINESS_FORM === '1')
+      assert.ok(!fastExpression && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_AUTHORIZED_BROWSER === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d', 'Business-form acceptance requires its explicit actual model/UI browser and export scope')
+    else if (process.env.LIFE_PRODUCT_DOWNLOAD_DIAGNOSTIC === '1')
+      assert.ok(!fastExpression && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_EXECUTION_DOWNLOAD === '1' && process.env.LIFE_PRODUCT_NATIVE_DOWNLOAD_OBSERVE === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d', 'Native download diagnostics require real isolated model/UI workflows and forwarded native event observation')
+    else if (process.env.LIFE_PRODUCT_ATOMIC_REQUIREMENTS_ONLY === '1')
+      assert.ok(!fastExpression && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    else if (process.env.LIFE_PRODUCT_LONG_WORK === '1')
+      assert.ok(!fastExpression && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    else if (process.env.LIFE_PRODUCT_STORAGE_ONLY === '1')
+      assert.ok(!fastExpression && process.env.LIFE_PRODUCT_STORAGE === '1' && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d', 'Storage-only acceptance requires the actual owned Live2D surface')
+    else if (process.env.LIFE_PRODUCT_VERIFIERS_ONLY === '1')
+      assert.ok(!fastExpression && process.env.LIFE_PRODUCT_VERIFIERS === '1' && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d', 'Verifier-only acceptance requires a real owned Live2D surface')
+    else if (process.env.LIFE_PRODUCT_BROWSER_PROCEDURE_ONLY === '1')
+      assert.ok(!fastExpression && process.env.LIFE_PRODUCT_LEARNED_PROCEDURE === '1' && process.env.LIFE_PRODUCT_BROWSER_PROCEDURE === '1' && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d', 'Browser method acceptance requires its explicit real product scope')
+    else
+      assert.ok(!fastExpression && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && (process.env.LIFE_PRODUCT_EXECUTION_REPAIR === '1' || process.env.LIFE_PRODUCT_NATIVE_KEYS === '1') && process.env.LIFE_PRODUCT_RENDERER === 'live2d', 'Work-only acceptance requires complete three-run repair checks or the explicitly scoped native keyboard experience')
+  }
+  const textDialogue = process.env.LIFE_PRODUCT_TEXT_DIALOGUE === '1'
   const report = { format: fastExpression ? 'life-live2d-expression-diagnostic-v1' : 'life-product-regression-v1', syntheticIdentity: true, profile, ...identity, privateDesktop: process.env.LIFE_QA_PRIVATE_DESKTOP, startedAt: new Date().toISOString(), checks: [], pages: [], errors: [], passed: false }
   const live2dOnly = process.env.LIFE_PRODUCT_RENDERER === 'live2d'
   report.rendererFocus = live2dOnly ? 'live2d' : 'both'
@@ -38,13 +439,46 @@ async function main() {
     server.listen(0, '127.0.0.1', () => { const port = server.address().port; server.close(() => resolve(port)) })
   })
   const options = launchOptions(profile)
+  if (process.env.LIFE_PRODUCT_LONG_WORK === '1') {
+    // Keep this offscreen QA renderer active; native occlusion is separate from
+    // timer throttling and is excluded from this functional acceptance scope.
+    report.backgroundSchedulerFlags = ['--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-features=CalculateNativeWinOcclusion']
+    options.args.push(...report.backgroundSchedulerFlags)
+  }
   options.env.PORT = String(port)
   // Keep the initial default channel from reaching an unrelated local instance.
   options.args.push('--host-resolver-rules=MAP localhost ~NOTFOUND')
+  if (process.env.LIFE_PRODUCT_FILE_RECOVERY_DIAGNOSTIC === '1') {
+    assert.match(process.env.LIFE_QA_PRIVATE_DESKTOP || '', /^AlicizationQA_[a-f\d]{32}$/u)
+    const bundle = path.resolve(process.env.LIFE_PROBE_BUNDLE || '')
+    assert.ok(bundle.startsWith(`${path.resolve('output')}${path.sep}`) && bundle.endsWith('.cjs'))
+    execFileSync(require('electron'), [bundle], { cwd: process.cwd(), windowsHide: true, timeout: 90000, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, LIFE_FILE_RECOVERY_PHASE: 'ui-seed', LIFE_FILE_RECOVERY_PROFILE: profile, LIFE_FILE_RECOVERY_PROBE_ROOT: root } })
+    report.fileRecoveryFixture = { source: 'actual-adapter-and-DPAPI-capture-in-prior-Electron-process', writerClosedBeforeLaunch: true }
+  }
+  if (process.env.LIFE_PRODUCT_HOST_RECOVERY === '1') {
+    assert.ok(backgroundQaSurface, 'Recovery product fixtures require an owned background QA surface')
+    execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'host-recovery-fixture.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+    report.hostRecoveryFixture = { source: 'synthetic-legacy-history-before-app-launch', writerClosedBeforeLaunch: true }
+  }
+  if (process.env.LIFE_PRODUCT_DOWNLOAD_RECOVERY === '1') {
+    assert.ok(backgroundQaSurface && !process.env.LIFE_PRODUCT_BROWSER_DIAGNOSTIC && !process.env.LIFE_PRODUCT_CRITERIA_DIAGNOSTIC)
+    execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'download-recovery-fixture.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+    report.downloadRecoveryFixture = { source: 'synthetic-native-restart-journal-before-app-launch', writerClosedBeforeLaunch: true, nativeExecutionClaimed: false }
+  }
+  if (process.env.LIFE_PRODUCT_HISTORY === '1') {
+    assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'life-history-fixture.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+    report.historyFixture = { source: 'synthetic-terminal-responsibilities-before-app-launch', writerClosedBeforeLaunch: true }
+  }
   const app = await _electron.launch(options)
+  const launcherProcess = app.process()
+  let nativeProcess = launcherProcess
   let voice
   let expressionStage
   report.mainExitMessages = []
+  report.nativeProcessEvents = []
+  launcherProcess.on('exit', (code, signal) => report.nativeProcessEvents.push({ event: 'launcher-exit', pid: launcherProcess.pid, at: Date.now(), code, signal }))
+  app.on('close', () => report.nativeProcessEvents.push({ event: 'application-closed', at: Date.now() }))
   app.on('console', (message) => {
     const text = message.text()
     if (/\[FileLogger\]|\[app-exit\]/.test(text))
@@ -69,20 +503,94 @@ async function main() {
         for (let index = 0; index < repetitions; index++) node.click()
         return true
       }, repetitions, { timeout: 10000 })
-      if (clicked) { await wait(400); return }
+      if (clicked) {
+        await wait(400)
+        return
+      }
       await wait(100)
     }
     throw new Error(`UI control did not become available: ${locator}`)
   }
+  const captureNativeImage = async (page) => {
+    report.nativeCaptureTrace = { name: report.activeCaptureName, phase: 'owned-native-value-capture', url: page.url(), at: Date.now() }
+    const observed = (await ownedNativeCapture.read(app, page.url(), true)).image
+    assert.ok(observed.size.width > 0 && observed.size.height > 0 && !observed.focusable && !observed.focused)
+    return observed
+  }
   const capture = async (page, name) => {
+    report.activeCaptureName = name
+    report.nativeCaptureTrace = { name, phase: 'initial-viewport', url: page.url(), at: Date.now() }
+    if (process.env.LIFE_QA_HOST_VIEWPORT === '1') {
+      const viewport = (await ownedNativeCapture.read(app, page.url())).viewport
+      assert.ok(viewport.windows.length > 0)
+      report.hostViewportObservations ||= []
+      report.hostViewportObservations.push({ name, ...viewport })
+      assert.ok(viewport.windows.every(window => !window.focusable && !window.focused && viewport.displays.every(display => window.bounds.x >= display.x + display.width || window.bounds.x + window.bounds.width <= display.x || window.bounds.y >= display.y + display.height || window.bounds.y + window.bounds.height <= display.y)), 'Actual owned QA windows remain outside all displays without focus')
+    }
     const readyStartedAt = Date.now()
     // A native window can expose its final URL before its first Vue document is
     // mounted. Wait for that document instead of racing the default body timeout.
-    await page.waitForFunction(() => document.readyState !== 'loading' && document.body && document.querySelector('#app')?.__vue_app__, undefined, { timeout: 30000 })
+    // Query current native metadata in one main-process call instead of
+    // retaining an evaluation handle across renderer lifecycle changes.
+    const nativeBefore = process.env.LIFE_QA_HOST_VIEWPORT === '1'
+      ? (await ownedNativeCapture.read(app, page.url())).nativeBefore
+      : await app.evaluate(({ BrowserWindow }, expectedUrl) => {
+          const matches = BrowserWindow.getAllWindows().filter(window => !window.isDestroyed() && window.webContents.getURL() === expectedUrl)
+          if (matches.length !== 1)
+            throw new Error('Native capture must have one exact current page owner')
+          const window = matches[0]
+          return { nativeWindowId: window.id, observedAt: Date.now(), url: window.webContents.getURL(), loading: window.webContents.isLoading(), loadingMainFrame: window.webContents.isLoadingMainFrame(), backgroundThrottling: window.webContents.getBackgroundThrottling(), visible: window.isVisible(), focusable: window.isFocusable(), focused: window.isFocused() }
+        }, page.url())
+    const mount = { name, nativeBefore, polls: 0, first: null, last: null }
+    report.documentMountObservations ||= []
+    report.documentMountObservations.push(mount)
+    while (true) {
+      const remaining = 30000 - (Date.now() - readyStartedAt)
+      if (remaining <= 0)
+        throw new Error(`Actual QA document did not mount within 30000ms: ${JSON.stringify(mount.last)}`)
+      let timer
+      let state
+      try {
+        state = await Promise.race([
+          page.evaluate(() => ({ readyState: document.readyState, hasBody: Boolean(document.body), mounted: Boolean(document.querySelector('#app')?.__vue_app__) })),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Actual QA document evaluation exceeded its 30000ms mount budget')), remaining) }),
+        ])
+      }
+      finally { clearTimeout(timer) }
+      mount.first ||= state
+      mount.last = state
+      mount.polls++
+      if (state.readyState !== 'loading' && state.hasBody && state.mounted)
+        break
+      if (Date.now() - readyStartedAt >= 30000)
+        throw new Error(`Actual QA document did not mount within 30000ms: ${JSON.stringify(state)}`)
+      await wait(100)
+    }
+    if (page.url().includes('#/settings')) {
+      await page.waitForFunction(() => {
+        let heading = document.querySelector('h1')
+        for (let depth = 0; heading && depth < 5; depth++, heading = heading.parentElement) {
+          if (Number(getComputedStyle(heading).opacity) < 0.99)
+            return false
+        }
+        return true
+      }, undefined, { polling: 100, timeout: 5000 })
+    }
     const documentReadyMs = Date.now() - readyStartedAt
     const text = redact(await page.locator('body').innerText())
     const screenshot = path.join(root, `${String(report.pages.length).padStart(3, '0')}-${name}.png`)
-    await page.screenshot({ path: screenshot, timeout: 8000 })
+    let captureObservation = { backend: 'playwright-cdp' }
+    if (process.env.LIFE_QA_HOST_VIEWPORT === '1') {
+      const observed = await captureNativeImage(page)
+      const png = Buffer.from(observed.png, 'base64')
+      assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a')
+      await fs.writeFile(screenshot, png, { flag: 'wx' })
+      const { png: _png, ...metadata } = observed
+      captureObservation = { backend: 'electron-native-page', stayHidden: true, stayAwake: true, ...metadata }
+    }
+    else {
+      await page.screenshot({ path: screenshot, timeout: 8000 })
+    }
     const dimensions = await page.evaluate(() => ({ width: innerWidth, documentWidth: document.documentElement.scrollWidth }))
     const fields = await page.locator('textarea,input').evaluateAll(nodes => nodes.flatMap(node => [node.getAttribute('placeholder') || '', node.tagName === 'TEXTAREA' ? node.value : '']))
     const rawKeys = [...new Set([text, ...fields].join('\n').match(/settings\.[\w.-]+|about\.[\w.-]+|inlay\.[\w.-]+|(?<!stage\.)memory-workbench\.[\w.-]+/g) || [])]
@@ -92,14 +600,21 @@ async function main() {
     })
     const navigationControls = await page.locator('button').evaluateAll(nodes => nodes.filter(node => node.querySelector('[class*=arrow]') || node.getAttribute('aria-label')).map(node => ({ text: node.textContent.trim().slice(0, 80), label: node.getAttribute('aria-label'), title: node.getAttribute('title'), hidden: node.closest('[inert],[aria-hidden=true]')?.outerHTML.slice(0, 180) ?? null })))
     if (live2dOnly && renderer?.renderer)
-      check(`Live2D renderer remains active at ${name}`, renderer.renderer === 'live2d', renderer)
-    report.pages.push({ name, url: page.url(), text, screenshot, dimensions, rawKeys, renderer, navigationControls, documentReadyMs })
+      check(`Live2D is the selected renderer at ${name}`, renderer.renderer === 'live2d', renderer)
+    report.pages.push({ name, url: page.url(), text, screenshot, captureObservation, dimensions, rawKeys, renderer, navigationControls, documentReadyMs })
     await save()
   }
   report.rendererConsoleErrors = []
+  report.pageLifecycle = []
   const observe = (page) => {
     page.setDefaultTimeout(10000)
     page.setDefaultNavigationTimeout(15000)
+    const record = (event) => {
+      if (report.pageLifecycle.length < 100)
+        report.pageLifecycle.push({ event, at: Date.now(), role: page.url().startsWith('file:') ? page.url().split('#')[1]?.split('?')[0] ?? 'app' : 'other' })
+    }
+    page.on('close', () => record('page-closed'))
+    page.on('crash', () => record('page-crashed'))
     page.on('pageerror', error => report.errors.push({ message: redact(error.message), stack: redact(error.stack), url: page.url() }))
     page.on('console', (message) => {
       if (message.type() === 'error')
@@ -110,6 +625,33 @@ async function main() {
   app.windows().forEach(observe)
   try {
     report.nativeRuntime = await registerPrivateRuntime(app)
+    if (process.env.LIFE_QA_HOST_VIEWPORT === '1')
+      report.nativeObservationTransport = await ownedNativeCapture.open(app, report.nativeRuntime)
+    if (process.env.LIFE_PRODUCT_NATIVE_DOWNLOAD_OBSERVE === '1')
+      report.nativeDownloadObservation = await observeNativeDownloads(app)
+    nativeProcess = nativeRuntimeProcess(app)
+    nativeProcess.on('exit', (code, signal) => report.nativeProcessEvents.push({ event: 'native-exit', pid: nativeProcess.pid, at: Date.now(), code, signal }))
+    assert.equal(await fs.realpath(report.nativeRuntime.profile), await fs.realpath(profile), 'The actual app must own this exact synthetic profile')
+    if (process.env.LIFE_QA_HOST_VIEWPORT === '1') {
+      assert.equal(report.nativeRuntime.hostViewport.actualMainSha256, report.compiledMainSha256)
+      report.hostViewportScope = report.nativeRuntime.hostViewport.scope
+    }
+    if (process.env.LIFE_PRODUCT_LONG_WORK === '1') {
+      report.backgroundFramePolicy = await app.evaluate(({ app, BrowserWindow }) => {
+        const windows = []
+        const configure = (window) => {
+          if (window.isDestroyed())
+            return
+          const before = window.webContents.getBackgroundThrottling()
+          window.webContents.setBackgroundThrottling(false)
+          windows.push({ id: window.id, before, after: window.webContents.getBackgroundThrottling() })
+        }
+        BrowserWindow.getAllWindows().forEach(configure)
+        app.on('browser-window-created', (_event, window) => configure(window))
+        return { mode: 'QA-visible-frame-pacing-for-owned-background-windows', scope: 'Only this synthetic runtime; offscreen animation pacing is maintained without foreground focus. OS visibility/throttling behavior is excluded.', windows }
+      })
+    }
+    await observeProviderTransport(app, selected.baseUrl)
     report.channelFixture = { port, url: `ws://127.0.0.1:${port}/ws`, scope: 'Only synthetic QA network preferences; no life state is injected.' }
     await app.context().addInitScript((url) => {
       if (location.protocol === 'file:')
@@ -129,6 +671,12 @@ async function main() {
         break; await wait(250)
     }
     assert.ok(onboarding)
+    if (process.env.LIFE_PRODUCT_LONG_WORK === '1') {
+      // The real accessibility preference skips onboarding CSS/out-in waiting.
+      // Its animation timing remains outside this background functional scope.
+      await onboarding.emulateMedia({ reducedMotion: 'reduce' })
+      report.onboardingMotionPolicy = { reducedMotion: 'reduce', scope: 'Real reduced-motion onboarding preference; animation timing and OS visibility remain separate acceptance. Live2D has its own page and clock.' }
+    }
     await app.evaluate(({ app, BrowserWindow }) => {
       const owner = BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('#/onboarding'))
       if (!owner)
@@ -156,20 +704,31 @@ async function main() {
     await personaStep('这是她最初的样子').waitFor()
     await capture(onboarding, 'persona-preview')
     await click(personaStep('这是她最初的样子').getByRole('button', { name: '确认并继续', exact: true }))
-    await onboarding.locator('input[value=ollama]').waitFor({ timeout: 30000 })
-    await click(onboarding.locator('input[value=ollama]'))
-    await click(onboarding.getByRole('button', { name: '下一步', exact: true }))
-    await onboarding.locator('input[type=text]').fill('')
-    check('Empty service URL cannot proceed', await onboarding.getByRole('button', { name: '下一步', exact: true }).isDisabled())
-    await onboarding.locator('input[type=text]').fill('http://127.0.0.1:1/v1/')
-    await click(onboarding.getByRole('button', { name: '下一步', exact: true }))
-    await onboarding.getByRole('button', { name: '重试', exact: true }).waitFor()
-    await capture(onboarding, 'connection-failure')
-    const failureText = await onboarding.locator('body').innerText()
-    check('Connection failure has Chinese recovery guidance', failureText.includes('请检查服务是否启动'))
-    check('Technical error details are collapsed', !(await onboarding.locator('details').getAttribute('open')))
-    await click(onboarding.getByRole('button', { name: '返回上一级', exact: true }))
-    await click(onboarding.locator(`input[value="${configuration.activeProviderId}"]`))
+    if (process.env.LIFE_PRODUCT_LONG_WORK !== '1') {
+      await onboarding.locator('input[value=ollama]').waitFor({ timeout: 30000 })
+      await click(onboarding.locator('input[value=ollama]'))
+      await click(onboarding.getByRole('button', { name: '下一步', exact: true }))
+      await onboarding.locator('input[type=text]').fill('')
+      check('Empty service URL cannot proceed', await onboarding.getByRole('button', { name: '下一步', exact: true }).isDisabled())
+      await onboarding.locator('input[type=text]').fill('http://127.0.0.1:1/v1/')
+      await click(onboarding.getByRole('button', { name: '下一步', exact: true }))
+      // Connectivity and model listing each have a bounded 10s production
+      // deadline. The default 10s locator wait can expire before their result.
+      await onboarding.getByRole('button', { name: '重试', exact: true }).waitFor({ timeout: 30000 })
+      await capture(onboarding, 'connection-failure')
+      const failureText = await onboarding.locator('body').innerText()
+      check('Connection failure has Chinese recovery guidance', failureText.includes('请检查服务是否启动'))
+      check('Technical error details are collapsed', !(await onboarding.locator('details').getAttribute('open')))
+      await click(onboarding.getByRole('button', { name: '返回上一级', exact: true }))
+    }
+    else {
+      report.onboardingSetupScope = 'Direct real configured-service setup for the long-work scenario; connection-failure/back-navigation acceptance is separate.'
+    }
+    await onboarding.getByRole('heading', { name: '选择服务来源', exact: true }).waitFor({ timeout: 10000 })
+    report.providerSelectionDom = await onboarding.getByRole('radio').evaluateAll(nodes => nodes.map(node => ({ value: node.value, attribute: node.getAttribute('value'), label: node.closest('label')?.textContent.trim() })))
+    const configuredProvider = onboarding.getByRole('radio', { name: configuration.activeProviderId === 'openai-compatible' ? /^OpenAI 兼容 API/u : /^OpenAI\s+OpenAi\.com$/u })
+    assert.equal(await configuredProvider.inputValue(), configuration.activeProviderId, 'The actual accessible option must still bind the configured provider ID')
+    await click(configuredProvider)
     await click(onboarding.getByRole('button', { name: '下一步', exact: true }))
     await onboarding.locator('input[type=password]').fill(secret)
     await onboarding.locator('input[type=text]').fill(selected.baseUrl)
@@ -205,6 +764,7 @@ async function main() {
     const settingsCreated = report.onboardingWindowOrder.events.findIndex(event => event.event === 'created' && event.id === report.onboardingWindowOrder.settingsId)
     const onboardingClosed = report.onboardingWindowOrder.events.findIndex(event => event.event === 'onboarding-renderer-destroyed')
     check('First-run follow-up settings opens before onboarding renderer disposal', settingsCreated >= 0 && onboardingClosed > settingsCreated, report.onboardingWindowOrder)
+    await capture(settings, 'onboarding-follow-up-settings')
     await settings.getByRole('button', { name: '返回上一级', exact: true }).waitFor({ timeout: 30000 })
     await click(settings.getByRole('button', { name: '返回上一级', exact: true }))
     await settings.waitForURL('**#/settings')
@@ -218,7 +778,7 @@ async function main() {
       await settings.waitForURL('**#/settings')
     }
     const go = async (route, name) => { await click(settings.locator(`a[href="#${route}"]`).first()); await settings.waitForURL(`**#${route}`); await wait(500); await capture(settings, name) }
-    if (!fastExpression) {
+    if (!fastExpression && !workOnly) {
       await go('/settings/modules', 'modules')
       const moduleLinks = await settings.locator('a[href^="#/settings/modules/"]').evaluateAll(nodes => nodes.map(node => node.getAttribute('href').slice(1)))
       for (const route of moduleLinks) {
@@ -359,7 +919,7 @@ async function main() {
       }
       await home()
     }
-    if (!fastExpression || process.env.LIFE_PRODUCT_FAST_WITH_WINDOWS === '1') {
+    if ((!fastExpression && !workOnly) || process.env.LIFE_PRODUCT_FAST_WITH_WINDOWS === '1') {
       for (const [prefix, route] of [['关于', '#/about'], ['打开字幕', '#/caption'], ['打开小部件', '#/widgets'], ['打开内嵌', '#/inlay']]) {
         if (process.env.LIFE_PRODUCT_AUX_FILTER && process.env.LIFE_PRODUCT_AUX_FILTER !== route)
           continue
@@ -404,10 +964,18 @@ async function main() {
       report.passed = report.checks.every(check => check.passed) && report.errors.length === 0
       return
     }
-    for (let attempt = 0; attempt < 150; attempt++) {
-      if ((await sampleLive2D(stage)).models.length)
-        break
-      await wait(200)
+    if (live2dOnly) {
+      let startup
+      let mounted = false
+      for (let attempt = 0; attempt < 150; attempt++) {
+        startup = await sampleLive2D(stage)
+        mounted = await stage.evaluate(() => document.documentElement.dataset.alicizationStageMounted === 'true')
+        if (mounted && startup.models.length === 1 && startup.models[0].drawFrame?.frame > 0)
+          break
+        await wait(200)
+      }
+      report.live2dStartup = { mounted, sample: startup, softwareGlRequested: process.env.LIFE_QA_SOFTWARE_GL === '1' }
+      check('One actual Live2D model has drawn before task and dialogue acceptance', mounted && startup.models.length === 1 && startup.models[0].drawFrame?.frame > 0, report.live2dStartup)
     }
     await click(stage.locator('button:has([i-solar\\:alt-arrow-up-line-duotone])').last())
     await click(stage.locator('button:has([i-solar\\:chat-line-line-duotone])'))
@@ -418,7 +986,17 @@ async function main() {
     }
     assert.ok(chat)
     await chat.getByRole('button', { name: '发送消息', exact: true }).waitFor({ timeout: 30000 })
-    if (live2dOnly && process.env.LIFE_PRODUCT_EXPRESSION === '1') {
+    if (process.env.LIFE_PRODUCT_EXECUTION_WORK === '1') {
+      await runExecutionExperience({ app, stage, settings, chat, root, report, capture, check, click })
+      report.passed = true
+      return
+    }
+    if (live2dOnly && textDialogue) {
+      report.expressionObservation = await observeLive2DExpression(stage)
+      const provider = await stage.evaluate(() => document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('speech').activeSpeechProvider)
+      check('Fresh text-only experience uses the normal disabled speech selection', provider === 'speech-noop', provider)
+    }
+    if (live2dOnly && process.env.LIFE_PRODUCT_EXPRESSION === '1' && !textDialogue) {
       voice = await startSpeechQa(profile, { maxRequests: 48 })
       await Promise.all(app.windows().filter(page => page.url().includes('index.html#')).map(page => page.waitForFunction(() => document.querySelector('#app')?.__vue_app__?.config.globalProperties.$pinia?._s.get('consciousness')?.runtimeConfigHydrated === true, undefined, { timeout: 30000 })))
       const bridgeAssets = path.resolve('apps/stage-tamagotchi/out/renderer/assets')
@@ -509,6 +1087,9 @@ async function main() {
       check('Chat import and reload preserve the same conversation', (await chat.locator('body').innerText()).includes('QA 产品回归'))
       await capture(chat, 'chat-import-persisted')
     }
+    if (textDialogue) {
+      await runLive2DTextDialogueChecks({ stage, chat, report, capture, check, redact })
+    }
     if (expressionStage) {
       const voiceAfterReload = await expressionStage.evaluate(() => {
         const speech = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('speech')
@@ -539,6 +1120,10 @@ async function main() {
         await chat.locator('textarea').fill(prompt)
         await click(chat.getByRole('button', { name: '发送消息', exact: true }))
         await chat.getByRole('button', { name: '发送消息', exact: true }).waitFor({ timeout: 180000 })
+        if (process.env.LIFE_PRODUCT_COHERENCE === '1') {
+          await expressionStage.waitForFunction(() => window.__live2dExpressionObservation.frames.at(-1)?.speech.active, null, { timeout: 60000 })
+          await capture(expressionStage, `live2d-speaking-${label}`)
+        }
         for (let attempt = 0; attempt < 240; attempt++) {
           const speech = await sampleLive2DSpeech(expressionStage)
           const synthesis = voice.summary()
@@ -551,6 +1136,12 @@ async function main() {
         await capture(expressionStage, `live2d-expression-${label}`)
         await capture(chat, `dialogue-${label}`)
       }
+      if (process.env.LIFE_PRODUCT_COHERENCE === '1')
+        await runLive2DDialogueCoherenceChecks({ stage: expressionStage, chat, report, capture, check, redact, root })
+      report.expressionCommands = await expressionStage.evaluate(() => {
+        const qa = window.__live2dExpressionObservation
+        return { motions: qa.motions, requests: qa.motionRequests, phaseTimes: qa.phaseTimes }
+      })
       report.expressionFrames = await readLive2DExpression(expressionStage)
       report.speechFixture = voice.summary()
       const speaking = report.expressionFrames.filter(frame => frame.speech.active)
@@ -594,14 +1185,45 @@ async function main() {
   }
   catch (error) {
     report.failure = redact(error.message)
+    report.failureStack = redact(error.stack || error.message)
+    report.modelFailureProbes = []
     for (const [index, page] of app.windows().entries()) {
-      if (!page.isClosed() && page.url().includes('index.html#'))
+      if (!page.isClosed() && page.url().includes('index.html#')) {
         await capture(page, `failure-window-${index}`).catch(() => {})
+        const probe = await page.evaluate(async () => {
+          const pinia = document.querySelector('#app')?.__vue_app__?.config.globalProperties.$pinia
+          const store = pinia?._s.get('settings-stage-model')
+          const models = pinia?._s.get('display-models')
+          if (!store || !models)
+            return null
+          const model = await models.getDisplayModel(store.stageModelSelected)
+          const result = { selected: store.stageModelSelected, renderer: store.stageModelRenderer, mounted: document.documentElement.dataset.alicizationStageMounted, blobUrl: store.stageModelSelectedUrl?.startsWith('blob:') ? store.stageModelSelectedUrl : null, file: model?.type === 'file' ? { name: model.file.name, size: model.file.size, lastModified: model.file.lastModified } : null }
+          if (!result.file)
+            return result
+          const bounded = task => Promise.race([task, new Promise((_, reject) => setTimeout(() => reject(new Error('Model read diagnostic exceeded 2s')), 2000))])
+          try { result.fileBytes = (await bounded(model.file.arrayBuffer())).byteLength }
+          catch (failure) { result.fileError = String(failure) }
+          if (result.blobUrl) {
+            try { result.currentUrlBytes = (await bounded(fetch(result.blobUrl).then(response => response.arrayBuffer()))).byteLength }
+            catch (failure) { result.currentUrlError = String(failure) }
+          }
+          const fresh = URL.createObjectURL(model.file)
+          try { result.freshUrlBytes = (await bounded(fetch(fresh).then(response => response.arrayBuffer()))).byteLength }
+          catch (failure) { result.freshUrlError = String(failure) }
+          finally { URL.revokeObjectURL(fresh) }
+          return result
+        }).catch(failure => ({ diagnosticError: redact(failure.message) }))
+        report.modelFailureProbes.push({ url: page.url(), probe })
+      }
     }
     await save()
     throw new Error(report.failure)
   }
   finally {
+    if (process.env.LIFE_PRODUCT_NATIVE_DOWNLOAD_OBSERVE === '1')
+      report.nativeDownloads = await readNativeDownloads(app).catch(() => null)
+    report.providerTransport = await releaseProviderTransportObservation(app).catch(() => null)
+    await ownedNativeCapture.close(app)
     if (expressionStage && !expressionStage.isClosed())
       report.audioObservation = await expressionStage.evaluate(() => window.__live2dExpressionObservation?.audioEvents ?? []).catch(() => [])
     if (expressionStage && !expressionStage.isClosed())
@@ -616,29 +1238,37 @@ async function main() {
     // Remove this QA profile's credential storage only after normal shutdown.
     // Clearing live Local Storage first can reinitialize every open renderer
     // (including its audio graph) while the app is trying to flush and exit.
-    report.shutdown = await closePrivateRuntime(app, report.nativeRuntime, { viaUi: true })
+    report.shutdown = await closePrivateRuntime(app, report.nativeRuntime, { viaUi: true, nativeProcess })
     report.mainExitMessages = report.shutdown.exitMessages
-    if (process.env.LIFE_PRODUCT_SHUTDOWN_ORDER === '1') {
-      const markers = ['[app-exit] Saving life and window state', '[app-exit] State hooks completed; stopping services', '[app-exit] Services stopped; draining file logs', '[FileLogger] File closed successfully', '[app-exit] File logs drained; closing desktop windows', '[app-exit] Desktop windows closed; exiting']
-      const positions = markers.map(marker => report.mainExitMessages.findIndex(message => message.includes(marker)))
-      const passed = positions.every((position, index) => position >= 0 && (!index || position > positions[index - 1]))
-      report.checks.push({ name: 'Shutdown saves life and drains file logs before native window teardown', passed, detail: { markers, positions } })
-      if (!passed) { report.passed = false; report.failure = 'Shutdown resource ordering was not observed' }
+    await save()
+    if (report.shutdown.completed && report.shutdown.exitCode === 0)
+      await inspectExecutionProductAfterShutdown({ report, profile, root, check, redact })
+    else
+      report.postShutdownInspectionsSkipped = 'The runtime did not complete normal shutdown; no product acceptance is inferred.'
+    const nativeClosed = nativeProcess.exitCode !== null || nativeProcess.signalCode !== null
+    if (nativeClosed) {
+      try {
+        const configPath = path.join(profile, 'alicizations/llm-config.json')
+        const config = JSON.parse(await fs.readFile(configPath, 'utf8').catch(() => '{}'))
+        config.providerCredentials = {}
+        await fs.writeFile(configPath, JSON.stringify(config))
+        const storage = path.join(profile, 'Local Storage')
+        const resolvedProfile = await fs.realpath(profile)
+        assert.match(path.basename(resolvedProfile), /^alicization-life-product-regression-/)
+        assert.equal(path.dirname(resolvedProfile).toLowerCase(), (await fs.realpath(os.tmpdir())).toLowerCase())
+        await fs.rm(storage, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+        report.credentialsRemoved = true
+      }
+      catch (error) { report.credentialCleanupFailure = redact(error.message) }
     }
-    const configPath = path.join(profile, 'alicizations/llm-config.json')
-    const config = JSON.parse(await fs.readFile(configPath, 'utf8').catch(() => '{}'))
-    config.providerCredentials = {}
-    await fs.writeFile(configPath, JSON.stringify(config))
-    const storage = path.join(profile, 'Local Storage')
-    const resolvedProfile = await fs.realpath(profile)
-    assert.match(path.basename(resolvedProfile), /^alicization-life-product-regression-/)
-    assert.equal(path.dirname(resolvedProfile).toLowerCase(), (await fs.realpath(os.tmpdir())).toLowerCase())
-    await fs.rm(storage, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
-    report.credentialsRemoved = true
+    else {
+      report.credentialsRemoved = false
+      report.credentialCleanupDeferred = 'The exact synthetic runtime remains active; live storage was preserved.'
+    }
     report.finishedAt = new Date().toISOString()
-    if (!report.shutdown.completed || report.shutdown.exitCode !== 0) {
+    if (!report.shutdown.completed || report.shutdown.exitCode !== 0 || !report.credentialsRemoved) {
       report.passed = false
-      report.failure = report.shutdown.failure || `Application exited abnormally: ${report.shutdown.exitCode}`
+      report.failure ||= report.shutdown.failure || `Application exited abnormally: ${report.shutdown.exitCode}`
       process.exitCode = 1
     }
     await save()

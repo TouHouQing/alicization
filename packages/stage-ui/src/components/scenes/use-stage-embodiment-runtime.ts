@@ -21,15 +21,17 @@ import type {
 import type { useAlicizationPresenceDispatcherStore } from '../../stores/alicization-presence-dispatcher'
 import type { StageModelRenderer } from '../../stores/settings'
 import type { StageEmbodimentPerformanceContinuityState } from './stage-embodiment-performance-plan'
+import type { StageExecutionGazeGeometry } from './stage-execution-gaze'
 import type { StageEmbodimentDiagnosticsSnapshot } from './use-stage-embodiment-diagnostics'
 import type { UseStageEmbodimentSpeechOptions } from './use-stage-embodiment-speech'
 
-import { computed, readonly, watch } from 'vue'
+import { computed, readonly, shallowRef, watch } from 'vue'
 
 import {
   resolveResidentSnapshot,
   resolveStageEmbodimentResidentPerformance,
 } from './stage-embodiment-resident-performance'
+import { createStageTextDialogueDelivery } from './stage-text-dialogue-delivery'
 import { stageActivityNeedsBodyFocus } from './use-stage-activity-presence'
 import { useStageEmbodimentAttention } from './use-stage-embodiment-attention'
 import { useStageEmbodimentDiagnostics } from './use-stage-embodiment-diagnostics'
@@ -40,6 +42,7 @@ import { useStageEmbodimentPresence } from './use-stage-embodiment-presence'
 import { useStageEmbodimentSpeech } from './use-stage-embodiment-speech'
 import { useStageEmbodimentStyle } from './use-stage-embodiment-style'
 import { useStageEmbodimentVisualPresence } from './use-stage-embodiment-visual-presence'
+import { useStageExecutionGaze } from './use-stage-execution-gaze'
 import { useStageInteractionIntent } from './use-stage-interaction-intent'
 
 interface Point2D {
@@ -59,6 +62,7 @@ interface Live2DActionCapability {
 }
 
 export interface UseStageEmbodimentRuntimeOptions {
+  textOnly?: Readonly<Ref<boolean>>
   activeCardId: Readonly<Ref<string>>
   onAudioPlaybackReceipt?: UseStageEmbodimentSpeechOptions['onAudioPlaybackReceipt']
   applyRuntimeEmbodimentEnvelope?: (embodiment: AlicizationDialogueEmbodimentEnvelope | null | undefined) => void
@@ -68,6 +72,7 @@ export interface UseStageEmbodimentRuntimeOptions {
   dispatcher: ReturnType<typeof useAlicizationPresenceDispatcherStore>
   enqueueEmotion: (emotion: EmotionPayload) => void
   focusAt: Readonly<Ref<Point2D>>
+  executionGazeGeometry?: () => StageExecutionGazeGeometry | null
   live2dActionCapabilities: ComputedRef<Live2DActionCapability[]>
   live2dExecutionDiagnostics?: Readonly<Ref<Live2DExecutionDiagnosticsSnapshot | null | undefined>>
   live2dRuntimeCapabilities?: Readonly<Ref<Live2DRuntimeCapabilitySnapshot | null | undefined>>
@@ -130,12 +135,15 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     stageBounds: options.stageBounds,
     visualPresenceState: visualPresence.state,
   })
+  const workGazePoint = shallowRef<Point2D | null>(null)
+  const live2dFocusAt = computed(() => speech.speechRenderState.value?.active ? attention.live2dFocusAt.value : workGazePoint.value ?? attention.live2dFocusAt.value)
+  const vrmLookAtScreenPoint = computed(() => speech.speechRenderState.value?.active ? attention.vrmLookAtScreenPoint.value : workGazePoint.value ?? attention.vrmLookAtScreenPoint.value)
   const posture = useStageEmbodimentPosture({
     activePresence: attention.activePresence,
     focusAt: options.focusAt,
     speechRenderState: speech.speechRenderState,
     stageBounds: options.stageBounds,
-    targetPoint: attention.live2dFocusAt,
+    targetPoint: live2dFocusAt,
     visualPresenceState: visualPresence.state,
   })
   const diagnostics = useStageEmbodimentDiagnostics({
@@ -149,7 +157,7 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     presencePosture: posture.presencePosture,
     speechRenderState: speech.speechRenderState,
     stageBounds: options.stageBounds,
-    targetPoint: attention.live2dFocusAt,
+    targetPoint: live2dFocusAt,
     visualPresenceState: visualPresence.state,
     vrmExecutionDiagnostics: options.vrmExecutionDiagnostics,
     vrmRuntimeCapabilities: options.vrmRuntimeCapabilities,
@@ -180,9 +188,32 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     residentRestraint: idleResidentRestraint,
     vrmActionBindings: options.vrmActionBindings,
   })
+  const textDialogue = createStageTextDialogueDelivery()
+  function armDialogueExpression(
+    payload: AlicizationDialoguePerformancePayload,
+    armOptions: Parameters<typeof performance.armPerformance>[1] = {},
+  ) {
+    const belongsToTextTurn = textDialogue.owns(armOptions.turnId ?? armOptions.variationToken) || textDialogue.owns(armOptions.segmentId)
+    if (options.textOnly?.value && textDialogue.active && !belongsToTextTurn)
+      return
+    if (options.textOnly?.value && armOptions.source !== 'presence-pulse' && belongsToTextTurn) {
+      const presentation = textDialogue.present(payload, { allowAction: !armOptions.suppressActionPulse })
+      if (!presentation)
+        return
+      performance.armPerformance(payload, { ...armOptions, textDelivery: true, suppressActionPulse: !presentation.issueAction })
+      return
+    }
+    performance.armPerformance(payload, armOptions)
+    // A silent presence pulse has no audio completion event even when voice
+    // is enabled. Give its finite gesture the same handover to resident state.
+    if ((options.textOnly?.value || armOptions.source === 'presence-pulse') && !belongsToTextTurn)
+      performance.settleTextDialogue()
+  }
   let acceptInteractionScript: (script: unknown) => void = () => {}
   let preparedDialogueTurnId: string | null = null
   const presence = useStageEmbodimentPresence({
+    canPresentPerformance: (source, turnId, cardId) => (!cardId || cardId === options.activeCardId.value)
+      && (!options.textOnly?.value || !textDialogue.active || (source === 'dialogue' && textDialogue.owns(turnId))),
     beforeDialogue: (payload) => {
       if (payload.cardId === options.activeCardId.value && payload.turnId !== preparedDialogueTurnId) {
         speech.clearSpeechPreviews()
@@ -198,7 +229,7 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     },
     applyRuntimeEmbodimentEnvelope: options.applyRuntimeEmbodimentEnvelope,
     armPerformance: (performancePayload, armOptions) => {
-      performance.armPerformance(performancePayload, armOptions)
+      armDialogueExpression(performancePayload, armOptions)
     },
     primeDigitalLifeEnvelope: (digitalLife) => {
       speech.primeDigitalLifeEnvelope(digitalLife)
@@ -221,6 +252,11 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     visualPresenceState: visualPresence.state,
   })
 
+  const executionGaze = useStageExecutionGaze({ activity: presence.activityPresence, paused: options.paused, geometry: options.executionGazeGeometry })
+  // Eyes, posture and diagnostics consume this same transient body projection.
+  watch(executionGaze.point, (point) => {
+    workGazePoint.value = point
+  }, { immediate: true, flush: 'sync' })
   const interaction = useStageInteractionIntent({ cardId: options.activeCardId, paused: options.paused, taskActive: computed(() => stageActivityNeedsBodyFocus(presence.activityPresence.value)), performance: performance.state })
   watch(presence.activityPresence, (activity) => {
     // A real foreground task replaces unplayed body preparation. Audio sources
@@ -229,6 +265,11 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
       speech.clearSpeechPreviews()
   }, { flush: 'sync' })
   acceptInteractionScript = interaction.accept
+  watch([options.activeCardId, options.paused, () => options.textOnly?.value, options.stageModelRenderer], () => {
+    textDialogue.clear()
+    performance.clear()
+    interaction.clear()
+  }, { flush: 'sync' })
 
   function syncResidentPerformanceFromVisualPresence() {
     const residentSnapshot = resolveCurrentResidentSnapshot()
@@ -288,6 +329,7 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
   )
 
   function dispose() {
+    executionGaze.clear()
     interaction.clear()
     performance.dispose()
     speech.dispose()
@@ -301,27 +343,46 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     clearInteractionIntent: interaction.clear,
     interactionIntent: interaction.intent,
     activityPresence: presence.activityPresence,
-    clearActivityPresence: presence.clearActivityPresence,
+    clearActivityPresence: () => {
+      presence.clearActivityPresence()
+      executionGaze.clear()
+    },
     armDialoguePerformance: (
       performancePayload: AlicizationDialoguePerformancePayload,
-      armOptions?: { variationToken?: string | null },
+      armOptions?: { variationToken?: string | null, turnId?: string | null, suppressActionPulse?: boolean },
     ) => {
       const residentSnapshot = resolveCurrentResidentSnapshot()
-      performance.armPerformance(options.clampPerformance(performancePayload), {
+      armDialogueExpression(options.clampPerformance(performancePayload), {
         residentReasonTags: residentSnapshot.reasonTags,
         source: 'dialogue',
         variationToken: armOptions?.variationToken ?? null,
+        turnId: armOptions?.turnId,
+        suppressActionPulse: armOptions?.suppressActionPulse,
       })
     },
     applyTransientDigitalLifeSpine: visualPresence.applyTransientDigitalLifeSpine,
     applyEmotionSpeechStyle,
     applySyntheticSpeechSegment: (segment: TextSegment) => speech.applySyntheticSpeechSegment(segment),
+    beginTextDialogue: (turnId: string) => textDialogue.begin(turnId),
+    presentTextDialogue: (turnId: string) => {
+      if (!options.textOnly?.value || !textDialogue.active || !textDialogue.owns(turnId) || !textDialogue.hasPresentation)
+        return
+      armDialogueExpression(performance.state.value.performance, {
+        source: 'dialogue',
+        turnId,
+        variationToken: performance.state.value.variationToken,
+      })
+    },
+    finishTextDialogue: (turnId?: string | null) => {
+      if (textDialogue.finish(turnId) && options.textOnly?.value)
+        performance.settleTextDialogue()
+    },
     bindPlaybackManager: speech.bindPlaybackManager,
     digitalLifeSpineDigest: visualPresence.digitalLifeSpineDigest,
     diagnostics: readonly(diagnostics.snapshot) as Readonly<ComputedRef<StageEmbodimentDiagnosticsSnapshot>>,
     dispose,
     discardPreviewSpeechSegment: speech.discardPreviewSpeechSegment,
-    live2dFocusAt: attention.live2dFocusAt,
+    live2dFocusAt,
     live2dIdleMotionPreference: idlePerformance.live2dIdleMotionPreference,
     normalizePresenceEmotionName,
     nowSpeaking: speech.nowSpeaking,
@@ -333,6 +394,7 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     primeDigitalLifeEnvelope: speech.primeDigitalLifeEnvelope,
     primeSpeechTimeline: speech.primeSpeechTimeline,
     prepareForNextMessage: async () => {
+      textDialogue.clear()
       preparedDialogueTurnId = null
       interaction.clear()
       await speech.prepareForNextMessage()
@@ -344,6 +406,6 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     styledRate,
     visualPresenceState: visualPresence.state,
     vrmIdleActionPreference: idlePerformance.vrmIdleActionPreference,
-    vrmLookAtScreenPoint: attention.vrmLookAtScreenPoint,
+    vrmLookAtScreenPoint,
   }
 }

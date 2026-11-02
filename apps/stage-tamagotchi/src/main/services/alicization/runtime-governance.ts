@@ -423,7 +423,9 @@ function resolveResidentFallbackDialoguePerformance(
   return normalizeAlicizationPerformancePayload({
     baseEmotion: mergedEmotion,
     emotion: mergedEmotion,
-    facialCue: candidate.facialCue ?? resident.facialCue ?? null,
+    // An omitted dialogue cue can inherit the resident face only while the
+    // emotion still agrees. Otherwise let the manifest resolve the new face.
+    facialCue: candidate.facialCue ?? (mergedEmotion === resident.baseEmotion ? resident.facialCue : null) ?? null,
     actionCue: candidate.actionCue ?? resident.actionCue ?? null,
     delivery: candidateNeutralBaseline || candidateEmbodimentSparseBaseline || (
       candidateMeasuredReturnSparseBaseline
@@ -717,6 +719,7 @@ export function buildRuntimeGovernanceEmbodimentScript(input: {
 }
 
 export function buildAlicizationChatStreamEmbodimentMeta(input: {
+  userText?: string | null
   interactionIntent?: AlicizationInteractionIntent | null
   governance?: unknown
   digitalLifeSpine?: AlicizationDialogueStructuredPayload['digitalLifeSpine']
@@ -730,7 +733,17 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
   turnId?: string
 }): AlicizationChatStreamEmbodimentMeta {
   const governance = normalizeMindTurnGovernance(input.governance)
-  if (!governance) {
+  const reply = readStringValue(input.reply).trim()
+  const explicitPerformance = input.explicitPerformance
+    ? normalizeAlicizationPerformancePayload(
+        input.explicitPerformance,
+        input.explicitPerformance.baseEmotion,
+      )
+    : null
+  // A provider's accepted emotion header precedes the completed mind record.
+  // It can prepare the body without inventing governance, text or action proof.
+  // A nonempty reply still requires the original completed-governance path.
+  if (!governance && (!explicitPerformance || reply)) {
     return {
       governance: null,
       embodiment: null,
@@ -742,7 +755,6 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
   }
 
   const normalizedCurrentConsciousFrame = coerceGovernanceCurrentConsciousFrame(input.currentConsciousFrame)
-  const reply = readStringValue(input.reply).trim()
   const thought = readStringValue(input.thought).trim()
   const resolvedEmbodiment = resolveAlicizationDialogueEmbodiment({
     governance,
@@ -751,12 +763,6 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
     thought,
     turnId: input.turnId,
   })
-  const explicitPerformance = input.explicitPerformance
-    ? normalizeAlicizationPerformancePayload(
-        input.explicitPerformance,
-        input.explicitPerformance.baseEmotion,
-      )
-    : null
   const residentSeededPerformance = contextualExpression(resolveResidentFallbackDialoguePerformance(
     explicitPerformance ?? resolvedEmbodiment.performance,
     input.residentPerformance?.performance,
@@ -776,7 +782,8 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
   const emittedDigitalLifeSpine = normalizeGovernanceDigitalLifeSpineDigest(input.digitalLifeSpine)
   const authority = coordinateAlicizationRuntimeEmbodiment({
     seed: buildAlicizationRuntimeEmbodimentSeed({
-      decisionTraceId: governance.decisionTraceId ?? null,
+      decisionTraceId: governance?.decisionTraceId ?? null,
+      userText: input.userText,
       turnId: input.turnId ?? 'unknown-turn',
       authoredActionCue: ['greet', 'celebrate', 'play'].includes(input.interactionIntent?.purpose ?? '') ? residentSeededPerformance.actionCue : explicitPerformance?.actionCue,
       interactionIntent: input.interactionIntent,
@@ -1763,6 +1770,7 @@ export function coerceConversationTurnToMindGovernedPayload(
     performanceManifest,
   })
   const finalEmbodimentSeed = buildAlicizationRuntimeEmbodimentSeed({
+    userText: input.userText,
     decisionTraceId: coherentGovernance.decisionTraceId ?? null,
     turnId: input.turnId ?? 'unknown-turn',
     reply: finalReply,
@@ -3408,6 +3416,7 @@ export function normalizeDialogueRespondedPayload(
   const authority = coordinateAlicizationRuntimeEmbodiment({
     seed: buildAlicizationRuntimeEmbodimentSeed({
       decisionTraceId: governance?.decisionTraceId ?? null,
+      userText: input.userText,
       turnId,
       reply,
       interactionIntent: options?.interactionIntent,
@@ -3517,6 +3526,7 @@ export function normalizeDialogueRespondedPayload(
 }
 
 export interface AlicizationRuntimeSetupOptions {
+  storageCache?: import('./execution/storage-maintenance').ExecutionCachePort
   backgroundMaintenanceEnabled?: boolean
   userDataPathOverride?: string
   runtimeDebugLogEnabled?: boolean

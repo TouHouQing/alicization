@@ -41,11 +41,26 @@ describe('live2d idle eye focus', () => {
     for (const now of [0, 0.016, 0.033, 0.1, 0.5, 0.99])
       focus.update(model, now)
     expect(model.focusController.focus).toHaveBeenCalledTimes(1)
-    focus.update(model, 1.01)
+    focus.update(model, 5.2)
+    expect(model.focusController.focus).toHaveBeenCalledTimes(1)
+    focus.update(model, 6)
     expect(model.focusController.focus).toHaveBeenCalledTimes(2)
     expect(model.focusController.update).not.toHaveBeenCalled()
     expect(model.values.get('ParamEyeBallX')).toBe(0)
     expect(model.values.get('ParamEyeBallY')).toBe(0)
+  })
+
+  it('releases pointer attention without waiting for an old autonomous dwell deadline', () => {
+    const model = createInternalModel()
+    const focus = useLive2DIdleEyeFocus()
+    focus.update(model, 0)
+    focus.update(model, 1)
+    expect(model.focusController.focus).toHaveBeenCalledOnce()
+    focus.interrupt()
+    focus.update(model, 1.1)
+    expect(model.focusController.focus).toHaveBeenCalledTimes(2)
+    focus.update(model, 1.2)
+    expect(model.focusController.focus).toHaveBeenCalledTimes(2)
   })
 
   it('keeps steady idle gaze narrower than drift under the same idle focus target', () => {
@@ -96,7 +111,7 @@ describe('live2d idle eye focus', () => {
       elevationScale: 0.864,
       stabilityBias: 0.1,
     })
-    measuredReturnFocus.update(measuredReturnModel, 2, {
+    measuredReturnFocus.update(measuredReturnModel, 8, {
       azimuthScale: 0.8448,
       elevationScale: 0.864,
       stabilityBias: 0.1,
@@ -107,7 +122,7 @@ describe('live2d idle eye focus', () => {
       elevationScale: 1.04,
       stabilityBias: -0.1,
     })
-    driftFocus.update(driftModel, 2, {
+    driftFocus.update(driftModel, 8, {
       azimuthScale: 1.08,
       elevationScale: 1.04,
       stabilityBias: -0.1,

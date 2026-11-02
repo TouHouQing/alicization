@@ -4,6 +4,7 @@ import type {
   PlaybackInterruptEvent,
   PlaybackRejectEvent,
   PlaybackStartEvent,
+  SpeechIntentCancelPayload,
   TextSegment,
   TtsRequest,
   TtsResult,
@@ -26,7 +27,7 @@ export const speechPlaybackInterruptEvent = defineEventa<PlaybackInterruptEvent<
 export const speechPlaybackRejectEvent = defineEventa<PlaybackRejectEvent<any>>('proj-alicization:pipelines:output:speech:playback-reject')
 export const speechIntentStartEvent = defineEventa<string>('proj-alicization:pipelines:output:speech:intent-start')
 export const speechIntentEndEvent = defineEventa<string>('proj-alicization:pipelines:output:speech:intent-end')
-export const speechIntentCancelEvent = defineEventa<{ intentId: string, reason?: string }>('proj-alicization:pipelines:output:speech:intent-cancel')
+export const speechIntentCancelEvent = defineEventa<SpeechIntentCancelPayload>('proj-alicization:pipelines:output:speech:intent-cancel')
 
 export const speechPipelineEventMap = {
   onSegment: speechSegmentEvent,

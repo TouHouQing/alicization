@@ -1,5 +1,6 @@
 import type { AlicizationChannelCapability } from '@proj-alicization/stage-shared'
 
+import type { WindowsVisualActInput, WindowsVisualLocateInput } from './execution/windows-visual-tool-contracts'
 import type { createLifeWindowsBrowserRuntime } from './life-windows-browser-runtime'
 import type { createLifeWindowsDesktopRuntime } from './life-windows-desktop-runtime'
 
@@ -9,6 +10,7 @@ import { platform } from 'node:process'
 
 import { shell } from 'electron'
 
+import { assertInterfaceDispatchCurrent, bindInterfaceOperation } from './execution/interface-dispatch-context'
 import { resolveAlicizationKnownWebsiteBySite } from './local-known-websites'
 
 export type AlicizationLocalBrowser = 'default' | 'chrome' | 'safari'
@@ -87,6 +89,12 @@ export interface AlicizationLocalBrowserTypeTextInput {
   text: string
 }
 
+export interface AlicizationLocalBrowserUploadFilesInput {
+  selector: string
+  files: string[]
+  abortSignal?: AbortSignal
+}
+
 export interface AlicizationLocalBrowserNavigateInput {
   abortSignal?: AbortSignal
   action: string
@@ -149,6 +157,14 @@ export interface AlicizationLocalDesktopClickElementInput {
   text?: string
 }
 
+export interface AlicizationLocalDesktopScrollInput {
+  abortSignal?: AbortSignal
+  windowTitle?: string
+  runtimeId: string
+  action: 'up' | 'down' | 'top' | 'bottom'
+  amount?: 'small' | 'large'
+}
+
 export interface AlicizationLocalDesktopTypeTextInput {
   windowTitle?: string
   abortSignal?: AbortSignal
@@ -202,9 +218,12 @@ export interface AlicizationLocalDesktopWaitInput {
 type AlicizationLocalAutomationResult = Record<string, unknown>
 type AlicizationSupportedBrowser = Exclude<AlicizationLocalBrowser, 'default'>
 
+type WindowsBrowserPort = Pick<ReturnType<typeof createLifeWindowsBrowserRuntime>, 'openUrl' | 'readPage' | 'clickElement' | 'typeBrowserText' | 'navigateBrowser' | 'scrollBrowser' | 'waitForBrowser' | 'uploadBrowserFiles' | 'getHealth'>
+
 interface AlicizationLocalBrowserAutomationServiceOptions {
   errorMessageFrom: (error: unknown) => string | null | undefined
-  windowsBrowser?: ReturnType<typeof createLifeWindowsBrowserRuntime>
+  windowsBrowser?: WindowsBrowserPort
+  selectWindowsBrowser?: () => WindowsBrowserPort | undefined
   windowsDesktop?: ReturnType<typeof createLifeWindowsDesktopRuntime>
 }
 
@@ -514,6 +533,7 @@ function summarizeBrowserName(browser: AlicizationLocalBrowser) {
 export function createAlicizationLocalBrowserAutomationService(
   options: AlicizationLocalBrowserAutomationServiceOptions,
 ) {
+  const selectedWindowsBrowser = () => options.selectWindowsBrowser?.() ?? options.windowsBrowser
   async function runCommand(
     command: string,
     args: string[],
@@ -522,6 +542,8 @@ export function createAlicizationLocalBrowserAutomationService(
   ) {
     throwIfLocalAutomationAborted(abortSignal)
     const boundedTimeout = Math.max(500, Math.floor(timeoutMs))
+    await assertInterfaceDispatchCurrent(false)
+    throwIfLocalAutomationAborted(abortSignal)
     return await new Promise<string>((resolve, reject) => {
       const child = execFile(command, args, {
         signal: abortSignal,
@@ -645,14 +667,17 @@ export function createAlicizationLocalBrowserAutomationService(
       : null
     const url = requestedUrl || resolvedSite?.url || 'about:blank'
     const browser = normalizeBrowserToolResultBrowser(input.browser)
-    if (platform === 'win32' && options.windowsBrowser)
-      return options.windowsBrowser.openUrl({ ...input, url })
+    const browserRuntime = selectedWindowsBrowser()
+    if (browserRuntime && (platform === 'win32' || options.selectWindowsBrowser?.() !== undefined))
+      return browserRuntime.openUrl({ ...input, url })
     if (platform !== 'darwin')
       return buildUnsupportedPlatformResult('browser_open_url')
 
     try {
       throwIfLocalAutomationAborted(input.abortSignal)
       if (browser === 'default') {
+        await assertInterfaceDispatchCurrent(false)
+        throwIfLocalAutomationAborted(input.abortSignal)
         await shell.openExternal(url)
         throwIfLocalAutomationAborted(input.abortSignal)
         return {
@@ -803,8 +828,9 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function readPage(input: AlicizationLocalBrowserReadPageInput) {
-    if (platform === 'win32' && options.windowsBrowser)
-      return options.windowsBrowser.readPage(input)
+    const browserRuntime = selectedWindowsBrowser()
+    if (browserRuntime && (platform === 'win32' || options.selectWindowsBrowser?.() !== undefined))
+      return browserRuntime.readPage(input)
     if (platform !== 'darwin')
       return buildUnsupportedPlatformResult('browser_read_page')
 
@@ -920,8 +946,9 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function clickElement(input: AlicizationLocalBrowserClickElementInput) {
-    if (platform === 'win32' && options.windowsBrowser)
-      return options.windowsBrowser.clickElement(input)
+    const browserRuntime = selectedWindowsBrowser()
+    if (browserRuntime && (platform === 'win32' || options.selectWindowsBrowser?.() !== undefined))
+      return browserRuntime.clickElement(input)
     const selector = sanitizeText(input.selector)
     const text = sanitizeText(input.text)
     const exactText = input.exactText === true
@@ -1086,8 +1113,9 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function typeBrowserText(input: AlicizationLocalBrowserTypeTextInput) {
-    if (platform === 'win32' && options.windowsBrowser)
-      return options.windowsBrowser.typeBrowserText(input)
+    const browserRuntime = selectedWindowsBrowser()
+    if (browserRuntime && (platform === 'win32' || options.selectWindowsBrowser?.() !== undefined))
+      return browserRuntime.typeBrowserText(input)
     const text = sanitizeText(input.text)
     const selector = sanitizeText(input.selector)
     const targetText = sanitizeText(input.targetText)
@@ -1352,8 +1380,9 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function navigateBrowser(input: AlicizationLocalBrowserNavigateInput) {
-    if (platform === 'win32' && options.windowsBrowser)
-      return options.windowsBrowser.navigateBrowser(input)
+    const browserRuntime = selectedWindowsBrowser()
+    if (browserRuntime && (platform === 'win32' || options.selectWindowsBrowser?.() !== undefined))
+      return browserRuntime.navigateBrowser(input)
     const action = normalizeBrowserNavigateAction(input.action)
     if (!action)
       return buildNotConfiguredResult('browser_navigate', 'action must be back, forward, or reload.')
@@ -1416,8 +1445,9 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function scrollBrowser(input: AlicizationLocalBrowserScrollInput) {
-    if (platform === 'win32' && options.windowsBrowser)
-      return options.windowsBrowser.scrollBrowser(input)
+    const browserRuntime = selectedWindowsBrowser()
+    if (browserRuntime && (platform === 'win32' || options.selectWindowsBrowser?.() !== undefined))
+      return browserRuntime.scrollBrowser(input)
     const action = normalizeBrowserScrollAction(input.action)
     if (!action)
       return buildNotConfiguredResult('browser_scroll', 'action must be down, up, top, or bottom.')
@@ -1533,8 +1563,9 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function waitForBrowser(input: AlicizationLocalBrowserWaitInput) {
-    if (platform === 'win32' && options.windowsBrowser)
-      return options.windowsBrowser.waitForBrowser(input)
+    const browserRuntime = selectedWindowsBrowser()
+    if (browserRuntime && (platform === 'win32' || options.selectWindowsBrowser?.() !== undefined))
+      return browserRuntime.waitForBrowser(input)
     if (platform !== 'darwin')
       return buildUnsupportedPlatformResult('browser_wait')
 
@@ -1659,6 +1690,8 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function waitForDesktop(input: AlicizationLocalDesktopWaitInput) {
+    if (platform === 'win32' && options.windowsDesktop)
+      return options.windowsDesktop.waitForDesktop(input)
     const appName = sanitizeText(input.appName)
     const titleIncludes = sanitizeText(input.titleIncludes)
     const timeoutMs = normalizeDesktopWaitTimeoutMs(input.timeoutMs)
@@ -1974,6 +2007,12 @@ export function createAlicizationLocalBrowserAutomationService(
     }
   }
 
+  async function scrollDesktop(input: AlicizationLocalDesktopScrollInput) {
+    if (platform === 'win32' && options.windowsDesktop)
+      return options.windowsDesktop.scrollDesktop(input)
+    return buildUnsupportedPlatformResult('desktop_scroll')
+  }
+
   async function clickDesktopElement(input: AlicizationLocalDesktopClickElementInput) {
     if (platform === 'win32' && options.windowsDesktop)
       return options.windowsDesktop.clickDesktopElement(input)
@@ -2139,6 +2178,8 @@ export function createAlicizationLocalBrowserAutomationService(
   }
 
   async function pressDesktopKeys(input: AlicizationLocalDesktopPressKeysInput) {
+    if (platform === 'win32' && options.windowsDesktop)
+      return options.windowsDesktop.pressDesktopKeys(input)
     const shortcut = normalizeDesktopShortcut(input.shortcut)
     const repeat = normalizeDesktopRepeat(input.repeat)
     if (!shortcut)
@@ -2243,31 +2284,39 @@ export function createAlicizationLocalBrowserAutomationService(
       reason: supported ? null : 'local-desktop-automation-unavailable',
     }
 
-    return localBrowserCapabilityChannels.map(channel => ({
-      channel,
-      available: capability.available || (channel === 'browser' ? Boolean(options.windowsBrowser) : Boolean(options.windowsDesktop)),
-      enabled: capability.enabled || (channel === 'browser' ? Boolean(options.windowsBrowser) : Boolean(options.windowsDesktop)),
-      ready: capability.ready || (channel === 'browser' ? Boolean(options.windowsBrowser) : Boolean(options.windowsDesktop)),
-      sessionAffinity: channel !== 'desktop',
-      reason: (channel === 'browser' ? options.windowsBrowser : options.windowsDesktop) ? null : capability.reason,
-    }))
+    const [browserHealth, desktopHealth] = await Promise.all([selectedWindowsBrowser()?.getHealth(), options.windowsDesktop?.getHealth()])
+    return localBrowserCapabilityChannels.map((channel) => {
+      const health = channel === 'browser' ? browserHealth : desktopHealth
+      return {
+        channel,
+        available: health ? health.available : capability.available,
+        enabled: health ? health.available : capability.enabled,
+        ready: health ? health.ready : capability.ready,
+        sessionAffinity: channel !== 'desktop',
+        reason: health ? health.reason : capability.reason,
+      }
+    })
   }
 
   return {
-    openUrl,
-    searchWeb,
-    readPage,
-    clickElement,
-    typeBrowserText,
-    navigateBrowser,
-    scrollBrowser,
-    waitForBrowser,
-    waitForDesktop,
-    listDesktopInteractables,
-    clickDesktopElement,
-    typeDesktopText,
-    pressDesktopKeys,
-    openApplication,
+    openUrl: bindInterfaceOperation('browser_open_url', openUrl),
+    uploadBrowserFiles: bindInterfaceOperation('browser_upload_files', (input: AlicizationLocalBrowserUploadFilesInput) => selectedWindowsBrowser()?.uploadBrowserFiles(input) ?? Promise.resolve(buildUnsupportedPlatformResult('browser_upload_files'))),
+    searchWeb: bindInterfaceOperation('browser_search_web', searchWeb),
+    readPage: bindInterfaceOperation('browser_read_page', readPage),
+    clickElement: bindInterfaceOperation('browser_click_element', clickElement),
+    typeBrowserText: bindInterfaceOperation('browser_type_text', typeBrowserText),
+    navigateBrowser: bindInterfaceOperation('browser_navigate', navigateBrowser),
+    scrollBrowser: bindInterfaceOperation('browser_scroll', scrollBrowser),
+    waitForBrowser: bindInterfaceOperation('browser_wait', waitForBrowser),
+    waitForDesktop: bindInterfaceOperation('desktop_wait', waitForDesktop),
+    listDesktopInteractables: bindInterfaceOperation('desktop_list_interactables', listDesktopInteractables),
+    clickDesktopElement: bindInterfaceOperation('desktop_click_element', clickDesktopElement),
+    scrollDesktop: bindInterfaceOperation('desktop_scroll', scrollDesktop),
+    locateDesktopWindow: bindInterfaceOperation('desktop_locate_window', async (input: WindowsVisualLocateInput) => options.windowsDesktop ? options.windowsDesktop.locateWindow(input) : { ok: false, status: 'failed', channel: 'desktop', operation: 'desktop_locate_window', errorCode: 'PLATFORM_OPERATION_NOT_IMPLEMENTED', sideEffectState: 'none' }),
+    actDesktopPointer: bindInterfaceOperation('desktop_pointer_action', async (input: WindowsVisualActInput) => options.windowsDesktop ? options.windowsDesktop.pointerAction(input) : { ok: false, status: 'failed', channel: 'desktop', operation: 'desktop_pointer_action', errorCode: 'PLATFORM_OPERATION_NOT_IMPLEMENTED', sideEffectState: 'none' }),
+    typeDesktopText: bindInterfaceOperation('desktop_type_text', typeDesktopText),
+    pressDesktopKeys: bindInterfaceOperation('desktop_press_keys', pressDesktopKeys),
+    openApplication: bindInterfaceOperation('desktop_open_application', openApplication),
     resolveCapabilityChannels,
   }
 }

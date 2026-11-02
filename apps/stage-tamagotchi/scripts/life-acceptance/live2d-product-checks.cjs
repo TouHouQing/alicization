@@ -12,6 +12,7 @@ async function sampleLive2D(page) {
     const app = document.querySelector('#app').__vue_app__
     const seen = new Set()
     const models = []
+    const drawObservers = window.__live2dProductDrawObservers ||= new WeakMap()
     const visit = (node) => {
       if (!node || typeof node !== 'object' || seen.has(node))
         return
@@ -22,7 +23,21 @@ async function sampleLive2D(page) {
         if (sdk) {
           const core = sdk.internalModel.coreModel
           const ids = core._model.parameters.ids
-          const params = Object.fromEntries(['ParamAngleX', 'ParamAngleY', 'ParamAngleZ', 'ParamEyeLOpen', 'ParamEyeROpen', 'ParamBodyAngleX', 'ParamBodyAngleY', 'ParamBodyAngleZ', 'ParamBreath', 'ParamMouthOpenY', 'ParamMouthForm'].filter(id => ids.includes(id)).map(id => [id, core.getParameterValueById(id)]))
+          const parameterIds = ['ParamAngleX', 'ParamAngleY', 'ParamAngleZ', 'ParamEyeLOpen', 'ParamEyeROpen', 'ParamEyeBallX', 'ParamEyeBallY', 'ParamBodyAngleX', 'ParamBodyAngleY', 'ParamBodyAngleZ', 'ParamBreath', 'ParamMouthOpenY', 'ParamMouthForm'].filter(id => ids.includes(id))
+          let drawState = drawObservers.get(sdk)
+          if (!drawState) {
+            drawState = { frames: 0, latest: null }
+            drawObservers.set(sdk, drawState)
+            // Cubism restores its saved motion baseline after the draw update.
+            // Sample expression/focus/breath/physics values inside the real
+            // final draw hook, rather than mistaking a stable baseline for a
+            // frozen body. This observer never writes model parameters.
+            sdk.internalModel.on('beforeModelUpdate', () => {
+              drawState.frames += 1
+              drawState.latest = { at: performance.now(), params: Object.fromEntries(parameterIds.map(id => [id, core.getParameterValueById(id)])) }
+            })
+          }
+          const params = drawState.latest?.params ?? Object.fromEntries(parameterIds.map(id => [id, core.getParameterValueById(id)]))
           const frame = node.exposed.characterFrame()
           const rect = pixi.view.getBoundingClientRect()
           const probes = []
@@ -35,7 +50,8 @@ async function sampleLive2D(page) {
               probes.push({ x, y, pixel: [...pixel], hit: node.exposed.hitTestClientPoint(x, y) })
             }
           }
-          models.push({ modelId: node.props.modelId, frame, canvas: rect.toJSON(), parameterCount: ids.length, params, probes, diagnostics: node.exposed.executionDiagnostics(), fpsLimit: pixi.ticker.maxFPS, motionPriority: sdk.internalModel.motionManager.state.currentPriority, sdkName: sdk.internalModel.settings.name })
+          const renderState = { visibility: document.visibilityState, tickerStarted: pixi.ticker.started, tickerLastTime: pixi.ticker.lastTime, autoUpdate: sdk.autoUpdate, visible: sdk.visible, worldVisible: sdk.worldVisible, renderable: sdk.renderable, contextLost: pixi.renderer.gl.isContextLost() }
+          models.push({ modelId: node.props.modelId, frame, canvas: rect.toJSON(), parameterCount: ids.length, params, drawFrame: drawState.latest ? { frame: drawState.frames, at: drawState.latest.at } : null, parameterSampling: drawState.latest ? 'final-draw' : 'saved-baseline-before-first-observed-draw', probes, renderState, diagnostics: node.exposed.executionDiagnostics(), fpsLimit: pixi.ticker.maxFPS, motionPriority: sdk.internalModel.motionManager.state.currentPriority, sdkName: sdk.internalModel.settings.name })
         }
       }
       visit(node.component); visit(node.subTree); visit(node.suspense?.activeBranch); visit(node.ssContent)
@@ -44,16 +60,25 @@ async function sampleLive2D(page) {
     }
     visit(app._instance ?? app._container._vnode.component)
     const store = app.config.globalProperties.$pinia._s.get('live2d')
-    return { at: Date.now(), models, preferences: store ? { scale: store.scale, position: { ...store.position }, parameters: { ...store.modelParameters }, motion: { ...store.currentMotion }, preferred: { ...store.preferredRuntimeMotions } } : null }
+    return { at: Date.now(), models, preferences: store ? { scale: store.scale, position: { ...store.position }, parameters: { ...store.modelParameters }, motion: { ...store.currentMotion }, preferred: { ...store.preferredRuntimeMotions }, idleModes: { ...store.idleMotionModes } } : null }
   })
 }
 
 async function runLive2DProductChecks({ app, stage, settings, click, capture, check, report, wait }) {
+  const waitForPriority = async (priority) => {
+    const deadline = Date.now() + 45000
+    while (Date.now() < deadline) {
+      if ((await sampleLive2D(stage)).models.some(model => model.motionPriority === priority))
+        return
+      await wait(150)
+    }
+    throw new Error(`The actual Cubism player did not reach priority ${priority}`)
+  }
   const waitForBody = async (id) => {
     const deadline = Date.now() + 30000
     while (Date.now() < deadline) {
       const state = await sampleLive2D(stage)
-      if (state.models.some(model => model.modelId === id && model.probes.some(point => point.pixel[3] > 64)))
+      if (state.models.some(model => model.modelId === id && model.drawFrame?.frame > 0 && model.probes.some(point => point.pixel[3] > 64)))
         return
       await wait(200)
     }
@@ -73,7 +98,7 @@ async function runLive2DProductChecks({ app, stage, settings, click, capture, ch
   check('Transparent model margins do not capture character input', initial.models[0].probes.every(point => point.pixel[3] > 64 || !point.hit), initial.models[0].probes)
   const idle = []
   for (let i = 0; i < 16; i++) { await wait(150); idle.push(await sample('idle-observation')) }
-  check('Idle Live2D parameters keep changing across actual frames', idle.some(state => Object.entries(state.models[0].params).some(([key, value]) => Math.abs(value - initial.models[0].params[key]) > 0.001)))
+  check('Idle Live2D parameters keep changing across actual frames', idle.some(state => state.models[0].parameterSampling === 'final-draw' && state.models[0].drawFrame.frame > initial.models[0].drawFrame.frame && Object.entries(state.models[0].params).some(([key, value]) => Math.abs(value - initial.models[0].params[key]) > 0.001)))
   check('Desktop controls expose usable names', await stage.getByRole('button', { name: '打开设置', exact: true }).count() > 0 && await stage.getByRole('button', { name: '重置桌面布局', exact: true }).count() > 0)
 
   // Only our private application's canvas receives these DOM input events.
@@ -111,7 +136,9 @@ async function runLive2DProductChecks({ app, stage, settings, click, capture, ch
     await click(settings.locator(`div:has(> div:text-is("${label}")) > button[title="重置为默认值"]`))
     check(`Resetting ${label} restores its open default`, (await sample(`reset-${key}`)).preferences.parameters[key] === 1)
   }
-  const idleSwitch = settings.getByRole('switch', { name: '待机动画', exact: true })
+  const idleSwitch = settings.getByRole('switch', { name: '自然待机', exact: true })
+  const loopSwitch = settings.getByRole('switch', { name: '循环播放模型待机动作（会重复动作和表情）', exact: true })
+  check('Quiet companionship is the default instead of looping authored expressions', await loopSwitch.getAttribute('aria-checked') === 'false' && initial.preferences.idleModes['preset-live2d-1'] !== 'animation')
   const beforeIdle = await idleSwitch.getAttribute('aria-checked')
   await click(idleSwitch)
   check('The idle animation switch can be changed explicitly', await idleSwitch.getAttribute('aria-checked') !== beforeIdle)
@@ -173,17 +200,40 @@ async function runLive2DProductChecks({ app, stage, settings, click, capture, ch
     return found
   }, chosen, { timeout: 20000 })
   check('The selected idle motion reaches the actual Cubism player', (await sample('playing-user-idle-motion')).models[0].diagnostics.activeMotion.index === chosen.motionIndex)
+  await waitForPriority(0)
+  await wait(1500)
+  check('A motion preview finishes once and returns to quiet presence', (await sample('preview-returned-to-rest')).models[0].motionPriority === 0 && await loopSwitch.getAttribute('aria-checked') === 'false')
+  await click(settings.locator('[data-motion-selector] > button'))
+  await click(settings.locator('[data-motion-selector] > div > button').nth(1))
+  await waitForPriority(3)
+  check('The same motion can be explicitly previewed again after finishing', (await sample('repeated-explicit-preview')).models[0].diagnostics.activeMotion.index === chosen.motionIndex)
+  await click(loopSwitch)
+  await click(loopSwitch)
+  check('Changing idle mode does not interrupt an owned foreground preview', (await sample('foreground-survives-idle-mode-change')).models[0].motionPriority === 3)
+  await waitForPriority(0)
+  await click(loopSwitch)
+  await waitForPriority(1)
+  check('Authored idle loops require an explicit per-model opt-in', (await sample('explicit-loop-enabled')).preferences.idleModes['preset-live2d-1'] === 'animation' && (await sample('explicit-loop-playing')).models[0].motionPriority === 1)
   await choose('Hiyori (Free)', 'preset-live2d-2')
+  check('Enabling loops for Pro does not enable loops on Free', await loopSwitch.getAttribute('aria-checked') === 'false' && (await sample('free-quiet-presence')).models[0].motionPriority === 0)
+  await wait(25000)
+  check('The Free body remains in quiet presence without periodic motion replay', (await sample('free-quiet-presence-after-dwell')).models[0].motionPriority === 0)
   await choose('Hiyori (Pro)', 'preset-live2d-1')
   await settings.getByRole('button', { name: '参数', exact: true }).waitFor()
   if (!(await settings.locator('[data-motion-selector] > button').isVisible()))
     await click(settings.getByRole('button', { name: '参数', exact: true }))
+  check('Returning to Pro restores its own animation opt-in', await loopSwitch.getAttribute('aria-checked') === 'true')
+  await click(loopSwitch)
+  await waitForPriority(0)
+  const releasedIdle = (await sample('loop-disabled-back-to-presence')).models[0]
+  check('Disabling the loop releases both the player and its reported active motion', releasedIdle.motionPriority === 0 && releasedIdle.diagnostics.activeMotion === null)
   check('Returning to a model restores its own idle motion choice', (await settings.locator('[data-motion-selector] > button').innerText()).includes(chosenName))
   await settings.reload()
   await settings.getByRole('button', { name: '参数', exact: true }).waitFor()
   await click(settings.getByRole('button', { name: '参数', exact: true }))
   await settings.waitForFunction(name => [...document.querySelectorAll('[data-motion-selector] > button')].some(node => node.textContent.includes(name)), chosenName)
   check('The model motion choice survives settings reload', (await settings.locator('[data-motion-selector] > button').innerText()).includes(chosenName))
+  check('Quiet presence survives settings reload independently of the saved motion', await loopSwitch.getAttribute('aria-checked') === 'false')
   await click(settings.getByRole('button', { name: '清理模型缓存', exact: true }))
   await settings.getByRole('status').filter({ hasText: '模型缓存已清理' }).waitFor()
   check('Cache cleanup reports completion and keeps the current body painted', (await sample('cache-cleared-body')).models[0].probes.some(point => point.pixel[3] > 64))
@@ -274,10 +324,10 @@ async function runLive2DProductChecks({ app, stage, settings, click, capture, ch
   check('A manual gesture has foreground playback priority', mappingPreview.models[0].motionPriority === 3)
   if (!(await idleSwitch.isVisible()))
     await click(settings.getByRole('button', { name: '参数', exact: true }))
-  await click(settings.getByRole('switch', { name: '待机动画', exact: true }))
+  await click(settings.getByRole('switch', { name: '自然待机', exact: true }))
   const stillPlaying = await sample('idle-disabled-during-owned-gesture')
   check('Disabling idle animation preserves the current foreground gesture', stillPlaying.models[0].motionPriority === 3 && stillPlaying.models[0].diagnostics.activeMotion.index === 1)
-  await click(settings.getByRole('switch', { name: '待机动画', exact: true }))
+  await click(settings.getByRole('switch', { name: '自然待机', exact: true }))
   await capture(settings, 'live2d-action-mapping-preview')
   await app.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('#/settings/models'))

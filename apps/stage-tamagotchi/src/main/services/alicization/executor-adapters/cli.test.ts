@@ -3,13 +3,17 @@ import type {
   AlicizationTaskThreadRecord,
 } from '@proj-alicization/stage-shared'
 
+import process from 'node:process'
+
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
+import { actionDidNotStart, withActionDispatch } from '../execution/action-dispatch-context'
 import { executeCliTaskThread, inspectCliTaskCommand } from './cli'
 
 function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): AlicizationTaskThreadRecord {
@@ -40,6 +44,89 @@ function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): Ali
 }
 
 describe('cli executor adapter', () => {
+  it.skipIf(process.platform !== 'win32').each([
+    { command: { command: 'D:\\private-outside\\program.exe', args: [] }, errorCode: 'CLI_COMMAND_OUTSIDE_BOUNDARY' },
+    { command: { command: 'echo', args: ['never dispatched'], cwd: 'D:\\private-outside' }, errorCode: 'CLI_CWD_OUTSIDE_BOUNDARY' },
+  ])('refuses a different-drive target before native dispatch: $errorCode', async ({ command, errorCode }) => {
+    const input = { thread: createThread(), workspaceRoot: 'C:\\owned-fixture', command }
+    expect(inspectCliTaskCommand(input)).toMatchObject({ ok: false, errorCode })
+    const result = await withActionDispatch(async () => ({ cardId: 'alice', effectId: 'owned-refusal', expiresAt: null }), () => executeCliTaskThread(input))
+    expect(result).toMatchObject({ ok: false, errorCode })
+    expect(result.events.some(event => event.kind === 'dispatch')).toBe(false)
+    expect(actionDidNotStart(result, 'alice', 'owned-refusal')).toBe(true)
+    expect(actionDidNotStart(result, 'bob', 'owned-refusal')).toBe(false)
+  })
+  it.each([false, true])('preserves the actual absolute executable path with explicit argv (quoted=%s)', async (quoted) => {
+    const literal = 'owned 中文 path and argv; $(inert)'
+    const command = quoted ? `"${process.execPath}"` : process.execPath
+    const result = await executeCliTaskThread({ thread: createThread(), command: { command, args: ['-e', 'process.stdout.write(process.argv[1])', literal] }, workspaceRoot: dirname(process.execPath) })
+    expect(result.ok, JSON.stringify({ errorCode: result.errorCode, errorMessage: result.errorMessage })).toBe(true)
+    expect(result.output).toBe(literal)
+    expect(result.events.find(event => event.kind === 'dispatch')?.payload).toMatchObject({ executionMode: 'exec-file' })
+  })
+
+  it('does not let a live event observer change the actual CLI argument vector', async () => {
+    let mutations = 0
+    const result = await executeCliTaskThread({ thread: createThread(), command: { command: 'echo', args: ['owned expected value'] }, workspaceRoot: process.cwd(), onExecutionEvent: (event) => {
+      if (event.kind === 'dispatch' && event.payload && Array.isArray(event.payload.args)) {
+        event.payload.args[0] = 'inert observer mutation'
+        mutations++
+      }
+    } })
+    expect(mutations).toBe(1)
+    expect(result.ok).toBe(true)
+    expect(result.output?.trim()).toBe('owned expected value')
+  })
+
+  it('preserves validated owned-note bytes across an awaited observer callback', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'life-note-snapshot-'))
+    const content = 'original immutable owned note'
+    const contentHash = createHash('sha256').update(content).digest('hex')
+    const ownedNote = { name: `${contentHash}.md`, content, contentHash }
+    try {
+      const result = await executeCliTaskThread({ thread: createThread(), command: { command: 'alicization:owned-note', ownedNote }, ownedNoteRoot: root, onExecutionEvent: (event) => {
+        if (event.kind === 'dispatch')
+          ownedNote.content = 'inert changed bytes after validation'
+      } })
+      expect(result.ok).toBe(true)
+      expect(await readFile(join(root, ownedNote.name), 'utf8')).toBe(content)
+    }
+    finally { await rm(root, { recursive: true, force: true }) }
+  })
+  it('rechecks the current action at final process dispatch and refuses revoked authority without starting work', async () => {
+    let checks = 0
+    const check = vi.fn(async () => {
+      if (++checks > 1)
+        throw new Error('source withdrawn after admission')
+      return { expiresAt: Date.now() + 60000 }
+    })
+    const result = await withActionDispatch(check, () => executeCliTaskThread({ thread: createThread(), command: { command: 'echo', args: ['owned inert authority fixture'] }, workspaceRoot: process.cwd() }))
+    expect(result).toMatchObject({ ok: false, errorCode: 'CLI_DISPATCH_REVOKED', effectMayHaveOccurred: false, sideEffectState: 'none' })
+    expect(check).toHaveBeenCalledTimes(2)
+    expect(result.output).toBeNull()
+    expect(result.events.some(event => event.kind === 'step')).toBe(false)
+  })
+
+  it('rechecks an owned note after its awaited dispatch observer and before creating the immutable artifact', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'life-note-revocation-'))
+    let revoked = false
+    const content = 'Owned inert note bytes.'
+    const contentHash = createHash('sha256').update(content).digest('hex')
+    const check = async () => {
+      if (revoked)
+        throw new Error('source withdrawn by another life writer')
+      return { expiresAt: Date.now() + 60000 }
+    }
+    try {
+      const result = await withActionDispatch(check, () => executeCliTaskThread({ thread: createThread(), command: { command: 'alicization:owned-note', ownedNote: { name: `${contentHash}.md`, content, contentHash } }, ownedNoteRoot: root, onExecutionEvent: async (event) => {
+        if (event.kind === 'dispatch')
+          revoked = true
+      } }))
+      expect(result).toMatchObject({ ok: false, effectMayHaveOccurred: false, sideEffectState: 'none' })
+      await expect(readFile(join(root, `${contentHash}.md`))).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+    finally { await rm(root, { recursive: true, force: true }) }
+  })
   it('keeps raw life databases and withdrawn artifacts behind private inspection approval', async () => {
     const root = await mkdtemp(join(tmpdir(), 'life-cli-database-boundary-'))
     const path = join(root, 'alicizations', 'cards', 'alice', 'alicization.db')
@@ -372,11 +459,15 @@ describe('cli executor adapter', () => {
   })
 
   it('builds callback-friendly summaries for ls listings and keeps decoded hints', async () => {
-    const tempRoot = await mkdtemp(join(tmpdir(), 'alicization-cli-ls-'))
+    const ownedRoot = await mkdtemp(join(tmpdir(), 'alicization-cli-ls-'))
+    // A nested directory is not a desktop listing merely because an ancestor
+    // happens to be named Desktop (including a checkout on the user's desktop).
+    const tempRoot = join(ownedRoot, 'Desktop', 'project')
     const encodedName = '%E5%B0%8F%E7%A0%96%E7%8C%BF'
     const chineseName = '小砖猿'
 
     try {
+      await mkdir(tempRoot, { recursive: true })
       await Promise.all([
         mkdir(join(tempRoot, encodedName)),
         mkdir(join(tempRoot, chineseName)),
@@ -401,7 +492,7 @@ describe('cli executor adapter', () => {
       }))
     }
     finally {
-      await rm(tempRoot, {
+      await rm(ownedRoot, {
         recursive: true,
         force: true,
       })
@@ -410,27 +501,29 @@ describe('cli executor adapter', () => {
 
   it('cancels a running CLI command when the abort signal fires', async () => {
     const controller = new AbortController()
+    const observed: string[] = []
     const execution = executeCliTaskThread({
       thread: createThread(),
       command: {
         command: 'node',
-        args: ['-e', 'setTimeout(() => console.log("late output"), 3000)'],
+        args: ['-e', 'console.log("owned-process-ready");setTimeout(() => console.log("late output"), 3000)'],
         timeoutMs: 5_000,
       },
       abortSignal: controller.signal,
       workspaceRoot: process.cwd(),
+      onExecutionEvent: (event) => {
+        observed.push(event.kind)
+        if (event.kind === 'step' && event.payload?.stream === 'stdout' && String(event.payload.text).includes('owned-process-ready'))
+          controller.abort('kill-switch-suspended')
+      },
     })
-
-    setTimeout(() => {
-      controller.abort('kill-switch-suspended')
-    }, 80)
 
     const result = await execution
 
     expect(result.ok).toBe(false)
     expect(result.finalStatus).toBe('cancelled')
     expect(result.errorCode).toBe('CLI_ABORTED')
-    expect(result.events.map(event => event.kind)).toEqual(expect.arrayContaining(['dispatch', 'cancel']))
+    expect(observed).toEqual(expect.arrayContaining(['dispatch', 'cancel']))
   })
 
   it('does not spawn a CLI command when already aborted', async () => {

@@ -1,6 +1,7 @@
 import type { LifeMutation, LifeObligation, LifeObligationStatus } from '../../../shared/life-contracts'
 import type { LifeTransaction } from './life-transaction'
 
+import { executionDigest } from './execution/acceptance-compiler'
 import { assertLifeId, assertLifeTime, boundedJson } from './life-transaction'
 
 const terminal = new Set<LifeObligationStatus>(['fulfilled', 'cancelled', 'superseded'])
@@ -10,7 +11,7 @@ const transitions: Record<LifeObligationStatus, LifeObligationStatus[]> = {
   'waiting': ['waiting', 'in-progress', 'verifying', 'blocked', 'cancelled'],
   'in-progress': ['verifying', 'blocked', 'failed', 'cancelled'],
   'verifying': ['blocked', 'failed', 'cancelled'],
-  'blocked': ['waiting', 'in-progress', 'verifying', 'cancelled'],
+  'blocked': ['blocked', 'waiting', 'in-progress', 'verifying', 'cancelled'],
   'failed': ['waiting', 'cancelled'],
   'fulfilled': [],
   'cancelled': [],
@@ -36,9 +37,9 @@ export interface ObligationRow {
 }
 
 export function mapLifeObligation(cardId: string, row: ObligationRow): LifeObligation {
-  const source = JSON.parse(row.source_ref_json) as { personalAuthorship?: LifeObligation['personalAuthorship'], personalTopic?: string, personalOrigin?: LifeObligation['personalOrigin'], personalDevelopment?: LifeObligation['personalDevelopment'], turnId?: string, personalActivity?: LifeObligation['personalActivity'], deliveryTurnId?: string, invalidatedBy?: import('../../../shared/life-contracts').LifeEvidenceRef, invalidationMode?: 'correction' | 'forget' }
+  const source = JSON.parse(row.source_ref_json) as { attemptId?: string | null, personalAuthorship?: LifeObligation['personalAuthorship'], personalTopic?: string, personalOrigin?: LifeObligation['personalOrigin'], personalDevelopment?: LifeObligation['personalDevelopment'], turnId?: string, personalActivity?: LifeObligation['personalActivity'], deliveryTurnId?: string, invalidatedBy?: import('../../../shared/life-contracts').LifeEvidenceRef, invalidationMode?: 'correction' | 'forget' }
   const receipt = row.fulfilled_receipt_ref_json ? JSON.parse(row.fulfilled_receipt_ref_json) as import('../../../shared/life-contracts').LifeGoalVerification : null
-  return { cardId, personalAuthorship: source.personalAuthorship, personalTopic: source.personalTopic, personalOrigin: source.personalOrigin, personalDevelopment: source.personalDevelopment, personalActivity: source.personalActivity, invalidationMode: source.invalidationMode ?? null, verification: receipt, invalidatedBy: source.invalidatedBy ?? null, id: row.obligation_id, generation: row.generation, revision: row.revision, kind: row.kind, summary: row.summary, status: row.status, sourceTurnId: source.turnId ?? null, deliveryTurnId: source.deliveryTurnId ?? null, dueAt: row.due_at, timezone: row.timezone, threadId: row.thread_id, scheduledTaskId: row.scheduled_task_id, proof: JSON.parse(row.required_proof_json), receiptId: receipt?.id ?? null, createdAt: row.created_at, updatedAt: row.updated_at }
+  return { procedureSource: (JSON.parse(row.source_ref_json) as { procedure?: LifeObligation['procedureSource'] }).procedure, cardId, sourceAttemptId: source.attemptId ?? null, personalAuthorship: source.personalAuthorship, personalTopic: source.personalTopic, personalOrigin: source.personalOrigin, personalDevelopment: source.personalDevelopment, personalActivity: source.personalActivity, invalidationMode: source.invalidationMode ?? null, verification: receipt, invalidatedBy: source.invalidatedBy ?? null, id: row.obligation_id, generation: row.generation, revision: row.revision, kind: row.kind, summary: row.summary, status: row.status, sourceTurnId: source.turnId ?? null, deliveryTurnId: source.deliveryTurnId ?? null, dueAt: row.due_at, timezone: row.timezone, threadId: row.thread_id, scheduledTaskId: row.scheduled_task_id, proof: JSON.parse(row.required_proof_json), receiptId: receipt?.id ?? null, createdAt: row.created_at, updatedAt: row.updated_at }
 }
 
 export async function applyLifeObligation(tx: LifeTransaction, mutation: Extract<LifeMutation, { type: 'obligation-create' | 'obligation-update' | 'obligation-verify' | 'obligation-restore-verify' | 'reminder-generated' | 'reminder-attempt-settle' }>) {
@@ -99,13 +100,45 @@ export async function applyLifeObligation(tx: LifeTransaction, mutation: Extract
     assertLifeId(verification.id)
     assertLifeTime(verification.verifiedAt)
     const proof = JSON.parse(row.required_proof_json) as LifeObligation['proof']
-    if (restoring && !['file', 'setting'].includes(proof.kind))
+    if (restoring && !['file', 'setting', 'composite'].includes(proof.kind))
       throw new Error('Restored goals require a read-only file or setting proof')
     if (verification.kind !== proof.kind)
       throw new Error('Verification does not match the accepted goal proof')
-    if (proof.kind !== 'user-reported' && verification.verdict === 'satisfied' && !verification.independent)
+    if (proof.kind !== 'user-reported' && proof.kind !== 'composite' && verification.verdict === 'satisfied' && !verification.independent)
       throw new Error('Goal fulfilment requires independent proof')
+    if (proof.kind === 'composite' && verification.verdict === 'satisfied') {
+      const acceptance = proof.acceptance
+      if (!acceptance || acceptance.obligationGeneration !== row.generation || verification.evidence.contractHash !== acceptance.contractHash)
+        throw new Error('Composite verification is not bound to the accepted contract')
+      const active = await tx.get<{ contract_hash: string }>('SELECT contract_hash FROM life_execution_contracts WHERE card_id = ? AND obligation_id = ? AND obligation_generation = ? AND active = 1', [tx.cardId, mutation.id, row.generation])
+      if (active?.contract_hash !== acceptance.contractHash)
+        throw new Error('Composite acceptance contract is obsolete')
+      const results = verification.evidence.criteria as Array<{ id: string, scope: string, verdict: string, independent: boolean, evidence: Record<string, unknown> }>
+      if (!Array.isArray(results) || results.length !== acceptance.criteria.length)
+        throw new Error('Composite result omits accepted criteria')
+      for (const criterion of acceptance.criteria.filter(item => item.required)) {
+        const matches = results.filter(item => item.id === criterion.id)
+        const result = matches[0]
+        if (matches.length !== 1 || result.verdict !== 'satisfied' || result.scope !== criterion.proofScope)
+          throw new Error('A required acceptance criterion is unverified')
+        if (criterion.predicate.kind === 'user-review') {
+          const receipt = await tx.get<{ payload_ref_json: string }>('SELECT payload_ref_json FROM life_ingress WHERE card_id = ? AND ingress_id = ? AND kind = \'feedback\' AND source = \'execution-user-review\' AND status = \'settled\'', [tx.cardId, result.evidence.receiptId])
+          const feedback = receipt ? JSON.parse(receipt.payload_ref_json) : null
+          if (result.independent || feedback?.approved !== true || feedback.contractHash !== acceptance.contractHash || feedback.criterionId !== criterion.id || feedback.criterionHash !== executionDigest(criterion) || feedback.artifactFingerprint !== result.evidence.artifactFingerprint)
+            throw new Error('User acceptance requires its actual bound local feedback receipt')
+        }
+        else if (!result.independent) {
+          throw new Error('Technical acceptance requires independent proof')
+        }
+      }
+      const independent = acceptance.criteria.filter(item => item.required).every(item => item.predicate.kind !== 'user-review')
+      if (verification.independent !== independent)
+        throw new Error('Composite proof cannot change its evidence scope')
+    }
     const status = verification.verdict === 'satisfied' ? 'fulfilled' : 'blocked'
+    // The writer owns this fence. An explicit pause changes/clears it; unrelated
+    // commits do not change which responsibility version was actually checked.
+    verification.evidence = { ...verification.evidence, verifiedObligationRevision: tx.revision }
     await tx.run('UPDATE life_obligations SET status = ?, fulfilled_receipt_ref_json = ?, revision = ?, updated_at = ? WHERE card_id = ? AND obligation_id = ?', [status, boundedJson(verification), tx.revision, tx.now, tx.cardId, mutation.id])
     await tx.updateOwner({ owner: 'goals', key: 'life:goals-head', value: boundedJson({ obligationId: mutation.id, generation: row.generation, status, verificationId: verification.id }) })
     return

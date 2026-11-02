@@ -2,15 +2,27 @@ import type { Message } from '@xsai/shared-chat'
 
 import type { ProviderHttpFaultResponse } from './provider-http-fault-server.test-support'
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
+import { tool } from '@xsai/tool'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
+
+import { declaredWorkProposal } from './execution/declared-work-proposal'
+import { createDeclaredWorkReferenceToolSpec } from './execution/declared-work-reference'
+import { createWorkPlanToolSpec } from './execution/work-plan-tool'
+import { runMainChatPlanningStep } from './main-chat-planning-repair'
 import {
+  readProviderArgumentFailure,
   runAlicizationMainChatProviderStep,
   runAlicizationMainChatStream,
 } from './main-chat-stream-runner'
 import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import { encodeOpenAICompatibleSse, startProviderHttpFaultServer } from './provider-http-fault-server.test-support'
+import { withProviderToolInputProjection } from './provider-tool-input'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
+import { readAlicizationRuntimeTimeoutDescriptor } from './turn-os/runtime-errors'
 import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
 const typedMemoryContextBlock = JSON.stringify({
@@ -221,6 +233,393 @@ afterEach(() => {
 })
 
 describe('main chat stream runner', () => {
+  it.each(['current', 'historical-only'])('plans a bounded request reference only against the exact current source: %s', async (source) => {
+    const path = join(tmpdir(), 'owned-work-reference.txt')
+    const proposal = { goal: '保存完整原文', criteria: [{ id: 'file', required: true, proofScope: 'structure', predicate: { kind: 'text-content', path, includes: ['完整'] } }], steps: [{ id: 'save', dependsOn: [], capabilityId: 'tool.filesystem_write_file', input: { path, content: '完整原文🙂'.repeat(1000) }, acceptanceCriterionIds: ['file'] }] }
+    const text = JSON.stringify(proposal)
+    const reference = { sourceInputId: 'user:reference', proposalHash: declaredWorkProposal(text)!.hash }
+    const execute = vi.fn(async () => ({ admissionOnly: true }))
+    const offered = await tool(createDeclaredWorkReferenceToolSpec(reference, execute))
+    const messages: Message[] = source === 'current' ? [{ role: 'user', content: text }] : [{ role: 'user', content: text }, { role: 'assistant', content: 'Previous request' }, { role: 'user', content: '只聊聊天。' }]
+    const prepared = createPrepared({ tools: [offered], messages })
+    const emitted = vi.fn()
+    const run = () => runAlicizationMainChatProviderStep({ payload: { cardId: 'alice', turnId: 'reference' } as any, prepared, messages, controller: new AbortController(), firstEventTimeoutMs: 500, isRunActive: () => true, nonProgressEventTypes: new Set(), emitToolCall: emitted, streamTextImpl: () => ({ fullStream: new ReadableStream({ start(controller) {
+      controller.enqueue({ type: 'tool-call', toolCallId: 'reference', toolName: 'life_execute_work_plan', arguments: reference })
+      controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+      controller.close()
+    } }) }) })
+    if (source === 'current') {
+      expect(await run()).toMatchObject({ kind: 'action', action: { capabilityId: 'tool.life_execute_work_plan', input: reference } })
+      expect(emitted).toHaveBeenCalledOnce()
+    }
+    else {
+      await expect(run()).rejects.toThrow('complete current request')
+      expect(emitted).not.toHaveBeenCalled()
+    }
+    expect(execute).not.toHaveBeenCalled()
+  })
+  it.each([false, true])('validates a current work reference when SDK execution precedes its event: %s', async (ahead) => {
+    const path = join(tmpdir(), 'sdk-work-reference.txt')
+    const proposal = { goal: '保存完整原文', criteria: [{ id: 'file', required: true, proofScope: 'structure', predicate: { kind: 'text-content', path, includes: ['完整'] } }], steps: [{ id: 'save', dependsOn: [], capabilityId: 'tool.filesystem_write_file', input: { path, content: '完整原文🙂'.repeat(1000) }, acceptanceCriterionIds: ['file'] }] }
+    const text = JSON.stringify(proposal)
+    const reference = { sourceInputId: 'user:reference-sdk', proposalHash: declaredWorkProposal(text)!.hash }
+    const execute = vi.fn(async () => ({ admissionOnly: true }))
+    const offered = await tool(createDeclaredWorkReferenceToolSpec(reference, execute))
+    const prepared = createPrepared({ tools: [offered], messages: [{ role: 'user', content: text }] })
+    await runAlicizationMainChatStream({ payload: { cardId: 'alice', turnId: 'reference-sdk' } as any, prepared, controller: new AbortController(), firstEventTimeoutMs: 500, isRunActive: () => true, incrementChunkStats: vi.fn(), emitChunk: vi.fn(), emitToolCall: vi.fn(), emitToolResult: vi.fn(), streamMeta: createStreamMetaController(), nonProgressEventTypes: new Set(), generateNonStreaming: vi.fn(), streamTextImpl: async ({ tools, onEvent }: any) => {
+      if (ahead)
+        await tools[0].execute(reference, { toolCallId: 'reference-sdk' })
+      await onEvent({ type: 'tool-call', toolCallId: 'reference-sdk', toolName: 'life_execute_work_plan', arguments: reference })
+      if (!ahead)
+        await tools[0].execute(reference, { toolCallId: 'reference-sdk' })
+      await onEvent({ type: 'tool-result', toolCallId: 'reference-sdk', toolName: 'life_execute_work_plan', result: { admissionOnly: true } })
+      await onEvent({ type: 'text-delta', text: createProviderResponsePayload({ reply: '调用已受理。' }) })
+      await onEvent({ type: 'finish', finishReason: 'stop' })
+    } })
+    expect(execute).toHaveBeenCalledExactlyOnceWith(reference, expect.anything())
+  })
+  it('projects learned argument data before publishing a planning action and keeps provider input immutable', async () => {
+    const execute = vi.fn()
+    const original = { text: 'Transcribed wrong bytes' }
+    const definition = await tool({ name: 'prepare_source_literal', description: 'Prepare current request data', parameters: z.object({ text: z.string() }).strict(), execute })
+    const projected = withProviderToolInputProjection(definition, async input => ({ input: { ...input, text: 'Exact source bytes' }, projection: { actionAdmitted: false, sourceHash: 'hash' } }))
+    const prepared = createPrepared({ tools: [projected] })
+    const emitted = vi.fn()
+    const result = await runAlicizationMainChatProviderStep({ payload: { cardId: 'alice', turnId: 'source-projection' } as any, prepared, messages: [{ role: 'user', content: 'Current request' }], controller: new AbortController(), firstEventTimeoutMs: 500, isRunActive: () => true, nonProgressEventTypes: new Set(), emitToolCall: emitted, streamTextImpl: () => ({ fullStream: new ReadableStream({ start(controller) {
+      controller.enqueue({ type: 'tool-call', toolCallId: 'prepared-source', toolName: 'prepare_source_literal', arguments: original })
+      controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+      controller.close()
+    } }) }) })
+    expect(result).toMatchObject({ kind: 'action', action: { input: { text: 'Exact source bytes' } } })
+    expect(execute).not.toHaveBeenCalled()
+    expect(original).toEqual({ text: 'Transcribed wrong bytes' })
+    expect(emitted).toHaveBeenCalledOnce()
+  })
+
+  it.each(['content', 'revoked', 'cancelled'])('checks asynchronous argument preparation before an SDK executes ahead of its notification: %s', async (change) => {
+    const original = { text: 'Transcribed wrong bytes' }
+    const execute = vi.fn(async (_input: unknown) => ({ admissionOnly: true }))
+    const definition = await tool({ name: 'prepare_source_literal', description: 'Prepare source data', parameters: z.object({ text: z.string() }).strict(), execute })
+    const projected = withProviderToolInputProjection(definition, async input => ({ input: { ...input, text: 'Exact source bytes' }, projection: { sourceHash: 'hash', actionAdmitted: false } }))
+    const prepared = createPrepared({ tools: [projected], messages: [{ role: 'user', content: 'Current request' }] })
+    const emitToolCall = vi.fn()
+    const controller = new AbortController()
+    const debug = vi.fn(async (event: string) => {
+      if (event !== 'life.procedure-content-transcription')
+        return
+      if (change === 'revoked')
+        prepared.toolRegistry.setActivationStatus('test.prepare_source_literal', 'disabled')
+      if (change === 'cancelled')
+        controller.abort()
+    })
+    const run = () => runAlicizationMainChatStream({ payload: { cardId: 'alice', turnId: 'prepared-sdk' } as any, prepared, controller, firstEventTimeoutMs: 500, isRunActive: () => true, incrementChunkStats: vi.fn(), emitChunk: vi.fn(), emitToolCall, emitToolResult: vi.fn(), streamMeta: createStreamMetaController(), nonProgressEventTypes: new Set(), generateNonStreaming: vi.fn(), appendRuntimeDebugLine: debug, streamTextImpl: async ({ tools, onEvent }: any) => {
+      await tools[0].execute(original, { toolCallId: 'prepared-sdk' })
+      await onEvent({ type: 'tool-call', toolCallId: 'prepared-sdk', toolName: 'prepare_source_literal', arguments: original })
+      await onEvent({ type: 'tool-result', toolCallId: 'prepared-sdk', toolName: 'prepare_source_literal', result: { admissionOnly: true } })
+      await onEvent({ type: 'text-delta', text: createProviderResponsePayload({ reply: '调用已受理。' }) })
+      await onEvent({ type: 'finish', finishReason: 'stop' })
+    } })
+    if (change === 'content') {
+      await run()
+      expect(execute).toHaveBeenCalledExactlyOnceWith({ text: 'Exact source bytes' }, expect.anything())
+      expect(original).toEqual({ text: 'Transcribed wrong bytes' })
+    }
+    else {
+      await expect(run()).rejects.toThrow()
+      expect(execute).not.toHaveBeenCalled()
+      expect(emitToolCall).not.toHaveBeenCalled()
+    }
+  })
+  it.each(['text', 'multipart'])('preserves exact current-user literal bytes without another model transcription: %s', async (format) => {
+    const execute = vi.fn(async () => null)
+    const offered = await tool(createWorkPlanToolSpec(execute))
+    const prepared = createPrepared({ tools: [offered] })
+    const path = join(tmpdir(), 'literal-source-report.txt')
+    const exact = { goal: '保存指定内容', criteria: [{ id: 'file', required: true, proofScope: 'structure', predicate: { kind: 'text-content', path, includes: ['中文🙂\n原始 $() `text`'] } }], steps: [{ id: 'save', capabilityId: 'tool.filesystem_write_file', input: { path, content: '中文🙂\n原始 $() `text`' }, dependsOn: [], acceptanceCriterionIds: ['file'] }] }
+    const wrong = structuredClone(exact)
+    wrong.steps[0].input.content = '只丢失了一个原始字节'
+    const original = structuredClone(wrong)
+    const source = JSON.stringify(exact)
+    const messages: Message[] = [{ role: 'user', content: JSON.stringify({ ...exact, goal: 'Historical request' }) }, { role: 'assistant', content: 'Previous request.' }, { role: 'user', content: format === 'text' ? source : [{ type: 'text', text: source }] }]
+    const emitted = vi.fn()
+    const debug = vi.fn(async () => {})
+    const request = vi.fn(async (current: Message[]) => runAlicizationMainChatProviderStep({ payload: { cardId: 'alice', turnId: 'literal-source' } as any, prepared, messages: current, controller: new AbortController(), firstEventTimeoutMs: 500, isRunActive: () => true, nonProgressEventTypes: new Set(), emitToolCall: emitted, appendRuntimeDebugLine: debug, streamTextImpl: () => ({ fullStream: new ReadableStream({ start(controller) {
+      controller.enqueue({ type: 'tool-call', toolCallId: 'literal-source', toolName: 'life_execute_work_plan', arguments: wrong })
+      controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+      controller.close()
+    } }) }) }))
+    const repair = vi.fn(async (messages: Message[]) => messages)
+    const result = await runMainChatPlanningStep({ messages, signal: new AbortController().signal, canRepair: () => true, request, prepareRepair: repair })
+    expect(result).toMatchObject({ kind: 'action', action: { input: exact } })
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(repair).not.toHaveBeenCalled()
+    expect(emitted).toHaveBeenCalledTimes(1)
+    expect(execute).not.toHaveBeenCalled()
+    expect(wrong).toEqual(original)
+    expect(messages.at(-1)).toMatchObject({ role: 'assistant', tool_calls: [{ function: { name: 'life_execute_work_plan' } }] })
+    expect(JSON.parse((messages.at(-1) as any).tool_calls[0].function.arguments)).toEqual(exact)
+    expect(debug).toHaveBeenCalledWith('life.work-content-transcription', expect.objectContaining({ fields: ['steps.0.input.content'], actionAdmitted: false, sourceHash: expect.stringMatching(/^[a-f\d]{64}$/u) }))
+  })
+  it.each(['content', 'target', 'revoked', 'cancelled'])('checks exact work source before an SDK executes ahead of its notification: %s', async (change) => {
+    const path = join(tmpdir(), 'sdk-literal-report.txt')
+    const exact = { goal: '保存原始内容', criteria: [{ id: 'file', required: true, proofScope: 'structure', predicate: { kind: 'text-content', path, includes: ['exact 中文🙂'] } }], steps: [{ id: 'save', capabilityId: 'tool.filesystem_write_file', input: { path, content: 'exact 中文🙂' }, dependsOn: [], acceptanceCriterionIds: ['file'] }] }
+    const candidate = structuredClone(exact)
+    candidate.steps[0].input.content = 'typo'
+    if (change === 'target')
+      candidate.steps[0].input.path = join(tmpdir(), 'unrequested-sdk-target.txt')
+    const execute = vi.fn(async (_input: unknown) => ({ admissionOnly: true }))
+    const definition = await tool(createWorkPlanToolSpec(async () => null))
+    const prepared = createPrepared({ tools: [{ ...definition, execute }], messages: [{ role: 'user', content: JSON.stringify(exact) }] })
+    const emitToolCall = vi.fn()
+    const controller = new AbortController()
+    const debug = vi.fn(async (event: string) => {
+      if (event !== 'life.work-content-transcription')
+        return
+      if (change === 'revoked')
+        prepared.toolRegistry.setActivationStatus('tool.life_execute_work_plan', 'disabled')
+      if (change === 'cancelled')
+        controller.abort()
+    })
+    const run = () => runAlicizationMainChatStream({ payload: { cardId: 'alice', turnId: 'sdk-source' } as any, prepared, controller, firstEventTimeoutMs: 500, isRunActive: () => true, incrementChunkStats: vi.fn(), emitChunk: vi.fn(), emitToolCall, emitToolResult: vi.fn(), streamMeta: createStreamMetaController(), nonProgressEventTypes: new Set(), generateNonStreaming: vi.fn(), appendRuntimeDebugLine: debug, streamTextImpl: async ({ tools, onEvent }: any) => {
+      await tools[0].execute(candidate, { toolCallId: 'sdk-source' })
+      await onEvent({ type: 'tool-call', toolCallId: 'sdk-source', toolName: 'life_execute_work_plan', arguments: candidate })
+      await onEvent({ type: 'tool-result', toolCallId: 'sdk-source', toolName: 'life_execute_work_plan', result: { admissionOnly: true } })
+      await onEvent({ type: 'text-delta', text: createProviderResponsePayload({ reply: '计划已受理。' }) })
+      await onEvent({ type: 'finish', finishReason: 'stop' })
+    } })
+    if (change !== 'content') {
+      if (change === 'cancelled')
+        await expect(run()).rejects.toThrow()
+      else
+        await expect(run()).rejects.toMatchObject({ code: 'chat-provider-tool-arguments-invalid' })
+      expect(execute).not.toHaveBeenCalled()
+      expect(emitToolCall).not.toHaveBeenCalled()
+    }
+    else {
+      await run()
+      expect(execute).toHaveBeenCalledTimes(1)
+      expect(execute.mock.calls[0][0]).toEqual(exact)
+      expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({ arguments: exact }))
+    }
+  })
+  it.each(['text', 'multipart'])('repairs an omitted path character from exact current request parameters before publishing or dispatching an action: %s', async (format) => {
+    const execute = vi.fn(async () => null)
+    const offered = await tool(createWorkPlanToolSpec(execute))
+    const prepared = createPrepared({ tools: [offered] })
+    const path = join(tmpdir(), 'live2d-report.txt')
+    const exact = { goal: 'Save report and read the exact source', criteria: [{ id: 'file', required: true, proofScope: 'structure', predicate: { kind: 'text-content', path, includes: ['exact'] } }], steps: [{ id: 'save', capabilityId: 'tool.filesystem_write_file', input: { path, content: 'exact' }, dependsOn: [], acceptanceCriterionIds: ['file'] }, { id: 'read', capabilityId: 'tool.filesystem_read_file', input: { path: join(tmpdir(), 'live2d-unavailable-source.txt') }, dependsOn: ['save'], acceptanceCriterionIds: [] }] }
+    const source = JSON.stringify(exact)
+    const messages: Message[] = [{ role: 'user', content: JSON.stringify({ ...exact, goal: 'Obsolete historical request' }) }, { role: 'assistant', content: 'That was the previous request.' }, { role: 'user', content: format === 'text' ? source : [{ type: 'text', text: source }] }]
+    const emitted = vi.fn()
+    let corruptCorrection = false
+    const request = async (current: Message[], repairing: boolean) => {
+      const parameters = structuredClone(exact)
+      if (!repairing || corruptCorrection)
+        parameters.steps[1].input.path = parameters.steps[1].input.path.replace('live2d-unavailable', 'live2-unavailable')
+      return runAlicizationMainChatProviderStep({ payload: { cardId: 'alice', turnId: 'declared-parameters' } as any, prepared, messages: current, controller: new AbortController(), firstEventTimeoutMs: 500, isRunActive: () => true, nonProgressEventTypes: new Set(), emitToolCall: emitted, streamTextImpl: () => ({ fullStream: new ReadableStream({ start(controller) {
+        controller.enqueue({ type: 'tool-call', toolCallId: repairing ? 'exact-correction' : 'typo-rejected', toolName: 'life_execute_work_plan', arguments: parameters })
+        controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+        controller.close()
+      } }) }) })
+    }
+    const repair = vi.fn(async (current: Message[], failure: unknown) => {
+      expect(failure).toMatchObject({ issues: [{ keyword: 'declaredParameterMismatch', field: 'request.parameters' }] })
+      expect(emitted).not.toHaveBeenCalled()
+      const constraint = current.find(message => message.role === 'system' && String(message.content).startsWith('{"type":"alicization-work-repair-source"'))
+      expect(constraint).toBeDefined()
+      expect(JSON.parse(String(constraint!.content))).toMatchObject({ data: { status: 'current-request-data-only', parameters: exact, actionAdmitted: false } })
+      return current
+    })
+    const result = await runMainChatPlanningStep({ messages, signal: new AbortController().signal, canRepair: () => true, request, prepareRepair: repair })
+    expect(result).toMatchObject({ kind: 'action', action: { capabilityId: 'tool.life_execute_work_plan', input: exact } })
+    expect(repair).toHaveBeenCalledTimes(1)
+    expect(emitted).toHaveBeenCalledTimes(1)
+    expect(execute).not.toHaveBeenCalled()
+    expect(JSON.stringify(messages)).not.toContain('alicization-work-repair-source')
+    emitted.mockClear()
+    corruptCorrection = true
+    await expect(runMainChatPlanningStep({ messages, signal: new AbortController().signal, canRepair: () => true, request, prepareRepair: repair })).rejects.toThrow('changed its goal, criteria, targets or plan structure')
+    expect(emitted).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('repairs a literal artifact contradiction before admission while fencing the original criteria and targets', async () => {
+    const execute = vi.fn(async () => null)
+    const offered = await tool(createWorkPlanToolSpec(execute))
+    const prepared = createPrepared({ tools: [offered] })
+    const path = join(tmpdir(), 'life-planning-report.txt')
+    const good = { goal: 'Save exact marker', criteria: [{ id: 'exact', required: true, proofScope: 'structure', predicate: { kind: 'text-content', path, includes: ['unchanged marker-123'] } }], steps: [{ id: 'save', capabilityId: 'tool.filesystem_write_file', input: { path, content: 'unchanged marker-123' }, dependsOn: [], acceptanceCriterionIds: ['exact'] }] }
+    // Without an exact structured source, literal content remains a model
+    // planning repair. It cannot borrow transcription from another request.
+    const original: Message[] = [{ role: 'system', content: 'Keep the same personhood.' }, { role: 'user', content: `Save a report containing unchanged marker-123 at ${path}.` }]
+    let changeCriteria = false
+    let schemaFailure = false
+    const emitted = vi.fn()
+    let rejected: unknown
+    const request = async (messages: Message[], repairing: boolean) => {
+      const parameters = structuredClone(good)
+      if (!repairing)
+        parameters.steps[0].input.content = 'unchanged marker-124'
+      else if (changeCriteria)
+        parameters.criteria[0].predicate.includes = ['a weaker criterion']
+      if (repairing && changeCriteria)
+        parameters.steps[0].input.content = 'a weaker criterion'
+      try {
+        return await runAlicizationMainChatProviderStep({ payload: { cardId: 'alice', turnId: 'literal-plan' } as any, prepared, messages, controller: new AbortController(), firstEventTimeoutMs: 500, isRunActive: () => true, nonProgressEventTypes: new Set(), emitToolCall: emitted, streamTextImpl: () => ({ fullStream: new ReadableStream({ start(controller) {
+          controller.enqueue({ type: 'tool-call', toolCallId: repairing ? 'corrected' : 'rejected', toolName: 'life_execute_work_plan', arguments: { ...parameters, ...(schemaFailure && !repairing ? { capabilityBindings: [] } : {}) } })
+          controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+          controller.close()
+        } }) }) })
+      }
+      catch (error) {
+        rejected = error
+        throw error
+      }
+    }
+    const messages = structuredClone(original)
+    const result = await runMainChatPlanningStep({ messages, signal: new AbortController().signal, canRepair: () => true, request, prepareRepair: async messages => messages })
+    expect(result).toMatchObject({ kind: 'action', action: { input: good } })
+    expect(readProviderArgumentFailure(rejected)).toMatchObject({ issues: [{ keyword: 'literalArtifactMismatch', field: 'steps.0.input.content' }], proposalFence: expect.stringMatching(/^[a-f\d]{64}$/u) })
+    expect(execute).not.toHaveBeenCalled()
+    expect(JSON.stringify(messages)).not.toContain('marker-124')
+    emitted.mockClear()
+    changeCriteria = true
+    const changed = structuredClone(original)
+    await expect(runMainChatPlanningStep({ messages: changed, signal: new AbortController().signal, canRepair: () => true, request, prepareRepair: async messages => messages })).rejects.toThrow('changed its goal, criteria, targets or plan structure')
+    expect(changed).toEqual(original)
+    expect(execute).not.toHaveBeenCalled()
+    expect(emitted).not.toHaveBeenCalled()
+    schemaFailure = true
+    changeCriteria = false
+    expect(await runMainChatPlanningStep({ messages: structuredClone(original), signal: new AbortController().signal, canRepair: () => true, request, prepareRepair: async messages => messages })).toMatchObject({ kind: 'action', action: { input: good } })
+    expect(readProviderArgumentFailure(rejected)).toMatchObject({ issues: [{ keyword: 'additionalProperties', field: 'capabilityBindings' }], intentFence: expect.stringMatching(/^[a-f\d]{64}$/u) })
+    emitted.mockClear()
+    changeCriteria = true
+    await expect(runMainChatPlanningStep({ messages: structuredClone(original), signal: new AbortController().signal, canRepair: () => true, request, prepareRepair: async messages => messages })).rejects.toThrow('changed its goal, criteria, targets or plan structure')
+    expect(emitted).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
+  })
+  it('repairs only locally validated pre-dispatch proposals once, respecting publication, cancellation and error origin', async () => {
+    const execute = vi.fn()
+    const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'browser_read_page', parameters: { type: 'object', properties: { format: { type: 'string', enum: ['interactables'] } }, required: ['format'], additionalProperties: false } }, execute }] })
+    const messages: Message[] = [{ role: 'system', content: 'Keep the same identity.' }, { role: 'user', content: 'Read the authorized page.' }]
+    const original = structuredClone(messages)
+    let invalid: unknown
+    const request = vi.fn(async (next: Message[], repairing: boolean) => {
+      try {
+        return await runAlicizationMainChatProviderStep({ payload: { cardId: 'alice', turnId: 'planning' } as any, prepared, messages: next, controller: new AbortController(), firstEventTimeoutMs: 500, isRunActive: () => true, nonProgressEventTypes: new Set(), emitToolCall: () => {}, streamTextImpl: () => ({ fullStream: new ReadableStream({ start(controller) {
+          controller.enqueue({ type: 'tool-call', toolCallId: repairing ? 'corrected' : 'rejected', toolName: 'browser_read_page', arguments: { format: 'interactables', ...(repairing ? {} : { capabilityBindings: [] }) } })
+          controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+          controller.close()
+        } }) }) })
+      }
+      catch (error) {
+        invalid = error
+        throw error
+      }
+    })
+    const prepareRepair = vi.fn(async (next: Message[]) => next)
+    const signal = new AbortController().signal
+    expect(await runMainChatPlanningStep({ messages, signal, canRepair: () => true, request, prepareRepair })).toMatchObject({ kind: 'action' })
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(execute).not.toHaveBeenCalled()
+    expect(prepareRepair.mock.calls[0][0][1]).toMatchObject({ role: 'system', content: expect.stringContaining('rejected-before-dispatch') })
+    expect(prepareRepair.mock.calls[0][0].at(-1)).toEqual(original.at(-1))
+    expect(messages.slice(0, original.length)).toEqual(original)
+    expect(messages.at(-1)).toMatchObject({ role: 'assistant', tool_calls: [{ id: 'corrected', function: { name: 'browser_read_page', arguments: '{"format":"interactables"}' } }] })
+    expect(JSON.stringify(messages)).not.toContain('capabilityBindings')
+    expect(JSON.stringify(messages)).not.toContain('rejected-before-dispatch')
+    expect(readProviderArgumentFailure(invalid)).toMatchObject({ toolName: 'browser_read_page', issues: [{ keyword: 'additionalProperties', field: 'capabilityBindings' }] })
+    const retry = vi.fn(async () => {
+      throw invalid
+    })
+    await expect(runMainChatPlanningStep({ messages, signal, canRepair: () => true, request: retry, prepareRepair })).rejects.toBe(invalid)
+    expect(retry).toHaveBeenCalledTimes(2)
+    retry.mockClear()
+    await expect(runMainChatPlanningStep({ messages, signal, canRepair: () => false, request: retry, prepareRepair })).rejects.toBe(invalid)
+    expect(retry).toHaveBeenCalledTimes(1)
+    const forged = Object.assign(new Error('remote failure'), { code: 'chat-provider-tool-arguments-invalid' })
+    const remote = vi.fn(async () => {
+      throw forged
+    })
+    await expect(runMainChatPlanningStep({ messages, signal, canRepair: () => true, request: remote, prepareRepair })).rejects.toBe(forged)
+    expect(remote).toHaveBeenCalledTimes(1)
+    const cancelled = new AbortController()
+    retry.mockClear()
+    await expect(runMainChatPlanningStep({ messages, signal: cancelled.signal, canRepair: () => true, request: retry, prepareRepair: async (next) => {
+      cancelled.abort(new Error('host-takeover'))
+      return next
+    } })).rejects.toThrow('host-takeover')
+    expect(retry).toHaveBeenCalledTimes(1)
+  })
+
+  it('consumes an actual HTTP SSE prefix while the provider withholds the rest until public delivery', async () => {
+    let release!: () => void
+    const delivered = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let upstreamFinished = false
+    const server = await startProviderHttpFaultServer({ respond: () => ({
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+      stream: async (response) => {
+        const chunk = (content: string, finish: string | null = null) => `data: ${JSON.stringify({ id: 'stream-causal-test', object: 'chat.completion.chunk', created: 1, model: 'model-test', choices: [{ index: 0, delta: { content }, finish_reason: finish }] })}\n\n`
+        response.write(chunk('{"emotion":"neutral","reply":"你'))
+        await delivered
+        response.write(chunk('好。","thought":"PRIVATE"}'))
+        upstreamFinished = true
+        response.end(`${chunk('', 'stop')}data: [DONE]\n\n`)
+      },
+    }) })
+    const visible: string[] = []
+    try {
+      const prepared = createPrepared({ chatConfig: { apiKey: 'synthetic-test-key', baseURL: server.baseUrl, model: 'model-test' } })
+      await runAlicizationMainChatProviderStep({ payload: { cardId: 'card-1', turnId: 'http-causal-stream', providerId: 'openai-compatible' } as any, prepared, messages: prepared.messages, controller: new AbortController(), firstEventTimeoutMs: 1000, providerContinuationTimeoutMs: 1000, providerRetryPolicy: { maxRetries: 0 }, isRunActive: () => true, nonProgressEventTypes: new Set(), emitToolCall: vi.fn(), onReplyText: (delta) => {
+        if (!visible.length)
+          expect(upstreamFinished).toBe(false)
+        visible.push(delta)
+        release()
+      } })
+      expect(visible.join('')).toBe('你好。')
+      expect(JSON.parse(server.requests[0]!.body).stream).toBe(true)
+    }
+    finally {
+      release()
+      await server.close()
+    }
+  })
+  it('delivers public body before provider EOF and forbids retry after a published prefix', async () => {
+    const released: string[] = []
+    const invoke = vi.fn(() => {
+      let index = 0
+      return { fullStream: { getReader: () => ({
+        read: async () => {
+          if (index++ === 0)
+            return { done: false, value: { type: 'text-delta', text: '{"reply":"你好' } }
+          expect(released.join('')).toBe('你好')
+          throw Object.assign(new Error('socket closed after visible text'), { status: 503 })
+        },
+        cancel: vi.fn(async () => {}),
+        releaseLock: vi.fn(),
+      }) } }
+    })
+    const prepared = createPrepared()
+    await expect(runAlicizationMainChatProviderStep({
+      payload: { cardId: 'card-1', turnId: 'early-body', providerId: 'openai-compatible' } as any,
+      prepared,
+      messages: prepared.messages,
+      controller: new AbortController(),
+      firstEventTimeoutMs: 1000,
+      providerRetryPolicy: { maxRetries: 2, baseDelayMs: 1 },
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set(),
+      emitToolCall: vi.fn(),
+      onReplyText: (delta) => { released.push(delta) },
+      streamTextImpl: invoke,
+    })).rejects.toThrow('socket closed')
+    expect(invoke).toHaveBeenCalledOnce()
+    expect(released.join('')).toBe('你好')
+  })
   it('transmits the life schema intact and negotiates unsupported response formats before any action', async () => {
     const fullText = createProviderResponsePayload({ reply: '你好。' })
     const server = await startProviderHttpFaultServer({ respond: ({ attempt }) => attempt === 1
@@ -1677,6 +2076,98 @@ describe('main chat stream runner', () => {
     })).rejects.toMatchObject({
       code: 'chat-provider-parallel-tool-calls',
     })
+    expect(emitToolCall).not.toHaveBeenCalled()
+  })
+
+  it.each(['single', 'parallel', 'missing'] as const)('drains actual xsAI proposals after wire finish and enforces the %s boundary', async (mode) => {
+    const execute = vi.fn()
+    const emitToolCall = vi.fn()
+    const toolCount = mode === 'single' ? 1 : mode === 'parallel' ? 2 : 0
+    const server = await startProviderHttpFaultServer({ respond: () => ({
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+      body: encodeOpenAICompatibleSse([
+        ...(toolCount ? [{ choices: [{ index: 0, delta: { role: 'assistant', tool_calls: Array.from({ length: toolCount }, (_, index) => ({ index, id: `after-finish-${index}`, type: 'function', function: { name: 'inspect', arguments: '{}' } })) }, finish_reason: null }] }] : []),
+        { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] },
+      ]),
+    }) })
+    const prepared = createPrepared({
+      chatConfig: { apiKey: 'test-key', baseURL: server.baseUrl, model: 'gpt-test' },
+      tools: [{ type: 'function', function: { name: 'inspect', parameters: { type: 'object', properties: {}, additionalProperties: false } }, execute }],
+    })
+    try {
+      const result = runAlicizationMainChatProviderStep({
+        payload: { cardId: 'card-1', turnId: `late-proposal-${mode}`, providerId: 'openai-compatible' } as any,
+        prepared,
+        messages: [{ role: 'user', content: 'Inspect once.' }],
+        controller: new AbortController(),
+        firstEventTimeoutMs: 1000,
+        providerContinuationTimeoutMs: 1000,
+        providerRetryPolicy: { maxRetries: 0 },
+        isRunActive: () => true,
+        nonProgressEventTypes: new Set(),
+        emitToolCall,
+      })
+      if (mode === 'single') {
+        await expect(result).resolves.toMatchObject({ kind: 'action', action: { toolCallId: 'after-finish-0', providerToolName: 'inspect', input: {} } })
+        expect(emitToolCall).toHaveBeenCalledOnce()
+      }
+      else {
+        await expect(result).rejects.toMatchObject({ code: mode === 'parallel' ? 'chat-provider-parallel-tool-calls' : 'chat-provider-tool-call-missing' })
+        expect(emitToolCall).not.toHaveBeenCalled()
+      }
+      expect(server.requests).toHaveLength(1)
+      // xsAI receives proposal stubs; only the EventLoop may admit execution.
+      expect(execute).not.toHaveBeenCalled()
+    }
+    finally { await server.close() }
+  })
+
+  it('keeps the continuation watchdog armed after a wire tool finish without EOF or a proposal', async () => {
+    const server = await startProviderHttpFaultServer({ respond: () => ({
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+      stream: async (response) => { response.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] })}\n\n`) },
+    }) })
+    const emitToolCall = vi.fn()
+    try {
+      await expect(runAlicizationMainChatProviderStep({
+        payload: { cardId: 'card-1', turnId: 'tool-finish-without-eof', providerId: 'openai-compatible' } as any,
+        prepared: createPrepared({ chatConfig: { apiKey: 'test-key', baseURL: server.baseUrl, model: 'gpt-test' } }),
+        messages: [{ role: 'user', content: 'Inspect once.' }],
+        controller: new AbortController(),
+        firstEventTimeoutMs: 1000,
+        providerContinuationTimeoutMs: 80,
+        providerRetryPolicy: { maxRetries: 0 },
+        isRunActive: () => true,
+        nonProgressEventTypes: new Set(),
+        emitToolCall,
+      })).rejects.toMatchObject({ name: 'AbortError' })
+      expect(emitToolCall).not.toHaveBeenCalled()
+      expect(server.requests).toHaveLength(1)
+    }
+    finally { await server.close() }
+  })
+
+  it('rejects a second proposal after finish even when a first proposal preceded finish', async () => {
+    const emitToolCall = vi.fn()
+    await expect(runAlicizationMainChatProviderStep({
+      payload: { cardId: 'card-1', turnId: 'late-second-proposal' } as any,
+      prepared: createPrepared({ tools: [{ type: 'function', function: { name: 'inspect', parameters: { type: 'object', properties: {}, additionalProperties: false } } }] }),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 1000,
+      providerRetryPolicy: { maxRetries: 0 },
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set(),
+      emitToolCall,
+      streamTextImpl: () => ({ fullStream: new ReadableStream({ start(controller) {
+        controller.enqueue({ type: 'tool-call', toolCallId: 'first', toolName: 'inspect', arguments: {} })
+        controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+        controller.enqueue({ type: 'tool-call', toolCallId: 'second', toolName: 'inspect', arguments: {} })
+        controller.close()
+      } }) }),
+    })).rejects.toMatchObject({ code: 'chat-provider-parallel-tool-calls' })
     expect(emitToolCall).not.toHaveBeenCalled()
   })
 
@@ -5444,7 +5935,7 @@ describe('main chat stream runner', () => {
     expect(releaseLock).toHaveBeenCalledOnce()
   })
 
-  it('cancels a stalled retry attempt at the inherited total retry deadline', async () => {
+  it.each(['stream', 'provider-step'])('cancels a stalled retry attempt at the inherited total retry deadline: %s', async (mode) => {
     vi.useFakeTimers()
     const controller = new AbortController()
     const retryDeadlineAt = Date.now() + 25
@@ -5465,14 +5956,16 @@ describe('main chat stream runner', () => {
         },
       }))
 
-    const settled = runAlicizationMainChatStream({
+    const prepared = createPrepared()
+    const options = {
       payload: {
         cardId: 'card-1',
         turnId: 'turn-retry-deadline-cancels-reader',
         providerId: 'openai-compatible',
         model: 'model-test',
       } as any,
-      prepared: createPrepared(),
+      prepared,
+      messages: prepared.messages,
       controller,
       firstEventTimeoutMs: 1_000,
       isRunActive: () => true,
@@ -5492,7 +5985,8 @@ describe('main chat stream runner', () => {
         maxDelayMs: 0,
         sleep: vi.fn(async () => {}),
       },
-    }).catch(error => error)
+    }
+    const settled = (mode === 'provider-step' ? runAlicizationMainChatProviderStep(options) : runAlicizationMainChatStream(options)).catch(error => error)
 
     await vi.advanceTimersByTimeAsync(0)
     expect(streamTextImpl).toHaveBeenCalledTimes(2)
@@ -5504,6 +5998,7 @@ describe('main chat stream runner', () => {
       name: 'AbortError',
       message: expect.stringContaining('chat-provider-retry-deadline'),
     })
+    expect(readAlicizationRuntimeTimeoutDescriptor(await settled)).toMatchObject({ timeoutMs: 25, elapsedMs: 25 })
     expect(releaseLock).toHaveBeenCalledOnce()
   })
 

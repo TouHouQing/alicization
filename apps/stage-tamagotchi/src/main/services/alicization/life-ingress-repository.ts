@@ -4,10 +4,15 @@ import type { LifeTransaction } from './life-transaction'
 import { createHash, randomUUID } from 'node:crypto'
 
 import { serializeLifeUserInput } from './life-input-payload'
+import { assertLifeInputReadSet } from './life-input-read-set'
 import { assertLifeMemoryEvidence } from './life-memory-evidence'
 import { assertLifeId, assertLifeTime, boundedJson } from './life-transaction'
 
-export async function applyLifeIngress(tx: LifeTransaction, mutation: Extract<LifeMutation, { type: 'ingress-accept' | 'ingress-settle' | 'input-resume' }>) {
+export async function applyLifeIngress(tx: LifeTransaction, mutation: Extract<LifeMutation, { type: 'ingress-accept' | 'ingress-settle' | 'input-resume' | 'input-assert-current' }>) {
+  if (mutation.type === 'input-assert-current') {
+    await assertLifeInputReadSet(tx, mutation.readSet)
+    return
+  }
   if (mutation.type === 'input-resume') {
     assertLifeId(mutation.childTurnId)
     assertLifeId(mutation.conversationId)

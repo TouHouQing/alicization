@@ -15,3 +15,12 @@ The continuity regression covers quoted emotional words, repeated care across th
 The desktop transport finish contract separates raw provider text from the accepted reply projection and declares whether the main process already committed the conversation. Other surfaces consume these facts; they do not introduce a second settlement or memory authority. Provider-specific schema experiments stay in the desktop runtime.
 
 `AlicizationInteractionIntent` is a bounded projection of the existing desktop conscious frame and answer plan. It carries card/turn identity, purpose, focus, evidence references and a maximum two-minute lifetime through an embodiment script. It does not create personhood or represent a completed action. Script normalization discards an intent belonging to another turn. `interaction-transition.ts` adapts TalkingHead's MIT easing for preparation, sustained gesture and release; the complete license ships in desktop resources.
+
+## Incremental public reply delivery
+
+`AlicizationReplyStreamDelivery` distinguishes append packets from final completion.
+Sequence numbers and UTF-16 body offsets identify a single append-only public reply.
+These offsets refer to decoded public language, never provider JSON. Early packets
+carry no learning admission; full settlement retains authority over completed
+conversation, memory, personality and execution facts. Renderer presentation and
+acoustic speech are separate consumers of the same admitted body.

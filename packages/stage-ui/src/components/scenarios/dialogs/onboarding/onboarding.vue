@@ -9,8 +9,9 @@ import type {
   ProviderConfigData,
 } from './types'
 
+import { usePreferredReducedMotion } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 import StepActionMappingGuide from './step-action-mapping-guide.vue'
 import StepModelSelection from './step-model-selection.vue'
@@ -41,9 +42,14 @@ const props = withDefaults(defineProps<{
 })
 const emit = defineEmits<Emits>()
 const onboardingStore = useOnboardingStore()
+const preferredReducedMotion = usePreferredReducedMotion()
 const step = ref(0)
 const direction = ref<'next' | 'previous'>('next')
 const pendingProviderConfig = ref<ProviderConfigData | null>(null)
+let navigationRevision = 0
+onBeforeUnmount(() => {
+  navigationRevision++
+})
 
 const providersStore = useProvidersStore()
 const { providers, allChatProvidersMetadata } = storeToRefs(providersStore)
@@ -71,6 +77,7 @@ const selectedProvider = computed(() => {
 
 // Reset validation state when provider changes
 function selectProvider(provider: ProviderMetadata) {
+  navigationRevision++
   selectedProviderId.value = provider.id
 }
 
@@ -86,6 +93,7 @@ const requestNextStep: OnboardingStepNextHandler = async (configData?: ProviderC
 async function saveProviderConfiguration(data: ProviderConfigData) {
   if (!selectedProvider.value)
     return
+  const providerId = selectedProvider.value.id
 
   const config: Record<string, unknown> = {}
 
@@ -96,17 +104,17 @@ async function saveProviderConfiguration(data: ProviderConfigData) {
   if (data.accountId)
     config.accountId = data.accountId.trim()
 
-  providers.value[selectedProvider.value.id] = {
-    ...providers.value[selectedProvider.value.id],
+  providers.value[providerId] = {
+    ...providers.value[providerId],
     ...config,
   }
 
-  activeProvider.value = selectedProvider.value.id
-  providersStore.markProviderAdded(selectedProvider.value.id)
+  activeProvider.value = providerId
+  providersStore.markProviderAdded(providerId)
   await nextTick()
 
   try {
-    await consciousnessStore.loadModelsForProvider(selectedProvider.value.id)
+    await consciousnessStore.loadModelsForProvider(providerId)
   }
   catch (err) {
     console.error('error', err)
@@ -160,11 +168,13 @@ const allSteps = computed<OnboardingStep[]>(() => {
         selectedProvider: selectedProvider.value,
       }),
       beforeNext: async () => {
-        if (!pendingProviderConfig.value)
+        const config = pendingProviderConfig.value
+        if (!config)
           return false
 
-        await saveProviderConfiguration(pendingProviderConfig.value)
-        pendingProviderConfig.value = null
+        await saveProviderConfiguration(config)
+        if (pendingProviderConfig.value === config)
+          pendingProviderConfig.value = null
         return true
       },
     },
@@ -206,6 +216,8 @@ const hasNavigated = ref(false)
 
 watch(() => props.isOpen, (open) => {
   if (!open) {
+    navigationRevision++
+    pendingProviderConfig.value = null
     wasOpen.value = false
     hasNavigated.value = false
     step.value = 0
@@ -232,10 +244,17 @@ async function canPassGuard(guard?: OnboardingStepGuard) {
 
 async function navigateNext() {
   hasNavigated.value = true
-  if (!currentStep.value)
+  const origin = currentStep.value
+  const originIndex = step.value
+  if (!origin)
     return
+  const revision = ++navigationRevision
 
-  if (!(await canPassGuard(currentStep.value.beforeNext)))
+  if (!(await canPassGuard(origin.beforeNext)))
+    return
+  // A guard may fetch models while the user goes back or starts another
+  // configuration. Its completion belongs only to the original navigation.
+  if (revision !== navigationRevision || currentStep.value !== origin || step.value !== originIndex)
     return
 
   if (isLastStep.value) {
@@ -248,10 +267,15 @@ async function navigateNext() {
 }
 
 async function navigatePrevious() {
-  if (!currentStep.value || step.value <= 0)
+  const origin = currentStep.value
+  const originIndex = step.value
+  if (!origin || originIndex <= 0)
     return
+  const revision = ++navigationRevision
 
-  if (!(await canPassGuard(currentStep.value.beforePrev)))
+  if (!(await canPassGuard(origin.beforePrev)))
+    return
+  if (revision !== navigationRevision || currentStep.value !== origin || step.value !== originIndex)
     return
 
   direction.value = 'previous'
@@ -261,7 +285,12 @@ async function navigatePrevious() {
 
 <template>
   <div class="onboarding-step-container" h-full w-full>
-    <Transition :name="direction === 'next' ? 'slide-next' : 'slide-prev'" mode="out-in">
+    <!-- Reduced motion must not wait for a CSS animation frame to mount the next step. -->
+    <Transition
+      :name="direction === 'next' ? 'slide-next' : 'slide-prev'"
+      :css="preferredReducedMotion !== 'reduce'"
+      :mode="preferredReducedMotion === 'reduce' ? undefined : 'out-in'"
+    >
       <component
         :is="currentStep.component"
         v-if="currentStep"

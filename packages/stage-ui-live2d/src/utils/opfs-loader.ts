@@ -26,9 +26,17 @@ export class OPFSCache {
     for await (const entry of dir.values()) {
       if (entry.kind === 'file') {
         const fileHandle = entry as FileSystemFileHandle
-        const file = await fileHandle.getFile()
-        if (file.name === '__meta.json')
+        const snapshot = await fileHandle.getFile()
+        if (snapshot.name === '__meta.json')
           continue
+        // OPFS File objects become unreadable after another renderer rewrites
+        // the backing file, even with identical bytes. SDK resource URLs must
+        // own immutable bytes for the model's whole lifetime. A concurrent
+        // change during this copy makes get() fall back to the source archive.
+        const file = new File([await snapshot.arrayBuffer()], snapshot.name, {
+          type: snapshot.type,
+          lastModified: snapshot.lastModified,
+        })
         // live2d-display expects this
         Object.defineProperty(file, 'webkitRelativePath', {
           value: pathPrefix + file.name,
@@ -84,13 +92,10 @@ export class OPFSCache {
     try {
       const root = await navigator.storage.getDirectory()
       const dirHandle = await root.getDirectoryHandle(key, { create: false })
-      // eslint-disable-next-line no-console
-      console.debug(`[OPFS] Cache hit for ${key}`)
-
       const meta = await OPFSCache.readMeta(dirHandle)
-      if (meta?.sourceUrl && meta.sourceUrl !== sourceUrl) {
-        // NOTICE: Skip cache when the requested URL changes while the key stays the same.
-        // This avoids serving a stale model when ids are reused or props are out of sync.
+      if (meta?.sourceUrl !== sourceUrl) {
+        // An absent source marker also means the first cache write has not
+        // published all assets yet. Use the owned archive instead of partial files.
         // eslint-disable-next-line no-console
         console.debug(`[OPFS] Cache mismatch for ${key}, source url changed`)
         return null
@@ -99,6 +104,8 @@ export class OPFSCache {
       const files = await OPFSCache.readDirectoryRecursive(dirHandle, '')
 
       if (files.length > 0) {
+        // eslint-disable-next-line no-console
+        console.debug(`[OPFS] Cache hit for ${key}`)
         return files
       }
     }
@@ -172,6 +179,7 @@ export class OPFSCache {
     const source = context.source
     let key: string | undefined
     let blobUrl: string | undefined
+    let archive: File | undefined
 
     // In Model.vue, we pass {id, url} to the loader, extract them here
     if (
@@ -182,6 +190,8 @@ export class OPFSCache {
     ) {
       key = source.id
       blobUrl = source.url
+      if ('archive' in source && source.archive instanceof File)
+        archive = source.archive
     }
     else {
       return next()
@@ -208,8 +218,9 @@ export class OPFSCache {
     context.opfsUrl = blobUrl
 
     try {
-      const res = await fetch(blobUrl)
-      const blob = await res.blob()
+      // Local archives already have a durable catalogue owner. Borrow the
+      // File across cache awaits instead of fetching an ephemeral object URL.
+      const blob = archive ?? await (await fetch(blobUrl)).blob()
       const fileName = `${key}.zip`
       context.source = [new File([blob], fileName)]
     }

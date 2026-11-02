@@ -7,6 +7,68 @@ import { describe, expect, it, vi } from 'vitest'
 import { createSpeechPipeline } from './speech-pipeline'
 
 describe('speech pipeline', () => {
+  it.each(['interrupt', 'replace'] as const)('keeps the new %s intent owned when the cancelled synthesis finishes late', async (behavior) => {
+    const playback = {
+      schedule: vi.fn(),
+      stopAll: vi.fn(),
+      stopByIntent: vi.fn(),
+      stopByOwner: vi.fn(),
+      onStart: vi.fn(),
+      onEnd: vi.fn(),
+      onInterrupt: vi.fn(),
+      onReject: vi.fn(),
+      onFailure: vi.fn(),
+    }
+    let finishOld!: (audio: string | null) => void
+    const oldSynthesis = new Promise<string | null>((resolve) => {
+      finishOld = resolve
+    })
+    const tts = vi.fn(async (request: { intentId: string }) => request.intentId === 'old' ? oldSynthesis : null)
+    const pipeline = createSpeechPipeline<string>({
+      tts,
+      playback,
+      segmenter: (tokens, meta) => tokens.pipeThrough(new TransformStream<TextToken, TextSegment>({
+        transform(token, controller) {
+          if (token.type === 'literal')
+            controller.enqueue({ ...meta, segmentId: `${meta.intentId}:part`, text: token.value ?? '', special: null, reason: 'flush', continuityHoldMs: 0, createdAt: Date.now() })
+        },
+      })),
+    })
+    const started: string[] = []
+    const cancelled: string[] = []
+    pipeline.on('onIntentStart', id => started.push(id))
+    pipeline.on('onIntentCancel', event => cancelled.push(event.intentId))
+    const first = pipeline.openIntent({ intentId: 'old', ownerId: 'person' })
+    let second: ReturnType<typeof pipeline.openIntent> | undefined
+    let third: ReturnType<typeof pipeline.openIntent> | undefined
+    try {
+      first.writeLiteral('The old reply.')
+      first.writeFlush()
+      await vi.waitFor(() => expect(tts).toHaveBeenCalledOnce())
+      second = pipeline.openIntent({ intentId: 'current', ownerId: 'person', behavior })
+      second.writeLiteral('The current reply.')
+      second.writeFlush()
+      await vi.waitFor(() => expect(tts).toHaveBeenCalledTimes(2))
+      finishOld('late cancelled audio')
+      await vi.waitFor(() => expect(cancelled).toContain('old'))
+      third = pipeline.openIntent({ intentId: 'queued', ownerId: 'another-person', behavior: 'queue' })
+      third.writeLiteral('A queued reply.')
+      third.end()
+      expect(started).toEqual(['old', 'current'])
+      expect(playback.schedule).not.toHaveBeenCalled()
+      second.end()
+      await vi.waitFor(() => expect(started).toEqual(['old', 'current', 'queued']))
+      expect(tts).toHaveBeenCalledTimes(3)
+    }
+    finally {
+      finishOld(null)
+      first.end()
+      second?.end()
+      third?.end()
+      pipeline.stopAll('fixture-complete')
+    }
+  })
+
   it('recognizes runtime digest metadata only through current typed fields', () => {
     const source = readFileSync(new URL('./speech-pipeline.ts', import.meta.url), 'utf8')
     const retiredCompatibilityKey = ['project', 'State'].join('')

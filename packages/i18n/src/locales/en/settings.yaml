@@ -285,10 +285,13 @@ live2d:
         description: Override which `actionCue` keys this model should prefer for the emotion, so the planner picks motions that fit the rig better.
   parameters:
     title: Parameters
-    idle-animation: Idle Animation
+    idle-animation: Natural idle movement
+    quiet-presence-description: Quiet companionship by default, with breathing, blinking and small posture shifts. Actions follow conversation and interaction.
+    loop-model-motions: Loop model idle animations (repeats motions and expressions)
     motion-selector:
       auto: Follow her current state
       pending: This idle motion takes effect after the current motion finishes.
+      preview-once: Selecting a motion previews it once. Enable looping for continuous playback.
       select: Select Motion
       empty: No motions available
     auto-blink: Auto Blink
@@ -2887,6 +2890,273 @@ wip:
     Check back in future updates for this functionality.
 
 life:
+  browser_access:
+    title: Browser access
+    description: Connect a configured local browser and allow only the selected tab and origins. Login credentials stay in that browser.
+    connect: Connect an existing browser
+    setup: Use a separately configured browser with a local debugging port. Your main browser profile is neither changed nor copied.
+    endpoint: Local browser connection address
+    inspect: Find available pages
+    origins: Allowed origins, including protocol and port, separated by commas
+    grant: Allow access to this page
+    takeover: Take over
+    revoke: Revoke access
+    managed: Use the app's separate browser
+    empty: No pages are available. Open a webpage in that browser and refresh this list.
+    disconnected: The page, connection or access changed. Select the current page again, then use Work progress to continue the original task.
+    unknown: Owned input release is unconfirmed. Close the selected tab or browser before confirming. Unknown task outcomes remain recorded.
+    closed: I have closed the selected tab or browser
+    confirm_closed: Confirm closed
+    states:
+      managed: Using the app's separate browser
+      connected: Selected page connected
+      disconnected: Reconnection required
+      stopping: Stopping operations
+      release-unknown: Input release unconfirmed
+    errors:
+      changed: The page or access changed. Refresh and select the current page.
+      failed: The connection operation failed. Check the address and browser state. Existing task progress is preserved.
+  procedures:
+    title: Learned methods
+    description: Methods come from independently checked work. Replay them with different test inputs before enabling them for new requests.
+    refresh: Refresh methods
+    empty: A method will appear here after suitable work has been independently checked.
+    method: 'Learned method · {id}'
+    page_copy: 'Save {count} pages in order'
+    evaluation: '{passed} of {total} replay checks passed'
+    evaluate: Test with different inputs
+    comparison_auto: Compare with the established version automatically
+    comparison_select: Previous method to compare
+    comparison_before: 'Previous: {completed}/{total} complete · {operations} operations · {rework} retries · {approvals} approval requests · {seconds}s'
+    comparison_after: 'Candidate: {completed}/{total} complete · {operations} operations · {rework} retries · {approvals} approval requests · {seconds}s'
+    comparison_scope: Both versions run on the same two synthetic inputs. Approval requests measure confirmation cost; recorded time includes local scheduling.
+    comparison_unavailable: The comparison did not produce sufficient evidence. This version remains unavailable; test it again after resolving the failed replay.
+    comparison_verdict:
+      improved: The candidate completed more of the paired tests.
+      non-regressing: Completion, retries, operations and approval requests did not regress.
+      regressed: The candidate regressed and cannot be enabled.
+      incomparable: The test inputs did not match; this comparison cannot enable the candidate.
+    activate: Enable
+    revoke: Disable this version
+    rollback: Restore this version
+    cancel: Stop testing
+    error: The operation could not be completed. Refresh and check the current state.
+    repair_hint: A new task failed independent verification, so this version is unavailable. Complete the corrected workflow and evaluate its new candidate before enabling it. Existing files and failure evidence are preserved.
+    status:
+      candidate: Awaiting enablement
+      active: Enabled
+      revoked: Disabled
+      rolled-back: Previous version
+      withdrawn: Source no longer valid
+      needs-repair: Repair and evaluation required
+    notices:
+      passed: Tests passed. You can enable this method.
+      failed: Tests did not pass. This method remains unavailable.
+      activate: Method enabled for new requests.
+      revoke: Version disabled. Related ongoing work has been interrupted.
+      rollback: Previous version restored.
+      cancelling: Testing is stopping.
+      cancelled: Testing stopped. This method remains unavailable.
+  execution:
+    native_recheck: Recheck window
+    blocker:
+      foreground-required: This operation needs the target window to stay in the foreground and has not run. Recheck window verifies the original target and continues unfinished work when ready; otherwise it stays paused.
+      window-changed: The target window’s identity changed, so I stopped. Check the target and start a new task for the new window. Completed results are preserved.
+      native-target-required: This operation has no valid observation of its original window, so I stopped. Check the target window and request the unfinished operation again. Completed results are preserved.
+      observation-required: This window needs a fresh observation. Check the target window, then choose Recheck window. Completed steps are preserved.
+      provider-unavailable: The vision service is busy or returned no usable result. No action was performed. Check the connection, then choose Recheck window; a new image still requires your review.
+      result-unknown: The previous operation’s result is uncertain. Check it in execution recovery before continuing to avoid repeating an operation.
+    criteria:
+      title: Change acceptance requirements
+      hint: Change requirements and unfinished steps together. Saving applies both while preserving verified actions. Continue the task to execute and check the revised work.
+      future_steps: Adjust unfinished steps together
+      future_hint: Select a future step and edit its path or content. Switching steps keeps the draft. Save it together with the requirements above.
+      future_count: '{count} steps adjusted'
+      future_reset: Reset this step’s draft
+      graph_title: Steps and execution order
+      graph_hint: Copy an existing operation, set a new target or instruction, and add the required result checks above. Observed operations are preserved.
+      graph_no_pending: Existing steps have been processed. Add further work or adjust the result checks above.
+      graph_template: Copy an existing step
+      graph_after: Place after this step
+      graph_insert: Copy as a new step
+      graph_remove: Remove the selected unfinished step
+      graph_dependencies: Complete these steps first
+      graph_count: '{count} step structure changes'
+      graph_reset: Reset step structure changes
+      graph_invalid: This change could not be kept. Check dependencies and result conditions. If the task changed, reset the draft and try again.
+      graph_new_target: A new mutation needs a different target or instruction and cannot repeat an existing operation. Edit the new step before saving.
+      required: This condition must be met
+      choose: New condition type
+      add: Add condition
+      remove: Remove condition
+      includes: Required file text, one item per line
+      keys: Required JSON fields, one per line
+      members: Required directory members, one per line
+      exact: Allow only the listed members
+      hash: Expected file SHA-256
+      download_step: Step that starts the download
+      minimum_bytes: Minimum file bytes
+      optional_hash: Expected file SHA-256 (optional)
+      download_artifact: 'File downloaded by step {step}'
+      question: Question for your confirmation
+      review_files: Files to inspect for this confirmation
+      read_step: Source read for exact comparison
+      unnamed: File path not entered
+      fixed: This condition uses its originally bound verification source. Keep or remove it, or add another condition for a different verification method.
+      save: Save new requirements
+      saved: New requirements saved; previous acceptance is invalid. Continue the task to check the results again.
+      failed: Requirements were not saved. Check the fields and ensure the task is paused with no unresolved operations.
+      diagnostics: View the reason
+      kind:
+        text-content: File contains specified text
+        json-structure: JSON contains specified fields
+        file-bytes: Exact file contents
+        file-matches-read: Exact contents of the observed source
+        browser-download: Downloaded file and bytes
+        directory-members: Directory members
+        user-review: My confirmation
+        setting: Setting value
+        interface-state: Displayed interface state
+        external-receipt: External operation receipt
+        quality-review: Delivery quality review
+    reobserve: Observe the currently allowed page and continue
+    file_recovery:
+      title: File versions and recovery
+      forget: Clean up this recovery version
+      forget_hint: Remove this recovery content from the current card. The existing file is preserved. Earlier identity backups will no longer be restorable.
+      confirm_forget: I no longer need this recovery version and understand that earlier identity backups will become unavailable
+      forget_confirmed: Confirm recovery cleanup
+      version: '{time} · {bytes} original bytes'
+      version_details: Review version details
+      original_hash: 'Original version:'
+      written_hash: 'Written version:'
+      hint: Local versions preserve files before her writes. Recovery checks for later edits and ends related unfinished work. It changes only the selected file.
+      empty: No recoverable file versions yet.
+      preview: Review recovery
+      refresh: Refresh file versions
+      more: Next page
+      first: First page
+      stop: Stop recovery process
+      restore-original: Restore the content from before this write.
+      remove-created: This operation created the file. Recovery will remove it.
+      cancel_goals: 'These unfinished tasks will end:'
+      confirm: I reviewed the file and recovery and agree to end related work
+      restore: Confirm file recovery
+      expired: This confirmation expired. Review recovery again.
+      failed: The file or operation changed. Refresh and review again. Existing files are preserved.
+      state:
+        recorded: Original version saved
+        forgotten: Recovery version cleaned up. The existing file was preserved.
+        forget-pending: Recovery version withdrawn. Cleanup is incomplete; review it again to continue cleanup.
+        unknown: Outcome unknown. Review the file and operation records.
+        restore-unknown: Recovery outcome unknown. Stop the process before reviewing or taking over.
+        restored: File recovery completed. Related task outcomes retain their original records.
+        not-restored: Recovery did not complete. Refresh and review.
+        stopping: Stopping the recovery process. Stop is not confirmed yet.
+        stopped: Recovery process confirmed stopped. The file outcome still needs review.
+        file-changed: The file was edited or replaced. Current content was preserved.
+        no-observed-version: The previous write was not verified. Recovery is unavailable.
+        source-unsettled: The original write is unresolved. Recovery is unavailable.
+        unresolved-restore: Resolve the previous recovery before trying again.
+        already-restored: This version was already restored.
+        attempt-budget: Too many recovery attempts. Resolve existing operations first.
+        busy: Related operations are active. Stop the task first.
+    recovery:
+      title: Operations with uncertain results
+      download_title: Download ownership awaiting review
+      download_hint: A previous download may have left partial files. After stopping the related programs, take over to release ownership. File and task results still require separate checking.
+      more: Show more owners
+      first: Back to the first page
+      hint: An interrupted operation may have partially happened. Check its result again, or take over after stopping the related programs.
+      other_operation: Other operation
+      unknown: The result remains uncertain. Further operations are paused.
+      recheck: Check again
+      review_takeover: Take over
+      takeover_hint: Taking over ends the related tasks and preserves the unknown result and original records. Check existing files and external effects yourself.
+      confirm_stopped: I stopped the related programs and will handle any existing results
+      takeover: Confirm takeover and end tasks
+      expired: Confirmation expired. Select Take over again.
+      failed: The operation changed or a program is still running. Stop the task, refresh, and check again.
+      result:
+        applied: The operation result was observed. The original goal still requires acceptance.
+        not-applied: The expected result was not observed. Original records were preserved.
+        unknown: Independent checking is unavailable. Check the related programs or take over.
+        host-taken-over: Your takeover was recorded and related tasks ended. The original operation result remains unknown.
+    edit:
+      title: Adjust unfinished steps
+      hint: Update text or paths, then save and continue. Completed steps are preserved.
+      step: Select a step
+      save: Save changes
+      close: Close
+      saved: Changes saved. You can continue now.
+      args_hint: Enter a JSON array, for example ["--format", "json"]. Each item is passed as one argument.
+      field:
+        path: File path
+        content: File content
+        url: Page address
+        text: Text content
+        targetText: Control text
+        windowTitle: Window name
+        prompt: Instructions for the code executor
+        command: Command or executable
+        cwd: Working folder
+        args: Command arguments
+    reviewing: Confirming the result…
+    confirmed: Result confirmed
+    operation:
+      coding_agent:
+        codex: Run a code step with Codex
+        claude_code: Run a code step with Claude Code
+        cli: Run a local command step
+      browser_download: Download file
+      filesystem_list_directory: List a folder
+      filesystem_read_file: Read file
+      filesystem_write_file: Write file
+      browser_open_url: Open page
+      browser_read_page: Read page
+      browser_click_element: Use page control
+      browser_type_text: Fill page content
+      desktop_list_interactables: Inspect app window
+      desktop_click_element: Use app control
+      desktop_type_text: Fill app content
+    open_artifact: 'Open {name}'
+    approve: The result meets my requirements
+    reject: Changes are needed
+    failed: The action did not complete. Check the current task state.
+    title: Work progress
+    progress: 'Observed results: {done} / {total} steps'
+    details: View steps
+    resume: Continue
+    pause: Pause
+    cancel: Stop task
+    updated: Progress updated
+    notice:
+      satisfied: All requirements have been accepted.
+      not-satisfied: Changes are needed; existing artifacts are preserved.
+      unknown: Some results still need verification.
+      accepted: Accepted and starting.
+      already-accepted: This request was already accepted.
+      reconciliation-required: The previous action needs reconciliation before continuing.
+      browser-access-changed: Browser access changed. Connect the current page, then choose Observe again and continue.
+      browser-rebound: The current page is bound. Future actions will use fresh page observations.
+      stopping: Stopping. Effects that already occurred remain recorded.
+      stopped: Dispatch has stopped.
+      already-requested: The stop request was already recorded.
+    window:
+      ready: Ready
+      running: Working
+      yielded: Progress saved for the next work window
+      waiting: Waiting for verification or more information
+      stopping: Stopping or reconciling an uncertain action
+      stopped: This work window has ended
+    step:
+      pending: Pending
+      running: Executing
+      awaiting-verification: Awaiting verification
+      verified: Action result observed; the goal still needs acceptance
+      waiting: Waiting
+      blocked: Needs attention
+      cancelled: Cancelled
   personal_choices: Things she wants to try
   personal_choices_description: These are present ideas. A piece becomes an experience only after it is actually completed and verified.
   withdraw_choice: Withdraw this idea
@@ -2916,7 +3186,12 @@ life:
     title: Local backup and restore
     description: Save a consistent personality and memory snapshot. Restoring restarts the app, preserves the current data, and pauses activity until task results are checked.
     create: Create backup
+    busy: Your current interaction is still being saved. Please try creating the backup again shortly. Existing backups are unchanged.
     list: View backups
+    page: Page {page} · {total} backups
+    previous: Previous page
+    next: Next page
+    unreadable: Some local backup records could not be read ({count}). Their files have been kept.
     restore: Restore this backup
     restarting: Backup verified. Restarting to restore.
     restored: Personality and memory restored. Previous data is preserved and automatic activity is paused. Check actual task results before resuming. Completed actions will not be replayed automatically.
@@ -3032,6 +3307,41 @@ life:
   report_completed: I confirm the goal was achieved
   awaiting_proof: Execution or generation ended; actual result or delivery proof is still required.
   history: Recent fulfilled and cancelled commitments
+  verifiers:
+    title: Result verification rules
+    description: Import rules from a trusted source to check file quality or verify external results. Review the preview before applying them.
+    import: Import rule configuration
+    preview: Review these changes
+    trust: Only apply rules from a source you trust. Check the file paths and public key fingerprints shown below.
+    clear: This configuration revokes all registered rules. Tasks without proof will continue waiting for verification.
+    confirm: Apply reviewed rules
+    dismiss: Cancel preview
+    empty: No rules have been added. Ordinary file verification and manual review remain available.
+    failed: Unable to read or save these rules. Check the configuration and try again.
+    saved: Verification rules saved.
+    scope:
+      quality: Quality checks
+      external: External receipts
+      reconciliation: Result reconciliation
+  storage:
+    title: Local storage
+    pressure_unknown: Checking available storage…
+    pressure_normal: Storage is available.
+    pressure_low: Storage is low. Optional creative work will wait until space is available.
+    cache_size: 'Temporary web cache: {size} MB'
+    deferred: Cleanup will wait for current work to stop.
+    cleaning: Cleanup is still running. Refresh to check the result.
+    released: 'Last cleanup released {size} MB of cache.'
+    description: Cleanup removes temporary web cache and preserves memories, conversations, models and downloaded files.
+    clear: Clear temporary cache
+    refresh: Refresh storage
+    failed: Unable to inspect or clean storage. Please try again.
+  history_updates: New records available
+  history_more: Load older records
+  history_refresh: Refresh records
+  history_empty: No completed or cancelled commitments yet.
+  history_loading: Loading records…
+  history_failed: Could not load these records. Try refreshing.
   diagnostics: Continuity diagnostics
   revision: Committed life revision
   uncertain: Operations awaiting verification

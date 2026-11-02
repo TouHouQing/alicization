@@ -170,7 +170,7 @@ describe('humanlike memory recall seed runtime regression', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
@@ -279,7 +279,7 @@ describe('humanlike memory recall seed runtime regression', () => {
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
       tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpListTools: vi.fn(async () => ([])),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 

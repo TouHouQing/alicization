@@ -1,7 +1,11 @@
 import type { Message } from '@xsai/shared-chat'
 
+import { buildAlicizationProviderFactBlock } from '@proj-alicization/stage-shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { actionDidNotStart, markActionNotStartedError } from './execution/action-dispatch-context'
+import { boundLifeProviderRequest } from './life-provider-budget'
+import { AlicizationReplyGroundingUnavailableError } from './life-reply-grounding-error'
 import { LifeStateConflictError } from './life-state-store'
 import { abortAlicizationDirectChatRun } from './main-chat-abort'
 import {
@@ -11,7 +15,7 @@ import {
 import { handleAlicizationMainChatRunFailure } from './main-chat-run-lifecycle'
 import { createAlicizationChatStreamMetaEmitter } from './main-chat-stream-meta'
 import { runAlicizationMainChatProviderStep } from './main-chat-stream-runner'
-import { startProviderHttpFaultServer } from './provider-http-fault-server.test-support'
+import { encodeOpenAICompatibleSse, startProviderHttpFaultServer } from './provider-http-fault-server.test-support'
 import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
 vi.mock('./main-chat-run-lifecycle', () => ({
@@ -215,7 +219,7 @@ function createInput(
   return {
     key: 'card-1::turn-1',
     reviewLifeReply: vi.fn(async () => ({ accepted: true, issues: [] })),
-    life: { recordContextUse: vi.fn(async () => {}), admit: vi.fn(async () => {}), context: vi.fn(async () => ({ revision: 0, text: '{}', owners: [] })), beforeAction: vi.fn(async () => ({ id: 'effect', cached: null })), afterAction: vi.fn(async () => {}), settle: vi.fn(async () => {}), recover: vi.fn(async () => ({ cardId: 'card-1', revision: 0, owners: [], values: {}, obligations: [], ingress: [], effects: [], soulActivations: [] })) },
+    life: { recordContextUse: vi.fn(async () => {}), admit: vi.fn(async () => {}), context: vi.fn(async () => ({ revision: 0, text: '{}', owners: [] })), beforeAction: vi.fn(async () => ({ id: 'effect', cached: null, authorizeDispatch: vi.fn(async () => {}), assertDispatchCurrent: vi.fn(async () => ({ expiresAt: null })) })), afterAction: vi.fn(async () => {}), settle: vi.fn(async () => {}), recover: vi.fn(async () => ({ cardId: 'card-1', revision: 0, owners: [], values: {}, obligations: [], ingress: [], effects: [], soulActivations: [] })) },
     payload: {
       cardId: 'card-1',
       turnId: 'turn-1',
@@ -281,9 +285,220 @@ function createInput(
 }
 
 describe('main chat background run', () => {
+  it.each([false, true])('preserves actual local admission-error provenance through the production life observation: %s', async (localRefusal) => {
+    const execute = vi.fn(async () => {
+      const error = Object.freeze(new Error('Work proposal was rejected'))
+      throw localRefusal ? markActionNotStartedError(error) : error
+    })
+    const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'life_execute_work_plan', parameters: { type: 'object', properties: {} } }, execute }] })
+    const input = createInput('请处理这件事', { prepareTurn: vi.fn(async () => prepared) })
+    const assertDispatchCurrent = vi.fn(async () => ({ capabilityId: 'tool.life_execute_work_plan', cardId: 'card-1', turnId: 'turn-1', effectId: 'effect', expiresAt: null }))
+    const authorizeDispatch = Object.assign(vi.fn(async (_parameters: unknown) => {}), { assertCurrent: assertDispatchCurrent })
+    vi.mocked(input.life.beforeAction).mockResolvedValue({ id: 'effect', cached: null, authorizeDispatch, assertDispatchCurrent })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockResolvedValueOnce({ kind: 'action', action: { actionId: 'admission', input: {}, providerToolName: 'life_execute_work_plan', capabilityId: 'tool.life_execute_work_plan', toolCallId: 'admission' } } as any)
+      .mockResolvedValueOnce({ kind: 'reply', fullText: buildProviderReply('这次没有受理。'), text: '这次没有受理。', finishReason: 'stop' } as any)
+    await runAlicizationMainChatBackground(input)
+    expect(input.life.afterAction).toHaveBeenCalledOnce()
+    const output = vi.mocked(input.life.afterAction).mock.calls[0][0].output
+    expect(actionDidNotStart(output, 'card-1', 'effect')).toBe(localRefusal)
+    expect(output).toMatchObject({ effectMayHaveOccurred: !localRefusal })
+    expect(actionDidNotStart(JSON.parse(JSON.stringify(output)), 'card-1', 'effect')).toBe(false)
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+  })
+
+  it('settles an expired final authority check without entering the adapter or inventing an unknown side effect', async () => {
+    const execute = vi.fn(async () => ({ ok: true }))
+    const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: {} } }, execute }] })
+    const input = createInput('执行这个本地操作', { prepareTurn: vi.fn(async () => prepared) })
+    const authorize = vi.fn(async () => {})
+    const current = vi.fn(async (): Promise<{ expiresAt: number | null }> => { throw new Error('original-source-ended') })
+    input.life.beforeAction = vi.fn().mockResolvedValue({ id: 'expired-effect', cached: null, authorizeDispatch: authorize, assertDispatchCurrent: current })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockResolvedValueOnce({ kind: 'action', action: { actionId: 'expired', input: {}, providerToolName: 'test_action', capabilityId: 'test.test_action', toolCallId: 'expired' } } as any)
+      .mockResolvedValueOnce({ kind: 'reply', fullText: buildProviderReply('操作尚未执行。'), text: '操作尚未执行。', finishReason: 'stop' })
+    await runAlicizationMainChatBackground(input)
+    expect(authorize).toHaveBeenCalledOnce()
+    expect(current).toHaveBeenCalledOnce()
+    expect(execute).not.toHaveBeenCalled()
+    expect(input.life.afterAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'expired-effect', outcome: 'failure', interrupted: false, output: expect.objectContaining({ effectMayHaveOccurred: false }) }))
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+  })
+  it.each([
+    { name: 'corrected first proposal', mode: 'corrected', calls: 3, executions: 1, success: true },
+    { name: 'repeated invalid proposal', mode: 'invalid', calls: 2, executions: 0, success: false },
+    { name: 'invalid proposal after an admitted action', mode: 'after-action', calls: 2, executions: 1, success: false },
+  ])('keeps action ownership exact for $name', async ({ mode, calls, executions, success }) => {
+    const actual = await vi.importActual<typeof import('./main-chat-stream-runner')>('./main-chat-stream-runner')
+    const execute = vi.fn(async () => ({ ok: true, status: 'completed' }))
+    const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', description: 'One owned test action', parameters: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'], additionalProperties: false } }, execute }] })
+    let generated = 0
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(request => actual.runAlicizationMainChatProviderStep({ ...request, streamTextImpl: () => {
+      const index = ++generated
+      const invalid = mode === 'invalid' || (mode === 'corrected' ? index === 1 : index === 2)
+      return { fullStream: new ReadableStream({ start(controller) {
+        if (index === 3) {
+          controller.enqueue({ type: 'text-delta', text: buildProviderReply('收到。') })
+          controller.enqueue({ type: 'finish', finishReason: 'stop' })
+        }
+        else {
+          controller.enqueue({ type: 'tool-call', toolCallId: `candidate-${index}`, toolName: 'test_action', arguments: { value: 'same current request', ...(invalid ? { capabilityBindings: [] } : {}) } })
+          controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+        }
+        controller.close()
+      } }) }
+    } }))
+    const input = createInput('请执行这个测试动作', { prepareTurn: vi.fn(async () => prepared) })
+    await runAlicizationMainChatBackground(input)
+    expect(generated).toBe(calls)
+    expect(execute).toHaveBeenCalledTimes(executions)
+    expect(input.life.beforeAction).toHaveBeenCalledTimes(executions)
+    expect(input.life.afterAction).toHaveBeenCalledTimes(executions)
+    if (success) {
+      expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+      expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('life.tool-arguments-repair', expect.objectContaining({ actionAdmitted: false, toolReplayed: false }))
+      const repair = vi.mocked(runAlicizationMainChatProviderStep).mock.calls[1][0]
+      expect(repair.messages.some(message => message.role === 'system' && String(message.content).includes('rejected-before-dispatch'))).toBe(true)
+      expect(repair.providerRetryPolicy).toEqual({ maxRetries: 0 })
+      const continuation = vi.mocked(runAlicizationMainChatProviderStep).mock.calls[2][0].messages
+      const calls = continuation.flatMap(message => message.role === 'assistant' ? message.tool_calls ?? [] : [])
+      expect(calls.map(call => call.id)).toEqual(['candidate-2'])
+      const toolResult = continuation.findIndex(message => message.role === 'tool' && message.tool_call_id === 'candidate-2')
+      expect(toolResult).toBeGreaterThan(continuation.findIndex(message => message.role === 'assistant' && message.tool_calls?.some(call => call.id === 'candidate-2')))
+    }
+    else {
+      expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledOnce()
+    }
+  })
+
+  it('keeps all required context and tools by sending the same reduced output allocation to the actual provider boundary', async () => {
+    const request = '请写一篇八百字的雨天绘画散文，保留我的完整要求。'
+    const memory = { type: 'alicization-turn-memory-context', data: { workingMemory: { version: 'working-memory-owner-context-v1', owner: 'working-memory', current: { activeTask: 'current request' }, recentDialogue: [{ turnId: 'prior-user', role: 'user', text: 'Preserve this literal earlier conversation.' }], compressedTimeline: [], corrections: [{ text: 'Keep the current correction' }], emotionalPosture: { summary: 'continuous feeling' } }, longTermRecall: { evidence: [{ id: 'required-proof', summary: '保留有来源的实际记忆。'.repeat(80) }] } } }
+    const tools = [{ type: 'function' as const, function: { name: 'filesystem_read_file', parameters: { type: 'object', properties: { path: { type: 'string' } } } }, execute: vi.fn() }]
+    const prepared = createPrepared({ tools, messages: [{ role: 'system', content: 'Exact adopted identity' }, { role: 'system', content: JSON.stringify(memory) }, { role: 'user', content: request }] })
+    const input = createInput(request, { prepareTurn: vi.fn(async () => prepared) })
+    const cost = boundLifeProviderRequest([...prepared.messages, { role: 'system', content: '{}' }], tools).report
+    input.mainGateway.providerBudget = { contextTokens: cost.beforeTokens + cost.toolTokens + 4096 + 1024 - 147, outputReserve: 4096, completionTokenField: 'maxCompletionTokens', contextSource: 'configured' }
+    await runAlicizationMainChatBackground(input)
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledOnce()
+    const call = vi.mocked(runAlicizationMainChatProviderStep).mock.calls[0][0]
+    expect(call.providerBudget).toMatchObject({ outputReserve: 3949, completionTokenField: 'maxCompletionTokens' })
+    expect(call.messages).toContainEqual(prepared.messages[0])
+    expect(call.messages).toContainEqual(prepared.messages[1])
+    expect(call.messages).toContainEqual({ role: 'user', content: request })
+    expect(call.prepared.tools).toBe(tools)
+    expect(input.life.recordContextUse).toHaveBeenCalledOnce()
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('life.provider-budget', expect.objectContaining({ outputReserve: 3949, outputReserveReduction: { requested: 4096, minimum: 2048, selected: 3949 } }))
+    expect(tools[0].execute).not.toHaveBeenCalled()
+  })
+  it('fits an ordinary conversation by exact historical interning while retaining its tools, recent words and required proof', async () => {
+    const request = '请写一篇雨天绘画散文，保留我当前的全部要求。'
+    const repeated = 'A source-backed earlier painting scene, with the same words recorded in distinct events. '.repeat(8)
+    const memory = { type: 'alicization-turn-memory-context', data: { workingMemory: { version: 'working-memory-owner-context-v1', owner: 'working-memory', recentDialogue: [{ turnId: 'prior-user', text: 'Preserve our most recent literal conversation.' }], compressedTimeline: Array.from({ length: 5 }, (_, index) => ({ summary: `distinct event ${index}`, thread: repeated, sourceTurnIds: [`source-${index}`] })), corrections: [{ text: 'Keep the current correction' }] }, longTermRecall: { evidence: [{ id: 'current-proof', summary: 'Keep this exact evidence' }] } } }
+    const execute = vi.fn()
+    const tools = [{ type: 'function' as const, function: { name: 'filesystem_read_file', parameters: { type: 'object', properties: { path: { type: 'string' } } } }, execute }]
+    const prepared = createPrepared({ tools, messages: [{ role: 'system', content: 'Exact adopted identity' }, { role: 'system', content: JSON.stringify(memory) }, { role: 'user', content: request }] })
+    const input = createInput(request, { prepareTurn: vi.fn(async () => prepared) })
+    const cost = boundLifeProviderRequest([...prepared.messages, { role: 'system', content: '{}' }], tools).report
+    input.mainGateway.providerBudget = { contextTokens: cost.beforeTokens + cost.toolTokens + 512 + 1024 - 166, outputReserve: 512, completionTokenField: 'maxTokens', contextSource: 'configured' }
+    await runAlicizationMainChatBackground(input)
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledOnce()
+    const call = vi.mocked(runAlicizationMainChatProviderStep).mock.calls[0][0]
+    const block = call.messages.find(message => message.role === 'system' && String(message.content).includes('alicization-turn-memory-context'))!
+    const projected = JSON.parse(String(block.content))
+    expect(projected.data.historicalTextDictionary.values).toEqual([repeated])
+    expect(projected.data.workingMemory.recentDialogue).toEqual(memory.data.workingMemory.recentDialogue)
+    expect(projected.data.workingMemory.corrections).toEqual(memory.data.workingMemory.corrections)
+    expect(projected.data.longTermRecall).toEqual(memory.data.longTermRecall)
+    expect(call.messages).toContainEqual({ role: 'user', content: request })
+    expect(call.prepared.tools).toBe(tools)
+    expect(input.life.recordContextUse).toHaveBeenCalledOnce()
+    expect(execute).not.toHaveBeenCalled()
+    const budget = vi.mocked(input.appendRuntimeDebugLine).mock.calls.find(([event]) => event === 'life.provider-budget')![1]
+    expect(budget).toMatchObject({ deduplicatedHistoricalMemory: expect.any(Array) })
+    expect(budget).not.toHaveProperty('compactedHistoricalMemory')
+    expect(JSON.parse(prepared.messages[1].content)).toEqual(memory)
+  })
+
+  it.each([{ names: ['life_execute_work_plan'] }, { names: ['life_list_learned_procedures', 'life_use_learned_procedure'] }])('preserves full required context while offering the explicitly requested $names surface', async ({ names }) => {
+    const work = names.map(name => ({ type: 'function' as const, function: { name, description: 'Use accepted work', parameters: { type: 'object', properties: {} } }, execute: vi.fn() }))
+    const duplicate = { type: 'function' as const, function: { name: 'direct_browser_tool', description: 'unused schema'.repeat(3000), parameters: { type: 'object', properties: {} } }, execute: vi.fn() }
+    const request = `请用 ${names.join(' 然后 ')} 完成这个本地工作。`
+    const prepared = createPrepared({ tools: [...work, duplicate], messages: [{ role: 'user', content: request }] })
+    const input = createInput(request, { prepareTurn: vi.fn(async () => prepared) })
+    await runAlicizationMainChatBackground(input)
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledWith(expect.objectContaining({ prepared: expect.objectContaining({ tools: work }), messages: expect.arrayContaining([expect.objectContaining({ role: 'user', content: request })]) }))
+    expect(input.life.recordContextUse).toHaveBeenCalled()
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+  })
+
+  it('keeps explicit-workflow history compaction available when rejected arguments add a second request near the context limit', async () => {
+    const actual = await vi.importActual<typeof import('./main-chat-stream-runner')>('./main-chat-stream-runner')
+    const request = '请用 life_execute_work_plan 处理本地请求；保留原来的所有要求。'
+    const memory = { type: 'alicization-turn-memory-context', data: { workingMemory: { version: 'working-memory-owner-context-v1', owner: 'working-memory', current: { activeTask: 'exact current task' }, recentDialogue: [{ turnId: 'prior-dialogue', text: 'redundant historical wording '.repeat(300) }], compressedTimeline: [{ summary: 'source-backed earlier event', sourceTurnIds: ['prior-dialogue'] }], corrections: [{ text: 'preserve current correction' }], relationshipPosture: { summary: 'continuous relationship' }, emotionalPosture: { summary: 'continuous feeling' } }, longTermRecall: { evidence: [{ id: 'required-proof', summary: 'keep this exact proof' }] } } }
+    const execute = vi.fn()
+    const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'life_execute_work_plan', parameters: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'], additionalProperties: false } }, execute }], messages: [{ role: 'system', content: 'exact adopted identity' }, { role: 'system', content: JSON.stringify(memory) }, { role: 'user', content: request }] })
+    const input = createInput(request, { prepareTurn: vi.fn(async () => prepared) })
+    const initialBudget = boundLifeProviderRequest([...prepared.messages, { role: 'system', content: '{}' }], prepared.tools).report
+    input.mainGateway.providerBudget = { contextTokens: initialBudget.beforeTokens + initialBudget.toolTokens + 512 + 1024 + 32, outputReserve: 512, completionTokenField: 'maxTokens', contextSource: 'configured' }
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(options => actual.runAlicizationMainChatProviderStep({ ...options, streamTextImpl: () => ({ fullStream: new ReadableStream({ start(controller) {
+      controller.enqueue({ type: 'tool-call', toolCallId: 'rejected-candidate', toolName: 'life_execute_work_plan', arguments: { value: 'original request', capabilityBindings: [] } })
+      controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+      controller.close()
+    } }) }) })).mockResolvedValueOnce({ kind: 'reply', fullText: buildProviderReply('我先核对这项请求。'), text: '我先核对这项请求。', finishReason: 'stop' })
+    await runAlicizationMainChatBackground(input)
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledTimes(2)
+    const first = vi.mocked(runAlicizationMainChatProviderStep).mock.calls[0][0]
+    expect(first.messages).toContainEqual({ role: 'system', content: JSON.stringify(memory) })
+    const repair = vi.mocked(runAlicizationMainChatProviderStep).mock.calls[1][0]
+    const projected = repair.messages.find(message => message.role === 'system' && typeof message.content === 'string' && message.content.includes('alicization-turn-memory-context'))!
+    expect(JSON.parse(String(projected.content))).toEqual({ ...memory, data: { ...memory.data, workingMemory: { ...memory.data.workingMemory, recentDialogue: [] } } })
+    expect(repair.messages).toContainEqual({ role: 'system', content: 'exact adopted identity' })
+    expect(repair.messages).toContainEqual({ role: 'user', content: request })
+    expect(JSON.parse(prepared.messages[1].content)).toEqual(memory)
+    expect(execute).not.toHaveBeenCalled()
+    expect(input.life.beforeAction).not.toHaveBeenCalled()
+  })
+
+  it('continues after one admitted action fills the request budget without replaying its effect or losing the result', async () => {
+    const request = '请用 life_execute_work_plan 完成指定工作。'
+    const historical = 'Previously accepted responsibility with an unchanged source and uncertainty. '.repeat(10)
+    const memory = { type: 'alicization-turn-memory-context', data: { workingMemory: { version: 'working-memory-owner-context-v1', owner: 'working-memory', recentDialogue: [], compressedTimeline: Array.from({ length: 6 }, (_, index) => ({ summary: `event-${index}`, thread: historical, commitments: [historical], sourceTurnIds: [`source-${index}`] })), corrections: [{ text: 'Keep this correction' }] }, longTermRecall: { evidence: [{ id: 'exact-proof', summary: 'Preserve this evidence' }] } } }
+    const receipt = { observedResult: 'Actual tool observation. '.repeat(60) }
+    const execute = vi.fn(async () => receipt)
+    const tools = [{ type: 'function', function: { name: 'life_execute_work_plan', parameters: { type: 'object', properties: {} } }, execute }]
+    const prepared = createPrepared({ tools, messages: [{ role: 'system', content: 'exact identity' }, { role: 'system', content: JSON.stringify(memory) }, { role: 'user', content: request }] })
+    const input = createInput(request, { prepareTurn: vi.fn(async () => prepared) })
+    const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength
+    input.mainGateway.providerBudget = { contextTokens: bytes([...prepared.messages, { role: 'system', content: '{}' }]) + bytes(tools) + 512 + 1024 + 32, outputReserve: 512, completionTokenField: 'maxTokens', contextSource: 'configured' }
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockResolvedValueOnce({ kind: 'action', action: { actionId: 'admitted-once', input: {}, providerToolName: 'life_execute_work_plan', capabilityId: 'tool.life_execute_work_plan', toolCallId: 'admitted-once' } } as any)
+      .mockImplementationOnce(async ({ messages }) => {
+        expect(execute).toHaveBeenCalledOnce()
+        const memoryBlock = messages.find(message => message.role === 'system' && String(message.content).includes('alicization-turn-memory-context'))!
+        const projected = JSON.parse(String(memoryBlock.content))
+        expect(projected.data.historicalTextDictionary.values).toEqual([historical])
+        expect(projected.data.workingMemory.corrections).toEqual(memory.data.workingMemory.corrections)
+        expect(projected.data.longTermRecall).toEqual(memory.data.longTermRecall)
+        expect(messages.some(message => message.role === 'tool' && String(message.content).includes(receipt.observedResult))).toBe(true)
+        return { kind: 'reply', fullText: buildProviderReply('我会按实际结果继续。'), text: '我会按实际结果继续。', finishReason: 'stop' }
+      })
+    await runAlicizationMainChatBackground(input)
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledTimes(2)
+    expect(execute).toHaveBeenCalledOnce()
+    expect(input.life.beforeAction).toHaveBeenCalledOnce()
+    expect(input.life.afterAction).toHaveBeenCalledOnce()
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('life.provider-budget', expect.objectContaining({ deduplicatedHistoricalMemory: expect.arrayContaining([expect.objectContaining({ references: 12 })]) }))
+    expect(JSON.parse(prepared.messages[1].content)).toEqual(memory)
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValue({
+    vi.mocked(runAlicizationMainChatProviderStep).mockReset().mockResolvedValue({
       kind: 'reply',
       finishReason: 'stop',
       fullText: 'Provider reply',
@@ -322,8 +537,438 @@ describe('main chat background run', () => {
     input.reviewLifeReply = vi.fn(async () => ({ accepted: true, reviewId: 'actual-review', issues: [] }))
     await runAlicizationMainChatBackground(input)
     expect(deliver).toHaveBeenCalledWith({ artifact: expect.objectContaining({ visibleText: 'Provider reply', realization: expect.objectContaining({ providerMindExecuted: true, visibleReplyValidationStatus: 'approved' }) }), cardId: 'card-1', turnId: 'turn-1', text: 'Provider reply', conversationId: 'conversation-1', reviewId: 'actual-review', owners: [] })
-    expect(order).toEqual(['durable', 'stream'])
+    expect(order).toEqual(['durable', 'stream', 'stream'])
   })
+  it('publishes a typed non-learning prefix before model and life review settlement', async () => {
+    const input = createInput('你好')
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(async (options) => {
+      options.onReplyAttemptStart?.()
+      expect(options.onReplyText?.('你好，')).toBe(true)
+      expect(input.emitChunk).toHaveBeenCalledWith(expect.objectContaining({ text: '你好，', delivery: { phase: 'append', sequence: 0, offset: 0 }, learningPolicy: { allowLongTermCondensation: false, allowPersonaLearning: false, allowTraining: false } }))
+      expect(input.reviewLifeReply).not.toHaveBeenCalled()
+      return { kind: 'reply', fullText: '你好，我在这里。', text: '你好，我在这里。', finishReason: 'stop' }
+    })
+    await runAlicizationMainChatBackground(input)
+    const packets = vi.mocked(input.emitChunk).mock.calls.map(([event]) => event)
+    expect(packets.filter(event => event.delivery?.phase === 'append').map(event => event.text).join('')).toBe('你好，我在这里。')
+    expect(packets.at(-1)).toMatchObject({ text: '', delivery: { phase: 'complete', sequence: 2, offset: 8 } })
+  })
+  it('delivers accepted header emotion through the real emitter before the first public glyph with uncommitted governance', async () => {
+    const actual = await vi.importActual<typeof import('./main-chat-stream-meta')>('./main-chat-stream-meta')
+    vi.mocked(createAlicizationChatStreamMetaEmitter).mockImplementationOnce(actual.createAlicizationChatStreamMetaEmitter)
+    const input = createInput('请只回复：今天画画很开心。')
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(async (options) => {
+      options.onReplyAttemptStart?.()
+      options.onReplyEmotion?.('happy')
+      expect(vi.mocked(input.emitMeta).mock.calls.at(-1)?.[0]).toMatchObject({
+        turnId: 'turn-1',
+        governance: null,
+        embodiment: { performance: { baseEmotion: 'happy' } },
+      })
+      expect(input.emitChunk).not.toHaveBeenCalled()
+      expect(input.reviewLifeReply).not.toHaveBeenCalled()
+      expect(options.onReplyText?.('今天')).toBe(true)
+      return { kind: 'reply', fullText: buildProviderReply('今天画画很开心。'), text: '今天画画很开心。', finishReason: 'stop' }
+    })
+    await runAlicizationMainChatBackground(input)
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    expect(input.life.beforeAction).not.toHaveBeenCalled()
+  })
+  it.each([
+    { name: 'accepted suffix', revised: '文件还没有保存。', accepted: true, completes: true },
+    { name: 'repeated public prefix', revised: '你好，文件还没有保存。', accepted: true, completes: false },
+    { name: 'still unsupported suffix', revised: '我已经保存了文件。', accepted: false, completes: false },
+  ])('repairs only the unpublished remainder after a public prefix: $name', async ({ revised, accepted, completes }) => {
+    const input = createInput('你好')
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(async (options) => {
+      options.onReplyAttemptStart?.()
+      options.onReplyText?.('你好，')
+      expect(options.onReplyText?.('我已经保存了文件。')).toBe(false)
+      return { kind: 'reply', fullText: '你好，我已经保存了文件。', text: '你好，我已经保存了文件。', finishReason: 'stop' }
+    }).mockImplementationOnce(async (options) => {
+      expect(options.prepared).toMatchObject({ tools: undefined, toolChoice: 'none', waitForTools: false })
+      expect(options.providerRetryPolicy).toEqual({ maxRetries: 0 })
+      const prefix = options.messages.find(message => message.role === 'system' && String(message.content).includes('alicization-public-reply-prefix'))!
+      expect(JSON.parse(String(prefix.content)).data).toMatchObject({ text: '你好，', status: 'already-published-non-learning-prefix', replyMode: 'unpublished-continuation-v1' })
+      // An unreviewed revision must not repeat the prefix or animate its claims.
+      options.onReplyAttemptStart?.()
+      options.onReplyEmotion?.('happy')
+      options.onReplyText?.(revised)
+      expect(vi.mocked(input.emitChunk).mock.calls.map(([event]) => event.text)).toEqual(['你好，'])
+      return { kind: 'reply', fullText: buildProviderReply(revised), text: revised, finishReason: 'stop' }
+    })
+    input.reviewLifeReply = vi.fn().mockResolvedValueOnce({ accepted: false, issues: [{ code: 'UNPROVEN_COMPLETION', quote: '我已经保存了文件。' }] }).mockResolvedValueOnce({ accepted, issues: accepted ? [] : [{ code: 'UNPROVEN_COMPLETION', quote: '我已经保存了文件。' }] })
+    await runAlicizationMainChatBackground(input)
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledTimes(2)
+    const packets = vi.mocked(input.emitChunk).mock.calls.map(([event]) => event)
+    if (completes) {
+      expect(packets.filter(event => event.delivery?.phase === 'append').map(event => event.text)).toEqual(['你好，', '文件还没有保存。'])
+      expect(packets.at(-1)).toMatchObject({ text: '', cardId: 'card-1', turnId: 'turn-1', delivery: { phase: 'complete', sequence: 2, offset: '你好，'.length + revised.length } })
+      expect(input.reviewLifeReply).toHaveBeenLastCalledWith(expect.objectContaining({ text: `你好，${revised}` }))
+      expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    }
+    else {
+      expect(packets.map(event => event.text)).toEqual(['你好，'])
+      expect(handleAlicizationMainChatRunFailure).toHaveBeenCalled()
+    }
+    expect(input.life.beforeAction).not.toHaveBeenCalled()
+  })
+
+  it.each([true, false])('completes a partial published word and reviews the full composition (structured=%s)', async (structured) => {
+    const input = createInput('执行已授权计划')
+    const deliver = vi.fn(async (_value: Parameters<NonNullable<typeof input.deliverCommittedReply>>[0]) => {})
+    input.deliverCommittedReply = deliver
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(async (options) => {
+      options.onReplyAttemptStart?.()
+      expect(options.onReplyText?.('计划已接')).toBe(true)
+      expect(options.onReplyText?.('收，我已经完成下载。')).toBe(false)
+      return { kind: 'reply', fullText: buildProviderReply('计划已接收，我已经完成下载。'), text: '计划已接收，我已经完成下载。', finishReason: 'stop' }
+    }).mockResolvedValueOnce({ kind: 'reply', fullText: structured ? buildProviderReply('收，下载尚未完成。') : '收，下载尚未完成。', text: '收，下载尚未完成。', finishReason: 'stop' })
+    input.reviewLifeReply = vi.fn().mockResolvedValueOnce({ accepted: false, issues: [{ code: 'UNPROVEN_COMPLETION', quote: '我已经完成下载。' }] }).mockResolvedValueOnce({ accepted: true, reviewId: 'composed-review', issues: [] })
+    await runAlicizationMainChatBackground(input)
+    expect(input.reviewLifeReply).toHaveBeenLastCalledWith(expect.objectContaining({ text: '计划已接收，下载尚未完成。' }))
+    expect(deliver).toHaveBeenCalledWith(expect.objectContaining({ text: '计划已接收，下载尚未完成。', reviewId: 'composed-review', artifact: expect.objectContaining({ fullText: expect.any(String) }) }))
+    expect(JSON.parse(deliver.mock.calls[0][0].artifact.fullText).reply).toBe('计划已接收，下载尚未完成。')
+    expect(vi.mocked(input.emitChunk).mock.calls.filter(([event]) => event.delivery?.phase === 'append').map(([event]) => event.text)).toEqual(['计划已接', '收，下载尚未完成。'])
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    expect(input.life.beforeAction).not.toHaveBeenCalled()
+  })
+
+  it('never certifies a published prefix merely because its continuation is harmless', async () => {
+    const input = createInput('执行了吗')
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(async (options) => {
+      options.onReplyAttemptStart?.()
+      options.onReplyText?.('计划已接')
+      options.onReplyText?.('收。')
+      return { kind: 'reply', fullText: buildProviderReply('计划已接收。'), text: '计划已接收。', finishReason: 'stop' }
+    }).mockResolvedValueOnce({ kind: 'reply', fullText: buildProviderReply('收，先等待。'), text: '收，先等待。', finishReason: 'stop' })
+    input.reviewLifeReply = vi.fn(async ({ text }) => ({ accepted: false, issues: [{ code: 'UNBOUND_OBLIGATION' as const, quote: text }] }))
+    await runAlicizationMainChatBackground(input)
+    expect(input.reviewLifeReply).toHaveBeenLastCalledWith(expect.objectContaining({ text: '计划已接收，先等待。' }))
+    expect(vi.mocked(input.emitChunk).mock.calls.map(([event]) => event.text)).toEqual(['计划已接'])
+    expect(input.life.settle).toHaveBeenCalledWith({ cardId: 'card-1', turnId: 'turn-1', status: 'failed' })
+    expect(input.life.settle).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'completed' }))
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledOnce()
+  })
+
+  it('continues one already spoken introduction across an actual tool action without replay or a second bubble', async () => {
+    const execute = vi.fn(async () => ({ status: 'completed', result: 'actual current observation' }))
+    const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: {} } }, execute }] })
+    const input = createInput('帮我看看这里', { prepareTurn: vi.fn(async () => prepared) })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(async (options) => {
+      options.onReplyAttemptStart?.()
+      expect(options.onReplyText?.('我先看看。')).toBe(true)
+      return { kind: 'action', action: { actionId: 'inspect-once', input: {}, providerToolName: 'test_action', capabilityId: 'test.test_action', toolCallId: 'inspect-once' } }
+    }).mockImplementationOnce(async (options) => {
+      const prefix = options.messages.find(message => message.role === 'system' && String(message.content).includes('alicization-public-reply-prefix'))
+      expect(prefix).toBeDefined()
+      expect(JSON.parse(String(prefix!.content)).data).toMatchObject({ text: '我先看看。', replyMode: 'unpublished-continuation-v1' })
+      options.onReplyAttemptStart?.()
+      expect(options.onReplyText?.('已经取得这次观察结果。')).toBe(false)
+      expect(vi.mocked(input.emitChunk).mock.calls.map(([event]) => event.text)).toEqual(['我先看看。'])
+      return { kind: 'reply', fullText: buildProviderReply('已经取得这次观察结果。'), text: '已经取得这次观察结果。', finishReason: 'stop' }
+    })
+    await runAlicizationMainChatBackground(input)
+    expect(execute).toHaveBeenCalledOnce()
+    expect(input.life.beforeAction).toHaveBeenCalledOnce()
+    expect(input.reviewLifeReply).toHaveBeenLastCalledWith(expect.objectContaining({ text: '我先看看。已经取得这次观察结果。' }))
+    expect(vi.mocked(input.emitChunk).mock.calls.filter(([event]) => event.delivery?.phase === 'append').map(([event]) => event.text)).toEqual(['我先看看。', '已经取得这次观察结果。'])
+    expect(vi.mocked(input.emitChunk).mock.calls.at(-1)?.[0]).toMatchObject({ text: '', delivery: { phase: 'complete', offset: '我先看看。已经取得这次观察结果。'.length } })
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+  })
+
+  it('continues actual HTTP SSE text across a tool result with one visible reply and one execution', async () => {
+    const actualRunner = await vi.importActual<typeof import('./main-chat-stream-runner')>('./main-chat-stream-runner')
+    const intro = '我先看看。'
+    const continuation = '已经取得这次观察结果。'
+    let releaseIntro!: () => void
+    const introVisible = new Promise<void>((resolve) => { releaseIntro = resolve })
+    const ordering: string[] = []
+    const execute = vi.fn(async () => {
+      ordering.push('execute')
+      return { status: 'completed', result: 'actual current observation' }
+    })
+    const server = await startProviderHttpFaultServer({
+      respond: ({ attempt }) => attempt === 1
+        ? {
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream' },
+            stream: async (response) => {
+              response.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { role: 'assistant', content: buildProviderReply(intro) }, finish_reason: null }] })}\n\n`)
+              let timer: ReturnType<typeof setTimeout> | undefined
+              try {
+                await Promise.race([introVisible, new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error('Intro did not stream before the tool call')), 3000) })])
+              }
+              finally { clearTimeout(timer) }
+              response.end(encodeOpenAICompatibleSse([
+                { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'http-inspect-once', type: 'function', function: { name: 'test_action', arguments: '{}' } }] }, finish_reason: null }] },
+                { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] },
+              ]))
+            },
+          }
+        : {
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream' },
+            body: encodeOpenAICompatibleSse([
+              { choices: [{ index: 0, delta: { content: buildProviderReply(continuation) }, finish_reason: null }] },
+              { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] },
+            ]),
+          },
+    })
+    const prepared = createPrepared({
+      chatConfig: { apiKey: 'test-key', baseURL: server.baseUrl, model: 'gpt-test' },
+      tools: [{ type: 'function', function: { name: 'test_action', description: 'Inspect once', parameters: { type: 'object', properties: {} } }, execute }],
+    })
+    const input = createInput('帮我看看这里', { prepareTurn: vi.fn(async () => prepared) })
+    vi.mocked(input.emitChunk).mockImplementation((event) => {
+      if (event.text === intro) {
+        ordering.push('intro-visible')
+        releaseIntro()
+      }
+      else if (event.text === continuation) {
+        ordering.push('result-visible')
+      }
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(options => actualRunner.runAlicizationMainChatProviderStep(options))
+    try {
+      await runAlicizationMainChatBackground(input)
+      expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+      expect(server.requests).toHaveLength(2)
+      expect(server.requests.map(request => JSON.parse(request.body).stream)).toEqual([true, true])
+      const secondMessages = JSON.parse(server.requests[1].body).messages
+      const providerCalls = secondMessages.flatMap((message: Message) => message.role === 'assistant' ? message.tool_calls ?? [] : [])
+      expect(providerCalls).toEqual([{ id: 'http-inspect-once', type: 'function', function: { name: 'test_action', arguments: '{}' } }])
+      const callIndex = secondMessages.findIndex((message: Message) => message.role === 'assistant' && message.tool_calls?.some(call => call.id === 'http-inspect-once'))
+      const resultIndex = secondMessages.findIndex((message: Message) => message.role === 'tool' && message.tool_call_id === 'http-inspect-once')
+      expect(callIndex).toBeGreaterThanOrEqual(0)
+      expect(resultIndex).toBeGreaterThan(callIndex)
+      const prefixFacts = secondMessages.filter((message: Message) => message.role === 'system' && String(message.content).includes('alicization-public-reply-prefix'))
+      expect(prefixFacts).toHaveLength(1)
+      expect(JSON.parse(prefixFacts[0].content).data.text).toBe(intro)
+      expect(secondMessages.some((message: Message) => message.role === 'tool' && String(message.content).includes('actual current observation'))).toBe(true)
+      expect(ordering).toEqual(['intro-visible', 'execute', 'result-visible'])
+      expect(execute).toHaveBeenCalledOnce()
+      expect(input.life.beforeAction).toHaveBeenCalledOnce()
+      expect(input.reviewLifeReply).toHaveBeenLastCalledWith(expect.objectContaining({ text: intro + continuation }))
+      expect(vi.mocked(input.emitChunk).mock.calls.filter(([event]) => event.delivery?.phase === 'append').map(([event]) => event.text)).toEqual([intro, continuation])
+      expect(vi.mocked(input.emitChunk).mock.calls.filter(([event]) => event.delivery?.phase === 'complete')).toHaveLength(1)
+      expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    }
+    finally { await server.close() }
+  })
+
+  it('preserves an admitted action exactly once when repairing a factual follow-up', async () => {
+    const execute = vi.fn(async () => ({ status: 'completed', actual: 'one result' }))
+    const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: {} } }, execute }] })
+    const input = createInput('执行这个本地操作', { prepareTurn: vi.fn(async () => prepared) })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockResolvedValueOnce({ kind: 'action', action: { actionId: 'actual-action', input: {}, providerToolName: 'test_action', capabilityId: 'test.test_action', toolCallId: 'actual-action' } } as any)
+      .mockImplementationOnce(async (options) => {
+        options.onReplyAttemptStart?.()
+        expect(options.onReplyText?.('你好，')).toBe(false)
+        expect(options.onReplyText?.('我已经保存了文件。')).toBe(false)
+        expect(input.emitChunk).not.toHaveBeenCalled()
+        return { kind: 'reply', fullText: buildProviderReply('你好，我已经保存了文件。'), text: '你好，我已经保存了文件。', finishReason: 'stop' }
+      })
+      .mockImplementationOnce(async (options) => {
+        expect(options.prepared).toMatchObject({ tools: undefined, toolChoice: 'none', waitForTools: false })
+        expect(options.messages.some(message => message.role === 'tool' && String(message.content).includes('one result'))).toBe(true)
+        return { kind: 'reply', fullText: buildProviderReply('你好，操作已有结果，文件是否保存还没有证据。'), text: '你好，操作已有结果，文件是否保存还没有证据。', finishReason: 'stop' }
+      })
+    input.reviewLifeReply = vi.fn().mockResolvedValueOnce({ accepted: false, issues: [{ code: 'UNPROVEN_COMPLETION', quote: '我已经保存了文件。' }] }).mockResolvedValueOnce({ accepted: true, issues: [] })
+    await runAlicizationMainChatBackground(input)
+    expect(execute).toHaveBeenCalledOnce()
+    expect(input.life.beforeAction).toHaveBeenCalledOnce()
+    expect(input.life.afterAction).toHaveBeenCalledOnce()
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    expect(input.reviewLifeReply).toHaveBeenLastCalledWith(expect.objectContaining({ text: '你好，操作已有结果，文件是否保存还没有证据。' }))
+    expect(vi.mocked(input.emitChunk).mock.calls.filter(([event]) => event.delivery?.phase === 'append').map(([event]) => event.text).join('')).toBe('你好，操作已有结果，文件是否保存还没有证据。')
+  })
+
+  it('rejects a tool action emitted during textual repair without publishing or dispatching it', async () => {
+    const execute = vi.fn(async () => ({ status: 'completed' }))
+    const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: {} } }, execute }] })
+    const input = createInput('你好', { prepareTurn: vi.fn(async () => prepared) })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockImplementationOnce(async (options) => {
+        options.onReplyAttemptStart?.()
+        options.onReplyText?.('你好，')
+        options.onReplyText?.('我已经保存了文件。')
+        return { kind: 'reply', fullText: buildProviderReply('你好，我已经保存了文件。'), text: '你好，我已经保存了文件。', finishReason: 'stop' }
+      })
+      .mockResolvedValueOnce({ kind: 'action', action: { actionId: 'repair-action', input: {}, providerToolName: 'test_action', capabilityId: 'test.test_action', toolCallId: 'repair-action' } } as any)
+    input.reviewLifeReply = vi.fn(async () => ({ accepted: false, issues: [{ code: 'UNPROVEN_COMPLETION' as const, quote: '我已经保存了文件。' }] }))
+    await runAlicizationMainChatBackground(input)
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(input.emitChunk).mock.calls.map(([event]) => event.text)).toEqual(['你好，'])
+    expect(execute).not.toHaveBeenCalled()
+    expect(input.life.beforeAction).not.toHaveBeenCalled()
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalled()
+  })
+  it('stops language repair on unavailable independent review without replaying tools or claiming invalid provider format', async () => {
+    const input = createInput('查看已接收任务的状态')
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({ kind: 'reply', fullText: buildProviderReply('计划已接收，等待确认。'), text: '计划已接收，等待确认。', finishReason: 'stop' })
+    input.reviewLifeReply = vi.fn(async () => ({ accepted: false, reviewUnavailable: true as const, issues: [{ code: 'UNRELIABLE_REVIEW' as const, quote: '' }] }))
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(input.reviewLifeReply).toHaveBeenCalledTimes(1)
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledTimes(1)
+    expect(input.life.beforeAction).not.toHaveBeenCalled()
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledWith(expect.objectContaining({ error: expect.any(AlicizationReplyGroundingUnavailableError) }))
+  })
+  it.each(['rebased', 'exhausted', 'cancelled', 'foreign-error'] as const)('handles a %s review read-set race without repeating the provider action', async (mode) => {
+    let revision = 1
+    let reviews = 0
+    const execute = vi.fn(async () => ({ status: 'completed', actual: 'one observation' }))
+    const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: {} } }, execute }] })
+    const input = createInput('执行这个本地操作', { prepareTurn: vi.fn(async () => prepared) })
+    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'cognition' as const, revision, contentHash: String(revision), metaKey: 'perception_state_v1' }] }))
+    input.reviewLifeReply = vi.fn<typeof input.reviewLifeReply>(async (options) => {
+      reviews += 1
+      if (mode === 'rebased' && reviews > 1) {
+        expect(options.owners.find(owner => owner.owner === 'cognition')?.revision).toBe(2)
+        return { accepted: true, issues: [], reviewId: 'fresh-review' }
+      }
+      revision += 1
+      if (mode === 'cancelled')
+        input.runState.controller.abort(new Error('host-cancelled'))
+      if (mode === 'foreign-error')
+        throw new Error('Reply grounding read set is stale; context must be prepared again')
+      throw new LifeStateConflictError('Reply grounding read set is stale; context must be prepared again')
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({ kind: 'action', action: { actionId: 'one-action-before-review', input: {}, providerToolName: 'test_action', capabilityId: 'test.test_action', toolCallId: 'one-action-before-review' } }).mockResolvedValueOnce({ kind: 'reply', fullText: buildProviderReply('已经取得这次观察结果。'), text: '已经取得这次观察结果。', finishReason: 'stop' })
+    await runAlicizationMainChatBackground(input)
+    expect(execute).toHaveBeenCalledOnce()
+    expect(input.life.beforeAction).toHaveBeenCalledOnce()
+    expect(input.life.afterAction).toHaveBeenCalledOnce()
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledTimes(2)
+    if (mode === 'rebased') {
+      expect(input.prepareTurn).toHaveBeenCalledTimes(2)
+      expect(reviews).toBe(2)
+      expect(vi.mocked(input.emitChunk).mock.calls.filter(([event]) => event.delivery?.phase === 'append').map(([event]) => event.text)).toEqual(['已经取得这次观察结果。'])
+      expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    }
+    else {
+      expect(reviews).toBe(mode === 'exhausted' ? 3 : 1)
+      expect(vi.mocked(input.emitChunk).mock.calls.filter(([event]) => event.delivery?.phase === 'append')).toHaveLength(0)
+      if (mode === 'exhausted') {
+        const calls = vi.mocked(input.reviewLifeReply).mock.calls
+        expect(calls[1][0].signal).toBe(calls[2][0].signal)
+      }
+    }
+  })
+
+  it('keeps revoked memory evidence blocked when a review refresh revalidates the same draft', async () => {
+    let revision = 1
+    const input = createInput('继续刚才的记忆线', { prepareTurn: vi.fn(async () => createPrepared({ memoryContext: { workingMemory: { version: 'working-memory-v1' }, availableLongTermEvidenceIds: revision === 1 ? ['memory-known'] : [] } })) })
+    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'memory' as const, revision, contentHash: String(revision), metaKey: 'life:memory-head' }] }))
+    input.reviewLifeReply = vi.fn(async () => {
+      revision = 2
+      throw new LifeStateConflictError('Consumed life owner memory became stale before commit')
+    })
+    const payload = JSON.parse(buildProviderReply('还记得这条线索。'))
+    payload.memoryUsage = { workingMemoryVersion: 'working-memory-v1', longTermEvidenceIds: ['memory-known'] }
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({ kind: 'reply', fullText: JSON.stringify(payload), text: payload.reply, finishReason: 'stop' })
+    await runAlicizationMainChatBackground(input)
+    expect(input.prepareTurn).toHaveBeenCalledTimes(2)
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledOnce()
+    expect(input.reviewLifeReply).toHaveBeenCalledOnce()
+    expect(input.emitChunk).not.toHaveBeenCalled()
+    expect(input.life.beforeAction).not.toHaveBeenCalled()
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledWith(expect.objectContaining({ error: expect.objectContaining({ message: expect.stringContaining('provider-memory-usage-invalid') }) }))
+  })
+
+  it('can privately revise a factual draft after fresh review rejects it without replaying its action', async () => {
+    let revision = 1
+    const execute = vi.fn(async () => ({ status: 'completed', actual: 'only the returned observation' }))
+    const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: {} } }, execute }] })
+    const input = createInput('执行这个本地操作', { prepareTurn: vi.fn(async () => prepared) })
+    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'cognition' as const, revision, contentHash: String(revision), metaKey: 'perception_state_v1' }] }))
+    input.reviewLifeReply = vi.fn().mockImplementationOnce(async () => {
+      revision = 2
+      throw new LifeStateConflictError('Reply grounding read set is stale; context must be prepared again')
+    }).mockResolvedValueOnce({ accepted: false, issues: [{ code: 'UNPROVEN_COMPLETION', quote: '我已经保存了文件。' }] }).mockResolvedValueOnce({ accepted: true, issues: [] })
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({ kind: 'action', action: { actionId: 'observed-once', input: {}, providerToolName: 'test_action', capabilityId: 'test.test_action', toolCallId: 'observed-once' } }).mockResolvedValueOnce({ kind: 'reply', fullText: buildProviderReply('我已经保存了文件。'), text: '我已经保存了文件。', finishReason: 'stop' }).mockImplementationOnce(async (options) => {
+      expect(options.prepared.tools).toBeUndefined()
+      expect(options.onReplyText).toBeUndefined()
+      expect(options.messages.some(message => message.role === 'system' && String(message.content).includes('"revision":2'))).toBe(true)
+      return { kind: 'reply', fullText: buildProviderReply('目前没有文件保存的证明。'), text: '目前没有文件保存的证明。', finishReason: 'stop' }
+    })
+    await runAlicizationMainChatBackground(input)
+    expect(execute).toHaveBeenCalledOnce()
+    expect(input.life.beforeAction).toHaveBeenCalledOnce()
+    expect(input.reviewLifeReply).toHaveBeenCalledTimes(3)
+    expect(input.life.recordContextUse).toHaveBeenCalledTimes(3)
+    expect(vi.mocked(input.emitChunk).mock.calls.filter(([event]) => event.delivery?.phase === 'append').map(([event]) => event.text)).toEqual(['目前没有文件保存的证明。'])
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+  })
+
+  it('revalidates one public reply against refreshed life state without replaying its text', async () => {
+    let revision = 1
+    const input = createInput()
+    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'cognition' as const, revision, contentHash: String(revision), metaKey: 'perception_state_v1' }] }))
+    input.reviewLifeReply = vi.fn().mockImplementationOnce(async () => {
+      revision = 2
+      throw new LifeStateConflictError('Reply grounding read set is stale; context must be prepared again')
+    }).mockResolvedValueOnce({ accepted: true, issues: [] })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(async (options) => {
+      options.onReplyAttemptStart?.()
+      options.onReplyText?.('你好。')
+      return { kind: 'reply', fullText: buildProviderReply('你好。'), text: '你好。', finishReason: 'stop' }
+    })
+    await runAlicizationMainChatBackground(input)
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledOnce()
+    expect(input.reviewLifeReply).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(input.emitChunk).mock.calls.filter(([event]) => event.delivery?.phase === 'append').map(([event]) => event.text)).toEqual(['你好。'])
+    expect(vi.mocked(input.emitChunk).mock.calls.filter(([event]) => event.delivery?.phase === 'complete')).toHaveLength(1)
+    expect(input.life.beforeAction).not.toHaveBeenCalled()
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+  })
+
+  it.each(['rebased', 'exhausted', 'cancelled', 'foreign-error'] as const)('handles a %s context-use race before provider dispatch with a fixed preparation budget', async (mode) => {
+    let revision = 1
+    let records = 0
+    const execute = vi.fn(async () => ({ status: 'completed', actual: 'one observation' }))
+    const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: {} } }, execute }] })
+    const input = createInput('执行这个本地操作', { prepareTurn: vi.fn(async () => prepared) })
+    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'cognition' as const, revision, contentHash: String(revision), metaKey: 'perception_state_v1' }] }))
+    input.life.recordContextUse = vi.fn(async () => {
+      records += 1
+      if (mode === 'rebased' && records > 1)
+        return
+      revision += 1
+      if (mode === 'cancelled')
+        input.runState.controller.abort(new Error('host-cancelled'))
+      if (mode === 'foreign-error')
+        throw new Error('Consumed life owner cognition became stale before commit')
+      throw new LifeStateConflictError('Consumed life owner cognition became stale before commit')
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(async ({ messages }) => {
+      expect(records).toBe(2)
+      expect(messages.some(message => message.role === 'system' && String(message.content).includes('"revision":2'))).toBe(true)
+      return { kind: 'action', action: { actionId: 'fresh-context-action', input: {}, providerToolName: 'test_action', capabilityId: 'test.test_action', toolCallId: 'fresh-context-action' } }
+    }).mockResolvedValueOnce({ kind: 'reply', fullText: buildProviderReply('已经取得这次观察结果。'), text: '已经取得这次观察结果。', finishReason: 'stop' })
+    await runAlicizationMainChatBackground(input)
+    if (mode === 'rebased') {
+      expect(input.prepareTurn).toHaveBeenCalledTimes(2)
+      expect(execute).toHaveBeenCalledOnce()
+      expect(input.life.beforeAction).toHaveBeenCalledOnce()
+      expect(input.life.afterAction).toHaveBeenCalledOnce()
+      const recorded = vi.mocked(input.life.recordContextUse).mock.calls
+      expect(recorded[0][1]).toBe(recorded[1][1])
+      expect(vi.mocked(input.prepareTurn).mock.calls[1][0].abortSignal).toBe(recorded[0][1])
+      expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    }
+    else {
+      expect(records).toBe(mode === 'exhausted' ? 3 : 1)
+      expect(runAlicizationMainChatProviderStep).not.toHaveBeenCalled()
+      expect(execute).not.toHaveBeenCalled()
+      expect(input.life.beforeAction).not.toHaveBeenCalled()
+      expect(input.life.settle).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'completed' }), expect.anything())
+    }
+  })
+
   it('reprepares a stale action before dispatch and preserves the tool observation without replaying an effect', async () => {
     let revision = 1
     const execute = vi.fn(async () => ({ ok: true, finalStatus: 'completed' }))
@@ -331,7 +976,7 @@ describe('main chat background run', () => {
     const prepareTurn = vi.fn(async () => prepared)
     const input = createInput('执行这个本地操作', { prepareTurn, turnLoop: { conversationId: 'conversation-1', persistence: createInMemoryPersistence(), userId: 'host' } })
     input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'habit' as const, revision, contentHash: String(revision), metaKey: 'mind-head:card-1:habit-policy' }] }))
-    input.life.beforeAction = vi.fn().mockRejectedValueOnce(new LifeStateConflictError('Consumed life owner habit became stale before commit')).mockResolvedValue({ id: 'actual-effect', cached: null })
+    input.life.beforeAction = vi.fn().mockRejectedValueOnce(new LifeStateConflictError('Consumed life owner habit became stale before commit')).mockResolvedValue({ id: 'actual-effect', cached: null, authorizeDispatch: vi.fn(async () => {}), assertDispatchCurrent: vi.fn(async () => ({ expiresAt: null })) })
     const action = (id: string) => ({ kind: 'action', action: { actionId: id, input: {}, providerToolName: 'test_action', capabilityId: 'test.test_action', toolCallId: id } })
     vi.mocked(runAlicizationMainChatProviderStep)
       .mockImplementationOnce(async () => {
@@ -353,6 +998,132 @@ describe('main chat background run', () => {
     expect(input.emitChunk).toHaveBeenCalledWith(expect.objectContaining({ text: '已核对实际结果。' }))
   })
 
+  it.each([[true, true], [false, true], [true, false]])('requires a fresh model action after a rejected stale admission through actual HTTP SSE (honors required=%s, owners changed=%s)', async (honorsRequired, changesOwners) => {
+    const actual = await vi.importActual<typeof import('./main-chat-stream-runner')>('./main-chat-stream-runner')
+    let revision = 1
+    const execute = vi.fn(async () => ({ status: 'completed', result: 'fresh admitted observation' }))
+    const server = await startProviderHttpFaultServer({ respond: ({ attempt, body }) => {
+      const request = JSON.parse(body)
+      const action = attempt === 1 || (attempt === 2 && honorsRequired && request.tool_choice === 'required')
+      if (attempt === 1 && changesOwners)
+        revision = 2
+      return { status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: encodeOpenAICompatibleSse(action
+        ? [{ choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: attempt === 1 ? 'stale-call' : 'fresh-call', type: 'function', function: { name: 'test_action', arguments: '{}' } }] }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }]
+        : [{ choices: [{ index: 0, delta: { content: buildProviderReply(attempt === 2 ? '我已经完成了。' : '已核对实际结果。') }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }]) }
+    } })
+    const prepared = createPrepared({ chatConfig: { apiKey: 'test-key', baseURL: server.baseUrl, model: 'gpt-test' }, tools: [{ type: 'function', function: { name: 'test_action', description: 'Inspect the owned request', parameters: { type: 'object', properties: {} } }, execute }] })
+    const prepareTurn = vi.fn(async () => prepared)
+    const input = createInput('执行这个本地操作', { prepareTurn, turnLoop: { conversationId: 'conversation-1', persistence: createInMemoryPersistence(), userId: 'host' } })
+    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'habit' as const, revision, contentHash: String(revision), metaKey: 'mind-head:card-1:habit-policy' }] }))
+    input.life.beforeAction = vi.fn().mockRejectedValueOnce(new LifeStateConflictError('Consumed life owner habit became stale before commit')).mockResolvedValue({ id: 'fresh-effect', cached: null, authorizeDispatch: vi.fn(async () => {}), assertDispatchCurrent: vi.fn(async () => ({ expiresAt: null })) })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(options => actual.runAlicizationMainChatProviderStep(options))
+    try {
+      await runAlicizationMainChatBackground(input)
+      if (honorsRequired) {
+        expect(execute).toHaveBeenCalledOnce()
+        expect(input.life.beforeAction).toHaveBeenCalledTimes(2)
+        expect(input.life.afterAction).toHaveBeenCalledOnce()
+      }
+      else {
+        expect(execute).not.toHaveBeenCalled()
+        expect(input.life.beforeAction).toHaveBeenCalledOnce()
+        expect(input.life.afterAction).not.toHaveBeenCalled()
+      }
+      expect(prepareTurn).toHaveBeenCalledTimes(2)
+      expect(server.requests).toHaveLength(honorsRequired ? 3 : 2)
+      const replanning = JSON.parse(server.requests[1].body)
+      expect(replanning.tool_choice).toBe('required')
+      expect(replanning.tools.map((tool: { function: { name: string } }) => tool.function.name)).toEqual(['test_action'])
+      expect(replanning.messages.some((message: Message) => message.role === 'tool' && String(message.content).includes('noSideEffects'))).toBe(true)
+      expect(input.emitChunk).not.toHaveBeenCalledWith(expect.objectContaining({ text: '我已经完成了。' }))
+      if (honorsRequired) {
+        expect(JSON.parse(server.requests[2].body).tool_choice).not.toBe('required')
+        expect(input.emitChunk).toHaveBeenCalledWith(expect.objectContaining({ text: '已核对实际结果。' }))
+        expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+      }
+      else {
+        expect(input.emitChunk).not.toHaveBeenCalledWith(expect.objectContaining({ text: '已核对实际结果。' }))
+        expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledOnce()
+      }
+    }
+    finally { await server.close() }
+  })
+
+  it.each(['read', 'mutation', 'unknown', 'second-invalid'] as const)('corrects missing method identity after %s through actual HTTP without repeating an admitted action', async (prior) => {
+    const actual = await vi.importActual<typeof import('./main-chat-stream-runner')>('./main-chat-stream-runner')
+    const read = prior === 'read' || prior === 'second-invalid'
+    const firstName = read ? 'life_list_learned_procedures' : 'test_action'
+    const first = vi.fn(async () => ({ status: 'completed', methods: [{ id: 'skill.owned', version: 'a'.repeat(64) }] }))
+    const use = vi.fn(async () => ({ status: 'accepted', verified: false }))
+    const valid = { id: 'skill.owned', version: 'a'.repeat(64), goal: 'Use the exact owned method', arguments: [{ name: 'input1', value: 'Fresh owned argument' }] }
+    const server = await startProviderHttpFaultServer({ respond: ({ attempt }) => {
+      const name = attempt === 1 ? firstName : 'life_use_learned_procedure'
+      const arguments_ = attempt === 1 ? {} : attempt === 2 || prior === 'second-invalid' ? { goal: valid.goal, arguments: valid.arguments } : valid
+      return { status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: encodeOpenAICompatibleSse(attempt < 4
+        ? [{ choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: `proposal-${attempt}`, type: 'function', function: { name, arguments: JSON.stringify(arguments_) } }] }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }]
+        : [{ choices: [{ index: 0, delta: { content: buildProviderReply('工作已受理，结果仍需核对。') }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }]) }
+    } })
+    const registry = createCanonicalToolRegistry()
+    const spec = (name: string) => registry.resolveActive(`tool.${name}`)!.inputSchema
+    const userRequest = `先读取方法目录，然后使用 id=skill.owned、version=${valid.version} 的方法，参数 Fresh owned argument，目标 Use the exact owned method。`
+    const prepared = createPrepared({ messages: [{ role: 'user', content: userRequest }], chatConfig: { apiKey: 'test-key', baseURL: server.baseUrl, model: 'gpt-test' }, tools: [
+      { type: 'function', function: { name: firstName, description: 'Read the current method catalogue', parameters: read ? spec(firstName) : { type: 'object', properties: {}, additionalProperties: false } }, execute: first },
+      { type: 'function', function: { name: 'life_use_learned_procedure', description: 'Use a governed exact method', parameters: spec('life_use_learned_procedure') }, execute: use },
+    ] })
+    if (prior === 'unknown') {
+      const manifest = prepared.toolRegistry.resolveActive('test.test_action')!
+      prepared.toolRegistry.replace({ ...manifest, effects: { version: 'life-capability-effects-v1', sideEffect: 'unknown', retryClass: 'manual-only', verifier: 'independent-goal-proof', compensation: 'manual-review' } })
+    }
+    const input = createInput(userRequest, { prepareTurn: vi.fn(async () => prepared), turnLoop: { conversationId: 'conversation-1', persistence: createInMemoryPersistence(), userId: 'host' } })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(options => actual.runAlicizationMainChatProviderStep(options))
+    try {
+      await runAlicizationMainChatBackground(input)
+      expect(first).toHaveBeenCalledOnce()
+      expect(use).toHaveBeenCalledTimes(prior === 'read' ? 1 : 0)
+      expect(server.requests).toHaveLength(prior === 'read' ? 4 : prior === 'second-invalid' ? 3 : 2)
+      expect(input.life.beforeAction).toHaveBeenCalledTimes(prior === 'read' ? 2 : 1)
+      if (read) {
+        const repairing = JSON.parse(server.requests[2].body)
+        expect(repairing.tool_choice).toBe('required')
+        expect(repairing.tools.map((tool: { function: { name: string } }) => tool.function.name)).toEqual(['life_use_learned_procedure'])
+        expect(repairing.messages.filter((message: Message) => message.role === 'tool')).toHaveLength(1)
+        expect(repairing.messages.filter((message: Message) => message.role === 'user').map((message: Message) => message.content)).toEqual([userRequest])
+        expect(repairing.messages.some((message: Message) => String(message.content).includes('rejected-before-dispatch'))).toBe(true)
+      }
+      expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledTimes(prior === 'read' ? 0 : 1)
+    }
+    finally { await server.close() }
+  })
+
+  it('shares one schema-correction budget across consecutive real read-only HTTP operations', async () => {
+    const actual = await vi.importActual<typeof import('./main-chat-stream-runner')>('./main-chat-stream-runner')
+    const list = vi.fn(async () => ({ methods: [] }))
+    const verifiers = vi.fn(async () => ({ verifiers: [] }))
+    const use = vi.fn()
+    const registry = createCanonicalToolRegistry()
+    const tools = Object.entries({ life_list_learned_procedures: list, life_list_execution_verifiers: verifiers, life_use_learned_procedure: use }).map(([name, execute]) => ({ type: 'function', function: { name, description: 'Current governed operation', parameters: registry.resolveActive(`tool.${name}`)!.inputSchema }, execute }))
+    const server = await startProviderHttpFaultServer({ respond: ({ attempt }) => {
+      const name = attempt === 1 ? 'life_list_learned_procedures' : attempt < 4 ? 'life_list_execution_verifiers' : 'life_use_learned_procedure'
+      const args = attempt === 2 ? { unexpected: true } : {}
+      return { status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: encodeOpenAICompatibleSse([{ choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: `read-budget-${attempt}`, type: 'function', function: { name, arguments: JSON.stringify(args) } }] }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }]) }
+    } })
+    try {
+      const prepared = createPrepared({ chatConfig: { apiKey: 'test-key', baseURL: server.baseUrl, model: 'gpt-test' }, tools })
+      const input = createInput('读取现有方法和验证方式后再处理任务。', { prepareTurn: vi.fn(async () => prepared), turnLoop: { conversationId: 'conversation-1', persistence: createInMemoryPersistence(), userId: 'host' } })
+      vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(options => actual.runAlicizationMainChatProviderStep(options))
+      await runAlicizationMainChatBackground(input)
+      expect(list).toHaveBeenCalledOnce()
+      expect(verifiers).toHaveBeenCalledOnce()
+      expect(use).not.toHaveBeenCalled()
+      expect(server.requests).toHaveLength(4)
+      expect(input.life.beforeAction).toHaveBeenCalledTimes(2)
+      const repairs = vi.mocked(input.appendRuntimeDebugLine).mock.calls.filter(([event]) => event === 'life.tool-arguments-repair')
+      expect(repairs).toHaveLength(1)
+      expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledOnce()
+    }
+    finally { await server.close() }
+  })
+
   it('repairs an unbound promise once before publishing any text and disables tools during repair', async () => {
     const input = createInput('晚点提醒我')
     vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({ kind: 'reply', finishReason: 'stop', fullText: '我会在晚上提醒你。', text: '我会在晚上提醒你。' } as any).mockResolvedValueOnce({ kind: 'reply', finishReason: 'stop', fullText: '还没有设定提醒，想安排在几点？', text: '还没有设定提醒，想安排在几点？' } as any)
@@ -360,7 +1131,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
     expect(runAlicizationMainChatProviderStep).toHaveBeenCalledTimes(2)
     expect(vi.mocked(runAlicizationMainChatProviderStep).mock.calls[1][0].prepared).toMatchObject({ tools: undefined, toolChoice: 'none', waitForTools: false })
-    expect(input.emitChunk).toHaveBeenCalledTimes(1)
+    expect(input.emitChunk).toHaveBeenCalledTimes(2)
     expect(input.emitChunk).toHaveBeenCalledWith(expect.objectContaining({ text: '还没有设定提醒，想安排在几点？' }))
     expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
   })
@@ -373,6 +1144,35 @@ describe('main chat background run', () => {
     expect(input.emitChunk).not.toHaveBeenCalled()
     expect(handleAlicizationMainChatRunFailure).toHaveBeenCalled()
     expect(input.runStateController.finishRun).not.toHaveBeenCalledWith(input.key, expect.objectContaining({ finishReason: 'stop' }))
+  })
+
+  it.each([true, false])('keeps a receipt-guided correction under the original second review: accepted=%s', async (accepted) => {
+    const input = createInput('按约定的本地步骤处理报告')
+    const rejectedText = '第二步的来源文件缺失。'
+    const receiptWording = '工作计划已受理。'
+    const repairContext = buildAlicizationProviderFactBlock('alicization-reply-repair-evidence', { scope: 'current-admission-repair-only', receiptWording })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockResolvedValueOnce({ kind: 'reply', finishReason: 'stop', fullText: rejectedText, text: rejectedText } as any)
+      .mockResolvedValueOnce({ kind: 'reply', finishReason: 'stop', fullText: receiptWording, text: receiptWording } as any)
+    input.reviewLifeReply = vi.fn()
+      .mockResolvedValueOnce({ accepted: false, repairContext, repairMode: 'current-admission', issues: [{ code: 'UNPROVEN_COMPLETION', quote: rejectedText }] })
+      .mockResolvedValueOnce({ accepted, issues: accepted ? [] : [{ code: 'UNPROVEN_COMPLETION', quote: receiptWording }] })
+    await runAlicizationMainChatBackground(input)
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledTimes(2)
+    expect(input.reviewLifeReply).toHaveBeenCalledTimes(2)
+    const repair = vi.mocked(runAlicizationMainChatProviderStep).mock.calls[1][0]
+    expect(repair.messages).toContainEqual({ role: 'system', content: repairContext })
+    expect(repair.messages).not.toContainEqual({ role: 'assistant', content: rejectedText })
+    expect(repair.messages.some(message => message.role === 'system' && String(message.content).includes('use that wording verbatim'))).toBe(true)
+    expect(repair.prepared).toMatchObject({ tools: undefined, toolChoice: 'none', waitForTools: false })
+    if (accepted) {
+      expect(input.emitChunk).toHaveBeenCalledWith(expect.objectContaining({ text: receiptWording }))
+      expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    }
+    else {
+      expect(input.emitChunk).not.toHaveBeenCalled()
+      expect(handleAlicizationMainChatRunFailure).toHaveBeenCalled()
+    }
   })
 
   it('gives a chronological repair its actual event evidence while keeping tools disabled and publishing only the admitted revision', async () => {
@@ -391,7 +1191,7 @@ describe('main chat background run', () => {
     const firstConversation = repair.messages.findIndex(message => message.role !== 'system')
     expect(repair.messages.slice(firstConversation).every(message => message.role !== 'system')).toBe(true)
     expect(repair.prepared).toMatchObject({ tools: undefined, toolChoice: 'none', waitForTools: false })
-    expect(input.emitChunk).toHaveBeenCalledTimes(1)
+    expect(input.emitChunk).toHaveBeenCalledTimes(2)
     expect(input.emitChunk).toHaveBeenCalledWith(expect.objectContaining({ text: '你先允许我独立选择，后来回来问近况。' }))
     expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
   })
@@ -752,7 +1552,7 @@ describe('main chat background run', () => {
 
     const running = runAlicizationMainChatBackground(input)
     await replyCommitStarted
-    expect(input.emitChunk).toHaveBeenCalledOnce()
+    expect(input.emitChunk).toHaveBeenCalledTimes(2)
 
     const abortResult = await abortAlicizationDirectChatRun({
       payload: {

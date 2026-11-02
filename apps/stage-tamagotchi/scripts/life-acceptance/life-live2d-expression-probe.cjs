@@ -54,7 +54,8 @@ async function main() {
       if (!sdk)
         throw new Error('Actual Cubism model is missing')
       const internal = sdk.internalModel; const core = internal.coreModel; const p = core._model.parameters
-      const qa = window.__live2dExpressionProbe = { sdk, actor, phase: 'initial', frames: [], focusCalls: [], controllerUpdates: [], lastFrameAt: -1 }
+      const qa = window.__live2dExpressionProbe = { sdk, actor, phase: 'initial', frames: [], focusCalls: [], controllerUpdates: [], motions: [], lastFrameAt: -1 }
+      internal.motionManager.on('motionStart', (group, index) => qa.motions.push({ phase: qa.phase, at: performance.now(), group, index, priority: internal.motionManager.state.currentPriority }))
       const focus = internal.focusController.focus
       internal.focusController.focus = function (...args) {
         if (qa.focusCalls.length < 2000)
@@ -70,9 +71,10 @@ async function main() {
         if (now - qa.lastFrameAt < 35 || qa.frames.length >= 6000)
           return
         qa.lastFrameAt = now
-        qa.frames.push({ at: now, phase: qa.phase, focus: { x: internal.focusController.x, y: internal.focusController.y, targetX: internal.focusController.targetX, targetY: internal.focusController.targetY }, motionPriority: internal.motionManager.state.currentPriority, speech: { active: actor?.props.speechRenderState?.active, phase: actor?.props.speechRenderState?.phase }, emotion: actor?.props.performanceState?.performance?.baseEmotion, values: Object.fromEntries(p.ids.map(id => [id, core.getParameterValueById(id)])), proceduralGesture: actor?.exposed.executionDiagnostics().proceduralGesture ?? null })
+        const diagnostics = actor?.exposed.executionDiagnostics()
+        qa.frames.push({ at: now, phase: qa.phase, focus: { x: internal.focusController.x, y: internal.focusController.y, targetX: internal.focusController.targetX, targetY: internal.focusController.targetY }, gaze: diagnostics?.gaze, motionPriority: internal.motionManager.state.currentPriority, speech: { active: actor?.props.speechRenderState?.active, phase: actor?.props.speechRenderState?.phase }, emotion: actor?.props.performanceState?.performance?.baseEmotion, cueSource: actor?.props.performanceState?.activeCueSource, actionRevision: actor?.props.performanceState?.actionPulse?.revision, values: Object.fromEntries(p.ids.map(id => [id, core.getParameterValueById(id)])), proceduralGesture: diagnostics?.proceduralGesture ?? null })
       })
-      return { parameters: p.ids.map((id, index) => ({ id, min: p.minimumValues[index], max: p.maximumValues[index], default: p.defaultValues[index] })), expressions: internal.settings.expressions, motions: Object.keys(internal.settings.motions), fakeParameterIds: Object.keys(core._notExistParameterId) }
+      return { parameters: p.ids.map((id, index) => ({ id, min: p.minimumValues[index], max: p.maximumValues[index], default: p.defaultValues[index] })), poseAvailable: Boolean(internal.pose), poseFile: internal.settings.pose, poseGroups: internal.pose?._partGroups?.map(part => part.partId), bodyParts: Object.fromEntries(core.getModel().parts.ids.flatMap((id, index) => /arm|hand|shoulder/iu.test(id) ? [[id, core.getPartOpacityByIndex(index)]] : [])), expressions: internal.settings.expressions, motions: Object.keys(internal.settings.motions), fakeParameterIds: Object.keys(core._notExistParameterId) }
     })
     const phase = async (label, duration, point) => {
       await stage.evaluate((label) => { window.__live2dExpressionProbe.phase = label }, label)
@@ -82,17 +84,71 @@ async function main() {
           canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse', clientX: point.x, clientY: point.y }))
         }, point)
       }
-      await wait(duration)
+      if (label === 'idle-native-motion' && process.env.LIFE_EXPRESSION_PRESENCE_ASSERTIONS === '1') {
+        for (let elapsed = 0; elapsed < duration; elapsed += 10000) {
+          await wait(Math.min(10000, duration - elapsed))
+          await stage.screenshot({ path: path.join(root, `quiet-idle-${String(elapsed + 10000).padStart(6, '0')}.png`) })
+        }
+      }
+      else {
+        await wait(duration)
+      }
       report.samples.push({ label, ...await sampleLive2D(stage) })
       await stage.screenshot({ path: path.join(root, `${label}.png`) })
     }
-    await phase('idle-native-motion', idleDurationMs)
+    // The host cursor belongs to the user. Quiet-idle calibration must not
+    // mistake their real desktop work for an unprompted character movement.
+    if (process.env.LIFE_EXPRESSION_ISOLATE_IDLE_POINTER === '1') {
+      report.idlePointerIsolation = await stage.evaluate(() => {
+        const store = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('settings-live2d')
+        assertSettings(store)
+        function assertSettings(settings) {
+          if (typeof settings?.live2dDisableFocus !== 'boolean')
+            throw new Error('Actual per-profile focus setting is unavailable')
+        }
+        const original = store.live2dDisableFocus
+        store.live2dDisableFocus = true
+        return { original, scope: 'Owned synthetic profile focus setting; no host input change', restored: false }
+      })
+    }
+    try {
+      if (report.idlePointerIsolation)
+        await stage.waitForFunction(() => window.__live2dExpressionProbe.actor.props.disableFocusAt === true)
+      await phase('idle-native-motion', idleDurationMs)
+    }
+    finally {
+      if (report.idlePointerIsolation) {
+        await stage.evaluate((original) => {
+          // Restoring pointer input starts a new phase before Vue can draw.
+          window.__live2dExpressionProbe.phase = 'idle-setting-restore'
+          document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('settings-live2d').live2dDisableFocus = original
+        }, report.idlePointerIsolation.original)
+        await stage.waitForFunction(original => window.__live2dExpressionProbe.actor.props.disableFocusAt === original, report.idlePointerIsolation.original)
+        report.idlePointerIsolation.restored = true
+        assert.equal(report.idlePointerIsolation.restored, true)
+      }
+    }
     const frame = report.initial.models[0].frame
     const viewport = stage.viewportSize() || await stage.evaluate(() => ({ width: innerWidth, height: innerHeight }))
     const y = Math.max(20, Math.min(viewport.height - 30, frame.anchorY))
     await phase('look-left', 1200, { x: 30, y })
     await phase('look-right', 1200, { x: viewport.width - 30, y })
     await phase('pointer-parked', 6500)
+    if (process.env.LIFE_EXPRESSION_POSE_ASSERTIONS === '1') {
+      report.poseRecovery = { scope: 'Explicit native-asset renderer calibration, not an autonomous decision.', resting: report.catalog.bodyParts }
+      await stage.evaluate(async () => {
+        const qa = window.__live2dExpressionProbe
+        qa.phase = 'fixture-native-arm-raise'
+        await qa.sdk.motion('FlickUp', 0, 3)
+      })
+      await phase('fixture-native-arm-raise', 1600)
+      await phase('fixture-native-arm-settled', 8000)
+      report.poseRecovery.settled = await stage.evaluate(() => {
+        const internal = window.__live2dExpressionProbe.sdk.internalModel
+        const core = internal.coreModel
+        return { priority: internal.motionManager.state.currentPriority, parts: Object.fromEntries(core.getModel().parts.ids.flatMap((id, index) => /arm|hand|shoulder/iu.test(id) ? [[id, core.getPartOpacityByIndex(index)]] : [])), selectors: Object.fromEntries((internal.pose?._partGroups ?? []).map(part => [part.partId, core.getParameterValueById(part.partId)])) }
+      })
+    }
     if (process.env.LIFE_EXPRESSION_CALIBRATE === '1') {
       report.rendererCalibration = { scope: 'Controlled component-input fixtures on a real compiled Cubism model. These are renderer integration checks, not autonomous decisions or real dialogue.', fixtures: [] }
       for (const [label, emotion, cue, action, closed] of [
@@ -107,6 +163,15 @@ async function main() {
         ['fixture-nod-repeat', 'neutral', 'relaxed', 'nod_soft', false],
         ['fixture-head-shake', 'neutral', 'relaxed', 'head_shake', false],
       ]) {
+        if (label === 'fixture-nod' && process.env.LIFE_EXPRESSION_HANDOFF_ASSERTIONS === '1') {
+          report.motionHandoff = await stage.evaluate(async () => {
+            const qa = window.__live2dExpressionProbe
+            qa.phase = 'fixture-prior-native-action'
+            await qa.sdk.motion('FlickUp', 0, 3)
+            return { scope: 'Controlled native-to-procedural renderer handoff; not an autonomous decision.', priority: qa.sdk.internalModel.motionManager.state.currentPriority }
+          })
+          await phase('fixture-prior-native-action', 500)
+        }
         await stage.evaluate(({ label, emotion, cue, action, closed, revision }) => {
           const qa = window.__live2dExpressionProbe; const props = qa.actor.props
           qa.phase = label
@@ -136,16 +201,20 @@ async function main() {
         report.rendererCalibration.fixtures.push(label)
       }
     }
-    report.timeline = await stage.evaluate(() => { const qa = window.__live2dExpressionProbe; return { frames: qa.frames, focusCalls: qa.focusCalls, controllerUpdates: qa.controllerUpdates, fakeParameterIds: Object.keys(qa.sdk.internalModel.coreModel._notExistParameterId) } })
+    report.timeline = await stage.evaluate(() => { const qa = window.__live2dExpressionProbe; return { frames: qa.frames, motions: qa.motions, focusCalls: qa.focusCalls, controllerUpdates: qa.controllerUpdates, fakeParameterIds: Object.keys(qa.sdk.internalModel.coreModel._notExistParameterId) } })
     if (process.env.LIFE_EXPRESSION_ASSERTIONS === '1') {
       report.checks = []
       const check = (name, passed, detail) => { report.checks.push({ name, passed, detail }); assert.ok(passed, name) }
       const frames = label => report.timeline.frames.filter(frame => frame.phase === label)
+      if (report.poseRecovery) {
+        check('A finished native arm animation fades back to its resting body parts', report.poseRecovery.settled.priority === 0 && Object.entries(report.poseRecovery.resting).every(([id, opacity]) => Math.abs(report.poseRecovery.settled.parts[id] - opacity) < 0.05), report.poseRecovery)
+      }
       const range = values => Math.max(...values) - Math.min(...values)
       const mean = values => values.reduce((sum, value) => sum + value, 0) / values.length
       const horizontal = label => frames(label).map(frame => frame.values.ParamEyeBallX)
       check('Autonomous eye fixation remains alive during native idle playback', range(horizontal('idle-native-motion')) > 0.05)
       check('Actual final draw eyes distinguish left and right pointer input', mean(horizontal('look-right')) - mean(horizontal('look-left')) > 0.3)
+      check('Direct pointer attention reaches the renderer and expires after parking', frames('look-left').some(frame => frame.gaze?.owner === 'local') && frames('look-right').some(frame => frame.gaze?.owner === 'local') && frames('pointer-parked').slice(-5).every(frame => frame.gaze?.owner !== 'local'))
       const repeated = report.timeline.focusCalls.filter((call, index, all) => index && JSON.stringify(call.args) === JSON.stringify(all[index - 1].args)).length
       check('Parked coordinates do not constantly renew cursor fixation', repeated < Math.max(3, report.timeline.focusCalls.length * 0.2), { calls: report.timeline.focusCalls.length, repeated })
       const phantom = report.timeline.fakeParameterIds.filter(id => /^_ParamEyeBall|^Param(?:EyeSmile|MouthSmile|MouthPucker|BrowForm|[AIUEO])$/u.test(id))
@@ -153,6 +222,19 @@ async function main() {
       if (process.env.LIFE_EXPRESSION_QUIET_ASSERTIONS === '1') {
         const idle = frames('idle-native-motion').slice(3)
         check('Speechless native idle avoids speaking-like mouth opening', idle.length > 20 && idle.every(frame => frame.speech.active === false && frame.values.ParamMouthOpenY < 0.12), { frames: idle.length, maxMouthOpen: Math.max(...idle.map(frame => frame.values.ParamMouthOpenY)) })
+      }
+      if (process.env.LIFE_EXPRESSION_PRESENCE_ASSERTIONS === '1') {
+        const idle = frames('idle-native-motion').filter(frame => frame.at - frames('idle-native-motion')[0].at > 3000)
+        const motions = report.timeline.motions.filter(motion => motion.phase === 'idle-native-motion')
+        const faceRanges = Object.fromEntries(['ParamEyeLSmile', 'ParamMouthForm'].map(id => [id, range(idle.map(frame => frame.values[id]))]))
+        const angles = Object.fromEntries(['ParamAngleX', 'ParamAngleY', 'ParamAngleZ'].map(id => [id, Math.max(...idle.map(frame => Math.abs(frame.values[id])))]))
+        if (report.idlePointerIsolation)
+          check('Isolated idle actually releases pointer ownership', idle.length > 100 && idle.every(frame => frame.gaze?.owner === 'autonomous'), { frames: idle.length, restored: report.idlePointerIsolation.restored })
+        check('Quiet presence never automatically replays an authored motion', idle.length > 100 && motions.length === 0 && idle.every(frame => frame.motionPriority === 0), { motions, frames: idle.length })
+        check('Neutral idle does not cycle through authored smiles or grimaces', Object.values(faceRanges).every(value => value < 0.25), faceRanges)
+        check('Unprompted head movements stay within a quiet presence budget', Object.values(angles).every(value => value < 8), angles)
+        check('Quiet presence retains physiological breathing and blinking', range(idle.map(frame => frame.values.ParamBreath)) > 0.05 && idle.some(frame => frame.values.ParamEyeLOpen < 0.3) && idle.some(frame => frame.values.ParamEyeLOpen > 0.7))
+        check('Quiet presence holds attention without freezing the eyes', range(idle.map(frame => frame.values.ParamEyeBallX)) > 0.02)
       }
       if (report.rendererCalibration) {
         const late = label => frames(label).slice(-5)

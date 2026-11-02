@@ -243,6 +243,7 @@ export function buildAlicizationChatMetaSignature(
 export { shouldEmitAlicizationChatMetaUpdate }
 
 export function createAlicizationChatStreamMetaEmitter(input: {
+  userText?: string | null
   getInteractionIntent?: () => AlicizationInteractionIntent | null | undefined
   cardId: string
   turnId: string
@@ -268,8 +269,11 @@ export function createAlicizationChatStreamMetaEmitter(input: {
       input.getRuntimeDigest?.() ?? null,
     )
     const meta = buildAlicizationChatStreamEmbodimentMeta({
+      userText: input.userText,
       interactionIntent: input.getInteractionIntent?.(),
-      governance: sanitizeChatMetaGovernance(input.getGovernance() ?? null),
+      // Composition needs the internal decision fields. Only the completed
+      // transport payload below strips governance to its public trace identity.
+      governance: input.getGovernance() ?? null,
       digitalLifeSpine,
       affectiveResidue: runtimeDigest?.affectiveResidue
         ?? runtimeDigest?.derivedMindStateBundle?.affectiveResidue

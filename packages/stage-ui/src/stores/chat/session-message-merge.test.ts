@@ -4,9 +4,53 @@ import assert from 'node:assert/strict'
 
 import { describe, it } from 'vitest'
 
+import { interruptChatAssistantMessage } from './message-identity'
 import { canonicalizeSessionMessages, mergeLoadedSessionMessages } from './session-message-merge'
 
 describe('mergeLoadedSessionMessages', () => {
+  it('keeps the matching prompt before its reply when durable prompt time is newer than the live assistant time', () => {
+    const user: ChatHistoryItem = { id: 'chat:session:turn:user', role: 'user', content: 'Today I finished the drawing.', createdAt: 500 }
+    const reply: ChatHistoryItem = { id: 'chat:session:turn:gw1', role: 'assistant', content: 'I am happy for you.', createdAt: 101, slices: [{ type: 'text', text: 'I am happy for you.' }], tool_results: [] }
+    const merged = mergeLoadedSessionMessages([user], [{ ...user, createdAt: 100 }, reply])
+    assert.deepEqual(merged.map(message => message.role), ['user', 'assistant'])
+    assert.equal(merged[0].createdAt, 500)
+    assert.equal(merged[1].createdAt, 101)
+    assert.equal(merged[1].content, reply.content)
+  })
+
+  it('enforces causal order only for the same logical turn without changing other replies or timestamps', () => {
+    const messages: ChatHistoryItem[] = [
+      { id: 'chat:session:first:gw2', role: 'assistant', content: 'First response', createdAt: 10, slices: [], tool_results: [] },
+      { id: 'subconscious:independent', role: 'assistant', content: 'Independent thought', createdAt: 20, slices: [], tool_results: [] },
+      { id: 'chat:session:first:user', role: 'user', content: 'First prompt', createdAt: 30 },
+      { id: 'chat:session:second:user', role: 'user', content: 'Second prompt', createdAt: 40 },
+      { id: 'chat:session:second', role: 'assistant', content: 'Second response', createdAt: 50, slices: [], tool_results: [] },
+    ]
+    const before = JSON.stringify(messages)
+    const result = canonicalizeSessionMessages(messages)
+    assert.deepEqual(result.map(message => message.content), ['Independent thought', 'First prompt', 'First response', 'Second prompt', 'Second response'])
+    assert.equal(JSON.stringify(messages), before)
+    assert.equal(result.find(message => message.content === 'First response')!.createdAt, 10)
+  })
+
+  it.each(['stored', 'current'] as const)('keeps the actual stopped prefix when the %s copy is interrupted and the other copy still has a hidden suffix', (location) => {
+    const full: Extract<ChatHistoryItem, { role: 'assistant' }> = { id: 'chat:session:primary:default:stopped:gw1', role: 'assistant', content: '雨落下来的时候，还有从未展示的后半句。', slices: [{ type: 'text', text: '雨落下来的时候，还有从未展示的后半句。' }], tool_results: [], createdAt: 2 }
+    const stopped = interruptChatAssistantMessage(full, '雨落下来的', 'cancelled')
+    const messages = location === 'stored' ? mergeLoadedSessionMessages([stopped], [full]) : mergeLoadedSessionMessages([full], [stopped])
+    assert.equal(messages.length, 1)
+    const reply = messages[0] as Extract<ChatHistoryItem, { role: 'assistant' }>
+    assert.equal(reply.content, '雨落下来的')
+    assert.deepEqual(reply.delivery, stopped.delivery)
+    assert.deepEqual(reply.slices, [{ type: 'text', text: '雨落下来的' }])
+    assert.equal(reply.structured?.reply, '雨落下来的')
+    assert.equal(reply.structured?.learningPolicy?.allowTraining, false)
+  })
+
+  it('normalizes a stopped stored message before it can become conversation context', () => {
+    const [reply] = canonicalizeSessionMessages([{ id: 'stopped', role: 'assistant', content: '雨落下来的时候，还有隐藏的后半句。', slices: [{ type: 'text', text: '雨落下来的时候，还有隐藏的后半句。' }], tool_results: [], delivery: { status: 'interrupted', reason: 'cancelled', visibleText: '雨落下来的' } }])
+    assert.equal(reply.content, '雨落下来的')
+  })
+
   it('keeps stored history when the in-memory session only has the placeholder system message', () => {
     const storedMessages: ChatHistoryItem[] = [
       { role: 'system', content: 'system', createdAt: 1, id: 'system-stored' },

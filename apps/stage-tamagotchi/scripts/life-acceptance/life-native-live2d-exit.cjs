@@ -46,7 +46,7 @@ async function main() {
     assert.equal(Object.keys(config.providerCredentials || {}).length, 0)
   }
   else { profile = await fs.mkdtemp(path.join(os.tmpdir(), 'alicization-life-product-regression-native-')) }
-  const options = launchOptions(profile)
+  const options = launchOptions(profile, { launcher: 'direct' })
   let identity = await packageIdentity()
   if (!identity && process.env.LIFE_NATIVE_EXIT_COMPILED === '1')
     identity = { executable: options.executablePath, compiledMainSha256: createHash('sha256').update(await fs.readFile('apps/stage-tamagotchi/out/main/index.js')).digest('hex') }

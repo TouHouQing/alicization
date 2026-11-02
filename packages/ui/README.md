@@ -8,7 +8,7 @@ A stylized UI component library built with [Reka UI](https://reka-ui.com/) and [
 
 `Collapsible` supports controlled `v-model` state. Its optional `default` prop stays undefined when omitted, so an absent Boolean prop cannot overwrite the caller's expansion state.
 
-`Select` forwards its disabled state, placeholder, and title to the underlying combobox. A disabled selection prevents both text entry and opening the choices.
+`Select` forwards its disabled state, placeholder, and title to the underlying combobox. Its optional `aria-label` names the actual input and popup trigger, so assistive technology can identify both controls. A disabled selection prevents both text entry and opening the choices.
 
 `FieldRange` links its visible label to the native slider through `aria-labelledby`, forwards `disabled`, and preserves explicit zero bounds. `Range` applies the disabled state to its actual input.
 

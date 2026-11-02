@@ -3,6 +3,8 @@ import type { LifeTransaction } from './life-transaction'
 
 import { createHash } from 'node:crypto'
 
+import { executionDigest } from './execution/acceptance-compiler'
+import { assertWorkAction } from './execution/work-plan-repository'
 import { bindLifePersonaProposalEvidence } from './life-persona-evidence'
 import { assertLifeId, assertLifeTime, boundedJson } from './life-transaction'
 
@@ -31,6 +33,8 @@ export async function applyLifeEffect(tx: LifeTransaction, mutation: Extract<Lif
         throw new Error('Effect operation key was reused with different parameters')
       return
     }
+    if (effect.kind === 'execute')
+      await assertWorkAction(tx, effect)
     if (effect.kind === 'reflect' && effect.payload.format === 'persona-revision-proposal-v1')
       await bindLifePersonaProposalEvidence(tx, effect)
     await tx.run(`INSERT INTO life_effect_intents(card_id, effect_id, operation_key, kind, intent_hash, payload_ref_json, producer_commit_id, turn_id, action_id, generation, guard_read_set_json, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 'prepared', ?, ?)`, [tx.cardId, effect.id, effect.operationKey, effect.kind, digest, serialized, tx.commitId, effect.turnId, effect.actionId, effect.generation, tx.now, tx.now])
@@ -42,6 +46,12 @@ export async function applyLifeEffect(tx: LifeTransaction, mutation: Extract<Lif
   const row = await tx.get<{ status: LifeEffect['status'] }>('SELECT status FROM life_effect_intents WHERE card_id = ? AND effect_id = ?', [tx.cardId, mutation.id])
   if (row?.status !== mutation.expected)
     throw new Error('Effect fence became stale')
+  const snapshot = mutation.expectedSnapshot
+  if (snapshot) {
+    const current = await tx.get<{ generation: number, payload_ref_json: string, receipt_ref_json: string | null }>('SELECT generation,payload_ref_json,receipt_ref_json FROM life_effect_intents WHERE card_id = ? AND effect_id = ?', [tx.cardId, mutation.id])
+    if (!current || snapshot.generation !== current.generation || snapshot.payloadHash !== executionDigest(JSON.parse(current.payload_ref_json)) || snapshot.receiptHash !== executionDigest(current.receipt_ref_json ? JSON.parse(current.receipt_ref_json) : null))
+      throw new Error('Effect snapshot fence became stale')
+  }
   if (mutation.leaseUntil != null)
     assertLifeTime(mutation.leaseUntil)
   if (mutation.status === 'settled' && !mutation.receipt)

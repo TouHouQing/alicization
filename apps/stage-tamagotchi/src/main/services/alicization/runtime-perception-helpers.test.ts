@@ -22,6 +22,12 @@ function expectJsonSafe(value: unknown) {
 }
 
 describe('runtime perception helpers', () => {
+  it('does not authorize desktop capture from browser workflow arguments or review text', () => {
+    const plan = { goal: '下载报告', criteria: [{ predicate: { kind: 'user-review', question: '这份报告符合要求吗？' } }], steps: [{ capabilityId: 'tool.browser_read_page', input: { format: 'interactables' } }] }
+    expect(shouldInjectInteractivePerceptionForUserText(`请使用 life_execute_work_plan 执行受管浏览器下载计划。参数：${JSON.stringify(plan)}`)).toBe(false)
+    expect(shouldInjectInteractivePerceptionForUserText(`请看看当前屏幕，再执行参数：${JSON.stringify(plan)}`)).toBe(true)
+  })
+
   it('does not authorize perception injection for an answer-only dialogue request', () => {
     expect(shouldInjectInteractivePerceptionForUserText('如果你不确定某件事，不要猜，直接说不确定。')).toBe(false)
     expect(shouldInjectInteractivePerceptionForUserText('不调用工具，只用对话回答。')).toBe(false)

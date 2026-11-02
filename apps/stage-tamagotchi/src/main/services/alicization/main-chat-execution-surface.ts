@@ -17,6 +17,7 @@ import type { Tool } from '@xsai/shared-chat'
 import type {
   AlicizationDispatchTaskThreadPayload,
   AlicizationSensoryCacheSnapshot,
+  ElectronMcpToolDescriptor,
 } from '../../../shared/eventa'
 import type {
   AlicizationCodingAgentDelegationAuthority,
@@ -58,14 +59,23 @@ import {
 import { tool } from '@xsai/tool'
 import { z } from 'zod'
 
+import { localFilesystemSearchMaximumBytes, localFilesystemSearchMaximumResults } from '../airi/mcp-servers/local-filesystem-schema'
 import {
   normalizeAlicizationCodingAgentTask,
   validateAlicizationCodingAgentInvocation,
 } from './coding-agent-task-contract'
 import { assertExecutionCaptureAllowed } from './execution-capture-policy'
+import { inheritActionNotStarted, withMainFilesystemMutationDispatch, withMainFilesystemReadDispatch } from './execution/action-dispatch-context'
+import { declaredWorkProposal } from './execution/declared-work-proposal'
+import { createDeclaredWorkReferenceToolSpec } from './execution/declared-work-reference'
+import { mainFilesystemSearchDispatchInput, normalizeFilesystemReturnLimit } from './execution/filesystem-dispatch-input'
+import { replaceFilesystemText } from './execution/filesystem-mutation-input'
+import { isForegroundFileLookup } from './execution/foreground-file-lookup'
+import { createWorkPlanToolSpec } from './execution/work-plan-tool'
 import { normalizeLocalVisualCrossLayerValue } from './executor-adapters/local-visual'
 import { requiresPrivateReadConfirmation } from './executor-adapters/private-read-policy'
 import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
+import { withProviderToolInputProjection } from './provider-tool-input'
 import { sanitizeBriefText } from './runtime-realtime'
 import { sanitizeText } from './runtime-soul'
 
@@ -163,6 +173,12 @@ export interface BuildMainGatewayToolsOptions {
   desktopTypeText?: (input: AlicizationLocalDesktopTypeTextInput) => Promise<unknown>
   desktopWait?: (input: AlicizationLocalDesktopWaitInput) => Promise<unknown>
   createPersonalPiece?: (input: { cardId: string, turnId: string, abortSignal?: AbortSignal }) => Promise<unknown>
+  createWorkPlan?: (input: import('../../../shared/execution-contracts').ExecutionWorkProposal & { cardId: string, turnId: string, abortSignal?: AbortSignal }) => Promise<unknown>
+  createDeclaredWorkPlan?: (input: import('./execution/declared-work-reference').DeclaredWorkReference & { cardId: string, turnId: string, abortSignal?: AbortSignal }) => Promise<unknown>
+  listExecutionVerifiers?: () => Promise<unknown>
+  listLearnedProcedures?: () => Promise<unknown>
+  useLearnedProcedure?: (input: { cardId: string, turnId: string, id: string, version: string, goal: string, arguments: Record<string, unknown>, abortSignal?: AbortSignal }) => Promise<unknown>
+  prepareLearnedProcedureInput?: (input: { cardId: string, turnId: string, input: Record<string, unknown>, signal: AbortSignal }) => Promise<import('./provider-tool-input').ProviderToolInputProjection>
   abortSignal?: AbortSignal
   executeTaskThread: (input: {
     context: MainGatewayExecutionToolContext
@@ -191,7 +207,7 @@ export interface BuildMainGatewayToolsOptions {
     cardId?: string
     name: string
   }) => Promise<unknown>
-  invokeMcpListTools: () => Promise<unknown>
+  invokeMcpListTools: () => Promise<ElectronMcpToolDescriptor[]>
   getSensorySnapshot: () => Promise<AlicizationSensoryCacheSnapshot> | AlicizationSensoryCacheSnapshot
   resolveTaskPlanningCapabilities: () => Promise<AlicizationChannelCapability[]>
   scheduleReminderTask: (
@@ -247,12 +263,9 @@ function isExecutorToolReference(
     || projectedExecutorToolNames.has(toolName)
 }
 
-const filesystemToolDefaultMaxReturnBytes = 128 * 1024
-const filesystemToolMaxReturnBytes = 512 * 1024
 const filesystemToolEditableMaxBytes = 512 * 1024
 const filesystemToolDefaultPatchPreviewBytes = 32 * 1024
-const filesystemToolDefaultMaxSearchResults = 200
-const filesystemToolMaxSearchResults = 1_000
+const filesystemToolMaxSearchResults = localFilesystemSearchMaximumResults
 const localVisualExecutorKindValues = [
   'browser-automation',
   'software-automation',
@@ -270,6 +283,9 @@ const browserLikePagePhases = new Set([
 ])
 
 interface NormalizedMcpToolCallResult {
+  sideEffectState?: 'none' | 'unknown'
+  effectMayHaveOccurred?: boolean
+  executionStopped?: boolean
   content?: Array<Record<string, unknown>>
   durationMs?: number
   errorCode?: string
@@ -319,12 +335,6 @@ interface MainGatewayExecutorFollowUpInput {
   reinspectAfterAction?: boolean
 }
 
-function normalizeFilesystemReturnLimit(raw: number | undefined) {
-  if (typeof raw !== 'number' || !Number.isFinite(raw))
-    return filesystemToolDefaultMaxReturnBytes
-  return Math.max(64, Math.min(filesystemToolMaxReturnBytes, Math.floor(raw)))
-}
-
 function hashTextContent(content: string) {
   return createHash('sha256').update(content, 'utf8').digest('hex')
 }
@@ -342,19 +352,20 @@ function truncateTextByByteLimit(input: {
       truncated: false,
     }
   }
-  const clipped = buffer.subarray(0, input.maxBytes).toString('utf8')
+  const notice = `\n\n[ALICIZATION_NOTICE] ${input.operation} output truncated.`
+  let end = Math.max(0, input.maxBytes - Buffer.byteLength(notice, 'utf8'))
+  // Reserve the notice inside the same budget and stop at a UTF-8 boundary.
+  while (end > 0 && (buffer[end]! & 0xC0) === 0x80)
+    end--
+  const clipped = buffer.subarray(0, end).toString('utf8')
   return {
-    content: [
-      clipped,
-      '',
-      `[ALICIZATION_NOTICE] ${input.operation} output was truncated to ${input.maxBytes} bytes in tool response.`,
-    ].join('\n'),
+    content: clipped + notice,
     byteLength: buffer.byteLength,
     truncated: true,
   }
 }
 
-function normalizeMcpToolCallResult(raw: unknown): NormalizedMcpToolCallResult {
+export function normalizeMcpToolCallResult(raw: unknown): NormalizedMcpToolCallResult {
   const payload = asRecord(raw)
   if (!payload) {
     return {
@@ -369,6 +380,12 @@ function normalizeMcpToolCallResult(raw: unknown): NormalizedMcpToolCallResult {
     isError: payload.isError === true,
     ok: payload.ok !== false && payload.isError !== true,
   }
+  if (payload.sideEffectState === 'none' || payload.sideEffectState === 'unknown')
+    normalized.sideEffectState = payload.sideEffectState
+  if (typeof payload.effectMayHaveOccurred === 'boolean')
+    normalized.effectMayHaveOccurred = payload.effectMayHaveOccurred
+  if (typeof payload.executionStopped === 'boolean')
+    normalized.executionStopped = payload.executionStopped
   if (typeof payload.errorCode === 'string')
     normalized.errorCode = payload.errorCode
   if (typeof payload.errorMessage === 'string')
@@ -382,7 +399,7 @@ function normalizeMcpToolCallResult(raw: unknown): NormalizedMcpToolCallResult {
   if ('toolResult' in payload)
     normalized.toolResult = payload.toolResult
 
-  return normalized
+  return inheritActionNotStarted(raw, normalized)
 }
 
 function extractTextFromMcpResult(result: NormalizedMcpToolCallResult) {
@@ -3170,12 +3187,14 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           continue
         }
 
-        const normalizedResult = normalizeMcpToolCallResult(await options.invokeMcpCallTool({
+        const invoke = () => options.invokeMcpCallTool({
           abortSignal: input.abortSignal,
           cardId: context.cardId,
           name: toolName,
           arguments: argumentsObject,
-        }))
+        })
+        const nativeResult = ['filesystem::read_file', 'filesystem::list_directory', 'filesystem::search_files'].includes(toolName) ? await withMainFilesystemReadDispatch(invoke) : await invoke()
+        const normalizedResult = normalizeMcpToolCallResult(nativeResult)
 
         finalResult = normalizedResult
         finalToolName = toolName
@@ -3258,6 +3277,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         operation: 'read_file',
         path,
         errorCode: invocation.result.errorCode ?? 'FILESYSTEM_READ_FAILED',
+        effectMayHaveOccurred: invocation.result.effectMayHaveOccurred ?? false,
+        executionStopped: invocation.result.executionStopped,
         errorMessage: normalizeMcpErrorMessage(invocation.result),
         mcpToolName: invocation.toolName,
         attempts: invocation.attempts,
@@ -3305,6 +3326,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     content: string
     expectedHash?: string
     path: string
+    sourceContent?: string
   }) => {
     const path = sanitizeText(input.path)
     if (!path) {
@@ -3341,17 +3363,18 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       }
     }
 
-    const invocation = await invokeMcpWithCandidates({
+    const invokeWrite = () => invokeMcpWithCandidates({
       abortSignal: input.abortSignal,
       toolNameCandidates: [
         'filesystem::write_file',
       ],
       argumentCandidates: [
-        { path, content: input.content },
-        { filePath: path, content: input.content },
-        { path, text: input.content },
+        { path, content: input.content, ...(input.expectedHash !== undefined ? { expectedHash: input.expectedHash } : {}) },
+        { filePath: path, content: input.content, ...(input.expectedHash !== undefined ? { expectedHash: input.expectedHash } : {}) },
+        { path, text: input.content, ...(input.expectedHash !== undefined ? { expectedHash: input.expectedHash } : {}) },
       ],
     })
+    const invocation = input.sourceContent === undefined ? await invokeWrite() : await withMainFilesystemMutationDispatch(input.sourceContent, invokeWrite)
 
     if (invocation.result.isError) {
       return {
@@ -3359,10 +3382,12 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         operation: 'write_file',
         path,
         errorCode: invocation.result.errorCode ?? 'FILESYSTEM_WRITE_FAILED',
+        effectMayHaveOccurred: invocation.result.effectMayHaveOccurred ?? true,
+        executionStopped: invocation.result.executionStopped,
         errorMessage: normalizeMcpErrorMessage(invocation.result),
         mcpToolName: invocation.toolName,
         attempts: invocation.attempts,
-        sideEffectState: 'unknown',
+        sideEffectState: invocation.result.effectMayHaveOccurred === false ? 'none' : 'unknown',
       } as const
     }
 
@@ -3526,9 +3551,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
 
       const replaceEveryMatch = change.replaceAll === true
       const replacedCount = replaceEveryMatch ? occurrences : 1
-      nextContent = replaceEveryMatch
-        ? nextContent.split(oldText).join(newText)
-        : nextContent.replace(oldText, newText)
+      nextContent = replaceFilesystemText(nextContent, oldText, newText, replaceEveryMatch).content
       totalReplacedCount += replacedCount
       changeResults.push({
         changeIndex: index,
@@ -3586,6 +3609,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       path: normalizedPath,
       content: nextContent,
       expectedHash: readState.contentHash,
+      sourceContent: readState.content,
     })
     if (writeResult.status !== 'completed') {
       return {
@@ -3815,7 +3839,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     }),
     tool({
       name: 'browser_type_text',
-      description: 'Type into an observed browser input. Read the current page first, select its exact target, then read back the new state before another mutation. Successful typing does not prove submission.',
+      description: 'Fill an observed browser input, editable text, or single-select control. For select, text must be one exact observed option value or unambiguous label. Read the current page first, select its opaque reference, then read back the new state before another mutation. Successful filling does not prove submission.',
       parameters: z.object({
         autoContinueSuggestedActions: z.boolean().optional(),
         text: z.string().min(1),
@@ -4268,6 +4292,44 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         },
       }),
     }),
+    ...(options.createWorkPlan
+      ? [(() => {
+          let declared: ReturnType<typeof declaredWorkProposal> = null
+          try { declared = declaredWorkProposal(options.userText ?? '') }
+          catch { /* Ambiguous data stays on the ordinary bounded planning path. */ }
+          return declared && options.createDeclaredWorkPlan
+            ? tool(createDeclaredWorkReferenceToolSpec({ sourceInputId: `user:${options.context.turnId}`, proposalHash: declared.hash }, (input, executeOptions) => options.createDeclaredWorkPlan!({ ...input, cardId: options.context.cardId, turnId: options.context.turnId, abortSignal: resolveDirectLocalAbortSignal(executeOptions) })))
+            : tool(createWorkPlanToolSpec((input, executeOptions) => options.createWorkPlan!({ ...input, cardId: options.context.cardId, turnId: options.context.turnId, abortSignal: resolveDirectLocalAbortSignal(executeOptions) })))
+        })()]
+      : []),
+    ...(options.listExecutionVerifiers
+      ? [tool({
+          name: 'life_list_execution_verifiers',
+          description: 'List host-registered quality rubrics and independent external receipt recipes before proposing quality-review or external-receipt acceptance. Copy the exact content-bound rubricId or recipeId. An empty list means that proof is unavailable. These checks do not execute commands or submit external actions.',
+          parameters: z.object({}).strict(),
+          execute: async () => options.listExecutionVerifiers!(),
+        })]
+      : []),
+    ...(options.listLearnedProcedures
+      ? [tool({
+          name: 'life_list_learned_procedures',
+          description: 'List active independently replayed file procedures and their required fresh parameters. A remembered successful route alone does not authorize replay.',
+          parameters: z.object({}).strict(),
+          execute: async () => options.listLearnedProcedures!(),
+        })]
+      : []),
+    ...(options.useLearnedProcedure
+      ? [tool({
+          name: 'life_use_learned_procedure',
+          description: 'Reuse an exact active evaluated file procedure for this current request. First list available procedures. Supply every fresh argument by name. This creates persistent work with normal permissions, cancellation and independent result verification; acceptance is not completion.',
+          parameters: z.object({ id: z.string().min(1).max(512), version: z.string().regex(/^[a-f\d]{64}$/u), goal: z.string().min(1).max(2000), arguments: z.array(z.object({ name: z.string().regex(/^input\d+$/u), value: z.union([z.string().max(64_000), z.array(z.string().max(4096)).max(512)]) }).strict()).min(1).max(64) }).strict(),
+          execute: async (input, executeOptions) => {
+            if (new Set(input.arguments.map(argument => argument.name)).size !== input.arguments.length)
+              throw new Error('Procedure arguments contain duplicate names')
+            return options.useLearnedProcedure!({ ...input, arguments: Object.fromEntries(input.arguments.map(argument => [argument.name, argument.value])), cardId: options.context.cardId, turnId: options.context.turnId, abortSignal: resolveDirectLocalAbortSignal(executeOptions) })
+          },
+        }).then(built => options.prepareLearnedProcedureInput ? withProviderToolInputProjection(built, (input, signal) => options.prepareLearnedProcedureInput!({ cardId: options.context.cardId, turnId: options.context.turnId, input, signal })) : built)]
+      : []),
     ...(options.createPersonalPiece
       ? [tool({
           name: 'life_create_personal_piece',
@@ -4406,14 +4468,13 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         }
 
         const replaceEveryMatch = replaceAll === true
-        const nextContent = replaceEveryMatch
-          ? readState.content.split(oldText).join(newText)
-          : readState.content.replace(oldText, newText)
+        const nextContent = replaceFilesystemText(readState.content, oldText, newText, replaceEveryMatch).content
         const writeResult = await writeFileViaMcp({
           abortSignal: resolveDirectLocalAbortSignal(executeOptions),
           path: normalizedPath,
           content: nextContent,
           expectedHash: readState.contentHash,
+          sourceContent: readState.content,
         })
         if (writeResult.status !== 'completed') {
           return {
@@ -4509,6 +4570,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
             operation: 'list_directory',
             path: normalizedPath,
             errorCode: invocation.result.errorCode ?? 'FILESYSTEM_LIST_FAILED',
+            effectMayHaveOccurred: invocation.result.effectMayHaveOccurred ?? false,
+            executionStopped: invocation.result.executionStopped,
             errorMessage: normalizeMcpErrorMessage(invocation.result),
             mcpToolName: invocation.toolName,
             attempts: invocation.attempts,
@@ -4543,10 +4606,11 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           path: normalizedPath,
           entries,
           entryCount: entries.length,
-          totalEntryCount: combinedEntries.length,
+          totalEntryCount: asRecord(invocation.result.structuredContent)?.truncated === true ? null : combinedEntries.length,
+          observedEntryCount: combinedEntries.length,
           output: truncatedPayload.content,
           byteLength: truncatedPayload.byteLength,
-          truncated: truncatedPayload.truncated || combinedEntries.length > entries.length,
+          truncated: asRecord(invocation.result.structuredContent)?.truncated === true || truncatedPayload.truncated || combinedEntries.length > entries.length,
           mcpToolName: invocation.toolName,
           attempts: invocation.attempts,
         }
@@ -4557,14 +4621,14 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       description: 'Search files by text query through MCP filesystem bridge with optional regex/case-sensitive/include/exclude controls and normalized match output.',
       parameters: z.object({
         path: z.string().min(1),
-        query: z.string().min(1),
+        query: z.string().min(1).max(4096),
         recursive: z.boolean().optional(),
-        maxResults: z.coerce.number().optional(),
-        maxReturnBytes: z.coerce.number().optional(),
+        maxResults: z.number().int().min(1).max(filesystemToolMaxSearchResults).optional(),
+        maxReturnBytes: z.number().int().min(1000).max(localFilesystemSearchMaximumBytes).optional(),
         caseSensitive: z.boolean().optional(),
         regex: z.boolean().optional(),
-        includeGlobs: z.array(z.string()).optional(),
-        excludeGlobs: z.array(z.string()).optional(),
+        includeGlobs: z.array(z.string().min(1).max(512)).max(32).optional(),
+        excludeGlobs: z.array(z.string().min(1).max(512)).max(32).optional(),
         pathMode: z.enum(['absolute', 'raw', 'relative']).optional(),
       }).strict(),
       execute: async ({ path, query, recursive, maxResults, maxReturnBytes, caseSensitive, regex, includeGlobs, excludeGlobs, pathMode }, executeOptions) => {
@@ -4591,20 +4655,20 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           }
         }
 
-        const normalizedMaxResults = typeof maxResults === 'number' && Number.isFinite(maxResults)
-          ? Math.max(1, Math.min(filesystemToolMaxSearchResults, Math.floor(maxResults)))
-          : filesystemToolDefaultMaxSearchResults
-        const normalizedRecursive = recursive === true
-        const normalizedCaseSensitive = caseSensitive === true
-        const normalizedRegex = regex === true
-        const normalizedIncludeGlobs = sanitizeStringList(includeGlobs)
-        const normalizedExcludeGlobs = sanitizeStringList(excludeGlobs)
-        const normalizedPathMode: MainGatewayFilesystemSearchPathMode = pathMode ?? 'raw'
+        const dispatchInput = mainFilesystemSearchDispatchInput({ path, query, recursive, maxResults, maxReturnBytes, caseSensitive, regex, includeGlobs, excludeGlobs, pathMode })
+        const normalizedMaxResults = dispatchInput.maxResults
+        const normalizedRecursive = dispatchInput.recursive
+        const normalizedCaseSensitive = dispatchInput.caseSensitive
+        const normalizedRegex = dispatchInput.regex
+        const normalizedIncludeGlobs = dispatchInput.includeGlobs ?? []
+        const normalizedExcludeGlobs = dispatchInput.excludeGlobs ?? []
+        const normalizedPathMode = dispatchInput.pathMode
         const includeGlobMatchers = compileSimpleGlobList(normalizedIncludeGlobs)
         const excludeGlobMatchers = compileSimpleGlobList(normalizedExcludeGlobs)
         const baseSearchOptions = {
           recursive: normalizedRecursive,
           maxResults: normalizedMaxResults,
+          maxReturnBytes: dispatchInput.maxReturnBytes,
           caseSensitive: normalizedCaseSensitive,
           regex: normalizedRegex,
           pathMode: normalizedPathMode,
@@ -4662,6 +4726,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
             path: normalizedPath,
             query: normalizedQuery,
             errorCode: invocation.result.errorCode ?? 'FILESYSTEM_SEARCH_FAILED',
+            effectMayHaveOccurred: invocation.result.effectMayHaveOccurred ?? false,
+            executionStopped: invocation.result.executionStopped,
             errorMessage: normalizeMcpErrorMessage(invocation.result),
             mcpToolName: invocation.toolName,
             attempts: invocation.attempts,
@@ -4726,11 +4792,13 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           pathMode: normalizedPathMode,
           matches,
           matchCount: matches.length,
-          totalMatchCount: postFilteredMatches.length,
+          totalMatchCount: asRecord(invocation.result.structuredContent)?.truncated === true ? null : postFilteredMatches.length,
+          observedMatchCount: postFilteredMatches.length,
+          searchCoverage: asRecord(invocation.result.structuredContent)?.coverage ?? null,
           filteredOutCount,
           output: truncatedPayload.content,
           byteLength: truncatedPayload.byteLength,
-          truncated: truncatedPayload.truncated || postFilteredMatches.length > matches.length,
+          truncated: asRecord(invocation.result.structuredContent)?.truncated === true || truncatedPayload.truncated || postFilteredMatches.length > matches.length,
           mcpToolName: invocation.toolName,
           attempts: invocation.attempts,
         }
@@ -4749,16 +4817,19 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   const projectedTools: Tool[] = []
   const directoryTools = new Set<string>()
   if (options.toolSurface === 'main-chat') {
-    const catalog = asRecord(await options.invokeMcpListTools().catch(() => null))
-    for (const raw of Array.isArray(catalog?.tools) ? catalog.tools : []) {
-      const descriptor = asRecord(raw)
-      if (descriptor?.serverName === 'filesystem' && typeof descriptor.toolName === 'string')
+    const catalog = await options.invokeMcpListTools().catch(() => [])
+    for (const descriptor of catalog) {
+      if (descriptor.serverName === 'filesystem' && descriptor.name === `filesystem::${descriptor.toolName}`)
         directoryTools.add(descriptor.toolName)
     }
   }
 
   for (const builtTool of builtTools) {
     const providerToolName = builtTool.function.name
+    // An immediate explicit lookup needs observed paths, not guessed artifact
+    // criteria in a new durable plan. Explicit workflows retain their planner.
+    if (options.toolSurface === 'main-chat' && providerToolName === 'life_execute_work_plan' && directoryTools.has('search_files') && directoryTools.has('read_file') && isForegroundFileLookup(options.userText))
+      continue
     // Read/write also implement edit/patch. Directory operations need a real
     // registered backend; never offer them solely because a schema exists.
     if (options.toolSurface === 'main-chat' && ((providerToolName === 'filesystem_list_directory' && !directoryTools.has('list_directory')) || (providerToolName === 'filesystem_search_files' && !directoryTools.has('search_files'))))

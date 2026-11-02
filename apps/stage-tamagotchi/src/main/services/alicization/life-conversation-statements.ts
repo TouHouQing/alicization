@@ -7,6 +7,15 @@ export interface LifeConversationStatement {
   occurredAt: number
 }
 
+const ownCompletedOperation = /(?<![让请求望令])我(?:也|已经|确实|实际|就|终于|真的|刚才)?(?:完成|执行|写入|保存|读取|删除|取消|支付|上传|下载)|我(?:把|将)[^。；;\n]{0,60}(?:写入|保存|删除|完成)/u
+
+/** Scope only. Its truth still requires a reviewed, current host source. */
+export function isHostReportedAccomplishment(quote: string) {
+  return /^你(?:今天|昨天|刚才|已经|终于|曾经|确实|亲自|自己|总算|成功|认真|也|还){0,5}(?:完成(?:了|过)|做完了|办好了|处理好了)[^。；;\n]+/u.test(quote.trim())
+    && !/[？?]|(?:我|我们)[^。；;\n]{0,24}(?:会|将|打算|准备|保证|承诺)/u.test(quote)
+    && !ownCompletedOperation.test(quote)
+}
+
 export async function readPresentedConversationStatements(ports: { turns: () => Promise<Array<{ turnId: string | null, assistantText: string | null, structuredJson: string | null, createdAt: number }>>, presented: (ids: string[]) => Promise<ReadonlySet<string>> }) {
   const turns = await ports.turns()
   const presented = await ports.presented(turns.flatMap(turn => turn.turnId ? [turn.turnId] : []))
@@ -35,8 +44,12 @@ export function attributesConversationStatement(draft: string, quote: string, sp
   if (/^(?:现在|明天|随后|以后|下次)?我(?:明天|后天|稍后|随后|下次|一会儿|以后)?(?:会|将|打算|准备|保证|承诺)|\b(?:i will|i promise|i intend)\b/iu.test(quote))
     return false
   // "让我实际写入" is a request object; "我实际写入" is an execution assertion.
-  if (/(?<![让请求望令])我(?:也|已经|确实|实际|就|终于|真的|刚才)?(?:完成|执行|写入|保存|读取|删除|取消|支付|上传|下载)|我(?:把|将)[^。；;\n]{0,60}(?:写入|保存|删除|完成)/u.test(quote))
+  if (ownCompletedOperation.test(quote))
     return false
+  // Acknowledging a host-reported accomplishment uses the host's actual
+  // dialogue source, never an execution receipt or proof of her own work.
+  if (speaker === 'host' && isHostReportedAccomplishment(quote))
+    return true
   const hostAttribution = /你[^。；;\n]{0,60}?(?:让我|要求我|请我|希望我|允许我|问|告诉我|说)|\byou\b[^.!?;\n]{0,60}?\b(?:asked|requested|said|told)\b/iu
   const companionAttribution = /我[^。；;\n]{0,40}?(?:告诉|说|提到|回答|回复|解释|讲过|选了|选择了)|\bi\b[^.!?;\n]{0,40}?\b(?:said|told|answered|replied|explained)\b/iu
   if ((speaker === 'host' ? hostAttribution : companionAttribution).test(quote))
@@ -50,7 +63,7 @@ export function attributesConversationStatement(draft: string, quote: string, sp
   const omittedReport = speaker === 'host'
     ? /^(?:(?:接着|随后|后来|然后|[又还也并而])(?:[又还也]|明确|特意)?)*(?:让我|要求我|请我|希望我|允许我|告诉我|说)/u
     : /^(?:(?:接着|随后|后来|然后|[又还也并而])[又还也]?)*(?:说|提到|回答|回复|解释|告诉)/u
-  return omittedReport.test(quote) || /(?:说|问我|告诉我|回答|回复)[，,:：\s]*$/u.test(prefix)
+  return omittedReport.test(quote) || /(?:说|问我|告诉我|回答|回复)[，,:：\s]*[“「『"]?$/u.test(prefix)
 }
 
 /** Current affect is expressed now; it is not an assertion of a prior utterance. */

@@ -46,13 +46,21 @@ export function useLive2DIdleEyeFocus() {
             MathUtils.lerp(nextFocusTarget[1], previousFocusTarget[1], stabilityCarry),
           ]
       lastSaccadeAt = now
-      nextSaccadeAfter = now + (randomSaccadeInterval() / 1000)
-      model.focusController.focus(focusTarget![0] * 0.38, focusTarget![1] * 0.38, false)
+      // Keep a fixation for several seconds. Frequent large random targets also
+      // turn the head through Cubism's focus controller, even without a motion.
+      nextSaccadeAfter = now + 3.5 + (randomSaccadeInterval() / 1000) * 1.5 + stabilityCarry * 2
+      model.focusController.focus(focusTarget![0] * 0.12, focusTarget![1] * 0.12, false)
     }
 
     // SDK updateFocus applies the same controller to eyes and head after motions.
     // Writing eyeballs here would be added a second time and saturate the rig.
   }
 
-  return { update }
+  // Pointer attention has its own owner and expiry. Releasing it must not wait
+  // for the previous autonomous fixation's longer dwell deadline.
+  function interrupt() {
+    nextSaccadeAfter = -1
+  }
+
+  return { update, interrupt }
 }

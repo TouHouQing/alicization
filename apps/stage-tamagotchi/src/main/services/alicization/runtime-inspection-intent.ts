@@ -28,7 +28,9 @@ import {
   inferScenarioFromContext,
   isLateNightWindow,
 } from './proactive-layered-context'
+import { isCreativeRequestWithoutVisualSource } from './runtime-creative-inspection-scope'
 import { isFileActionWithoutVisualInspection } from './runtime-file-inspection-scope'
+import { projectInspectionDirective, projectInspectionMessages } from './runtime-inspection-directive'
 import { sanitizeBriefText } from './runtime-realtime'
 import { clamp01 } from './runtime-soul'
 import { buildWorldModel } from './world-model'
@@ -305,15 +307,20 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
     visualPresenceState: AlicizationVisualPresenceStateSnapshot
     currentForeground?: AlicizationSystemProbeSample['foregroundWindow'] | null
   }) {
+    const directive = projectInspectionDirective(input.userText)
     const fileActionPivot = isFileActionWithoutVisualInspection(input.userText)
-    const baseIntent = detectInvitedInspectionIntent(fileActionPivot ? '' : input.userText)
-    const normalized = normalizeOrganicRecallText(input.userText).toLowerCase()
+    const structuredActionPivot = directive.hasStructuredContent && !detectInvitedInspectionIntent(directive.text).active
+    const creativePivot = isCreativeRequestWithoutVisualSource(input.userText)
+    const nonVisualActionPivot = fileActionPivot || structuredActionPivot || creativePivot
+    const baseIntent = detectInvitedInspectionIntent(nonVisualActionPivot ? '' : directive.text)
+    const normalized = normalizeOrganicRecallText(directive.text).toLowerCase()
     const stableSharedAttention = hasStableSharedAttention({
       now: input.now,
       perceptionState: input.perceptionState,
       visualPresenceState: input.visualPresenceState,
     })
-    const recentMessageWindow = input.messages.slice(-6)
+    const inspectionMessages = projectInspectionMessages(input.messages)
+    const recentMessageWindow = inspectionMessages.slice(-6)
     const recentUserInspection = recentMessageWindow.some((message, index) => {
       if (message?.role !== 'user')
         return false
@@ -330,10 +337,10 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
       || input.perceptionState.recentSceneResidue?.source === 'invited-inspection',
     )
     const semanticIntent = inferAlicizationInspectionIntent({
-      message: fileActionPivot ? '' : normalized,
-      recentMessages: fileActionPivot ? [] : input.messages.slice(0, -1),
-      contextPhrases: fileActionPivot ? [] : buildInspectionIntentContextPhrases(input),
-      sharedAttentionActive: !fileActionPivot && (stableSharedAttention || inspectionContinuityActive),
+      message: nonVisualActionPivot ? '' : normalized,
+      recentMessages: nonVisualActionPivot ? [] : inspectionMessages.slice(0, -1),
+      contextPhrases: nonVisualActionPivot ? [] : buildInspectionIntentContextPhrases(input),
+      sharedAttentionActive: !nonVisualActionPivot && (stableSharedAttention || inspectionContinuityActive),
     })
     const semanticIntentProfile = deriveAlicizationInspectionSignalProfile({
       reasonCodes: semanticIntent.reasonCodes,
@@ -355,7 +362,7 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
       && !baseIntent.active
       && !semanticPremarkEligible,
     )
-    const premarkInspectionOwnedTurn = !fileActionPivot && !forceDialogueIdentityPivot
+    const premarkInspectionOwnedTurn = !nonVisualActionPivot && !forceDialogueIdentityPivot
       && (baseIntent.active || (semanticIntent.active && semanticPremarkEligible))
     const ingressContext = buildDialogueIngressContext({
       now: input.now,
@@ -364,8 +371,8 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
       visualPresenceState: input.visualPresenceState,
     })
     const ingressSemantics = buildDialogueTurnSemantics({
-      userText: input.userText,
-      previousAssistantText: readLatestAssistantMessageText(input.messages),
+      userText: directive.text,
+      previousAssistantText: readLatestAssistantMessageText(inspectionMessages),
       context: ingressContext.context,
       currentScene: ingressContext.currentScene,
       worldModel: ingressContext.worldModel,
@@ -472,7 +479,7 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
         }),
       }
     }
-    if (forceDialogueIdentityPivot || fileActionPivot) {
+    if (forceDialogueIdentityPivot || nonVisualActionPivot) {
       const stateDecision = resolveInspectionTurnState({
         candidateInspectionActive: false,
         explicitInspectionIntent,
@@ -495,7 +502,7 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
         ingressSceneBoundSignal,
       })
       const reasonCodes = [
-        fileActionPivot ? 'bounded-file-action' : 'identity-dialogue-pivot',
+        fileActionPivot ? 'bounded-file-action' : structuredActionPivot ? 'structured-action-without-screen-directive' : creativePivot ? 'creative-request-without-visual-source' : 'identity-dialogue-pivot',
         'dialogue-pivot-away-from-inspection',
         ...stateDecision.reasonTags,
         ...gateDecision.reasonTags,

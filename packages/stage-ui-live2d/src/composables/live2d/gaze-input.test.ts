@@ -27,4 +27,17 @@ describe('live2D pointer attention ownership', () => {
     expect(input.holdUntil).toBe(Number.NEGATIVE_INFINITY)
     expect(input.observe({ x: 10, y: 20 }, 0, 'external')).toBe(true)
   })
+
+  it('reports accepted attention ownership and its expiry without renewing it', () => {
+    const input = createLive2DGazeInput()
+    expect(input.snapshot(0)).toEqual({ owner: 'autonomous', remainingSeconds: 0 })
+    input.observe({ x: 100, y: 200 }, 1, 'local')
+    input.observe({ x: 800, y: 600 }, 1.1, 'external')
+    expect(input.snapshot(1.5)).toEqual({ owner: 'local', remainingSeconds: 1.1 })
+    expect(input.snapshot(2.6)).toEqual({ owner: 'autonomous', remainingSeconds: 0 })
+    input.observe({ x: 810, y: 600 }, 3, 'external')
+    expect(input.snapshot(3).owner).toBe('external')
+    input.reset()
+    expect(input.snapshot(3)).toEqual({ owner: 'autonomous', remainingSeconds: 0 })
+  })
 })

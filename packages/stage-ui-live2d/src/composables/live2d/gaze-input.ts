@@ -5,11 +5,12 @@ export function createLive2DGazeInput() {
   let lastExternalPoint: GazePoint | undefined
   let localUntil = Number.NEGATIVE_INFINITY
   let holdUntil = Number.NEGATIVE_INFINITY
+  let source: 'local' | 'external' = 'external'
 
-  function observe(point: GazePoint, now: number, source: 'local' | 'external') {
+  function observe(point: GazePoint, now: number, inputSource: 'local' | 'external') {
     if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || !Number.isFinite(now))
       return false
-    if (source === 'external') {
+    if (inputSource === 'external') {
       const previous = lastExternalPoint
       lastExternalPoint = { ...point }
       if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) < 1)
@@ -20,6 +21,7 @@ export function createLive2DGazeInput() {
     else {
       localUntil = now + 0.7
     }
+    source = inputSource
     holdUntil = now + 1.6
     return true
   }
@@ -27,6 +29,10 @@ export function createLive2DGazeInput() {
   return {
     observe,
     get holdUntil() { return holdUntil },
+    snapshot: (now: number) => ({
+      owner: now < holdUntil ? source : 'autonomous' as const,
+      remainingSeconds: Math.max(0, holdUntil - now),
+    }),
     reset: () => {
       lastExternalPoint = undefined
       localUntil = Number.NEGATIVE_INFINITY

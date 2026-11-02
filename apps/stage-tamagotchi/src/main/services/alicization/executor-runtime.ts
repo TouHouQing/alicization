@@ -31,6 +31,10 @@ import { errorMessageFrom } from '@moeru/std'
 
 import { locateAlicizationExecutionBinary } from './execution-command-env'
 import { readExecutionOutcome, readLatestExecutionEvent, readTaskThreadActivityAt, sanitizeExecutionLedgerText } from './execution-ledger-shared'
+import { executionDigest } from './execution/acceptance-compiler'
+import { inheritActionNotStarted } from './execution/action-dispatch-context'
+import { admitProcedureEvidence, admitVerifiedExecutionProcedure } from './execution/procedure-admission'
+import { readWorkStepDelegation, workDelegationThreadId } from './execution/work-step-delegation'
 import { inspectCliTaskCommand } from './executor-adapters/cli'
 import { requiresDelegatedPermissionApproval } from './executor-adapters/delegated-risk-policy'
 import { expandOpenClawBackedCapabilities } from './executor-adapters/embodied-channel'
@@ -42,6 +46,7 @@ type CapabilityManifestSnapshotSource = 'runtime-default-probe' | 'runtime-plan-
 
 type AlicizationExecutorRuntimeDbPort = Pick<AlicizationDbService, 'appendExecutionEvents'
   | 'getTaskThread'
+  | 'readLifeState'
   | 'getLatestRelationshipDynamics'
   | 'listChannelCapabilityManifests'
   | 'listExecutionEvents'
@@ -606,8 +611,10 @@ async function buildRememberedProcedureTracesFromExecution(input: {
   const recentThreads = await input.db.listTaskThreads({
     limit: 24,
   }).catch(() => [] as AlicizationTaskThreadRecord[])
+  const roots = recentThreads.slice(0, 24).map(thread => `task:${thread.id}`).filter(id => id.length <= 512)
+  const life = await input.db.readLifeState?.({ obligationIds: roots }).catch(() => null) ?? null
   const candidateThreads = recentThreads
-    .filter(thread => thread.status === 'completed')
+    .filter(thread => admitVerifiedExecutionProcedure(thread, life))
     .map(thread => ({
       thread,
       similarity: computeTokenOverlapScore(goalTokens, tokenizeGoalText(thread.goal)),
@@ -619,9 +626,10 @@ async function buildRememberedProcedureTracesFromExecution(input: {
   const traces = await Promise.all(candidateThreads.map(async ({ thread, similarity }) => {
     const events = await input.db.listExecutionEvents({
       threadId: thread.id,
+      attemptId: thread.attemptId!,
       limit: 12,
     }).catch(() => [] as AlicizationExecutionEventRecord[])
-    const orderedEvents = [...events].sort((left, right) => left.createdAt - right.createdAt)
+    const orderedEvents = events.filter(event => event.attemptId === thread.attemptId).sort((left, right) => left.createdAt - right.createdAt)
     const channel = thread.selectedChannel ?? thread.proposedChannel ?? null
     const eventSteps = orderedEvents
       .map(extractExecutionEventStep)
@@ -774,14 +782,17 @@ function buildRememberedProcedures(
   hostPersonModel: ReturnType<typeof buildHostPersonModelSnapshot> | null,
   relationshipDynamics: AlicizationRelationshipDynamicsState | null,
   records: Awaited<ReturnType<AlicizationExecutorRuntimeDbPort['searchMemoryConsolidations']>>,
+  life: Awaited<ReturnType<AlicizationExecutorRuntimeDbPort['readLifeState']>> | null,
 ) {
   const contexts = inferPlanningHostContexts(goalText)
   return records
     .filter(record => record.kind === 'procedural' || (record.kind === 'autobiographical' && record.facet === 'task-era'))
     .map((record) => {
-      const preferred = inferPreferredProcedureChannel({
-        metadata: record.metadata,
-      })
+      const preferred = admitProcedureEvidence(record.metadata, life)
+        ? inferPreferredProcedureChannel({
+            metadata: record.metadata,
+          })
+        : null
       const preferenceBoost = computeRememberedProcedureHostPreferenceBoost({
         contexts,
         relationshipDynamics,
@@ -1302,6 +1313,12 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       hostPersonModel,
       relationshipDynamics,
     })
+    // Retrieve only sources of the six recalled examples, including their
+    // accepted plans/recovery marks; a UI history window cannot certify skill.
+    const procedureRoots = [...new Set(proceduralMemories.slice(0, 6).flatMap((record) => {
+      const id = (record.metadata?.execution as { obligationId?: unknown } | undefined)?.obligationId
+      return typeof id === 'string' && id.trim() && id.length <= 512 ? [id] : []
+    }))]
     const rememberedProcedures = [
       ...rememberedExecutionTraces,
       ...buildRememberedProcedures(
@@ -1310,12 +1327,22 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         hostPersonModel,
         relationshipDynamics,
         proceduralMemories,
+        await db.readLifeState?.({ obligationIds: procedureRoots }).catch(() => null) ?? null,
       ),
     ]
       .filter((item, index, items) => items.findIndex(entry => entry.id === item.id) === index)
       .sort((left, right) => right.confidence - left.confidence)
       .slice(0, 4)
-    return await taskExecutionGovernor.plan(db, {
+    const delegation = readWorkStepDelegation()
+    const planningPort = delegation
+      ? { ...db, upsertTaskThread: async (thread: Parameters<typeof db.upsertTaskThread>[0]) => {
+          await delegation.assertCurrent()
+          if (thread.id !== workDelegationThreadId(delegation.parent))
+            throw new Error('Delegated planning changed its parent-owned child identity')
+          return db.upsertTaskThread({ ...thread, metadata: { ...thread.metadata, workStepParent: delegation.parent } })
+        } }
+      : db
+    return await taskExecutionGovernor.plan(planningPort, {
       ...input,
       experience: {
         ...input.experience,
@@ -1332,17 +1359,21 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     abortSignal?: AbortSignal
     onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
   }): Promise<MainGatewayExecutionTaskThreadResult> {
+    const workDelegation = readWorkStepDelegation()
+    await workDelegation?.assertCurrent()
+    if (workDelegation && input.dispatchMode === 'background')
+      throw new Error('A delegated work step must retain its parent cancellation and completion owner')
     const killSwitchSuspended = options.getGlobalKillSwitchState() === 'SUSPENDED'
       || options.getCardKillSwitchState(input.context.cardId) === 'SUSPENDED'
     const sessionId = await options.ensureSessionId(input.context.cardId).catch(() => '')
     const capabilities = await resolveTaskPlanningCapabilities()
     const db = options.getAlicizationDb()
-    const cliRisk = input.dispatch.cli ? inspectCliTaskCommand({ command: input.dispatch.cli, thread: { metadata: { task: { effect: input.task.effect, permissionMode: 'implicit' } }, origin: 'user-turn', turnId: input.context.turnId } }) : null
+    const cliRisk = input.dispatch.cli ? inspectCliTaskCommand({ command: input.dispatch.cli, workspaceRoot: workDelegation?.workspaceRoot, thread: { metadata: { task: { effect: input.task.effect, permissionMode: 'implicit' } }, origin: 'user-turn', turnId: input.context.turnId } }) : null
     const dangerousDispatch = requiresDelegatedPermissionApproval(input.dispatch.claudeCode) || Boolean(cliRisk && 'riskLevel' in cliRisk && cliRisk.riskLevel === 'danger')
     const actualTask = { ...input.task, ...(dangerousDispatch ? { effect: 'high-impact' as const } : {}) }
     const planning = await planTaskThread({
       canonicalToolCallId: options.sanitizeText(input.context.toolCallId) || null,
-      threadId: `thread:tool:${randomUUID()}`,
+      threadId: workDelegation ? workDelegationThreadId(workDelegation.parent) : `thread:tool:${randomUUID()}`,
       trace: {
         decisionTraceId: options.sanitizeText(input.context.decisionTraceId) || null,
         turnId: options.sanitizeText(input.context.turnId) || null,
@@ -1354,6 +1385,9 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       capabilities,
       killSwitchSuspended,
     })
+
+    if (workDelegation && planning.governor.disposition !== 'duplicate')
+      await workDelegation.assertCurrent()
 
     if (planning.governor.disposition === 'duplicate') {
       return {
@@ -1391,6 +1425,8 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       },
       input: {
         threadId: planning.thread.id,
+        // Only the main-owned approved delegation can widen the command root.
+        ...(workDelegation ? { workspaceRoot: workDelegation.workspaceRoot } : {}),
         cli: dispatch.cli,
         codex: dispatch.codex,
         claudeCode: dispatch.claudeCode,
@@ -1433,6 +1469,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       }
     }
 
+    await workDelegation?.assertCurrent()
     const dispatchResult = await options.dispatchTaskThread(dispatchInvocation)
     const finalExecutionEvent = dispatchResult.thread.status === 'failed'
       ? readLatestExecutionEvent(await db.listExecutionEvents({
@@ -1446,7 +1483,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       thread: dispatchResult.thread,
     })
 
-    return {
+    return inheritActionNotStarted(dispatchResult, {
       ok: dispatchResult.ok,
       finalStatus: dispatchResult.finalStatus,
       stage: 'dispatch',
@@ -1458,7 +1495,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       errorMessage: dispatchResult.errorMessage,
       createdEventKinds: dispatchResult.createdEventKinds,
       ...(finalRecovery ? { recovery: finalRecovery } : {}),
-    }
+    })
   }
 
   function buildResumeDispatchPayload(input: {
@@ -1742,6 +1779,12 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     }
 
     const resumeChannel = originalThread.selectedChannel ?? originalThread.proposedChannel
+    if (originalThread.metadata?.workStepParent) {
+      const current = readWorkStepDelegation()
+      if (!current || executionDigest(current.parent) !== executionDigest(originalThread.metadata.workStepParent))
+        return { ok: false, stage: 'plan', thread: originalThread, plan: { state: 'blocked' }, summary: '请从父工作进展核对并继续此步骤。', errorCode: 'WORK_STEP_PARENT_REQUIRED', errorMessage: 'A delegated child can only continue under its current parent step authority.' }
+      await current.assertCurrent()
+    }
     if (!resumeChannel) {
       return {
         ok: false,
