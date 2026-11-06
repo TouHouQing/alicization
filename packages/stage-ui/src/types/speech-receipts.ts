@@ -6,4 +6,7 @@ export interface StageSpeechReceiptInput {
   state: 'audio-started' | 'audio-progress' | 'audio-ended' | 'audio-interrupted' | 'audio-failed'
   playedMs: number
   errorCode: string | null
+  alignedTextEnd?: number | null
+  alignmentSource?: 'tts' | 'viseme' | 'segment' | null
+  coverage?: 'complete' | 'excerpt'
 }

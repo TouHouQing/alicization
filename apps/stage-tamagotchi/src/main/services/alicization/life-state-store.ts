@@ -39,8 +39,11 @@ import { applyLifeSoul } from './life-soul-repository'
 import { LifeStateConflictError } from './life-state-conflict'
 import { projectLifeTask } from './life-task-repository'
 import { activeLifeTransaction, afterLifeTransactionCommit, assertLifeId, assertLifeTransaction } from './life-transaction'
+import { readPersonaSourcePreviews } from './persona-development/inspection'
+import { readPersonaLearningSources } from './persona-development/learning-sources'
+import { applyPersonaDevelopment } from './persona-development/repository'
 
-const owners = new Set<LifeOwner>(['self', 'reflection', 'motivation', 'habit', 'presence', 'cognition', 'emotion', 'relationship', 'goals', 'memory', 'expression', 'soul', 'initiative', 'growth'])
+const owners = new Set<LifeOwner>(['self', 'reflection', 'motivation', 'habit', 'presence', 'cognition', 'emotion', 'relationship', 'goals', 'memory', 'expression', 'soul', 'initiative', 'growth', 'persona-development'])
 
 export { LifeStateConflictError }
 
@@ -233,6 +236,8 @@ export function createLifeStateStore(options: LifeStoreOptions) {
     return row?.value
   })
   const readObligationHistory = (input: import('../../../shared/life-history-contracts').LifeObligationHistoryRequest) => readOne(reader => readLifeObligationHistoryPage({ cardId, all: (sql, params) => all(reader, sql, params) }, input))
+  const readPersonaSources = (facetId: string, version: number) => readOne(reader => readPersonaSourcePreviews({ cardId, now: now(), get: (sql, params) => get(reader, sql, params) }, facetId, version))
+  const readPersonaLearningEvidence = () => readOne(reader => readPersonaLearningSources({ cardId, now: now(), get: (sql, params) => get(reader, sql, params), all: (sql, params) => all(reader, sql, params) }))
   async function readUserInput(reader: sqlite3.Database, id: string) {
     const row = await get<{ body_json: string | null, input_hash: string, lifecycle: string }>(reader, 'SELECT body_json, input_hash, lifecycle FROM life_input_payloads WHERE card_id = ? AND ingress_id = ?', [cardId, id])
     if (!row || row.lifecycle === 'unavailable')
@@ -417,6 +422,8 @@ export function createLifeStateStore(options: LifeStoreOptions) {
       await beforeMutations?.(tx)
       for (const mutation of input.mutations ?? []) {
         switch (mutation.type) {
+          case 'persona-development': await applyPersonaDevelopment(tx, mutation.operation)
+            break
           case 'execution-verifiers-configure': await applyExecutionVerificationConfiguration(tx, mutation)
             break
           case 'execution-criteria-revise': await reviseExecutionCriteria(tx, mutation.command)
@@ -528,7 +535,7 @@ export function createLifeStateStore(options: LifeStoreOptions) {
       throw new Error('Life mutation requires the current writer transaction')
     return commit(input, writeOptions, beforeMutations, handle)
   }
-  return { initialize, read, readMetaValue, readObligationHistory, getIngress, readIngressPage, hasWithdrawnEvidence, getEffect, getUserInput, getSurface, readClosure, getTurnExecutionEffects, getPendingExecutionEffects, getTurnExecutionEffectsInside, readConversationPreferencesInside, commit, subscribe, commitWith: commit, commitInside, stopReads: async () => {
+  return { initialize, read, readMetaValue, readObligationHistory, readPersonaSources, readPersonaLearningEvidence, getIngress, readIngressPage, hasWithdrawnEvidence, getEffect, getUserInput, getSurface, readClosure, getTurnExecutionEffects, getPendingExecutionEffects, getTurnExecutionEffectsInside, readConversationPreferencesInside, commit, subscribe, commitWith: commit, commitInside, stopReads: async () => {
     readsClosed = true
     await reads
   } }

@@ -4,6 +4,7 @@ import type {
   AlicizationAuditLogInput,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
+import type { ProviderAccounting, ProviderRequestSettled, ProviderRequestStarted } from './agent-harness/provider-usage-ledger'
 import type { AlicizationAgentSessionContinuityInput, AlicizationAgentTurnRuntime } from './agent-runtime'
 import type { AlicizationPerceptionSceneResidue, AlicizationPerceptionState } from './attention-anchor'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
@@ -20,7 +21,7 @@ import type {
 } from './runtime-soul'
 import type { deriveSensoryCaptureSnapshotFromAccessRuntimeSnapshot } from './sensory-capture'
 
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 import { errorMessageFrom } from '@moeru/std'
 import {
@@ -31,6 +32,8 @@ import {
 } from '@proj-alicization/stage-shared'
 import { generateText } from '@xsai/generate-text'
 
+import { readProviderUsage } from './agent-harness/provider-usage'
+import { currentProviderUsageScope } from './agent-harness/provider-usage-scope'
 import { getActiveAttentionAnchor } from './attention-anchor'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 import { emptyAlicizationExecutionCallbackContext } from './execution-callback-runtime'
@@ -166,6 +169,7 @@ interface OneShotPromptCompactionResult {
 }
 
 interface CreateAlicizationMainGatewayOneShotRuntimeOptions {
+  providerAccounting?: (cardId: string) => ProviderAccounting
   getActiveCardId: () => string
   getActiveProviderId: () => string
   getActiveModelId: () => string
@@ -467,6 +471,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     const allowed = new Set(trustedCallerSystemFactTypes)
     if (source === 'reply-grounding')
       allowed.add('alicization-reply-grounding-context')
+    if (source === 'memory-compaction')
+      allowed.add('alicization-memory-compaction-context')
     if (source === 'personal-activity')
       allowed.add('alicization-personal-activity-context')
     if (source === 'persona-evaluation')
@@ -1025,7 +1031,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
           operation: 'main-gateway-one-shot',
           signal: controller.signal,
           deadlineAt: providerRetryDeadlineAt,
-          invoke: async ({ signal }) => {
+          invoke: async ({ signal, attempt }) => {
             const attemptController = new AbortController()
             const forwardAbort = () => {
               if (!attemptController.signal.aborted) {
@@ -1050,11 +1056,24 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
               controller.signal.addEventListener('abort', forwardAbort, { once: true })
             }
 
+            let accountingRequest: ProviderRequestStarted | null = null
+            let observedUsage: ProviderRequestSettled['usage'] = null
+            let accountingSettlement: ProviderRequestSettled['settlement'] = 'failed'
+            let accounting: ProviderAccounting | undefined
+            let accountingStarted = false
             try {
+              accounting = options.providerAccounting?.(oneShotCardId)
               const providerSignal = attemptController.signal
               // Revalidate each actual transmission, including retries. A
               // queued or retried image must retain its approved destination.
               await generateOptions.beforeProviderRequest?.(describeMainGatewayRequestTarget(config))
+              providerSignal.throwIfAborted()
+              const scope = currentProviderUsageScope()
+              const standaloneId = `one-shot:${generateOptions.source}:${randomUUID()}`
+              const turnId = scope?.cardId === oneShotCardId ? scope.turnId : generateOptions.agentTurnInput?.turnId ?? standaloneId
+              accountingRequest = { requestId: randomUUID(), cardId: oneShotCardId, turnId, rootTurnId: scope?.cardId === oneShotCardId ? scope.rootTurnId : turnId, parentRequestId: scope?.requestId ?? null, providerId: config.providerId, model: config.model, requestHash: createHash('sha256').update(JSON.stringify(generationMessages)).digest('hex'), providerAttempt: attempt + 1, startedAt: Date.now() }
+              await accounting?.started(accountingRequest)
+              accountingStarted = !!accounting
               providerSignal.throwIfAborted()
               providerDispatched = true
               const providerPromise = generateText({
@@ -1068,12 +1087,17 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
               // Some OpenAI-compatible SDKs resolve their outer promise after
               // the transport has ignored AbortSignal. The run must still leave
               // the coordinator immediately and must not accept a late result.
-              return await awaitAlicizationPromiseWithAbort(providerPromise, providerSignal)
+              const response = await awaitAlicizationPromiseWithAbort(providerPromise, providerSignal)
+              observedUsage = readProviderUsage(response.usage)
+              accountingSettlement = 'completed'
+              return response
             }
             finally {
               clearTimeout(attemptTimeout)
               signal?.removeEventListener('abort', forwardAbort)
               controller.signal.removeEventListener('abort', forwardAbort)
+              if (accountingRequest && accountingStarted)
+                await accounting?.settled({ ...accountingRequest, finishedAt: Date.now(), settlement: accountingSettlement === 'completed' ? 'completed' : attemptController.signal.aborted ? 'aborted' : 'failed', usage: observedUsage })
             }
           },
           onRetryScheduled: async (retry) => {

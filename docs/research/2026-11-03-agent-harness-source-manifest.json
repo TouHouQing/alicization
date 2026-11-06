@@ -1,0 +1,129 @@
+{
+  "format": "alicization-agent-harness-source-study-v1",
+  "date": "2026-11-03",
+  "baseline": "45f74b07740e44eda1bc92252932a74c952355d8",
+  "projects": [
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "license": "Apache-2.0",
+      "mode": "implementation-reference-only",
+      "copiedCode": false,
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
+          "bytes": 10926,
+          "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/LICENSE"
+        },
+        {
+          "path": "NOTICE",
+          "sha256": "9d71575ecfd9a843fc1677b0efb08053c6ba9fd686a0de1a6f5382fd3c220915",
+          "bytes": 242,
+          "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/NOTICE"
+        },
+        {
+          "path": "codex-rs/core/src/context_manager/history.rs",
+          "sha256": "60e30e1ca546e1e186c14fe1b21a50cfea6f677f3294089c4396ca263c4322b1",
+          "bytes": 62993,
+          "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/core/src/context_manager/history.rs"
+        },
+        {
+          "path": "codex-rs/core/src/context_manager/normalize.rs",
+          "sha256": "a7b0aadc44591fa8bc550ef9cef22671076270d77e401fd0546173a86eab96a2",
+          "bytes": 17075,
+          "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/core/src/context_manager/normalize.rs"
+        },
+        {
+          "path": "codex-rs/core/src/compact.rs",
+          "sha256": "abc5cd5d1f2e9e8a415a04f27974dc39809939706ca413059a38dd56571a128f",
+          "bytes": 33766,
+          "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/core/src/compact.rs"
+        }
+      ]
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "license": "MIT",
+      "mode": "source-adaptation",
+      "copiedCode": true,
+      "scope": "UTF-8 boundary and middle-truncation implementation; no full agent engine",
+      "destination": "apps/stage-tamagotchi/src/main/services/alicization/third-party/pi-tool-text.ts",
+      "notice": "apps/stage-tamagotchi/resources/licenses/pi-agent-harness-notice.txt",
+      "retainedLicense": "apps/stage-tamagotchi/resources/licenses/pi-file-tools-license.txt",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
+          "bytes": 1069,
+          "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/LICENSE"
+        },
+        {
+          "path": "packages/agent/src/agent-loop.ts",
+          "sha256": "9d7589b5071ea3b8b3e3c624f9cfc09a976ebf7436024a58213837de4645167d",
+          "bytes": 29889,
+          "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/agent/src/agent-loop.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/tools/truncate.ts",
+          "sha256": "8e4507c3ed7ca7548cf7c2d7f77d07f2ae63a38b756789cbb44e9062db6c8762",
+          "bytes": 9255,
+          "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/coding-agent/src/core/tools/truncate.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/compaction/compaction.ts",
+          "sha256": "32714966eb644da31cd84e8eb172965256160626b3d26ae9752c3894300f2b0b",
+          "bytes": 35401,
+          "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/coding-agent/src/core/compaction/compaction.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/skills.ts",
+          "sha256": "79e7d971a26730e3a692c434c32dc63bd8ce36aa4bedaaaf96e405f4a39bc411",
+          "bytes": 14603,
+          "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/coding-agent/src/core/skills.ts"
+        }
+      ]
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "license": "MIT",
+      "mode": "implementation-reference-only",
+      "copiedCode": false,
+      "files": [
+        {
+          "path": "packages/core/agent-loop/src/agent.ts",
+          "sha256": "ad9ee0778c0a93dec40363f88b53f442add9b033837b9ff049675a1ada3df61f",
+          "bytes": 31142,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/agent-loop/src/agent.ts"
+        },
+        {
+          "path": "packages/core/agent-loop/src/inbox.ts",
+          "sha256": "336e10096a4899cdbef71e68da6896c5ed84c17a95c56729d17b8ba607bac1ca",
+          "bytes": 8873,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/agent-loop/src/inbox.ts"
+        },
+        {
+          "path": "packages/compaction/compaction-basic/src/region.ts",
+          "sha256": "295b53cc9e924f7cb2e843e0d0d296e89ead73da2aab9790282db30736e2e063",
+          "bytes": 23571,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/compaction/compaction-basic/src/region.ts"
+        },
+        {
+          "path": "packages/skill/skill-filesystem/src/index.ts",
+          "sha256": "fec9bf70095a01fd7eb61e5a7aa77480490a17e663224ecaeb84852cb025207f",
+          "bytes": 39980,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/skill/skill-filesystem/src/index.ts"
+        }
+      ]
+    }
+  ],
+  "constraints": [
+    "same-personhood-and-memory-owners",
+    "same-tool-risk-policy-and-cancellation",
+    "full-original-SQLite-receipts",
+    "no-upstream-model-assets-or-personas",
+    "no-upstream-executable-installation"
+  ]
+}

@@ -195,6 +195,7 @@ vi.mock('./alicization-execution-engine', () => ({
 
 vi.mock('./chat/session-store', () => ({
   useChatSessionStore: () => ({
+    sessionMetas: {},
     activeSessionId,
     initialize: vi.fn(),
     ensureSession: (sessionId: string) => {
@@ -251,12 +252,7 @@ vi.mock('./providers', () => ({
   }),
 }))
 
-// The presentation clock has its own real/fake-timer tests. Orchestration tests
-// exercise every actual cursor event with an injected no-delay wait.
-vi.mock('./chat/text-presentation', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./chat/text-presentation')>()
-  return { ...actual, createChatTextPresenter: (options: Parameters<typeof actual.createChatTextPresenter>[0]) => actual.createChatTextPresenter({ ...options, wait: async () => {} }) }
-})
+vi.mock('./conversation-delivery', () => ({ useConversationDeliveryStore: () => ({ states: {}, key: () => '' }) }))
 
 vi.mock('./chat/hooks', () => ({
   createChatHooks: () => {
@@ -604,10 +600,10 @@ describe('chat orchestrator reply authority', () => {
 
     expect(streamMock).toHaveBeenCalledTimes(1)
     expect(streamMock.mock.calls[0]?.[3]).not.toHaveProperty('responseFormat')
-    expect(hookCapture.presentations[0]?.visible).toBe([...reply][0])
+    expect(hookCapture.presentations[0]?.visible).toBe(reply)
     expect(hookCapture.presentations.at(-1)?.visible).toBe(reply)
-    expect(hookCapture.presentations.map(item => item.unit.grapheme).join('')).toBe(reply)
-    expect(hookCapture.presentations.every(item => item.visible.endsWith(item.unit.grapheme))).toBe(true)
+    expect(hookCapture.presentations.map(item => item.unit.text).join('')).toBe(reply)
+    expect(hookCapture.presentations.every(item => item.visible.endsWith(item.unit.text))).toBe(true)
   })
 
   it('does not turn renderer context snapshots into an extra Provider user prompt without a bridge', async () => {
@@ -657,7 +653,8 @@ describe('chat orchestrator reply authority', () => {
       release = resolve
     })
     let producerFinished = false
-    installAlicizationBridge({ streamChat: async (_payload, options) => {
+    installAlicizationBridge({ streamChat: async (payload, options) => {
+      expect(hookCapture.embodimentMetas).toContainEqual(expect.objectContaining({ deliveryTurnId: payload.turnId }))
       await options.onStreamEvent({ type: 'text-delta', text: '你', delivery: { phase: 'append', sequence: 0, offset: 0 }, origin: 'provider' })
       await gate
       await options.onStreamEvent({ type: 'text-delta', text: reply.slice(1), delivery: { phase: 'append', sequence: 1, offset: 1 }, origin: 'provider' })
@@ -671,7 +668,7 @@ describe('chat orchestrator reply authority', () => {
     expect(appendConversationTurnMock).not.toHaveBeenCalled()
     release()
     await running
-    expect(hookCapture.presentations.map(item => item.unit.grapheme).join('')).toBe(reply)
+    expect(hookCapture.presentations.map(item => item.unit.text).join('')).toBe(reply)
     expect(hookCapture.speechLiterals.join('')).toBe(reply)
     expect(appendConversationTurnMock).toHaveBeenCalledOnce()
     expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({ assistantText: reply }))
@@ -704,7 +701,7 @@ describe('chat orchestrator reply authority', () => {
     expect(messages).toHaveLength(1)
     expect(messages[0].content).toBe(reply)
     expect(messages[0].delivery).toBeUndefined()
-    expect(hookCapture.presentations.map(item => item.unit.grapheme).join('')).toBe(reply)
+    expect(hookCapture.presentations.map(item => item.unit.text).join('')).toBe(reply)
     expect(hookCapture.cancellations).toHaveLength(0)
     expect(chatAbortMock).not.toHaveBeenCalled()
   }, 30000)

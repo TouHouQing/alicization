@@ -58,6 +58,7 @@ export interface WorkInputBinding {
 export interface BrowserWorkBinding { kind: 'managed' | 'authorized-page', id: string }
 
 export interface WorkPlan {
+  schedule?: { at: number, groupId: string, index: number }
   id: string
   cardId: string
   rootThreadId: string

@@ -9,7 +9,7 @@ import { extname } from 'node:path'
 import * as v from 'valibot'
 
 import { lifeBackupCommandSchema } from '../../../shared/life-backup-contracts'
-import { electronLifeArtifactRestore, electronLifeAuthorizedBrowser, electronLifeBackupCommand, electronLifeBodyActivity, electronLifeBodyHealth, electronLifeClosure, electronLifeExecutionArtifact, electronLifeExecutionCriteriaChange, electronLifeExecutionPlan, electronLifeExecutionRecovery, electronLifeExecutionReobserve, electronLifeExecutionReview, electronLifeExecutionRevise, electronLifeExecutionRun, electronLifeExecutionStop, electronLifeExecutionStorage, electronLifeExecutionVerifiers, electronLifeExpressionReceipt, electronLifeFileRecovery, electronLifeGrowthRollback, electronLifeInputCommand, electronLifeInputPreview, electronLifeObligationCommand, electronLifeObligationHistory, electronLifeOutreachPolicy, electronLifePersonaCommand, electronLifePersonalProposalWithdraw, electronLifePolicyCommand, electronLifeProcedure, electronLifeProjectFeedback, electronLifeSurfaceSession, electronLifeView } from '../../../shared/life-events'
+import { electronLifeArtifactRestore, electronLifeAuthorizedBrowser, electronLifeBackupCommand, electronLifeBodyActivity, electronLifeBodyHealth, electronLifeClosure, electronLifeExecutionArtifact, electronLifeExecutionCriteriaChange, electronLifeExecutionPlan, electronLifeExecutionRecovery, electronLifeExecutionReobserve, electronLifeExecutionReview, electronLifeExecutionRevise, electronLifeExecutionRun, electronLifeExecutionStop, electronLifeExecutionStorage, electronLifeExecutionVerifiers, electronLifeExpressionReceipt, electronLifeFileRecovery, electronLifeGrowthRollback, electronLifeInputCommand, electronLifeInputPreview, electronLifeObligationCommand, electronLifeObligationHistory, electronLifeOutreachPolicy, electronLifePersonaCommand, electronLifePersonaDevelopmentCommand, electronLifePersonalProposalWithdraw, electronLifePersonaSources, electronLifePolicyCommand, electronLifeProcedure, electronLifeProjectFeedback, electronLifeSurfaceSession, electronLifeView } from '../../../shared/life-events'
 import { workGraphChangesSchema } from '../../../shared/work-graph-editing'
 import { executionCriteriaSchema } from './execution/acceptance-compiler'
 import { explicitWorkStepEditsSchema } from './execution/explicit-work-step-edits'
@@ -66,6 +66,8 @@ export function registerLifeInvokeHandlers(options: {
   rescheduleTimer: () => Promise<void>
   cancelExecution: (cardId: string, threadId: string) => void
   personaCommand?: (input: import('../../../shared/life-persona-contracts').LifePersonaCommand) => Promise<{ status: string }>
+  personaDevelopmentCommand?: (input: import('../../../shared/persona-development-contracts').PersonaDevelopmentCommand) => Promise<{ status: string }>
+  personaSources?: (facetId: string, version: number) => Promise<import('../../../shared/persona-development-contracts').PersonaSourcePreview[]>
   restoreArtifact?: (input: import('../../../shared/life-events').LifeArtifactCommand) => Promise<{ status: string }>
   resumeInput?: (input: { cardId: string, ingressId: string, expectedPayloadHash: string }, metadata: InvokeMetadata) => Promise<{ status: 'resumed', turnId: string }>
   policyCommand?: (input: import('../../../shared/life-policy-contracts').LifePolicyCommand) => Promise<{ status: string }>
@@ -264,6 +266,24 @@ export function registerLifeInvokeHandlers(options: {
         throw new Error(error || 'The system could not open this artifact')
       return { state: 'open-requested' }
     })
+  })
+  options.register(electronLifePersonaDevelopmentCommand, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(v.variant('action', [
+      v.strictObject({ cardId: id, operationId: id, expectedHash: v.nullable(id), action: v.picklist(['pause', 'resume']) }),
+      v.strictObject({ cardId: id, operationId: id, expectedHash: v.nullable(id), action: v.picklist(['withdraw', 'reconsider']), facetId: id, expectedVersion: version }),
+      v.strictObject({ cardId: id, operationId: id, expectedHash: v.nullable(id), action: v.literal('correct'), facetId: id, expectedVersion: version, correction: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(260)) }),
+    ]), raw)
+    if (!options.personaDevelopmentCommand)
+      throw new Error('Personality development is unavailable')
+    return options.withCardScope(input.cardId, () => options.personaDevelopmentCommand!(input))
+  })
+  options.register(electronLifePersonaSources, async (raw, metadata) => {
+    sender(metadata)
+    const input = v.parse(v.strictObject({ cardId: id, facetId: id, version: v.pipe(version, v.minValue(1)) }), raw)
+    if (!options.personaSources)
+      throw new Error('Personality sources are unavailable')
+    return options.withCardScope(input.cardId, () => options.personaSources!(input.facetId, input.version))
   })
   options.register(electronLifePersonaCommand, async (raw, metadata) => {
     sender(metadata)

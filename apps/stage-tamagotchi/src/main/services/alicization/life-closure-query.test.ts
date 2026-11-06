@@ -9,12 +9,12 @@ import { createLifeReplyGroundingRuntime } from './life-reply-grounding-runtime'
 import { createLifeTurnRuntime } from './life-turn-runtime'
 
 describe('read-only life closure evidence', () => {
-  it('does not certify completion of an utterance from a single completed audio segment', async () => {
+  it.each([['first', null], ['utterance', 'excerpt-only']])('does not certify the whole reply from %s / %s', async (segmentId, errorCode) => {
     const root = await mkdtemp(join(tmpdir(), 'life-closure-partial-audio-'))
     const db = await setupAlicizationDb(root, { cardId: 'alice' })
     try {
       await db.appendConversationTurn({ cardId: 'alice', sessionId: 's', turnId: 'spoken', assistantText: '这段话还没有全部播放。' })
-      const receipt = { cardId: 'alice', deliveryId: 'spoken', turnId: 'spoken', utteranceId: 'spoken', segmentId: 'first', playbackEpoch: 'epoch', surfaceSessionId: 'surface', playedMs: 0, alignedTextEnd: null, alignmentSource: null, errorCode: null, occurredAt: 100 }
+      const receipt = { cardId: 'alice', deliveryId: 'spoken', turnId: 'spoken', utteranceId: 'spoken', segmentId: segmentId!, playbackEpoch: 'epoch', surfaceSessionId: 'surface', playedMs: 0, alignedTextEnd: null, alignmentSource: null, errorCode, occurredAt: 100 }
       await db.commitLifeState({ cardId: 'alice', operationKey: 'start', changes: [], mutations: [{ type: 'expression-record', presentationVerified: true, receipt: { ...receipt, receiptId: 'start', sequence: 0, state: 'audio-started' } }] })
       await db.commitLifeState({ cardId: 'alice', operationKey: 'part-ended', changes: [], mutations: [{ type: 'expression-record', presentationVerified: true, receipt: { ...receipt, receiptId: 'part-end', sequence: 1, state: 'audio-ended', playedMs: 80 } }] })
       expect((await db.readLifeClosure('spoken')).nodes.find(node => node.id === 'N13')?.status).toBe('unverified')

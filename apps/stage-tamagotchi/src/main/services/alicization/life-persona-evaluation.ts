@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto'
 
 import * as v from 'valibot'
 
+import { isLifeBehaviorExampleEligible } from './life-behavior-example-policy'
 import { bindLifePersonaProposalEvidence } from './life-persona-evidence'
 import { boundedJson } from './life-transaction'
 import { personaTrainingExampleContentHash } from './persona-training-dataset-runtime'
@@ -45,10 +46,9 @@ export async function assertLifeBehaviorExamples(tx: LifeTransaction, evaluation
     if (ids.has(example.id))
       throw new Error('Persona evaluation duplicated a behavior example')
     ids.add(example.id)
-    const row = await tx.get<{ content_hash: string, source_id: string, source_kind: 'cleaned-long-term-reflection' | 'persona-reinforcement', schema_version: string, behavior_lesson: string, positive_example: string, negative_example: string | null, consent_snapshot_json: string, provenance_json: string | null }>(`SELECT content_hash, source_id, source_kind, schema_version, behavior_lesson, positive_example, negative_example, consent_snapshot_json, provenance_json FROM persona_training_dataset_examples WHERE card_id = ? AND id = ? AND state = 'staged' AND pii_status = 'clear' AND allow_training = 1`, [tx.cardId, example.id])
-    const consent = row ? JSON.parse(row.consent_snapshot_json) : null
+    const row = await tx.get<{ content_hash: string, source_id: string, source_kind: 'cleaned-long-term-reflection' | 'persona-reinforcement', schema_version: string, behavior_lesson: string, positive_example: string, negative_example: string | null, sensitivity: string, state: 'staged' | 'quarantined' | 'revoked', pii_status: 'clear' | 'detected' | 'not-checked', pii_reason: string | null, provenance_json: string | null }>(`SELECT content_hash, source_id, source_kind, schema_version, behavior_lesson, positive_example, negative_example, sensitivity, state, pii_status, pii_reason, provenance_json FROM persona_training_dataset_examples WHERE card_id = ? AND id = ?`, [tx.cardId, example.id])
     const provenance = row?.provenance_json ? JSON.parse(row.provenance_json) : null
-    if (!row || row.content_hash !== example.contentHash || row.source_id !== example.sourceId || row.source_kind !== example.sourceKind || consent?.granted !== true || provenance?.kind !== 'working-memory-cleaning')
+    if (!row || row.content_hash !== example.contentHash || row.source_id !== example.sourceId || row.source_kind !== example.sourceKind || !isLifeBehaviorExampleEligible({ id: example.id, cardId: tx.cardId, datasetId: '', schemaVersion: row.schema_version, sourceId: row.source_id, sourceKind: row.source_kind, contentHash: row.content_hash, behaviorLesson: row.behavior_lesson, positiveExample: row.positive_example, negativeExample: row.negative_example, sensitivity: row.sensitivity, state: row.state, piiStatus: row.pii_status, piiReason: row.pii_reason, provenance, allowTraining: false, consentSnapshot: { granted: false, policyVersion: '', scope: '' }, createdAt: 0 }))
       throw new Error('Persona evaluation lacks current cleaned and permitted behavior examples')
     if (personaTrainingExampleContentHash({ schemaVersion: row.schema_version, behaviorLesson: row.behavior_lesson, positiveExample: row.positive_example, negativeExample: row.negative_example, sourceKind: row.source_kind }) !== example.contentHash)
       throw new Error('Persona behavior example content changed without its reviewed hash')

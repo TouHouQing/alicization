@@ -2113,6 +2113,9 @@ export type AlicizationLongHorizonMemoryCueSnapshot = SharedAlicizationLongHoriz
 export type AlicizationLongHorizonMemorySnapshot = SharedAlicizationLongHorizonMemorySnapshot
 
 export interface AlicizationAutobiographicalSelfSnapshot {
+  /** Versioned migration: maintenance-only projections do not accumulate learning. */
+  growthEvidenceFingerprint?: string
+  growthEvidenceRoots?: string[]
   personaDrift: {
     attachmentStyle: AlicizationPersonaDriftAttachmentStyle
     expressionStyle: AlicizationPersonaDriftExpressionStyle
@@ -3470,6 +3473,7 @@ export interface AlicizationPrivateThoughtSnapshot {
 }
 
 export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizationPersistentPresenceAuthoritySnapshot {
+  personalityExpression?: { version: string, expression: number, warmth: number }
   emotionalTemporalState?: import('@proj-alicization/stage-shared').AlicizationEmotionalTemporalState | null
   watchMode: AlicizationVisualWatchMode
   currentScene: AlicizationVisualSceneSnapshot | null

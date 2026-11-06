@@ -33,6 +33,8 @@ export const useSpeechStore = defineStore('speech', () => {
   const pitch = useLocalStorageManualReset<number>('settings/speech/pitch', 0)
   const rate = useLocalStorageManualReset<number>('settings/speech/rate', 1)
   const ssmlEnabled = useLocalStorageManualReset<boolean>('settings/speech/ssml-enabled', false)
+  const silentMouthEnabled = useLocalStorageManualReset<boolean>('settings/speech/silent-mouth', true)
+  const autoReadEnabled = useLocalStorageManualReset<boolean>('settings/speech/auto-read', true)
   const isLoadingSpeechProviderVoices = refManualReset<boolean>(false)
   const speechProviderError = refManualReset<string | null>(null)
   const availableVoices = refManualReset<Record<string, VoiceInfo[]>>(() => ({}))
@@ -267,6 +269,8 @@ export const useSpeechStore = defineStore('speech', () => {
     pitch.reset()
     rate.reset()
     ssmlEnabled.reset()
+    silentMouthEnabled.reset()
+    autoReadEnabled.reset()
     selectedLanguage.reset()
     modelSearchQuery.reset()
     availableVoices.reset()
@@ -284,6 +288,8 @@ export const useSpeechStore = defineStore('speech', () => {
     pitch,
     rate,
     ssmlEnabled,
+    silentMouthEnabled,
+    autoReadEnabled,
     selectedLanguage,
     isLoadingSpeechProviderVoices,
     speechProviderError,

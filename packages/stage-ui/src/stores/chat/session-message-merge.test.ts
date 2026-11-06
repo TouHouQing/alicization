@@ -8,6 +8,79 @@ import { interruptChatAssistantMessage } from './message-identity'
 import { canonicalizeSessionMessages, mergeLoadedSessionMessages } from './session-message-merge'
 
 describe('mergeLoadedSessionMessages', () => {
+  it('preserves all timestamp-free legacy rows without multiplying identical snapshots on every restore', () => {
+    const history: ChatHistoryItem[] = Array.from({ length: 10071 }, (_, index) => ({
+      id: 'legacy-context',
+      role: 'system',
+      content: `Retained context ${index % 50}`,
+    }))
+    const restored = mergeLoadedSessionMessages(history, JSON.parse(JSON.stringify(history)))
+    assert.equal(restored.length, history.length)
+    assert.deepEqual(restored, history)
+    assert.deepEqual(mergeLoadedSessionMessages(history, restored), history)
+  })
+
+  it('retains new occurrences beyond the durable snapshot while excluding its exact replay copies', () => {
+    const row: ChatHistoryItem = { id: 'legacy-context', role: 'system', content: 'Retained context' }
+    const prompt: ChatHistoryItem = { id: 'new-prompt', role: 'user', content: 'A new question' }
+    const restored = mergeLoadedSessionMessages([row, row], [row, row, row, row, prompt])
+    assert.equal(restored.filter(message => message.role === 'system').length, 3)
+    assert.equal(restored.find(message => message.role === 'user')!.content, prompt.content)
+  })
+  it('restores ten thousand legacy messages without repeatedly scanning the entire history', () => {
+    const count = 10071
+    let identityReads = 0
+    const history = Array.from({ length: count }, (_, index): ChatHistoryItem => ({
+      get id() {
+        identityReads += 1
+        return `legacy-history-${index}`
+      },
+      role: 'user',
+      content: `Historical event ${index}`,
+      createdAt: index,
+    }))
+    const restored = canonicalizeSessionMessages(history)
+    assert.equal(restored.length, count)
+    assert.equal(restored[0].content, 'Historical event 0')
+    assert.equal(restored.at(-1)!.content, `Historical event ${count - 1}`)
+    assert.ok(identityReads <= count * 4, `History identity reads must grow linearly; got ${identityReads}`)
+  })
+
+  it('keeps distinct stable turns with identical wording and timestamps separate at scale', () => {
+    let identityReads = 0
+    const history = Array.from({ length: 10000 }, (_, index): ChatHistoryItem => ({
+      get id() {
+        identityReads += 1
+        return `chat:repeated:${index}`
+      },
+      role: 'user',
+      content: 'Good morning.',
+      createdAt: 1000,
+    }))
+    assert.equal(canonicalizeSessionMessages(history).length, history.length)
+    assert.ok(identityReads <= history.length * 4)
+  })
+
+  it('chooses the earliest equivalent legacy entry even when a later entry has the exact turn identity', () => {
+    const result = canonicalizeSessionMessages([
+      { id: 'legacy-first', role: 'user', content: 'Same prompt', createdAt: 5999 },
+      { id: 'chat:exact-turn', role: 'user', content: 'Original wording', createdAt: 1000 },
+      { id: 'chat:exact-turn', role: 'user', content: 'Same prompt', createdAt: 6001 },
+    ])
+    assert.equal(result.length, 2)
+    assert.deepEqual(result.map(message => message.content), ['Original wording', 'Same prompt'])
+  })
+
+  it('reindexes richer replacement text before matching a later legacy copy across a time bucket boundary', () => {
+    const result = canonicalizeSessionMessages([
+      { id: 'chat:replacement', role: 'user', content: 'Short', createdAt: 5999 },
+      { id: 'chat:replacement', role: 'user', content: 'A richer replacement', createdAt: 6001 },
+      { id: 'legacy-replacement', role: 'user', content: 'A richer replacement', createdAt: 12001 },
+    ])
+    assert.equal(result.length, 1)
+    assert.equal(result[0].content, 'A richer replacement')
+    assert.equal(result[0].id, 'chat:replacement')
+  })
   it('keeps the matching prompt before its reply when durable prompt time is newer than the live assistant time', () => {
     const user: ChatHistoryItem = { id: 'chat:session:turn:user', role: 'user', content: 'Today I finished the drawing.', createdAt: 500 }
     const reply: ChatHistoryItem = { id: 'chat:session:turn:gw1', role: 'assistant', content: 'I am happy for you.', createdAt: 101, slices: [{ type: 'text', text: 'I am happy for you.' }], tool_results: [] }

@@ -28,6 +28,7 @@ import {
   inferScenarioFromContext,
   isLateNightWindow,
 } from './proactive-layered-context'
+import { isAgentReadWithoutVisualSource } from './runtime-agent-inspection-scope'
 import { isCreativeRequestWithoutVisualSource } from './runtime-creative-inspection-scope'
 import { isFileActionWithoutVisualInspection } from './runtime-file-inspection-scope'
 import { projectInspectionDirective, projectInspectionMessages } from './runtime-inspection-directive'
@@ -311,7 +312,8 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
     const fileActionPivot = isFileActionWithoutVisualInspection(input.userText)
     const structuredActionPivot = directive.hasStructuredContent && !detectInvitedInspectionIntent(directive.text).active
     const creativePivot = isCreativeRequestWithoutVisualSource(input.userText)
-    const nonVisualActionPivot = fileActionPivot || structuredActionPivot || creativePivot
+    const agentReadPivot = isAgentReadWithoutVisualSource(input.userText)
+    const nonVisualActionPivot = fileActionPivot || structuredActionPivot || creativePivot || agentReadPivot
     const baseIntent = detectInvitedInspectionIntent(nonVisualActionPivot ? '' : directive.text)
     const normalized = normalizeOrganicRecallText(directive.text).toLowerCase()
     const stableSharedAttention = hasStableSharedAttention({
@@ -502,7 +504,7 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
         ingressSceneBoundSignal,
       })
       const reasonCodes = [
-        fileActionPivot ? 'bounded-file-action' : structuredActionPivot ? 'structured-action-without-screen-directive' : creativePivot ? 'creative-request-without-visual-source' : 'identity-dialogue-pivot',
+        fileActionPivot ? 'bounded-file-action' : structuredActionPivot ? 'structured-action-without-screen-directive' : creativePivot ? 'creative-request-without-visual-source' : agentReadPivot ? 'bounded-agent-read' : 'identity-dialogue-pivot',
         'dialogue-pivot-away-from-inspection',
         ...stateDecision.reasonTags,
         ...gateDecision.reasonTags,

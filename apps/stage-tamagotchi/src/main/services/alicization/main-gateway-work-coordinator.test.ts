@@ -6,6 +6,22 @@ import {
 } from './main-gateway-work-coordinator'
 
 describe('main gateway work coordinator', () => {
+  it('keeps memory compression in the background even inside a live dialogue async scope', async () => {
+    const coordinator = createAlicizationMainGatewayWorkCoordinator()
+    const foreground = coordinator.openForeground({ turnId: 'host-speaking' })
+    await foreground.run(async () => {
+      expect(coordinator.acquireOneShot({ source: 'memory-compaction' })).toEqual({ accepted: false, lane: 'background', reason: 'foreground-active' })
+    })
+    foreground.release()
+    const background = coordinator.acquireOneShot({ source: 'memory-compaction' })
+    expect(background.accepted).toBe(true)
+    const next = coordinator.openForeground({ turnId: 'new-host-message' })
+    if (background.accepted) {
+      expect(background.controller.signal.aborted).toBe(true)
+      background.release({ status: 'cancelled' })
+    }
+    next.release()
+  })
   it.each(['personal-activity', 'dream', 'reply-grounding'] as const)('does not lend a released foreground owner to detached %s work', async (source) => {
     const coordinator = createAlicizationMainGatewayWorkCoordinator()
     const original = coordinator.openForeground({ turnId: 'finished-dialogue' })

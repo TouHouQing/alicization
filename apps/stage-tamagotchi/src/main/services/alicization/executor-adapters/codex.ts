@@ -32,6 +32,7 @@ import {
 } from '@proj-alicization/stage-shared'
 import { parse as parseToml } from 'smol-toml'
 
+import { readProviderUsage } from '../agent-harness/provider-usage'
 import {
   buildAlicizationExecutionEnv,
   resolveAlicizationExecutionBinary,
@@ -117,6 +118,7 @@ interface AlicizationCodexStructuredFailure {
 }
 
 interface AlicizationCodexRuntimeProgress {
+  providerUsage?: import('../agent-harness/provider-usage').ProviderUsage | null
   type: string
   semanticProgress: boolean
   semanticKey: string | null
@@ -454,6 +456,7 @@ function parseCodexJsonlProgress(rawLine: string): AlicizationCodexRuntimeProgre
 
     return {
       type,
+      ...(type === 'turn.completed' ? { providerUsage: readProviderUsage(event.usage) } : {}),
       semanticProgress,
       semanticKey,
       activeWorkPhase,
@@ -2671,6 +2674,7 @@ export async function executeCodexTaskThread(input: AlicizationCodexAdapterInput
       payload: {
         stream: 'codex-jsonl',
         codexEventType: progress.type,
+        ...(progress.providerUsage ? { providerUsage: progress.providerUsage } : {}),
         semanticProgress: progress.semanticProgress,
         semanticKey: progress.semanticKey,
         startsWorkingPhase: progress.startsWorkingPhase,

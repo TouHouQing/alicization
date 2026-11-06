@@ -112,7 +112,7 @@ export function createAlicizationMainGatewayWorkCoordinator(): AlicizationMainGa
     // Timers also inherit a finished dialogue's async context. Its released
     // lease cannot lend foreground priority to later background work.
     const liveForeground = foregroundOwner.getStore()?.() === true
-    const lane = source === 'execution-planning' || !liveForeground ? 'background' : 'foreground'
+    const lane = source === 'execution-planning' || source === 'memory-compaction' || !liveForeground ? 'background' : 'foreground'
     if (lane === 'background' && activeForegroundCount > 0) {
       return {
         accepted: false,

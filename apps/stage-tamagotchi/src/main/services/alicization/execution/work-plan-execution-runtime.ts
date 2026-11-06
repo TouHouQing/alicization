@@ -35,6 +35,7 @@ import { assertExecutionJson } from './work-plan-schema'
 import { inspectWorkProposalCoherence } from './work-proposal-coherence'
 import { workReadBindingFailure } from './work-read-binding-failure'
 import { recordWorkResult } from './work-result-delivery'
+import { assertWorkSchedule, scheduledWorkIdentity } from './work-schedule'
 import { reviseExecutionWorkStep } from './work-step-revision'
 import { commitWorkStop, workPauseMarkers } from './work-stop-control'
 
@@ -73,6 +74,33 @@ export function createWorkPlanExecutionRuntime(options: {
   const adaptations = new Map<string, { cardId: string, controller: AbortController, promise: Promise<unknown> }>()
   const pendingStops = new Set<string>()
   let closed = false
+  let scheduledWake: ReturnType<typeof setTimeout> | undefined
+  let scheduleGeneration = 0
+  const scheduleReads = new Set<Promise<void>>()
+  function refreshScheduledWake() {
+    const generation = ++scheduleGeneration
+    clearTimeout(scheduledWake)
+    if (closed)
+      return Promise.resolve()
+    const task = (async () => {
+      const db = options.getDatabase()
+      const view = await db.readLifeState()
+      if (closed || generation !== scheduleGeneration || !options.enabled(view.cardId))
+        return
+      const future = (view.execution?.plans ?? []).filter(plan => plan.schedule && plan.schedule.at > Date.now() && view.obligations.some(goal => goal.id === plan.rootObligationId && !goal.invalidatedBy && ['accepted', 'waiting'].includes(goal.status)))
+      const times: number[] = []
+      for (const plan of future) {
+        if ((await db.getLifeIngress(plan.schedule!.groupId))?.status === 'settled')
+          times.push(plan.schedule!.at)
+      }
+      if (!closed && generation === scheduleGeneration && times.length) {
+        scheduledWake = setTimeout(() => { scheduledWake = undefined; void wakeReady() }, Math.min(0x7FFF_FFFF, Math.max(1, Math.min(...times) - Date.now())))
+        scheduledWake.unref?.()
+      }
+    })().catch(report).finally(() => scheduleReads.delete(task))
+    scheduleReads.add(task)
+    return task
+  }
   function browserBinding(steps: Array<{ capabilityId: string }>) {
     if (!steps.some(step => step.capabilityId.startsWith('tool.browser_')))
       return undefined
@@ -115,7 +143,7 @@ export function createWorkPlanExecutionRuntime(options: {
     // The ordinary admission rechecks the source and all capability/risk rules.
     return propose({ ...declared.proposal, cardId: input.cardId, turnId: input.turnId, abortSignal: input.abortSignal })
   }
-  async function propose(input: ExecutionWorkProposal & { cardId: string, turnId: string, abortSignal?: AbortSignal, procedureSource?: { candidateId: string, version: string } }) {
+  async function propose(input: ExecutionWorkProposal & { cardId: string, turnId: string, abortSignal?: AbortSignal, procedureSource?: { candidateId: string, version: string }, schedule?: WorkPlan['schedule'] }) {
     let admissionMayHaveChanged = false
     try {
       await options.refreshCapabilities?.()
@@ -136,9 +164,11 @@ export function createWorkPlanExecutionRuntime(options: {
       const declared = declaredWorkProposal(readLifeInputText(currentRequest).text ?? '')
       if (declared && !matchesDeclaredWorkProposal(input, declared))
         throw new Error('The proposed work changed the exact parameters supplied in the current user request')
-      const identity = executionDigest({ cardId: input.cardId, turnId: input.turnId, goal: input.goal })
+      const identity = scheduledWorkIdentity(input.cardId, input.turnId, input.goal, input.schedule?.at)
       const threadId = `work:${identity}`
       const planId = `plan:${identity}`
+      if (input.schedule)
+        await assertWorkSchedule(db.getLifeIngress, { id: planId, cardId: input.cardId, schedule: input.schedule }, Date.now(), { turnId: input.turnId, proposal: { goal: input.goal, criteria: input.criteria, steps: input.steps } })
       const contract = compileTaskAcceptance({ cardId: input.cardId, rootObligationId: `task:${threadId}`, obligationGeneration: 1, revision: 1, sourceInputIds: [admission.id], criteria: input.criteria, permittedResourceIds: [], permittedEffectPolicyId: 'local-default-risk-v1', stopConditions: ['source-withdrawn', 'user-cancelled', 'unknown-consequential-effect'] })
       const steps: WorkStep[] = input.steps.map((step) => {
         const manifest = registry().resolveActive(step.capabilityId)
@@ -148,6 +178,10 @@ export function createWorkPlanExecutionRuntime(options: {
       })
       const surface = browserBinding(steps)
       const plan: WorkPlan = { id: planId, cardId: input.cardId, rootThreadId: threadId, rootObligationId: contract.rootObligationId, obligationGeneration: 1, revision: 1, acceptanceHash: contract.contractHash, readRepairPolicy: 'grounded-read-v1', steps, sourceEvidenceRefs: [admission.id], ...(surface ? { browserBinding: surface } : {}) }
+      if (input.schedule) {
+        plan.schedule = structuredClone(input.schedule)
+        plan.sourceEvidenceRefs.push(input.schedule.groupId)
+      }
       validateWorkPlan(plan, contract)
       const previous = view.execution?.plans.find(item => item.id === planId)
       if (previous) {
@@ -158,7 +192,7 @@ export function createWorkPlanExecutionRuntime(options: {
       const thread = await db.getTaskThread(threadId)
       if (!thread) {
         admissionMayHaveChanged = true
-        await db.upsertTaskThread({ id: threadId, createOnly: true, turnId: input.turnId, sessionId: String(admission.payload.conversationId ?? ''), origin: 'user-turn', goal: input.goal, kind: 'mixed', status: 'planned', metadata: { acceptanceCriteria: contract.criteria, workPlanId: planId, acceptanceMode: 'explicit-contract-v1' } })
+        await db.upsertTaskThread({ id: threadId, createOnly: true, turnId: input.turnId, sessionId: String(admission.payload.conversationId ?? ''), origin: 'user-turn', goal: input.goal, kind: 'mixed', status: 'planned', metadata: { acceptanceCriteria: contract.criteria, workPlanId: planId, acceptanceMode: 'explicit-contract-v1', ...(input.schedule ? { scheduledAt: input.schedule.at } : {}) } })
       }
       admissionMayHaveChanged = true
       try { await savePlan({ cardId: input.cardId, plan, expectedRevision: 0, requestId: `proposal:${identity}` }, input.procedureSource) }
@@ -171,6 +205,9 @@ export function createWorkPlanExecutionRuntime(options: {
         throw error
       }
       input.abortSignal?.throwIfAborted()
+      if (input.schedule) {
+        return { status: 'scheduled', planId, rootThreadId: threadId, dueAt: input.schedule.at }
+      }
       const result = await start({ cardId: input.cardId, planId, expectedRevision: 1, requestId: `initial:${identity}` })
       return { status: result.state, planId, rootThreadId: threadId, goal: input.goal, acceptance: contract.criteria.map(item => ({ id: item.id, scope: item.proofScope, required: item.required })) }
     }
@@ -212,6 +249,7 @@ export function createWorkPlanExecutionRuntime(options: {
     if (view.cardId !== input.cardId || !plan || plan.revision !== input.expectedRevision)
       throw new Error('Work plan changed; reload before resuming it')
     const executionRegistry = registry()
+    await assertWorkSchedule(db.getLifeIngress, plan, Date.now())
     const task = tasks.get(`${input.cardId}:${input.planId}`)
     task?.classify(plan.steps.some(step => step.capabilityId.startsWith('tool.browser_')))
     if (!await browserAvailable(db, plan, view))
@@ -450,6 +488,7 @@ export function createWorkPlanExecutionRuntime(options: {
     const goal = plan && view.obligations.find(item => item.id === plan.rootObligationId)
     if (view.cardId !== input.cardId || !options.enabled(input.cardId) || !plan || plan.revision !== input.expectedRevision || !goal || goal.invalidatedBy || goal.generation !== plan.obligationGeneration || ['fulfilled', 'cancelled', 'superseded', 'failed'].includes(goal.status))
       throw new Error('Reload the current accepted responsibility before starting this plan')
+    await assertWorkSchedule(db.getLifeIngress, plan, Date.now())
     if (!await browserAvailable(options.getDatabase(), plan, view))
       return { state: 'browser-access-changed' }
     if (view.execution?.slices.some(item => item.planId === plan.id && ['ready', 'running', 'stopping'].includes(item.state)))
@@ -679,10 +718,12 @@ export function createWorkPlanExecutionRuntime(options: {
   }
   async function dispose() {
     closed = true
+    ++scheduleGeneration
+    clearTimeout(scheduledWake)
     suspend()
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
-      await Promise.race([Promise.allSettled([...tasks.values(), ...adaptations.values()].map(task => task.promise).concat(draining ? [draining] : [], checkingDownloads ? [checkingDownloads] : [], [...completionNotifications])), new Promise<void>((resolve) => { timer = setTimeout(resolve, 5000) })])
+      await Promise.race([Promise.allSettled([...tasks.values(), ...adaptations.values()].map(task => task.promise).concat(draining ? [draining] : [], checkingDownloads ? [checkingDownloads] : [], [...completionNotifications], [...scheduleReads])), new Promise<void>((resolve) => { timer = setTimeout(resolve, 5000) })])
     }
     finally { clearTimeout(timer) }
     return { pending: tasks.size + adaptations.size }
@@ -777,7 +818,7 @@ export function createWorkPlanExecutionRuntime(options: {
       return Promise.resolve()
     wakePending = true
     if (draining || options.canContinue?.() === false)
-      return draining ?? Promise.resolve()
+      return draining ?? refreshScheduledWake()
     wakePending = false
     const database = options.getDatabase()
     draining = (async () => {
@@ -786,12 +827,24 @@ export function createWorkPlanExecutionRuntime(options: {
         return
       await notifyDownload(cardId)
       const candidates = await recover(database, cardId)
+      const scheduled = await database.readLifeState()
+      const latestDue = new Map<string, number>()
+      for (const candidate of candidates) {
+        const plan = scheduled.execution?.plans.find(plan => plan.id === candidate.planId)
+        if (plan?.schedule && !scheduled.execution?.results.some(result => result.planId === plan.id))
+          latestDue.set(plan.schedule.groupId, Math.max(latestDue.get(plan.schedule.groupId) ?? 0, plan.schedule.at))
+      }
       for (const candidate of candidates) {
         if (closed || !options.enabled(cardId) || options.canContinue?.() === false)
           break
         if (tasks.has(`${cardId}:${candidate.planId}`) || adaptations.has(`${cardId}:${candidate.planId}`) || pendingStops.has(`${cardId}:${candidate.planId}`))
           continue
         try {
+          const plan = scheduled.execution?.plans.find(plan => plan.id === candidate.planId)
+          if (plan?.schedule && !scheduled.execution?.results.some(result => result.planId === plan.id) && plan.schedule.at < (latestDue.get(plan.schedule.groupId) ?? 0)) {
+            await stop({ cardId, planId: plan.id, expectedRevision: plan.revision, requestId: `missed-occurrence:${plan.id}`, action: 'cancel' })
+            continue
+          }
           // The result is already journaled before notification. A busy card
           // may delay its delivery while another accepted responsibility runs.
           void run({ cardId, planId: candidate.planId, expectedRevision: candidate.revision, requestId: `continue:${randomUUID()}` }).catch(report)
@@ -808,6 +861,7 @@ export function createWorkPlanExecutionRuntime(options: {
       }
     })().catch(report).finally(() => {
       draining = null
+      void refreshScheduledWake()
       if (wakePending)
         void wakeReady()
     })

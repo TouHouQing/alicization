@@ -134,6 +134,7 @@ import { buildWorldModel } from './world-model'
 import { buildWorldOntology } from './world-ontology'
 
 interface CreateAlicizationMindStateRuntimeOptions {
+  learnedInitiativeBias?: (context: import('../../../shared/persona-development-contracts').PersonaContext) => Promise<number>
   previousVisualPresenceState?: AlicizationVisualPresenceStateSnapshot | null
   buildDialogueIngressContext: (input: {
     now: number
@@ -1740,6 +1741,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       longHorizonMemory,
     })
     const initiativeArbitration = buildInitiativeArbitration({
+      learnedInitiativeBias: await options.learnedInitiativeBias?.(governedWorldModel.hostState.availability === 'focused' || governedWorldModel.hostState.availability === 'immersed' ? 'focused-work' : input.context.localTime.isLateNight ? 'rest' : 'companionship'),
       now: input.now,
       context: input.context,
       worldModel: governedWorldModel,

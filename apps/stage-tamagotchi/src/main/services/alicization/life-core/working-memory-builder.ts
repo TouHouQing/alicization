@@ -37,6 +37,7 @@ import {
   createLongTermCandidatesFromWorkingTurns,
   shouldExcludeTurnFromLongTermCandidate,
 } from './working-memory-policy'
+import { selectWorkingMemorySentences, workingMemoryRetention } from './working-memory-retention'
 
 export interface WorkingMemoryRecentTurnInput {
   turnId?: string | null
@@ -299,8 +300,8 @@ function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTu
   for (const [index, turn] of (input.recentTurns ?? []).entries()) {
     const createdAt = Number.isFinite(turn.createdAt) ? Number(turn.createdAt) : input.now - (index + 2)
     const turnId = normalizeWorkingMemoryText(turn.turnId, 120) || `recent-${index + 1}`
-    const userText = normalizeWorkingMemoryText(turn.userText, 900)
-    const assistantText = sanitizeWorkingMemoryStoredText(turn.assistantText, 900)
+    const userText = selectWorkingMemorySentences(turn.userText ?? '', workingMemoryRetention.maxStoredTurnChars)
+    const assistantText = sanitizeWorkingMemoryStoredText(selectWorkingMemorySentences(turn.assistantText ?? '', workingMemoryRetention.maxStoredTurnChars), workingMemoryRetention.maxStoredTurnChars)
     const origin = turn.failureSurface?.origin ?? turn.origin ?? null
     const learningPolicy = turn.learningPolicy ?? (turn.failureSurface
       ? {
@@ -346,10 +347,10 @@ function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTu
     }
   }
 
-  const currentText = normalizeWorkingMemoryText(input.currentUserText, 1200)
+  const currentText = selectWorkingMemorySentences(input.currentUserText, workingMemoryRetention.maxStoredTurnChars)
   const currentAssistantText = sanitizeWorkingMemoryStoredText(
-    input.currentAssistantText,
-    1200,
+    selectWorkingMemorySentences(input.currentAssistantText ?? '', workingMemoryRetention.maxStoredTurnChars),
+    workingMemoryRetention.maxStoredTurnChars,
   )
   const currentTurnId = normalizeWorkingMemoryText(
     input.currentTurnId,
@@ -624,6 +625,5 @@ export function buildWorkingMemorySnapshot(input: BuildWorkingMemorySnapshotInpu
   }
   return compressWorkingMemorySnapshot(mergedSnapshot, {
     now: input.now,
-    maxRawTurns: 6,
   })
 }

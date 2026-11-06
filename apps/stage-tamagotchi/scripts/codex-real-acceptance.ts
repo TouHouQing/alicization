@@ -1120,7 +1120,7 @@ export function buildRealPrompt(
 ) {
   if (scenario === 'cancel') {
     return [
-      'Immediately run exactly this terminal command and do nothing before it: /bin/sleep 600',
+      `Immediately run exactly this terminal command and do nothing before it: node -e 'console.log("alicization-codex-cancel-target"); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 600000)'`,
       'Do not explain, inspect files, or call any other tool. Keep the command running until the external cancellation arrives.',
     ].join('\n')
   }

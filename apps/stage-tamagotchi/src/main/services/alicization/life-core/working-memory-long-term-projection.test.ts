@@ -160,10 +160,8 @@ describe('working memory long-term projection', () => {
       lesson: '用户希望出错或超时时直接说明问题，不要固定安抚模板。',
       status: 'pending',
     })])
-    expect(relationship.personaReinforcements).toEqual([expect.objectContaining({
-      dimension: 'truthful-grounding',
-      valence: 'reinforce',
-    })])
+    // A relationship interpretation is not feedback on a real behavior trial.
+    expect(relationship.personaReinforcements).toEqual([])
     expect(relationship.trainingArtifacts).toEqual([])
   })
 })

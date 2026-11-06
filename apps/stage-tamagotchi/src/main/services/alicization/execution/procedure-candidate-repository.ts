@@ -11,6 +11,7 @@ import * as v from 'valibot'
 import { executionDigest } from './acceptance-compiler'
 import { admitVerifiedExecutionProcedure } from './procedure-admission'
 import { readProcedureRepair } from './procedure-failure-repository'
+import { maxProcedureCandidates, planProcedureIndex, readProcedureIndex } from './procedure-index'
 import { compareProcedureSamples, procedureComparisonFamily, procedureComparisonSchema, procedureSampleSchema } from './procedure-performance'
 import { isAcceptedProcedureInput } from './procedure-source-input'
 import { compileProcedureTemplate, procedureToolInterface } from './procedure-template'
@@ -22,7 +23,6 @@ const hash = v.pipe(v.string(), v.regex(/^[a-f\d]{64}$/u))
 const positive = v.pipe(v.number(), v.integer(), v.minValue(1))
 const sourceSchema = v.strictObject({ threadId: id, goalId: id, generation: positive, attemptId: id, verificationId: id, planId: id, planRevision: positive, acceptanceHash: hash, inputIds: v.pipe(v.array(id), v.minLength(1), v.maxLength(64)), inputHashes: v.pipe(v.array(hash), v.minLength(1), v.maxLength(64)) })
 const candidateSchema = v.strictObject({ id, version: hash, templateHash: hash, template: v.unknown(), source: sourceSchema })
-const indexSchema = v.strictObject({ version: v.literal(1), items: v.pipe(v.array(v.strictObject({ candidateId: id, evaluationId: v.nullable(id) })), v.maxLength(32)) })
 const replaySchema = v.strictObject({ candidateId: id, candidateHash: hash, evaluatorVersion: v.picklist(['file-procedure-replay-v1', 'browser-procedure-replay-v1', 'browser-procedure-replay-v2', 'browser-interaction-replay-v1', 'browser-upload-replay-v1', 'computer-procedure-replay-v2', 'windows-desktop-replay-v1']), status: v.picklist(['passed', 'failed']), cases: v.pipe(v.array(v.strictObject({ name: id, passed: v.boolean(), evidenceHash: hash, diagnostic: v.optional(v.pipe(v.string(), v.maxLength(512))), sample: v.optional(procedureSampleSchema) })), v.minLength(1), v.maxLength(16)), completedAt: positive })
 const evaluationSchema = v.strictObject({ ...replaySchema.entries, comparison: v.optional(v.strictObject({ ...procedureComparisonSchema.entries, baselineEvaluation: replaySchema })), comparisonFailure: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(512))) })
 
@@ -63,9 +63,13 @@ export function createProcedureCandidateRepository(database: AlicizationDbServic
     if (view.cardId !== cardId)
       throw new Error('Procedure crossed its life owner')
     const latest = view.ingress.find(item => item.source === 'execution-procedure-index' && item.status === 'settled')
-    const index = latest ? v.parse(indexSchema, latest.payload.index) : { version: 1 as const, items: [] }
-    if (new Set(index.items.map(item => item.candidateId)).size !== index.items.length)
-      throw new Error('Procedure index has duplicate identities')
+    if (latest && !Object.hasOwn(latest.payload, 'index'))
+      throw new Error('Procedure index head is missing its index; existing methods were preserved')
+    const index = await readProcedureIndex(latest?.payload.index, async (id) => {
+      const record = await database.getLifeIngress(id)
+      // getLifeIngress is scoped by the database's card_id, as is the view above.
+      return requireIngress(record, 'execution-procedure-index-page').page
+    })
     return { view, index }
   }
   async function sourceValid(source: ProcedureSource, view?: LifeStateView) {
@@ -95,10 +99,14 @@ export function createProcedureCandidateRepository(database: AlicizationDbServic
       throw new Error('Procedure template or source proof changed')
     return parsed as ProcedureCandidate
   }
-  async function list(): Promise<ProcedureCandidateItem[]> {
+  async function list(candidateIds?: readonly string[]): Promise<ProcedureCandidateItem[]> {
+    if (candidateIds && (candidateIds.length > 32 || candidateIds.some(id => !/^procedure:[a-f\d]{64}$/u.test(id))))
+      throw new Error('Procedure selection must contain bounded exact version identities')
     const { view, index } = await state()
     const result: ProcedureCandidateItem[] = []
     for (const item of index.items) {
+      if (candidateIds && !candidateIds.includes(item.candidateId))
+        continue
       const candidate = await get(item.candidateId)
       const evaluation = item.evaluationId ? v.parse(evaluationSchema, requireIngress(await database.getLifeIngress(item.evaluationId), 'execution-procedure-evaluation').evaluation) : null
       if (evaluation && (evaluation.candidateId !== item.candidateId || evaluation.candidateHash !== candidate.version || evaluation.evaluatorVersion !== procedureEvaluatorVersion(candidate.template) || (evaluation.status === 'passed' && evaluation.cases.some(item => !item.passed))))
@@ -155,12 +163,14 @@ export function createProcedureCandidateRepository(database: AlicizationDbServic
         if (previous.templateHash === templateHash && !await database.hasWithdrawnLifeEvidence([{ cardId, kind: 'execution-procedure', id: item.candidateId, version: previous.version }]) && await sourceValid(previous.source, view))
           return item.candidateId
       }
-      if (current.index.items.length >= 32)
+      if (current.index.items.length >= maxProcedureCandidates)
         throw new Error('Procedure candidate budget is full; existing versions were preserved')
       const indexId = `procedure-index:${randomUUID()}`
+      const update = planProcedureIndex(current.index, [...current.index.items, { candidateId, evaluationId: null }])
       await database.commitLifeState({ cardId, expectedRevision: view.revision, operationKey: candidateId, changes: [], mutations: [
         ...settled(candidateId, 'execution-procedure-candidate', { candidate }),
-        ...settled(indexId, 'execution-procedure-index', { index: { version: 1, items: [...current.index.items, { candidateId, evaluationId: null }] } }),
+        ...update.writes.flatMap(page => settled(page.id, 'execution-procedure-index-page', { page: page.page })),
+        ...settled(indexId, 'execution-procedure-index', { index: update.root }),
       ] })
       return candidateId
     })
@@ -210,9 +220,11 @@ export function createProcedureCandidateRepository(database: AlicizationDbServic
       }
       const evaluationId = `procedure-evaluation:${randomUUID()}`
       const indexId = `procedure-index:${randomUUID()}`
+      const update = planProcedureIndex(index, index.items.map(item => item.candidateId === parsed.candidateId ? { ...item, evaluationId } : item))
       await database.commitLifeState({ cardId, expectedRevision: view.revision, operationKey: evaluationId, changes: [], mutations: [
         ...settled(evaluationId, 'execution-procedure-evaluation', { evaluation: parsed }),
-        ...settled(indexId, 'execution-procedure-index', { index: { version: 1, items: index.items.map(item => item.candidateId === parsed.candidateId ? { ...item, evaluationId } : item) } }),
+        ...update.writes.flatMap(page => settled(page.id, 'execution-procedure-index-page', { page: page.page })),
+        ...settled(indexId, 'execution-procedure-index', { index: update.root }),
       ] })
       return evaluationId
     })

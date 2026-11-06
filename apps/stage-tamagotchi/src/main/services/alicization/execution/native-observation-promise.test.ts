@@ -12,7 +12,7 @@ it.each([false, true])('retains a real inspector promise through forced GC and r
   session.connect()
   const post = (method: string, params: Record<string, unknown> = {}) => new Promise<any>((resolve, reject) => session.post(method, params, (error, value) => error ? reject(error) : resolve(value)))
   const evaluate = async (expression: string) => {
-    const result = await post('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })
+    const result = await post('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: false })
     if (result.exceptionDetails)
       throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text)
     return result.result.value

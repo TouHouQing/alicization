@@ -1,4 +1,4 @@
-export type LifeOwner = 'self' | 'reflection' | 'motivation' | 'habit' | 'presence' | 'cognition' | 'emotion' | 'relationship' | 'goals' | 'memory' | 'expression' | 'soul' | 'initiative' | 'growth'
+export type LifeOwner = 'self' | 'reflection' | 'motivation' | 'habit' | 'presence' | 'cognition' | 'emotion' | 'relationship' | 'goals' | 'memory' | 'expression' | 'soul' | 'initiative' | 'growth' | 'persona-development'
 export interface LifeCapabilityEffects {
   version: 'life-capability-effects-v1'
   sideEffect: 'read' | 'mutation' | 'external' | 'unknown'
@@ -92,7 +92,8 @@ export interface LifeEffect {
 }
 
 export type LifeMutation
-  = { type: 'execution-plan', plan: import('./execution-contracts').WorkPlan, expectedRevision: number }
+  = { type: 'persona-development', operation: import('./persona-development-mutations').PersonaDevelopmentMutation }
+    | { type: 'execution-plan', plan: import('./execution-contracts').WorkPlan, expectedRevision: number }
     | { type: 'execution-verifiers-configure', registry: string, expectedHash: string }
     | { type: 'execution-criteria-revise', command: import('./execution-contracts').ExecutionCriteriaChange }
     | { type: 'execution-work-stop', command: import('./execution-contracts').ExecutionWorkStop }
@@ -181,6 +182,7 @@ export interface LifeFactVersion {
 }
 
 export interface LifeSoulActivation {
+  developmentAuthorization?: import('./persona-development-contracts').PersonaDevelopmentAuthorization
   personaAuthorization?: { proposalId: string, evaluationHash: string }
   id: string
   baseHash: string
@@ -209,6 +211,7 @@ export interface LifeObligation {
   personalTopic?: string
   personalOrigin?: 'self-initiated' | 'host-invited'
   personalAuthorship?: { effectId: string, episodeId: string, verifiedAt: number }
+  personalChoice?: { proposalId: string, sourceReplyHash: string }
   personalDevelopment?: { shares: Array<{ turnId: string, reviewId: string }>, feedback: Array<{ turnId: string, feedback: 'positive' | 'dismiss' | 'reply-within-120s', occurredAt: number }> }
   personalActivity?: 'interest-note-v1' | 'creative-writing-v1' | 'practice-review-v1' | 'visual-study-v1'
   invalidatedBy?: LifeEvidenceRef | null
@@ -247,6 +250,7 @@ export interface LifeExpressionReceipt {
   playedMs: number
   alignedTextEnd: number | null
   alignmentSource: 'tts' | 'viseme' | 'segment' | null
+  /** Includes deliberate partial-delivery reasons such as `excerpt-only`. */
   errorCode: string | null
   occurredAt: number
 }

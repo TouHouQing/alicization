@@ -533,6 +533,39 @@ function createOpenAgentTurn(getSensorySnapshot: () => Promise<AlicizationSensor
 }
 
 describe('resolvePreparedRuntimeSurfaceSelection', () => {
+  it.each(['active', 'revoked'])('projects only current usable methods through full session preparation: %s', async (status) => {
+    const getSensorySnapshot = vi.fn(async () => ({ running: false, stale: true, ageMs: 0, nextTickAt: null, sample: { collectedAt: 10, time: { iso: '2026-11-02T00:00:00.000Z', local: '2026-11-02 08:00', timezone: 'Asia/Shanghai' }, cpu: { usagePercent: 10, windowMs: 1000 }, memory: { freeMB: 1024, totalMB: 8192, usagePercent: 87.5 } }, capture: null } satisfies AlicizationSensoryCacheSnapshot))
+    const listLearnedProcedures = vi.fn(async () => [{ id: 'learned.file', version: 'a'.repeat(64), operations: ['tool.filesystem_write_file'], parameters: [{ name: 'input1', kind: 'path', role: 'file' }], sourceValid: true, status, evaluationStatus: 'passed' }])
+    const useLearnedProcedure = vi.fn()
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      listLearnedProcedures,
+      useLearnedProcedure,
+      invokeMcpListTools: vi.fn(async () => ([])),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({ text: '', source: 'none' as const })),
+      resolveCardHostName: vi.fn(async () => 'QA'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({ hostAttitude: '', coreIncarnation: '', activeThoughts: [], retrievedFacts: [], recalledFragments: [] })),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+    })
+    const messages: Message[] = [{ role: 'user', content: '帮我保存这份文档到文件。' }]
+    const prepared = await runtime.prepareExecution({ payload: { cardId: 'default', turnId: 'method-context-turn', supportsTools: true, messages } as AlicizationChatStartPayload, prelude: createPrelude({ messages }) })
+    expect(listLearnedProcedures).toHaveBeenCalledOnce()
+    const catalog = prepared.messages.filter(message => message.role === 'system' && String(message.content).includes('alicization-learned-procedure-context'))
+    expect(catalog).toHaveLength(status === 'active' ? 1 : 0)
+    expect(useLearnedProcedure).not.toHaveBeenCalled()
+    expect(prepared.messages.some(message => message.role === 'user' && message.content === messages[0]!.content)).toBe(true)
+  })
   it.each(['text', 'multipart'])('offers the exact current declared request through session composition after a compact prelude: %s', async (transport) => {
     const content = '保留  两个空格\n第二行🙂'.repeat(200)
     const proposal = { goal: 'Only the current declared task', criteria: [{ id: 'file', required: true, proofScope: 'structure', predicate: { kind: 'text-content', path: 'C:/owned/current.txt', includes: ['保留  两个空格'] } }], steps: [{ id: 'save', dependsOn: [], capabilityId: 'tool.filesystem_write_file', input: { path: 'C:/owned/current.txt', content }, acceptanceCriterionIds: ['file'] }] }
@@ -5053,7 +5086,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(retainedText).toContain('先保留这条最新纠正')
     expect(retainedText.match(/旧问题/gu)).toHaveLength(1)
     expect(listConversationTurnsBySession).toHaveBeenCalledWith('session-1', {
-      limit: 6,
+      limit: 12,
     })
   })
 
@@ -5127,7 +5160,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(listConversationTurnsBySession).toHaveBeenCalledWith(
       'session-working-memory-signal',
       {
-        limit: 6,
+        limit: 12,
         signal: controller.signal,
       },
     )
@@ -5479,10 +5512,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       .toBe('把短期记忆重启连续性接上')
     expect(result.memoryContext.workingMemory.current.threadTitle)
       .toBe('短期记忆 checkpoint')
-    expect(result.memoryContext.workingMemory.rememberedItems).toEqual(expect.arrayContaining([
-      '不要让固定模板干扰人格回复',
-      '读写 checkpoint 失败要透明告诉用户',
+    expect(result.memoryContext.workingMemory.corrections).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: '不要让固定模板干扰人格回复', scope: 'persona' }),
     ]))
+    expect(result.memoryContext.workingMemory.commitments).toContain('读写 checkpoint 失败要透明告诉用户')
   })
 
   it('hydrates the WorkingMemory owner before organic recall and blocks old transport from the recall/provider chain', async () => {
@@ -5685,6 +5718,29 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       .toContain('memory_recall_mode:thread')
   })
 
+  it('settles the reply before background semantic compression and installs only its source checkpoint', async () => {
+    const store = createWorkingMemoryStore()
+    const previous = createEmptyWorkingMemorySnapshot({ cardId: 'default', sessionId: 'session-1', now: 90 })
+    previous.compressedTimeline = Array.from({ length: 9 }, (_, index) => ({ id: `old-${index}`, sourceTurnIds: [`past-${index}:user`], summary: `过去的约定 ${index}`, thread: '共同生活', unresolvedQuestions: [], commitments: [], corrections: [], relationshipPosture: null, emotionalPosture: null, executionCarry: null, importance: 0.9, createdAt: index, evidence: [{ turnId: `past-${index}:user`, role: 'user' as const, quote: `我希望保留我们的约定 ${index}。` }] }))
+    store.upsert(previous)
+    const answer = Promise.withResolvers<string>()
+    const generate = vi.fn(() => answer.promise)
+    const persist = vi.fn(async () => {})
+    const replace = vi.fn(async () => true)
+    const { runtime } = createWorkingMemoryRuntimeFixture({ workingMemoryStore: store, getNow: () => 100, generateWorkingMemorySelection: generate, replaceWorkingMemoryCheckpoint: replace, persistWorkingMemoryCheckpoint: persist })
+    const messages: Message[] = [{ role: 'user', content: '继续聊聊我们的约定。' }]
+    const result = await runtime.prepareExecution({ payload: { cardId: 'default', turnId: 'semantic-current', messages, supportsTools: true } as any, prelude: createReflectivePrelude({ messages }) })
+    await result.commitMemoryWriteIntent?.({ assistantText: '我在，接着说吧。', deferPostCommit: true })
+    expect(persist).toHaveBeenCalledOnce()
+    expect(generate).toHaveBeenCalledOnce()
+    expect(replace).not.toHaveBeenCalled()
+    answer.resolve('{"selected":[{"id":0,"kind":"relationship"}]}')
+    await result.waitForDeferredMemoryPostCommit?.()
+    expect(replace).toHaveBeenCalledOnce()
+    expect(store.get('default', 'session-1')?.compressedTimeline[0]?.method).toBe('model-selected')
+    expect(store.get('default', 'session-1')?.recentRawTurns.at(-1)?.text).toBe('我在，接着说吧。')
+  })
+
   it('feeds a compressed checkpoint from the previous turn into the next Provider context', async () => {
     const workingMemoryStore = createWorkingMemoryStore()
     let persistedCheckpoint = null as ReturnType<typeof createEmptyWorkingMemorySnapshot> | null
@@ -5699,6 +5755,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       listConversationTurnsBySession: vi.fn(async () => []),
     })
     const firstMessages: Message[] = [
+      ...Array.from({ length: 8 }, (_, index): Message[] => [
+        { role: 'user', content: `此前共同讨论的步骤 ${index}。` },
+        { role: 'assistant', content: `保留步骤 ${index} 的上下文。` },
+      ]).flat(),
       { role: 'user', content: '第一步先确认长期目标。' },
       { role: 'assistant', content: '目标是让记忆跨轮连续。' },
       { role: 'user', content: '第二步记录用户纠正。' },

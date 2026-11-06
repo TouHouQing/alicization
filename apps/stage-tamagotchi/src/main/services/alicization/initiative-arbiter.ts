@@ -439,6 +439,7 @@ function createProposal(input: {
 }
 
 export function buildInitiativeArbitration(input: {
+  learnedInitiativeBias?: number
   now: number
   context: AlicizationProactiveLayeredContext
   worldModel: AlicizationWorldModelSnapshot
@@ -768,7 +769,7 @@ export function buildInitiativeArbitration(input: {
   const sorted = proposals
     .map(proposal => ({
       ...proposal,
-      score: clamp01(proposal.score + proposalBias({
+      score: clamp01(proposal.score + (['speak', 'whisper'].includes(proposal.action) ? Math.max(-0.15, Math.min(0.15, Number.isFinite(input.learnedInitiativeBias) ? input.learnedInitiativeBias! : 0)) : 0) + proposalBias({
         proposal,
         motiveEngine: input.motiveEngine ?? null,
         habitPolicy: input.habitPolicy ?? null,

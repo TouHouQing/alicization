@@ -5,6 +5,7 @@ import { computed, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import ChatResponsePart from './response-part.vue'
+import ChatSpeechDelivery from './speech-delivery.vue'
 import ChatToolCallBlock from './tool-call-block.vue'
 
 import { MarkdownRenderer } from '../../markdown'
@@ -172,6 +173,7 @@ async function handleRecoveryAction(action: ChatRecoveryAction) {
         :message="message"
         :variant="variant"
       />
+      <ChatSpeechDelivery :message-id="message.id" :text="typeof message.content === 'string' ? message.content : ''" :saved="message.speechDelivery" />
     </div>
   </div>
 </template>

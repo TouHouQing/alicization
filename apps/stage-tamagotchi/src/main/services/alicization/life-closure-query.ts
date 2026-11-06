@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto'
 interface Ingress { id: string, source: string, status: string, payload: string, payload_hash: string }
 interface Effect { id: string, status: string }
 interface Goal { id: string, kind: string, status: string, proof: string, verification: string | null }
-interface Expression { id: string, state: string, segment_id: string, presentation_verified: number }
+interface Expression { id: string, state: string, segment_id: string, presentation_verified: number, error_code: string | null }
 interface Event { id: string, type: string }
 
 // This is an evidence projection inside one read transaction, not a second
@@ -20,7 +20,7 @@ export async function readLifeClosure(tx: Pick<LifeTransaction, 'cardId' | 'all'
     throw new Error('Closure evidence no longer matches its durable hash')
   const effects = await tx.all<Effect>('SELECT effect_id AS id, status FROM life_effect_intents WHERE card_id = ? AND turn_id = ? ORDER BY rowid DESC LIMIT 256', [tx.cardId, turnId])
   const goals = await tx.all<Goal>(`SELECT obligation_id AS id, kind, status, required_proof_json AS proof, fulfilled_receipt_ref_json AS verification FROM life_obligations WHERE card_id = ? AND (json_extract(source_ref_json, '$.deliveryTurnId') = ? OR json_extract(source_ref_json, '$.turnId') = ? OR thread_id IN (SELECT id FROM task_threads WHERE turn_id = ?) OR EXISTS (SELECT 1 FROM json_each(source_ref_json, '$.personalDevelopment.shares') s WHERE json_extract(s.value, '$.turnId') = ?)) ORDER BY updated_at DESC LIMIT 256`, [tx.cardId, turnId, turnId, turnId, turnId])
-  const expressions = await tx.all<Expression>('SELECT receipt_id AS id, state, segment_id, presentation_verified FROM life_expression_receipts WHERE card_id = ? AND turn_id = ? ORDER BY rowid DESC LIMIT 256', [tx.cardId, turnId])
+  const expressions = await tx.all<Expression>('SELECT receipt_id AS id, state, segment_id, presentation_verified, error_code FROM life_expression_receipts WHERE card_id = ? AND turn_id = ? ORDER BY rowid DESC LIMIT 256', [tx.cardId, turnId])
   const events = await tx.all<Event>('SELECT event_id AS id, event_type AS type FROM alicization_runtime_events WHERE card_id = ? AND turn_id = ? ORDER BY sequence DESC LIMIT 256', [tx.cardId, turnId])
   const checkpoint = await tx.get<{ runtime_status: string, sequence: number }>('SELECT runtime_status, sequence FROM alicization_runtime_checkpoints WHERE card_id = ? AND turn_id = ?', [tx.cardId, turnId])
   const revision = await tx.get<{ revision: number }>('SELECT MAX(revision) AS revision FROM life_commits WHERE card_id = ?', [tx.cardId])
@@ -69,7 +69,7 @@ export async function readLifeClosure(tx: Pick<LifeTransaction, 'cardId' | 'all'
     set(10, effects.some(item => ['uncertain', 'dispatched', 'claimed', 'prepared'].includes(item.status)) ? 'pending' : effects.some(item => item.status === 'failed') ? 'failed' : 'recorded', effects.map(item => item.id), effects.map(item => `${item.id}:${item.status}`).slice(0, 24))
   if (expressions.length) {
     set(12, 'recorded', expressions.map(item => item.id), ['presentation-observations'])
-    const delivered = expressions.some(item => item.presentation_verified === 1 && (item.state === 'rendered' || item.state === 'audio-ended' && item.segment_id === 'utterance'))
+    const delivered = expressions.some(item => item.presentation_verified === 1 && (item.state === 'rendered' || item.state === 'audio-ended' && item.segment_id === 'utterance' && item.error_code === null))
     set(13, delivered ? 'recorded' : 'unverified', expressions.map(item => item.id), delivered ? [] : ['no-verified-terminal-presentation'])
   }
   const memoryEvents = events.filter(item => item.type.startsWith('memory.'))

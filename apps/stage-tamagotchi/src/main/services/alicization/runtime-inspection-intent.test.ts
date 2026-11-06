@@ -24,6 +24,16 @@ function createInspectionIntentRuntime() {
   })
 }
 
+it('releases a real inspection carry for explicit same-person conversation retrieval', () => {
+  const userText = '请用 life_search_sessions 查找我之前发出的只读测试请求，告诉我当时授权的操作是什么。'
+  const visualPresenceState = createDefaultVisualPresenceState(2000)
+  visualPresenceState.watchMode = 'invited-inspection'
+  const result = createInspectionIntentRuntime().resolveInspectionIntentForChatTurn({ now: 2000, userText, messages: [{ role: 'user', content: '看看当前屏幕。' }, { role: 'assistant', content: '我在看。' }, { role: 'user', content: userText }], perceptionState: createInspectionCarryState(), visualPresenceState })
+  expect(result.active).toBe(false)
+  expect(result.releaseCarry).toBe(true)
+  expect(result.reasonCodes).toContain('bounded-agent-read')
+})
+
 function createInspectionCarryState(): AlicizationPerceptionState {
   return {
     attentionAnchor: null,

@@ -35,7 +35,8 @@ export async function applyLifeExpression(tx: LifeTransaction, raw: LifeExpressi
   if (duplicate)
     throw new Error('Expression receipt identifier was reused outside its operation')
   const expression = await tx.get<{ value: string }>('SELECT value FROM alicization_meta WHERE key = ?', ['life:expression'])
-  await tx.updateOwner({ owner: 'expression', key: 'life:expression', value: boundedJson({ ...(expression?.value ? JSON.parse(expression.value) : {}), lastReceipt: { turnId: receipt.turnId, state: receipt.state, playedMs: receipt.playedMs, errorCode: receipt.errorCode, presentationVerified, observedAt: tx.now } }) })
+  const observation = { turnId: receipt.turnId, state: receipt.state, playedMs: receipt.playedMs, alignedTextEnd: receipt.alignedTextEnd, alignmentSource: receipt.alignmentSource, errorCode: receipt.errorCode, presentationVerified, occurredAt: receipt.occurredAt, observedAt: tx.now }
+  await tx.updateOwner({ owner: 'expression', key: 'life:expression', value: boundedJson({ ...(expression?.value ? JSON.parse(expression.value) : {}), lastReceipt: observation, ...(receipt.state === 'rendered' ? {} : { lastAudioReceipt: observation }) }) })
   const currentEpoch = await tx.get<{ playback_epoch: string, occurred_at: number }>('SELECT playback_epoch, occurred_at FROM life_expression_receipts WHERE card_id = ? AND delivery_id = ? AND segment_id = ? ORDER BY observed_at DESC, rowid DESC LIMIT 1', [tx.cardId, receipt.deliveryId, receipt.segmentId])
   if (receipt.state !== 'rendered' && currentEpoch && currentEpoch.playback_epoch !== receipt.playbackEpoch && (receipt.state !== 'audio-started' || await tx.get('SELECT 1 FROM life_expression_receipts WHERE card_id = ? AND delivery_id = ? AND segment_id = ? AND playback_epoch = ?', [tx.cardId, receipt.deliveryId, receipt.segmentId, receipt.playbackEpoch])))
     throw new Error('Expression playback epoch was superseded')
@@ -48,7 +49,7 @@ export async function applyLifeExpression(tx: LifeTransaction, raw: LifeExpressi
   const rows = await tx.all<ObligationRow>(`SELECT * FROM life_obligations WHERE card_id = ? AND kind = 'reminder' AND status = 'verifying'`, [tx.cardId])
   for (const row of rows) {
     const obligation = mapLifeObligation(tx.cardId, row)
-    const channelMatches = obligation.proof.channel === 'audio-ended' ? receipt.state === 'audio-ended' && receipt.segmentId === 'utterance' : receipt.state === 'rendered'
+    const channelMatches = obligation.proof.channel === 'audio-ended' ? receipt.state === 'audio-ended' && receipt.segmentId === 'utterance' && receipt.errorCode === null : receipt.state === 'rendered'
     if (obligation.deliveryTurnId !== receipt.turnId || !channelMatches || !presentationVerified)
       continue
     await applyLifeObligation(tx, { type: 'obligation-verify', id: obligation.id, expectedGeneration: obligation.generation, expectedRevision: obligation.revision, verification: { id: receipt.receiptId, verdict: 'satisfied', kind: 'reminder', evidence: { receiptId: receipt.receiptId, deliveryId: receipt.deliveryId, generation: obligation.generation, channel: receipt.state }, verifiedAt: tx.now, independent: true } })

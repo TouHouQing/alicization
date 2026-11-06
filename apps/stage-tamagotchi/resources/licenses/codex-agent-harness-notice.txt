@@ -1,0 +1,13 @@
+OpenAI Codex
+Copyright 2025 OpenAI
+
+This project includes code derived from [Ratatui](https://github.com/ratatui/ratatui), licensed under the MIT license.
+Copyright (c) 2016-2022 Florian Dehau
+Copyright (c) 2023-2025 The Ratatui Developers
+
+Alicization modifications (2026-11-03): TypeScript port of bounded fielded BM25, character n-gram retrieval and reciprocal rank fusion. BM25 replaces the lexical channel in the upstream fusion. Used for verified learned procedure discovery only. Upstream commit 84dfc209d2697876dc7693611473e91616b3223d.
+
+2026-11-04: codex-tool-scheduler.ts adapts the shared/exclusive admission in
+codex-rs/core/src/tools/parallel.rs at bfdbf01bfaeaa6ab23b10e2bd64ed031fd1e5619.
+Changes: TypeScript, bounded cohorts, sequential durable starts/settlements,
+whole-cohort cancellation joins, and Alicization's existing life admission.

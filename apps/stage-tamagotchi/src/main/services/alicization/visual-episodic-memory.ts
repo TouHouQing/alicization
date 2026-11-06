@@ -2279,6 +2279,9 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
   const candidate = raw as Record<string, unknown>
   const base = createDefaultVisualPresenceState(now)
   base.emotionalTemporalState = normalizeEmotionalTemporalState(candidate.emotionalTemporalState)
+  const personality = candidate.personalityExpression as AlicizationVisualPresenceStateSnapshot['personalityExpression']
+  if (personality && typeof personality.version === 'string' && /^[a-f\d]{64}$/u.test(personality.version) && Number.isFinite(personality.expression) && Number.isFinite(personality.warmth))
+    base.personalityExpression = { version: personality.version, expression: Math.max(-0.2, Math.min(0.2, personality.expression)), warmth: Math.max(-0.2, Math.min(0.2, personality.warmth)) }
   const rawCandidate = candidate.raw && typeof candidate.raw === 'object' && !Array.isArray(candidate.raw)
     ? candidate.raw as Record<string, unknown>
     : null

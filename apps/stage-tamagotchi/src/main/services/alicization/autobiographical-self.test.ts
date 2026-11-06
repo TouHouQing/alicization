@@ -115,6 +115,40 @@ function expectTemplateFree(snapshot: ReturnType<typeof buildAutobiographicalSel
 }
 
 describe('autobiographical self', () => {
+  it('keeps learned traits unchanged through ten thousand maintenance projections', () => {
+    const input = createBaseInput()
+    const first = buildAutobiographicalSelf(input as any)
+    let previous = first
+    for (let index = 1; index <= 10_000; index++)
+      previous = buildAutobiographicalSelf({ ...input, now: input.now + index * 1000, previous } as any)
+    expect(previous.preferenceEvolution).toEqual(first.preferenceEvolution)
+    expect(previous.personaDrift).toEqual(first.personaDrift)
+    expect(previous.stability).toBe(first.stability)
+    expect(previous.behaviorSignatures).toEqual(first.behaviorSignatures)
+  })
+
+  it('does not learn an originating interaction again when row IDs or recent windows change', () => {
+    const input = createBaseInput()
+    const record = { id: 'first-representation', turnId: 'one-experience', cardId: 'alice', sourceKind: 'reply', dimension: 'companionship', delta: 0.08, valence: 'reinforce', summary: '这次交流留出了空间。', createdAt: input.now }
+    const first = buildAutobiographicalSelf({ ...input, recentReinforcementEvents: [record] } as any)
+    const moved = buildAutobiographicalSelf({ ...input, previous: first, recentReinforcementEvents: [{ ...record, id: 'second-representation', summary: '同一次交流的另一份整理。' }] } as any)
+    const windowed = buildAutobiographicalSelf({ ...input, previous: moved, recentReinforcementEvents: [] } as any)
+    const replayed = buildAutobiographicalSelf({ ...input, previous: windowed, recentReinforcementEvents: [record] } as any)
+    for (const result of [moved, windowed, replayed]) {
+      expect(result.preferenceEvolution).toEqual(first.preferenceEvolution)
+      expect(result.personaDrift).toEqual(first.personaDrift)
+      expect(result.behaviorSignatures).toEqual(first.behaviorSignatures)
+    }
+  })
+
+  it('does not treat unanswered contact as negative personality evidence', () => {
+    const input = createBaseInput()
+    const ordinary = buildAutobiographicalSelf(input as any)
+    const unanswered = buildAutobiographicalSelf({ ...input, context: { ...input.context, relationship: { ...input.context.relationship, recentProactiveOutcomes: [{ outcome: 'ignored', createdAt: input.now }] } } } as any)
+    expect(unanswered.preferenceEvolution).toEqual(ordinary.preferenceEvolution)
+    expect(unanswered.personaDrift).toEqual(ordinary.personaDrift)
+  })
+
   it('does not maintain a topic-word denylist for autobiographical evidence', () => {
     const source = readFileSync(new URL('./autobiographical-self.ts', import.meta.url), 'utf8')
 

@@ -77,6 +77,23 @@ function buildMainGatewayTools(options: Record<string, unknown>) {
 }
 
 describe('main chat execution surface', () => {
+  it('binds receipt paging to the current life scope and registers it as a governed reader', async () => {
+    const reader = vi.fn(async input => ({ ok: true, content: 'actual stored receipt', ...input }))
+    const tools = await buildMainGatewayTools({
+      context: { cardId: 'current-card', turnId: 'current-turn', sessionId: 'current-conversation' },
+      executionCapabilityChannels: executionChannels,
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      executeTaskThread: vi.fn(),
+      readToolObservation: reader,
+    })
+    const tool = tools.find(tool => tool.function.name === 'life_read_tool_observation')!
+    expect(tool).toBeDefined()
+    await tool.execute({ toolCallId: 'call-1', expectedHash: 'a'.repeat(64), offset: 0, maxBytes: 4096 }, { toolCallId: 'read-call', messages: [] })
+    expect(reader).toHaveBeenCalledWith(expect.objectContaining({ cardId: 'current-card', turnId: 'current-turn', conversationId: 'current-conversation', toolCallId: 'call-1' }))
+    const registry = createCanonicalToolRegistry()
+    expect(registry.get('tool.life_read_tool_observation')).toMatchObject({ risk: 'low', effects: { sideEffect: 'read', retryClass: 'read-only' } })
+    expect(registry.validateInput('tool.life_read_tool_observation', { toolCallId: 'call-1', expectedHash: 'a'.repeat(64), offset: 0, maxBytes: 4096, cardId: 'foreign' }).valid).toBe(false)
+  })
   it.each([
     { userText: '请在 C:\\资料 中用内容搜索查找包含标记的文件，然后完整读取命中文件。只读这个目录，不修改或创建任何文件。', surface: 'main-chat', backend: true, plan: false },
     { userText: 'Read-only: search C:\\notes for the marker and read the matching file.', surface: 'main-chat', backend: true, plan: false },

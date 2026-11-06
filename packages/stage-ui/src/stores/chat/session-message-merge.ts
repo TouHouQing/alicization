@@ -268,25 +268,41 @@ function sanitizeCanonicalMessage(message: ChatHistoryItem) {
   return cloned
 }
 
-function areMessagesEquivalent(left: ChatHistoryItem, right: ChatHistoryItem) {
+interface CanonicalMessageIdentity {
+  role: ChatHistoryItem['role']
+  stableTurnId: string
+  text: string
+  createdAt: number | null
+}
+
+function canonicalMessageIdentity(message: ChatHistoryItem): CanonicalMessageIdentity {
+  return {
+    role: message.role,
+    stableTurnId: extractStableTurnId(message.id),
+    text: message.role === 'assistant' || message.role === 'user' ? extractMessageContent(message).trim() : '',
+    createdAt: normalizeCreatedAt(message.createdAt),
+  }
+}
+
+function areMessageIdentitiesEquivalent(left: CanonicalMessageIdentity, right: CanonicalMessageIdentity) {
   if (left.role !== right.role)
     return false
 
-  const leftStableTurnId = extractStableTurnId(left.id)
-  const rightStableTurnId = extractStableTurnId(right.id)
+  const leftStableTurnId = left.stableTurnId
+  const rightStableTurnId = right.stableTurnId
   if (leftStableTurnId && rightStableTurnId)
     return leftStableTurnId === rightStableTurnId
 
   if (left.role !== 'assistant' && left.role !== 'user')
     return false
 
-  const leftText = extractMessageContent(left).trim()
-  const rightText = extractMessageContent(right).trim()
+  const leftText = left.text
+  const rightText = right.text
   if (!leftText || leftText !== rightText)
     return false
 
-  const leftCreatedAt = normalizeCreatedAt(left.createdAt)
-  const rightCreatedAt = normalizeCreatedAt(right.createdAt)
+  const leftCreatedAt = left.createdAt
+  const rightCreatedAt = right.createdAt
   if (leftCreatedAt === null || rightCreatedAt === null)
     return false
 
@@ -334,6 +350,9 @@ function mergeEquivalentMessages(left: ChatHistoryItem, right: ChatHistoryItem):
     const mergedAssistant = merged as ChatAssistantMessage
 
     mergedAssistant.origin = primaryAssistant.origin ?? secondaryAssistant.origin
+    const firstDelivery = primaryAssistant.speechDelivery
+    const secondDelivery = secondaryAssistant.speechDelivery
+    mergedAssistant.speechDelivery = cloneValue(firstDelivery?.epoch === secondDelivery?.epoch && secondDelivery && secondDelivery.revision > (firstDelivery?.revision ?? -1) ? secondDelivery : firstDelivery ?? secondDelivery)
     const mergedSlices = cloneValue(leftAssistant.slices) ?? []
     for (const slice of cloneValue(rightAssistant.slices) ?? []) {
       if (slice.type === 'execution-status' && slice.toolCallId) {
@@ -433,15 +452,81 @@ function mergeEquivalentMessages(left: ChatHistoryItem, right: ChatHistoryItem):
 
 export function canonicalizeSessionMessages(messages: ChatHistoryItem[]) {
   const canonical: ChatHistoryItem[] = []
+  const identities: CanonicalMessageIdentity[] = []
+  const stableTurns = new Map<string, Set<number>>()
+  const stableTextBuckets = new Map<string, Set<number>>()
+  const legacyTextBuckets = new Map<string, Set<number>>()
+  const legacyExactTimes = new Map<string, Set<number>>()
+
+  function textKey(identity: CanonicalMessageIdentity, time: number) {
+    return JSON.stringify([identity.role, identity.text, time])
+  }
+  function memberships(identity: CanonicalMessageIdentity): Array<[Map<string, Set<number>>, string]> {
+    const entries: Array<[Map<string, Set<number>>, string]> = []
+    if (identity.stableTurnId)
+      entries.push([stableTurns, JSON.stringify([identity.role, identity.stableTurnId])])
+    if (identity.text && identity.createdAt !== null) {
+      const bucket = Math.floor(identity.createdAt / getDuplicateToleranceMs(identity.role))
+      entries.push([identity.stableTurnId ? stableTextBuckets : legacyTextBuckets, textKey(identity, bucket)])
+      if (!identity.stableTurnId)
+        entries.push([legacyExactTimes, textKey(identity, identity.createdAt)])
+    }
+    return entries
+  }
+  function indexIdentity(index: number, identity: CanonicalMessageIdentity, remove = false) {
+    for (const [map, key] of memberships(identity)) {
+      if (remove) {
+        const indexes = map.get(key)
+        indexes?.delete(index)
+        if (!indexes?.size)
+          map.delete(key)
+      }
+      else {
+        const indexes = map.get(key) ?? new Set<number>()
+        indexes.add(index)
+        map.set(key, indexes)
+      }
+    }
+  }
+  function findDuplicate(identity: CanonicalMessageIdentity) {
+    let first = -1
+    const inspect = (indexes: Set<number> | undefined) => {
+      for (const index of indexes ?? []) {
+        if ((first === -1 || index < first) && areMessageIdentitiesEquivalent(identities[index], identity))
+          first = index
+      }
+    }
+    if (identity.stableTurnId)
+      inspect(stableTurns.get(JSON.stringify([identity.role, identity.stableTurnId])))
+    if (identity.text && identity.createdAt !== null) {
+      const bucket = Math.floor(identity.createdAt / getDuplicateToleranceMs(identity.role))
+      // Stable turns only match a different identity through a legacy message.
+      // Split the indexes so repeated replies from distinct turns stay linear.
+      const fuzzy = identity.stableTurnId ? legacyTextBuckets : stableTextBuckets
+      for (const neighbor of [bucket - 1, bucket, bucket + 1])
+        inspect(fuzzy.get(textKey(identity, neighbor)))
+      if (!identity.stableTurnId)
+        inspect(legacyExactTimes.get(textKey(identity, identity.createdAt)))
+    }
+    return first
+  }
 
   for (const message of messages) {
-    const duplicateIndex = canonical.findIndex(existing => areMessagesEquivalent(existing, message))
+    const identity = canonicalMessageIdentity(message)
+    const duplicateIndex = findDuplicate(identity)
     if (duplicateIndex === -1) {
+      const index = canonical.length
       canonical.push(sanitizeCanonicalMessage(message))
+      const canonicalIdentity = canonicalMessageIdentity(canonical[index])
+      identities.push(canonicalIdentity)
+      indexIdentity(index, canonicalIdentity)
       continue
     }
 
+    indexIdentity(duplicateIndex, identities[duplicateIndex], true)
     canonical[duplicateIndex] = mergeEquivalentMessages(canonical[duplicateIndex], message)
+    identities[duplicateIndex] = canonicalMessageIdentity(canonical[duplicateIndex])
+    indexIdentity(duplicateIndex, identities[duplicateIndex])
   }
 
   // NOTICE: SQLite conversation turns persist one shared created_at for both the
@@ -463,6 +548,25 @@ export function mergeLoadedSessionMessages(storedMessages: ChatHistoryItem[], cu
   if (currentNonSystemMessages.length === 0)
     return safeStoredMessages
 
+  // Cache snapshots can contain legacy/context rows without timestamps or
+  // unique IDs. Match exact copies by occurrence count: retain every stored
+  // row, but do not append the same snapshot again on each renderer restore.
+  const storedCopies = new Map<string, number>()
+  for (const message of safeStoredMessages) {
+    const fingerprint = JSON.stringify(message)
+    storedCopies.set(fingerprint, (storedCopies.get(fingerprint) ?? 0) + 1)
+  }
+  const incomingMessages = currentNonSystemMessages.filter((message) => {
+    const fingerprint = JSON.stringify(message)
+    const copies = storedCopies.get(fingerprint) ?? 0
+    if (!copies)
+      return true
+    storedCopies.set(fingerprint, copies - 1)
+    return false
+  })
+  if (!incomingMessages.length)
+    return safeStoredMessages
+
   const systemMessage = safeStoredMessages[0]?.role === 'system'
     ? safeStoredMessages[0]
     : currentMessages[0]?.role === 'system'
@@ -471,7 +575,7 @@ export function mergeLoadedSessionMessages(storedMessages: ChatHistoryItem[], cu
 
   const merged = canonicalizeSessionMessages([
     ...safeStoredMessages,
-    ...currentNonSystemMessages,
+    ...incomingMessages,
   ])
   if (areMessageArraysStructurallyEqual(merged, safeStoredMessages))
     return safeStoredMessages

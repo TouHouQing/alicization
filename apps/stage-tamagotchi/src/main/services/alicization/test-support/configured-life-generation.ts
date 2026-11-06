@@ -3,6 +3,7 @@ import process from 'node:process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
+import { errorMessageFrom } from '@moeru/std'
 import { generateText } from '@xsai/generate-text'
 
 import { lifePersonaJudgeResponseFormat } from '../life-persona-development-runtime'
@@ -21,6 +22,7 @@ export async function configuredLifeGeneration() {
   let calls = 0
   return {
     generate: async (input: { system: string, user?: string, judge: boolean, signal?: AbortSignal }) => {
+      const startedAt = Date.now()
       const timeout = AbortSignal.timeout(60000)
       const signal = input.signal ? AbortSignal.any([input.signal, timeout]) : timeout
       try {
@@ -30,9 +32,12 @@ export async function configuredLifeGeneration() {
           throw new Error('empty')
         return result.text
       }
-      catch {
+      catch (error) {
         // Avoid serializing provider request objects or credentials on failure.
-        throw new Error(`Configured life generation ${calls + 1} failed or returned no text`)
+        const message = errorMessageFrom(error) ?? ''
+        const status = message.match(/\b(400|401|403|404|408|409|429|500|502|503|504)\b/u)?.[1]
+        const reason = signal.aborted ? 'aborted-or-timeout' : message === 'empty' ? 'empty-text' : status ? `http-${status}` : /fetch failed|ECONN|ENOTFOUND|network/iu.test(message) ? 'network' : 'provider-or-response-error'
+        throw new Error(`Configured life generation ${calls + 1} failed (${reason}, ${Date.now() - startedAt}ms)`)
       }
     },
     save: async (name: string, result: unknown) => {

@@ -2843,6 +2843,35 @@ wip:
     此功能正在开发中，尚未公开发布。请在未来的更新中再次查看此功能。
 
 life:
+  persona_growth:
+    title: 成长与经历
+    description: 记录从实际经历中形成的习惯、正在尝试的变化和仍不确定的认识。
+    pause: 暂停适应
+    resume: 继续适应
+    paused: 已暂停新的适应与试行。你仍可以纠正或撤回已有认识。
+    empty: 还没有足够的独立经历形成新的习惯。
+    withdraw: 撤回这项认识
+    correct: 补充例外
+    reconsider: 重新观察
+    correction_label: 哪些情况下，这项认识不适用？
+    correction_hint: 补充后会停止沿用旧结论，从新的实际经历重新观察。
+    save_correction: 保存并重新观察
+    cancel: 取消
+    source_unavailable: 来源已变更或已撤回，不再展示原文。
+    sources: 查看记忆与来源
+    evidence: '{events} 次独立经历 · 跨 {days} 天 · {trials} 次正向试行反馈'
+    status:
+      exploring: 仍在探索
+      supported: 开始形成
+      trial: 正在尝试
+      mature: 已有稳定实践
+      disputed: 需要重新认识
+    context:
+      companionship: 日常陪伴
+      focused-work: 专注工作
+      repair: 误解与修复
+      rest: 休息与疲惫
+      execution: 一起做事
   browser_access:
     title: 浏览器访问
     description: 可连接你已配置的本机浏览器，仅访问选定的标签页和来源。登录凭据保留在原浏览器中。

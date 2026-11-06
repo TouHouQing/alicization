@@ -133,6 +133,12 @@ export const useDisplayModelsStore = defineStore('display-models', () => {
   }
 
   async function getDisplayModel(id: string) {
+    // Bundled bodies belong to this release. Browser catalogue hydration must
+    // not delay them or replace their asset URLs with an older installation.
+    const preset = displayModelsPresets.find(model => model.id === id)
+    if (preset)
+      return preset
+
     await waitForDisplayModelsIdle('getDisplayModel')
 
     let modelFromFile: DisplayModelFile | null = null
@@ -147,8 +153,7 @@ export const useDisplayModelsStore = defineStore('display-models', () => {
       return modelFromFile
     }
 
-    // Fallback to in-memory presets if not found in localforage
-    return displayModelsPresets.find(model => model.id === id)
+    return undefined
   }
 
   async function loadLive2DModelPreview(file: File) {

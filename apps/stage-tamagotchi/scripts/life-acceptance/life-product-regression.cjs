@@ -14,10 +14,12 @@ const backgroundQaSurface = process.env.LIFE_QA_PRIVATE_DESKTOP || process.env.L
 
 const { _electron } = require('playwright')
 
+const { inspectAgentRuntimeAfterShutdown, runAgentRuntimeProductChecks } = require('./agent-runtime-product-checks.cjs')
 const { prepareAtomicRequirementsProductChecks } = require('./atomic-requirements-product-checks.cjs')
 const { runAuthorizedBrowserProductChecks } = require('./authorized-browser-product-checks.cjs')
 const { runBrowserProcedureProductChecks } = require('./browser-procedure-product-checks.cjs')
 const { runBusinessFormProductChecks } = require('./business-form-product-checks.cjs')
+const { runConversationDeliveryProductChecks } = require('./conversation-delivery-product-checks.cjs')
 const { runDownloadGoalProductChecks } = require('./download-goal-product-checks.cjs')
 const { runDownloadRecoveryProductChecks } = require('./download-recovery-product-checks.cjs')
 const { runElectronKeyboardProductChecks } = require('./electron-keyboard-product-checks.cjs')
@@ -68,6 +70,18 @@ async function inspectAuthorizedBrowserAfterShutdown({ report, profile, root, ch
 }
 
 async function inspectExecutionProductAfterShutdown({ report, profile, root, check, redact }) {
+  if (process.env.LIFE_PRODUCT_CONVERSATION_DELIVERY === '1' && report.passed) {
+    try {
+      execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'conversation-delivery-inspection.ts'), root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+      report.conversationDeliveryInspection = JSON.parse(await fs.readFile(path.join(root, 'conversation-delivery-after-shutdown.json'), 'utf8'))
+      check('Read-only restart preserves actual played position and partial delivery facts', report.conversationDeliveryInspection.passed)
+    }
+    catch (error) { report.passed = false; report.failure ||= `Conversation delivery inspection failed: ${redact(error.message)}`; process.exitCode = 1 }
+  }
+  if (process.env.LIFE_PRODUCT_AGENT_RUNTIME_ONLY === '1') {
+    try { await inspectAgentRuntimeAfterShutdown({ report, profile, root, check }) }
+    catch (error) { report.passed = false; report.failure ||= `Agent runtime inspection failed: ${redact(error.message)}`; process.exitCode = 1 }
+  }
   if (process.env.LIFE_PRODUCT_LOCAL_MUTATION_ONLY === '1') {
     try { await inspectLocalMutationAfterShutdown({ report, profile, root, check }) }
     catch (error) { report.passed = false; report.failure ||= `Local mutation inspection failed: ${redact(error.message)}`; process.exitCode = 1 }
@@ -229,6 +243,26 @@ async function inspectExecutionProductAfterShutdown({ report, profile, root, che
 }
 
 async function runExecutionExperience(context) {
+  if (process.env.LIFE_PRODUCT_PERSONA_GROWTH_ONLY === '1') {
+    assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    await require('./persona-growth-product-checks.cjs').runPersonaGrowthProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_AUTONOMOUS_METHOD_ONLY === '1') {
+    assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d' && process.env.LIFE_PRODUCT_LEARNED_PROCEDURE === '1')
+    context.report.format = 'life-autonomous-method-product-v1'
+    context.report.scope = 'actual-model-natural-method-selection-three-unseen-inputs-reload-and-revocation'
+    await runExecutionRepairProductChecks(context)
+    await runLearnedProcedureProductChecks(context)
+    return
+  }
+  if (process.env.LIFE_PRODUCT_AGENT_RUNTIME_ONLY === '1') {
+    assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    context.report.format = 'life-agent-runtime-product-v1'
+    context.report.scope = 'actual-model-WASM-LSP-Pi-session-retrieval-scheduled-work-persistent-usage-with-Live2D'
+    await runAgentRuntimeProductChecks(context)
+    return
+  }
   if (process.env.LIFE_PRODUCT_NATIVE_METHOD_ONLY === '1') {
     assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d' && process.env.LIFE_PRODUCT_LEARNED_PROCEDURE === '1')
     context.report.format = 'life-native-learned-method-product-v1'
@@ -406,9 +440,11 @@ async function main() {
   const fastExpression = process.env.LIFE_PRODUCT_FAST_EXPRESSION === '1'
   const workOnly = process.env.LIFE_PRODUCT_WORK_ONLY === '1'
   if (workOnly) {
-    if (process.env.LIFE_PRODUCT_NATIVE_METHOD_ONLY === '1')
+    if (process.env.LIFE_PRODUCT_PERSONA_GROWTH_ONLY === '1')
+      assert.ok(!fastExpression && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
+    else if (process.env.LIFE_PRODUCT_NATIVE_METHOD_ONLY === '1')
       assert.ok(!fastExpression && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_LEARNED_PROCEDURE === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
-    else if (process.env.LIFE_PRODUCT_LOCAL_SEARCH_ONLY === '1' || process.env.LIFE_PRODUCT_LOCAL_MUTATION_ONLY === '1')
+    else if (process.env.LIFE_PRODUCT_AUTONOMOUS_METHOD_ONLY === '1' || process.env.LIFE_PRODUCT_AGENT_RUNTIME_ONLY === '1' || process.env.LIFE_PRODUCT_LOCAL_SEARCH_ONLY === '1' || process.env.LIFE_PRODUCT_LOCAL_MUTATION_ONLY === '1')
       assert.ok(!fastExpression && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
     else if (process.env.LIFE_PRODUCT_BACKUP_ONLY === '1')
       assert.ok(!fastExpression && backgroundQaSurface && process.env.LIFE_PRODUCT_EXECUTION_WORK === '1' && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
@@ -469,6 +505,10 @@ async function main() {
     assert.ok(backgroundQaSurface && process.env.LIFE_PRODUCT_RENDERER === 'live2d')
     execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'life-history-fixture.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
     report.historyFixture = { source: 'synthetic-terminal-responsibilities-before-app-launch', writerClosedBeforeLaunch: true }
+  }
+  if (process.env.LIFE_PRODUCT_PERSONA_GROWTH_ONLY === '1') {
+    execFileSync(process.execPath, [path.resolve('node_modules/tsx/dist/cli.mjs'), path.join(__dirname, 'persona-growth-fixture.ts'), profile, root], { cwd: process.cwd(), windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] })
+    report.personaGrowthFixture = { source: 'synthetic reviewed historical evidence; no claim of real elapsed days', writerClosedBeforeLaunch: true }
   }
   const app = await _electron.launch(options)
   const launcherProcess = app.process()
@@ -986,6 +1026,13 @@ async function main() {
     }
     assert.ok(chat)
     await chat.getByRole('button', { name: '发送消息', exact: true }).waitFor({ timeout: 30000 })
+    if (process.env.LIFE_PRODUCT_CONVERSATION_DELIVERY === '1') {
+      assert.ok(live2dOnly && backgroundQaSurface)
+      voice = await startSpeechQa(profile, { maxRequests: 64 })
+      expressionStage = stage
+      await runConversationDeliveryProductChecks({ app, stage, chat, report, capture, check, voiceUrl: voice.url, voiceSummary: voice.summary, root })
+      return
+    }
     if (process.env.LIFE_PRODUCT_EXECUTION_WORK === '1') {
       await runExecutionExperience({ app, stage, settings, chat, root, report, capture, check, click })
       report.passed = true
@@ -1230,6 +1277,8 @@ async function main() {
       report.streamObservation = await expressionStage.evaluate(() => { const qa = window.__live2dExpressionObservation; return { chatEvents: qa?.chatEvents, selectionChanges: qa?.selectionChanges, hookEvents: qa?.hookEvents, generationReads: qa?.generationReads, providerCalls: qa?.providerCalls } }).catch(() => null)
     if (expressionStage && !expressionStage.isClosed())
       report.expressionFrames = await readLive2DExpression(expressionStage).catch(() => report.expressionFrames)
+    if (process.env.LIFE_PRODUCT_CONVERSATION_DELIVERY === '1' && expressionStage && !expressionStage.isClosed())
+      report.conversationDelivery = await expressionStage.evaluate(() => window.__deliveryQa).catch(() => null)
     if (voice) {
       report.speechFixture = voice.summary()
       await voice.close()

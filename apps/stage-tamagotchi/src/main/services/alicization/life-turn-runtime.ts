@@ -1,5 +1,6 @@
 import type { BrowserWorkBinding } from '../../../shared/execution-contracts'
 import type { LifeCapabilityEffects, LifeCommitInput, LifeCommitReceipt, LifeEffect, LifeEvidenceRef, LifeIngress, LifeOwnerVersion, LifeStateView } from '../../../shared/life-contracts'
+import type { PersonaContext } from '../../../shared/persona-development-contracts'
 import type { FileMutationRecovery } from './execution/file-mutation-recovery'
 import type { ExecutionResourceBroker, ResourceLease } from './execution/resource-broker'
 import type { LifeInterfaceObservation } from './life-interface-action-closure'
@@ -11,6 +12,7 @@ import { actionDidNotStart } from './execution/action-dispatch-context'
 import { createActionDispatchGate } from './execution/action-dispatch-gate'
 import { actionResponsibility } from './execution/action-responsibility'
 import { isMainFilesystemMutation } from './execution/filesystem-mutation-input'
+import { isOwnedReadStopped } from './execution/owned-read-stop'
 import { assertNoUncertainResourceConflict, executionOperationResources, recordedExecutionResources } from './execution/uncertain-resource-fence'
 import { lifeVerifiedActivityChronology } from './life-activity-order'
 import { lifeCompletionPeriod } from './life-completion-period'
@@ -26,8 +28,9 @@ import { deriveLifePersonalInterests, deriveLifePracticeLessons } from './life-p
 import { readLifePersonalProposals, recordLifePersonalChoice } from './life-personal-proposals'
 import { lifeProviderStatePolicy } from './life-provider-state-policy'
 import { createLifeDialogueReadSet } from './life-read-set'
+import { projectPersonaDevelopment } from './persona-development/projection'
 
-const lifeMetadataReaders = new Set(['tool.life_list_learned_procedures', 'tool.life_list_execution_verifiers'])
+const lifeMetadataReaders = new Set(['tool.life_search_capabilities', 'tool.life_describe_capabilities', 'tool.life_list_learned_procedures', 'tool.life_list_execution_verifiers'])
 
 interface LifeTurnRuntimeOptions {
   fileRecovery?: (owner: { cardId: string, effectId: string, turnId: string }) => FileMutationRecovery
@@ -70,7 +73,7 @@ export function createLifeTurnRuntime(options: LifeTurnRuntimeOptions) {
     await options.onHostInteraction?.(input.cardId)
   }
 
-  async function context(cardId: string) {
+  async function context(cardId: string, personaContext: PersonaContext = 'companionship') {
     const view = await options.read()
     if (view.cardId !== cardId)
       throw new Error('Life view crossed the active card boundary')
@@ -89,11 +92,12 @@ export function createLifeTurnRuntime(options: LifeTurnRuntimeOptions) {
     const growthOwner = view.owners.find(owner => owner.owner === 'growth')
     const growth = growthOwner ? parseLifeGrowthSnapshot(view.values[growthOwner.metaKey]) : null
     const growthCandidate = growth?.candidates.find(candidate => candidate.id === growth.activeCandidateId && candidate.status === 'active') ?? null
+    const personaDevelopment = projectPersonaDevelopment(view, personaContext)
     const chronology = lifeVerifiedActivityChronology(view)
     const interval = conversationRecall?.requestedQuietInterval
     const completedDuring = interval ? chronology.filter(activity => activity.verifiedAt >= interval.beganAt && activity.verifiedAt < interval.endedAt) : null
     const requestedIntervalCompletions = completedDuring ? { count: completedDuring.length, activities: completedDuring.slice(-4).map(({ kind, binding, summary }) => ({ kind, id: binding.id, summary: summary.slice(0, 80) })), scope: 'Verified completions in the actual requested interval from the same local state view; not a global absence claim.' } : null
-    return { revision: view.revision, owners: view.owners, growthCandidateId: growthCandidate?.id ?? null, text: JSON.stringify({ authority: 'local-life-state', requestedIntervalCompletions, actualActivityChronology: chronology.slice(-4).map(({ kind, binding, summary, verifiedAt }) => ({ kind, id: binding.id, summary: summary.slice(0, 80), verifiedAt })), personalArtifactContents, conversationPreferences, conversationRecall, dailyRhythm: readLifeDailyRhythm(view.values), personalProposals: readLifePersonalProposals(view).filter(item => item.expiresAt > options.now()), personalInterests: deriveLifePersonalInterests(view), practiceLessons: deriveLifePracticeLessons(view), now: options.now(), revision: view.revision, owners: view.owners, recentQuietInterval, interactionBoundaries: quietBoundary ? [{ binding: { kind: 'boundary', id: quietBoundary.id, version: quietBoundary.inputHash }, scope: quietBoundary.scope, release: quietBoundary.release }] : [], growth: growthCandidate ? { id: growthCandidate.id, patch: growthCandidate.patch, sourceEvidence: growthCandidate.sourceEvidence } : null, soul: view.values['life:soul-active'] ? JSON.parse(view.values['life:soul-active']) : null, obligations: obligations.map(item => ({ id: item.id, summary: item.summary.slice(0, 320), status: item.status, generation: item.generation, dueAt: item.dueAt, proof: item.proof.kind })), resolved: view.obligations.filter(item => ['fulfilled', 'cancelled'].includes(item.status)).slice(0, 6).map(item => ({ id: item.id, status: item.status, summary: item.summary.slice(0, 200), createdAt: item.createdAt, verifiedAt: item.verification?.verifiedAt ?? null, completionPeriod: lifeCompletionPeriod(item.verification?.verifiedAt, conversationRecall?.requestedQuietInterval ?? null), receiptId: item.receiptId })), uncertainActions: view.effects.filter(item => item.status === 'uncertain').map(item => ({ id: item.id, actionId: item.actionId })).slice(0, 8), instruction: lifeProviderStatePolicy }) }
+    return { revision: view.revision, owners: view.owners, growthCandidateId: growthCandidate?.id ?? null, personaDevelopment, text: JSON.stringify({ authority: 'local-life-state', personaDevelopment, requestedIntervalCompletions, actualActivityChronology: chronology.slice(-4).map(({ kind, binding, summary, verifiedAt }) => ({ kind, id: binding.id, summary: summary.slice(0, 80), verifiedAt })), personalArtifactContents, conversationPreferences, conversationRecall, dailyRhythm: readLifeDailyRhythm(view.values), personalProposals: readLifePersonalProposals(view).filter(item => item.expiresAt > options.now()), personalInterests: deriveLifePersonalInterests(view), practiceLessons: deriveLifePracticeLessons(view), now: options.now(), revision: view.revision, owners: view.owners, recentQuietInterval, interactionBoundaries: quietBoundary ? [{ binding: { kind: 'boundary', id: quietBoundary.id, version: quietBoundary.inputHash }, scope: quietBoundary.scope, release: quietBoundary.release }] : [], growth: growthCandidate ? { id: growthCandidate.id, patch: growthCandidate.patch, sourceEvidence: growthCandidate.sourceEvidence } : null, soul: view.values['life:soul-active'] ? JSON.parse(view.values['life:soul-active']) : null, obligations: obligations.map(item => ({ id: item.id, summary: item.summary.slice(0, 320), status: item.status, generation: item.generation, dueAt: item.dueAt, proof: item.proof.kind })), resolved: view.obligations.filter(item => ['fulfilled', 'cancelled'].includes(item.status)).slice(0, 6).map(item => ({ id: item.id, status: item.status, summary: item.summary.slice(0, 200), createdAt: item.createdAt, verifiedAt: item.verification?.verifiedAt ?? null, completionPeriod: lifeCompletionPeriod(item.verification?.verifiedAt, conversationRecall?.requestedQuietInterval ?? null), receiptId: item.receiptId })), uncertainActions: view.effects.filter(item => item.status === 'uncertain').map(item => ({ id: item.id, actionId: item.actionId })).slice(0, 8), instruction: lifeProviderStatePolicy }) }
   }
 
   async function beforeAction(input: { cardId: string, turnId: string, actionId: string, capabilityId: string, parameters: unknown, owners?: LifeOwnerVersion[], effectContract?: LifeCapabilityEffects, browserBinding?: BrowserWorkBinding }, signal: AbortSignal) {
@@ -158,17 +162,20 @@ export function createLifeTurnRuntime(options: LifeTurnRuntimeOptions) {
     return { id, cached: null, authorizeDispatch: dispatch, assertDispatchCurrent: dispatch.assertCurrent }
   }
 
-  async function afterAction(input: { cardId: string, id: string, outcome: string, output: unknown, interrupted: boolean }) {
+  async function afterAction(input: { cardId: string, id: string, outcome: string, output: unknown, interrupted: boolean, stopped?: unknown }) {
     const ingressId = `observation:${input.id}`
     const observedAt = options.now()
     const output = input.output && typeof input.output === 'object' ? input.output as Record<string, unknown> : null
     const notStarted = actionDidNotStart(input.output, input.cardId, input.id)
-    const uncertain = (input.interrupted && !notStarted) || output?.effectMayHaveOccurred === true || output?.sideEffectState === 'unknown'
+    const effect = isOwnedReadStopped(input.stopped) ? await options.getEffect(input.id) : null
+    const contract = effect?.payload.effectContract as { sideEffect?: string, retryClass?: string } | undefined
+    const readStopped = isOwnedReadStopped(input.stopped) && contract?.sideEffect === 'read' && contract.retryClass === 'read-only'
+    const uncertain = (input.interrupted && !notStarted && !readStopped) || output?.effectMayHaveOccurred === true || output?.sideEffectState === 'unknown'
     const outcome = output?.status === 'failed' || output?.ok === false ? 'failure' : input.outcome
     await options.commit({ cardId: input.cardId, operationKey: `observe:${input.id}`, changes: [], mutations: [{ type: 'ingress-accept', ingress: { id: ingressId, kind: 'tool-result', source: 'execution', sourceKey: input.id, occurredAt: observedAt, payload: { outcome, output: input.output } } }, { type: 'ingress-settle', id: ingressId, status: 'settled' }, { type: 'effect-transition', id: input.id, expected: 'dispatched', status: uncertain ? 'uncertain' : 'settled', receipt: { outcome, output: input.output, observedAt } }] })
     const lease = leases.get(input.id)
     if (lease) {
-      options.resourceBroker!.settle(lease, { stopped: !input.interrupted || notStarted, uncertain })
+      options.resourceBroker!.settle(lease, { stopped: !input.interrupted || notStarted || readStopped, uncertain })
       leases.delete(input.id)
     }
     if (!uncertain) {
@@ -197,13 +204,13 @@ export function createLifeTurnRuntime(options: LifeTurnRuntimeOptions) {
     if (input.status === 'completed' && input.committedText)
       await recordLifePersonalChoice(options, { cardId: input.cardId, turnId: input.turnId, text: input.committedText, creativeOpportunity: input.creativeOpportunity, personalIntent: input.personalIntent })
   }
-  async function recordContextUse(input: { cardId: string, turnId: string, requestHash: string, evidenceIds: string[], evidenceRefs?: LifeEvidenceRef[], owners: LifeOwnerVersion[], growthCandidateId?: string | null }, signal: AbortSignal) {
+  async function recordContextUse(input: { cardId: string, turnId: string, requestHash: string, evidenceIds: string[], evidenceRefs?: LifeEvidenceRef[], owners: LifeOwnerVersion[], growthCandidateId?: string | null, personaContext?: PersonaContext, personaFacetIds?: string[] }, signal: AbortSignal) {
     const id = `context:${input.turnId}:${input.requestHash}`
     if (await options.getIngress(id))
       return
     const view = await options.read()
     const soul = view.values['life:soul-active'] ? JSON.parse(view.values['life:soul-active']) : null
-    await options.commit({ cardId: input.cardId, operationKey: id, changes: [], ...createLifeDialogueReadSet(input.owners), ingressIds: [`user:${input.turnId}`], mutations: [{ type: 'ingress-accept', ingress: { id, kind: 'system', source: 'provider-context', sourceKey: `${input.turnId}:${input.requestHash}`, occurredAt: options.now(), payload: { turnId: input.turnId, requestHash: input.requestHash, personaProposalId: soul?.persona?.proposalId ?? null, evidenceIds: input.evidenceIds, evidenceRefs: input.evidenceRefs ?? [], readSet: input.owners } } }, { type: 'ingress-settle', id, status: 'settled' }, ...(input.growthCandidateId ? [{ type: 'growth-consumed' as const, key: input.owners.find(owner => owner.owner === 'growth')!.metaKey, candidateId: input.growthCandidateId, consumer: 'provider-context', turnId: input.turnId }] : [])] }, { signal })
+    await options.commit({ cardId: input.cardId, operationKey: id, changes: [], ...createLifeDialogueReadSet(input.owners), ingressIds: [`user:${input.turnId}`], mutations: [{ type: 'ingress-accept', ingress: { id, kind: 'system', source: 'provider-context', sourceKey: `${input.turnId}:${input.requestHash}`, occurredAt: options.now(), payload: { turnId: input.turnId, requestHash: input.requestHash, personaProposalId: soul?.persona?.proposalId ?? null, evidenceIds: input.evidenceIds, evidenceRefs: input.evidenceRefs ?? [], readSet: input.owners } } }, { type: 'ingress-settle', id, status: 'settled' }, ...((input.personaFacetIds?.length ?? 0) ? [{ type: 'persona-development' as const, operation: { action: 'consume' as const, facetIds: input.personaFacetIds!, context: input.personaContext ?? 'companionship' as const, turnId: input.turnId, requestHash: input.requestHash } }] : []), ...(input.growthCandidateId ? [{ type: 'growth-consumed' as const, key: input.owners.find(owner => owner.owner === 'growth')!.metaKey, candidateId: input.growthCandidateId, consumer: 'provider-context', turnId: input.turnId }] : [])] }, { signal })
   }
   async function recover(cardId: string) {
     const view = await options.read()

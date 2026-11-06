@@ -75,6 +75,13 @@ describe('learned procedures through actual life ownership, replay and registry'
       const candidateId = await repository.capture(accepted.rootThreadId)
       expect(await repository.capture(accepted.rootThreadId)).toBe(candidateId)
       const candidate = await repository.get(candidateId)
+      // Exercise the released v1 storage shape against actual verified work.
+      // Its next evaluation must migrate in the same journal transaction.
+      await db.commitLifeState({ cardId: 'alice', operationKey: 'legacy-procedure-index', changes: [], mutations: [
+        { type: 'ingress-accept', ingress: { id: 'legacy-procedure-index', kind: 'system', source: 'execution-procedure-index', sourceKey: 'legacy-procedure-index', occurredAt: Date.now(), payload: { index: { version: 1, items: [{ candidateId, evaluationId: null }] } } } },
+        { type: 'ingress-settle', id: 'legacy-procedure-index', status: 'settled' },
+      ] })
+      expect(await repository.list()).toMatchObject([{ candidateId, sourceValid: true }])
       const source = procedureSkillSource(candidate, registry)
       expect(source).not.toContain(content)
       expect(source).not.toContain(path)
@@ -85,6 +92,7 @@ describe('learned procedures through actual life ownership, replay and registry'
       expect(evaluation.status).toBe('passed')
       expect(evaluation.cases.map(item => item.name)).toEqual(['different-input-1', 'different-input-2', 'invalid-arguments', 'interface-change', 'cancellation'])
       await repository.recordEvaluation(evaluation)
+      expect((await db.readLifeState()).ingress.find(item => item.source === 'execution-procedure-index')?.payload.index).toMatchObject({ version: 2, count: 1 })
       await loader.markEvaluation(candidate.id, candidate.version, 'approved')
       await loader.activate(candidate.id, candidate.version)
       expect(await loader.projectProduction()).toMatchObject([{ capabilityId: candidate.id }])

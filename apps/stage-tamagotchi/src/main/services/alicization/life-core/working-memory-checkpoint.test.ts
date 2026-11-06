@@ -139,7 +139,7 @@ describe('working memory checkpoint', () => {
       sessionId: 'session-1',
       now: 1_000,
     })
-    snapshot.recentRawTurns = Array.from({ length: 12 }, (_, index) => normalizeWorkingMemoryTurn({
+    snapshot.recentRawTurns = Array.from({ length: 48 }, (_, index) => normalizeWorkingMemoryTurn({
       turnId: `turn-${index + 1}`,
       role: 'user',
       text: `raw ${index + 1}`,
@@ -165,10 +165,11 @@ describe('working memory checkpoint', () => {
 
     const parsed = parseWorkingMemoryCheckpoint(serializeWorkingMemoryCheckpoint(snapshot))
 
-    expect(parsed?.recentRawTurns).toHaveLength(8)
-    expect(parsed?.recentRawTurns[0]?.turnId).toBe('turn-5')
-    expect(parsed?.compressedTimeline).toHaveLength(32)
-    expect(parsed?.compressedTimeline[0]?.id).toBe('episodelet-9')
+    expect(parsed?.recentRawTurns).toHaveLength(32)
+    expect(parsed?.recentRawTurns[0]?.turnId).toBe('turn-17')
+    expect(parsed?.compressedTimeline).toHaveLength(24)
+    expect(parsed?.compressedTimeline[0]?.sourceTurnIds).toContain('turn-1')
+    expect(parsed?.compressedTimeline[0]?.sourceTurnIds).toContain('turn-17')
     expect(parsed?.compressedTimeline.at(-1)?.id).toBe('episodelet-40')
   })
 })

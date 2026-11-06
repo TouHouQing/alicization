@@ -4,6 +4,7 @@ const { Buffer } = require('node:buffer')
 const { randomUUID } = require('node:crypto')
 const fs = require('node:fs/promises')
 const path = require('node:path')
+const process = require('node:process')
 
 const { approveSyntheticOperation, sendExecutionRequest } = require('./execution-work-product-checks.cjs')
 const { sampleLive2D } = require('./live2d-product-checks.cjs')
@@ -46,8 +47,20 @@ exports.runLearnedProcedureProductChecks = async function ({ settings, chat, sta
     const source = path.join(root, `learned-input-${round}.txt`)
     await fs.writeFile(source, 'An explicitly authorized new synthetic source, not an original private file.', { flag: 'wx' })
     const goal = `QA 学习方法复用 ${randomUUID()}`
-    await sendExecutionRequest(chat, `请先调用 life_list_learned_procedures，找到 id=${id}、version=${version} 的已启用方法；按参数 uses 中的 operation 和 field 对应填写：write_file 的 path=${target}、content=${JSON.stringify(marker)}；read_file 的 path=${source}。调用 life_use_learned_procedure，goal 必须为 ${goal}。只允许操作这两个测试文件，不用单独文件工具代替，不要重新创建计划，不要只口头声称执行。`)
-    const work = settings.getByRole('region', { name: '工作进展', exact: true }).locator('article').filter({ hasText: goal })
+    const workRegion = settings.getByRole('region', { name: '工作进展', exact: true })
+    const previousPlans = await workRegion.locator('article[data-work-plan-id]').evaluateAll(nodes => nodes.map(node => node.dataset.workPlanId))
+    const autonomous = process.env.LIFE_PRODUCT_AUTONOMOUS_METHOD_ONLY === '1'
+    const prompt = autonomous
+      ? `请完成一项名为“${goal}”的本地工作：读取 ${source}，并在新文件 ${target} 中原样写入 ${JSON.stringify(marker)}。只允许操作这两个文件，请使用你已经掌握并且适合这项工作的做法，并在工作进展中保留可验收的结果。`
+      : `请先调用 life_list_learned_procedures，找到 id=${id}、version=${version} 的已启用方法；按参数 uses 中的 operation 和 field 对应填写：write_file 的 path=${target}、content=${JSON.stringify(marker)}；read_file 的 path=${source}。调用 life_use_learned_procedure，goal 必须为 ${goal}。只允许操作这两个测试文件，不用单独文件工具代替，不要重新创建计划，不要只口头声称执行。`
+    await sendExecutionRequest(chat, prompt)
+    // Follow the new durable plan identity. A model may paraphrase the display
+    // title, which must not silently retarget the acceptance to an older task.
+    await settings.waitForFunction(before => [...document.querySelectorAll('article[data-work-plan-id]')].some(node => !before.includes(node.dataset.workPlanId)), previousPlans, { timeout: 15000 })
+    const newPlans = await workRegion.locator('article[data-work-plan-id]').evaluateAll((nodes, before) => nodes.map(node => node.dataset.workPlanId).filter(id => !before.includes(id)), previousPlans)
+    assert.equal(newPlans.length, 1, 'One new request must create one new owned work plan')
+    const planId = newPlans[0]
+    const work = workRegion.locator(`article[data-work-plan-id="${planId}"]`)
     const finishBy = Date.now() + 45000
     while (Date.now() < finishBy && !await work.getByRole('status').filter({ hasText: '结果已确认' }).isVisible()) {
       await approveSyntheticOperation([chat, settings], [{ path: target, marker, bytes: Buffer.byteLength(marker), operation: '创建一个文件' }, { path: source, operation: '读取文件或资料' }])
@@ -61,7 +74,7 @@ exports.runLearnedProcedureProductChecks = async function ({ settings, chat, sta
     check('Learned execution keeps an actual Live2D model drawing', body.models.length === 1 && after.models.length === 1 && after.models[0].parameterSampling === 'final-draw' && after.models[0].drawFrame.frame > (body.models[0].drawFrame?.frame ?? 0))
     await work.scrollIntoViewIfNeeded()
     await capture(settings, `learned-method-delivery-${round}`)
-    report.learnedProcedureExperiences.push({ id, version, round, goal, target, inputPath: source, marker, source: 'actual-product-evaluation-activation-model-reuse-and-revocation' })
+    report.learnedProcedureExperiences.push({ id, version, round, goal, planId, target, inputPath: source, marker, source: 'actual-product-evaluation-activation-model-reuse-and-revocation', autonomousMethodSelection: autonomous, prompt })
   }
   await item.getByRole('button', { name: '停用此版本', exact: true }).click()
   await item.getByText('来源已失效', { exact: true }).waitFor({ timeout: 10000 })

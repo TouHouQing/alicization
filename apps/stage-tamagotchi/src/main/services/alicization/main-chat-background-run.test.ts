@@ -1,12 +1,25 @@
 import type { Message } from '@xsai/shared-chat'
 
+import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { basename, join } from 'node:path'
+
 import { buildAlicizationProviderFactBlock } from '@proj-alicization/stage-shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { actionDidNotStart, markActionNotStartedError } from './execution/action-dispatch-context'
+import { capabilityDescribeName, capabilitySearchName, createCapabilityDiscoveryTools } from './agent-harness/capability-disclosure'
+import { createProgrammaticReadTool } from './agent-harness/programmatic-tool'
+import { agentHarnessMaxModelSteps, prepareAgentContinuation } from './agent-harness/progress-context'
+import { createProviderUsageLedger } from './agent-harness/provider-usage-ledger'
+import { readToolObservation } from './agent-harness/tool-observation'
+import { setupAlicizationDb } from './db'
+import { actionDidNotStart, assertActionDispatchCurrent, markActionNotStartedError } from './execution/action-dispatch-context'
 import { boundLifeProviderRequest } from './life-provider-budget'
 import { AlicizationReplyGroundingUnavailableError } from './life-reply-grounding-error'
 import { LifeStateConflictError } from './life-state-store'
+import { createLifeTurnRuntime } from './life-turn-runtime'
 import { abortAlicizationDirectChatRun } from './main-chat-abort'
 import {
   mainChatBackgroundRunTestInternals,
@@ -15,6 +28,7 @@ import {
 import { handleAlicizationMainChatRunFailure } from './main-chat-run-lifecycle'
 import { createAlicizationChatStreamMetaEmitter } from './main-chat-stream-meta'
 import { runAlicizationMainChatProviderStep } from './main-chat-stream-runner'
+import { zeroPersonaEffects } from './persona-development/schema'
 import { encodeOpenAICompatibleSse, startProviderHttpFaultServer } from './provider-http-fault-server.test-support'
 import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
@@ -285,6 +299,233 @@ function createInput(
 }
 
 describe('main chat background run', () => {
+  it.each(['parallel', 'programmatic', 'blocked-write'] as const)('uses real SSE, SQLite ownership and native files for governed %s execution', async (mode) => {
+    const actual = await vi.importActual<typeof import('./main-chat-stream-runner')>('./main-chat-stream-runner')
+    const root = await mkdtemp(join(tmpdir(), 'alicization-governed-reads-'))
+    const database = await setupAlicizationDb(root, { cardId: 'card-1' })
+    const paths = [join(root, 'first.txt'), join(root, 'second.txt')]
+    await Promise.all(paths.map((path, index) => writeFile(path, `marker-${index}`)))
+    const registry = createCanonicalToolRegistry()
+    const bothEntered = Promise.withResolvers<void>()
+    let active = 0
+    let peak = 0
+    const scope = { cardId: 'card-1', turnId: 'turn-1', conversationId: 'conversation-1', userId: 'local-user-stable' }
+    const readTool = { type: 'function' as const, function: { name: 'filesystem_read_file', parameters: registry.get('tool.filesystem_read_file')!.inputSchema }, execute: async (input: unknown) => {
+      const path = (input as { path: string }).path
+      await assertActionDispatchCurrent(true, { capabilityId: 'tool.filesystem_read_file', parameters: input })
+      expect((await database.listRuntimeEvents(scope)).some(event => event.eventType === 'model.tool_call.proposed')).toBe(true)
+      peak = Math.max(peak, ++active)
+      if (active === 2)
+        bothEntered.resolve()
+      let deadline: ReturnType<typeof setTimeout> | undefined
+      try { await Promise.race([bothEntered.promise, new Promise((_resolve, reject) => { deadline = setTimeout(() => reject(new Error('Readers did not overlap')), 1000) })]) }
+      finally { clearTimeout(deadline) }
+      if (path === paths[0])
+        await new Promise(resolve => setTimeout(resolve, 10))
+      const content = await readFile(path, 'utf8')
+      active--
+      return { ok: true, finalStatus: 'completed', operation: 'read_file', content, truncated: false, contentHash: createHash('sha256').update(content).digest('hex') }
+    } }
+    const code = mode === 'blocked-write'
+      ? `return await call('filesystem_write_file',{path:${JSON.stringify(paths[0])},content:'forbidden'});`
+      : `const values=await Promise.all(${JSON.stringify(paths)}.map(path=>call('filesystem_read_file',{path}))); return values.map(value=>value.content);`
+    const server = await startProviderHttpFaultServer({ respond: ({ attempt, body }) => {
+      if (attempt > 1) {
+        const messages = JSON.parse(body).messages.filter((message: Message) => message.role === 'tool')
+        expect(messages.map((message: Extract<Message, { role: 'tool' }>) => message.tool_call_id)).toEqual(mode === 'parallel' ? ['native-read-0', 'native-read-1'] : ['native-program'])
+        expect(messages[0].content).toContain(mode === 'blocked-write' ? 'canonical local read interface' : 'marker-0')
+      }
+      const calls = mode === 'parallel' ? paths.map((path, index) => ({ index, id: `native-read-${index}`, type: 'function', function: { name: 'filesystem_read_file', arguments: JSON.stringify({ path }) } })) : [{ index: 0, id: 'native-program', type: 'function', function: { name: 'life_programmatic_read', arguments: JSON.stringify({ code }) } }]
+      return { status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: encodeOpenAICompatibleSse(attempt === 1 ? [{ choices: [{ index: 0, delta: { tool_calls: calls }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } }] : [{ choices: [{ index: 0, delta: { content: buildProviderReply(mode === 'blocked-write' ? '这次没有写入文件。' : '两份文件的标记分别是 marker-0 和 marker-1。') }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 120, completion_tokens: 10, total_tokens: 130 } }]) }
+    } })
+    const prepared = createPrepared({ messages: [{ role: 'user', content: '检查这两个指定测试文件。' }], toolRegistry: registry, chatConfig: { apiKey: 'fixture', baseURL: server.baseUrl, model: 'gpt-test' }, tools: [readTool, await createProgrammaticReadTool()] })
+    const life = createLifeTurnRuntime({ read: database.readLifeState, commit: database.commitLifeState, getIngress: database.getLifeIngress, getEffect: database.getLifeEffect, now: Date.now })
+    const ledger = createProviderUsageLedger(database, 'card-1')
+    const input = createInput('检查这两个指定测试文件。', { activeCardId: 'card-1', life, providerAccounting: ledger, providerRetryPolicy: { maxRetries: 0 }, prepareTurn: vi.fn(async () => prepared), turnLoop: { ...scope, persistence: database } })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(options => actual.runAlicizationMainChatProviderStep(options))
+    try {
+      await runAlicizationMainChatBackground(input)
+      expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+      const effects = await database.readLifeTurnExecutionEffects('turn-1')
+      expect(effects).toHaveLength(mode === 'programmatic' ? 3 : mode === 'parallel' ? 2 : 1)
+      expect(effects.every(effect => effect.status === 'settled')).toBe(true)
+      expect(peak).toBe(mode === 'blocked-write' ? 0 : 2)
+      expect(await readFile(paths[0]!, 'utf8')).toBe('marker-0')
+      expect((await ledger.read()).summary).toMatchObject({ requestCount: 2, usageReported: 2, totals: { totalTokens: { knownSubtotal: 240, complete: true } } })
+      expect((await database.listRuntimeEvents(scope)).filter(event => event.eventType === 'action.settlement.completed')).toHaveLength(mode === 'parallel' ? 2 : 1)
+    }
+    finally { await server.close(); await database.close(); await rm(root, { recursive: true, force: true }) }
+  })
+  it.each(['complete', 'revoke-tail', 'deny-tail'] as const)('settles a real SSE tool batch in SQLite with per-action admission: %s', async (mode) => {
+    const actualRunner = await vi.importActual<typeof import('./main-chat-stream-runner')>('./main-chat-stream-runner')
+    const directory = await mkdtemp(join(tmpdir(), 'alicization-harness-batch-'))
+    if (!basename(directory).startsWith('alicization-harness-batch-'))
+      throw new Error('Refusing to use an unowned test directory')
+    const database = await setupAlicizationDb(directory, { allowUnboundScope: true })
+    const scope = { cardId: 'card-1', turnId: 'turn-1', conversationId: 'conversation-1', userId: 'local-user-stable' }
+    const registry = createCanonicalToolRegistry()
+    const trace: string[] = []
+    const execute = vi.fn(async ({ index }: { index: number }) => {
+      const persisted = await database.listRuntimeEvents(scope)
+      expect(persisted.filter(event => event.eventType === 'model.tool_call.proposed')).toHaveLength(2)
+      if (index === 2)
+        expect(persisted.filter(event => event.eventType === 'action.settlement.completed')).toHaveLength(1)
+      trace.push(`execute-${index}`)
+      if (index === 1 && mode === 'revoke-tail')
+        registry.setActivationStatus('test.test_action', 'revoked')
+      return { ok: true, value: index }
+    })
+    const server = await startProviderHttpFaultServer({ respond: ({ attempt, body }) => {
+      const request = JSON.parse(body)
+      if (attempt > 1) {
+        expect(request.messages.filter((message: Message) => message.role === 'assistant' && message.tool_calls?.length)).toHaveLength(1)
+        const results = request.messages.filter((message: Message) => message.role === 'tool')
+        expect(results.map((message: Extract<Message, { role: 'tool' }>) => message.tool_call_id)).toEqual(['batch-1', 'batch-2'])
+        expect(results[0].content).toContain('"value":1')
+        expect(results[1].content).toContain(mode === 'complete' ? '"value":2' : mode === 'revoke-tail' ? 'invalid capability' : 'second action denied')
+      }
+      return { status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: encodeOpenAICompatibleSse(attempt === 1
+        ? [{ choices: [{ index: 0, delta: { tool_calls: [1, 2].map((index, position) => ({ index: position, id: `batch-${index}`, type: 'function', function: { name: 'test_action', arguments: JSON.stringify({ index }) } })) }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }]
+        : [{ choices: [{ index: 0, delta: { content: buildProviderReply(mode === 'complete' ? '两项观察已返回。' : '第一项返回了观察，第二项被阻止。') }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }]) }
+    } })
+    const prepared = createPrepared({ toolRegistry: registry, chatConfig: { apiKey: 'fixture-key', baseURL: server.baseUrl, model: 'gpt-test' }, tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: { index: { type: 'integer' } }, required: ['index'], additionalProperties: false } }, execute }] })
+    const input = createInput('检查两项并根据观察回答。', { providerRetryPolicy: { maxRetries: 0 }, prepareTurn: vi.fn(async () => prepared), turnLoop: { ...scope, persistence: database } })
+    vi.mocked(input.life.beforeAction).mockImplementation(async ({ parameters }) => {
+      const index = (parameters as { index: number }).index
+      trace.push(`admit-${index}`)
+      const check = async () => ({ expiresAt: null, capabilityId: 'test.test_action', effectId: `effect-${index}`, cardId: scope.cardId, turnId: scope.turnId })
+      return { id: `effect-${index}`, cached: null, authorizeDispatch: Object.assign(async (_parameters: unknown) => {
+        trace.push(`authorize-${index}`)
+        if (index === 2 && mode === 'deny-tail')
+          throw markActionNotStartedError(new Error('second action denied'))
+      }, { assertCurrent: check }), assertDispatchCurrent: check }
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(options => actualRunner.runAlicizationMainChatProviderStep(options))
+    try {
+      await runAlicizationMainChatBackground(input)
+      expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+      expect(execute).toHaveBeenCalledTimes(mode === 'complete' ? 2 : 1)
+      expect(trace.slice(0, 3)).toEqual(['admit-1', 'authorize-1', 'execute-1'])
+      if (mode === 'complete')
+        expect(trace).toEqual(['admit-1', 'authorize-1', 'execute-1', 'admit-2', 'authorize-2', 'execute-2'])
+      const events = await database.listRuntimeEvents(scope)
+      expect(events.filter(event => event.eventType === 'model.step.started')).toHaveLength(2)
+      expect(events.filter(event => event.eventType === 'action.settlement.completed')).toHaveLength(2)
+      expect(events.filter(event => event.eventType === 'assistant.reply.committed')).toHaveLength(1)
+      expect(events.some(event => event.eventType === 'turn.completed')).toBe(true)
+      expect(server.requests).toHaveLength(2)
+    }
+    finally {
+      await server.close()
+      await database.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  }, 30000)
+
+  it('reads a compacted observation back from SQLite over real local SSE without repeating the original action', async () => {
+    const actualRunner = await vi.importActual<typeof import('./main-chat-stream-runner')>('./main-chat-stream-runner')
+    const directory = await mkdtemp(join(tmpdir(), 'alicization-harness-receipts-'))
+    const database = await setupAlicizationDb(directory, { allowUnboundScope: true })
+    const original = `HEADER\n${'一行原始日志🙂\n'.repeat(1300)}TAIL: exact source evidence`
+    const execute = vi.fn(async () => original)
+    const scope = { cardId: 'card-1', turnId: 'turn-1', conversationId: 'conversation-1', userId: 'local-user-stable' }
+    let reference: { toolCallId: string, expectedHash: string } | undefined
+    let reconstructed = ''
+    const server = await startProviderHttpFaultServer({ respond: ({ attempt, body }) => {
+      const request = JSON.parse(body)
+      let next: { name: string, arguments: string } | null = null
+      if (attempt === 1) {
+        next = { name: 'test_action', arguments: '{}' }
+      }
+      else if (attempt === 2) {
+        const observed = request.messages.find((message: Message) => message.role === 'tool' && message.tool_call_id === 'source-call-1')
+        const compact = JSON.parse(observed.content)
+        expect(compact.type).toBe('alicization-tool-observation-reference')
+        reference = { toolCallId: compact.toolCallId, expectedHash: compact.sourceHash }
+        next = { name: 'life_read_tool_observation', arguments: JSON.stringify({ ...reference, offset: 0, maxBytes: 4096 }) }
+      }
+      else {
+        const page = JSON.parse(request.messages.filter((message: Message) => message.role === 'tool').at(-1).content)
+        if (page.ok !== true)
+          throw new Error(`Receipt page did not resolve: ${JSON.stringify(page).slice(0, 1600)}`)
+        expect(page.offset).toBe(Buffer.byteLength(reconstructed))
+        reconstructed += page.content
+        if (!page.complete)
+          next = { name: 'life_read_tool_observation', arguments: JSON.stringify({ ...reference, offset: page.nextOffset, maxBytes: 4096 }) }
+      }
+      return { status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: encodeOpenAICompatibleSse(next
+        ? [{ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: `source-call-${attempt}`, type: 'function', function: next }] }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }]
+        : [{ choices: [{ index: 0, delta: { content: buildProviderReply('原始日志已读取。') }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }]) }
+    } })
+    const registry = createCanonicalToolRegistry()
+    const reader = vi.fn(async (page: Record<string, unknown>) => readToolObservation(await database.listRuntimeEvents(scope), { ...scope, toolCallId: String(page.toolCallId), expectedHash: String(page.expectedHash), offset: Number(page.offset), maxBytes: Number(page.maxBytes) }))
+    const prepared = createPrepared({ toolRegistry: registry, chatConfig: { apiKey: 'fixture-key', baseURL: server.baseUrl, model: 'gpt-test' }, tools: [
+      { type: 'function', function: { name: 'test_action', description: 'Read the original log once', parameters: { type: 'object', properties: {} } }, execute },
+      { type: 'function', function: { name: 'life_read_tool_observation', description: 'Read a stored receipt page', parameters: registry.get('tool.life_read_tool_observation')!.inputSchema }, execute: reader },
+    ] })
+    const input = createInput('读取原始日志，逐页查看，不要重复原始操作。', { providerRetryPolicy: { maxRetries: 0 }, prepareTurn: vi.fn(async () => prepared), turnLoop: { ...scope, persistence: database }, mainGateway: { ...createInput().mainGateway, providerBudget: { contextTokens: 16384, outputReserve: 1024, completionTokenField: 'maxTokens', contextSource: 'configured' } } })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(options => actualRunner.runAlicizationMainChatProviderStep(options))
+    try {
+      await runAlicizationMainChatBackground(input)
+      const failure = vi.mocked(handleAlicizationMainChatRunFailure).mock.calls.at(-1)?.[0]?.error
+      expect(failure ? String(failure) : null, String(failure)).toBeNull()
+      expect(input.emitError).not.toHaveBeenCalled()
+      expect(execute).toHaveBeenCalledOnce()
+      expect(reader.mock.calls.length).toBeGreaterThan(2)
+      expect(reconstructed).toBe(original)
+      expect((await database.listRuntimeEvents(scope)).some(event => event.eventType === 'turn.completed')).toBe(true)
+      expect(server.requests.every(request => JSON.parse(request.body).stream === true)).toBe(true)
+    }
+    finally {
+      await server.close()
+      await database.close()
+      if (!basename(directory).startsWith('alicization-harness-receipts-'))
+        throw new Error('Refusing to retire an unowned test directory')
+      await rm(directory, { recursive: true, force: true })
+    }
+  }, 30000)
+  it('finishes an eighteen-action observed task through the production loop without the old sixteen-step failure', async () => {
+    const execute = vi.fn(async () => ({ ok: true, status: 'completed' }))
+    const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: {} } }, execute }] })
+    const input = createInput('请依次检查十八项实际结果', { prepareTurn: vi.fn(async () => prepared) })
+    let count = 0
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(async ({ messages }) => {
+      if (count === 18)
+        return { kind: 'reply', fullText: buildProviderReply('这些观察已经返回。'), text: '这些观察已经返回。', finishReason: 'stop' }
+      const id = `observed-step-${++count}`
+      messages.push({ role: 'assistant', content: '', tool_calls: [{ id, type: 'function', function: { name: 'test_action', arguments: '{}' } }] })
+      return { kind: 'action', action: { actionId: id, toolCallId: id, capabilityId: 'test.test_action', providerToolName: 'test_action', input: {} } }
+    })
+    await runAlicizationMainChatBackground(input)
+    expect(execute).toHaveBeenCalledTimes(18)
+    expect(input.life.beforeAction).toHaveBeenCalledTimes(18)
+    expect(input.life.afterAction).toHaveBeenCalledTimes(18)
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledTimes(19)
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    expect(input.emitError).not.toHaveBeenCalled()
+  })
+
+  it('removes action authority after three unchanged failed attempts while allowing an honest final reply', async () => {
+    const execute = vi.fn(async () => ({ ok: false, status: 'failed', errorCode: 'LOCAL_TARGET_UNAVAILABLE' }))
+    const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: {} } }, execute }] })
+    const input = createInput('检查这个当前目标', { prepareTurn: vi.fn(async () => prepared) })
+    let count = 0
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(async ({ messages, prepared: current }) => {
+      if (count === 3) {
+        expect(current.tools).toBeUndefined()
+        expect(current.toolChoice).toBe('none')
+        expect(String(messages.at(-1)?.content)).toContain('no further action budget')
+        return { kind: 'reply', fullText: buildProviderReply('当前目标不可用，操作没有完成。'), text: '当前目标不可用，操作没有完成。', finishReason: 'stop' }
+      }
+      const id = `failed-step-${++count}`
+      messages.push({ role: 'assistant', content: '', tool_calls: [{ id, type: 'function', function: { name: 'test_action', arguments: '{}' } }] })
+      return { kind: 'action', action: { actionId: id, toolCallId: id, capabilityId: 'test.test_action', providerToolName: 'test_action', input: {} } }
+    })
+    await runAlicizationMainChatBackground(input)
+    expect(execute).toHaveBeenCalledTimes(3)
+    expect(input.life.afterAction).toHaveBeenCalledTimes(3)
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+  })
   it.each([false, true])('preserves actual local admission-error provenance through the production life observation: %s', async (localRefusal) => {
     const execute = vi.fn(async () => {
       const error = Object.freeze(new Error('Work proposal was rejected'))
@@ -377,7 +618,7 @@ describe('main chat background run', () => {
     const tools = [{ type: 'function' as const, function: { name: 'filesystem_read_file', parameters: { type: 'object', properties: { path: { type: 'string' } } } }, execute: vi.fn() }]
     const prepared = createPrepared({ tools, messages: [{ role: 'system', content: 'Exact adopted identity' }, { role: 'system', content: JSON.stringify(memory) }, { role: 'user', content: request }] })
     const input = createInput(request, { prepareTurn: vi.fn(async () => prepared) })
-    const cost = boundLifeProviderRequest([...prepared.messages, { role: 'system', content: '{}' }], tools).report
+    const cost = boundLifeProviderRequest(prepareAgentContinuation([...prepared.messages, { role: 'system', content: '{}' }], { hasTools: true }).messages, tools).report
     input.mainGateway.providerBudget = { contextTokens: cost.beforeTokens + cost.toolTokens + 4096 + 1024 - 147, outputReserve: 4096, completionTokenField: 'maxCompletionTokens', contextSource: 'configured' }
     await runAlicizationMainChatBackground(input)
     expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
@@ -441,7 +682,7 @@ describe('main chat background run', () => {
     const execute = vi.fn()
     const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'life_execute_work_plan', parameters: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'], additionalProperties: false } }, execute }], messages: [{ role: 'system', content: 'exact adopted identity' }, { role: 'system', content: JSON.stringify(memory) }, { role: 'user', content: request }] })
     const input = createInput(request, { prepareTurn: vi.fn(async () => prepared) })
-    const initialBudget = boundLifeProviderRequest([...prepared.messages, { role: 'system', content: '{}' }], prepared.tools).report
+    const initialBudget = boundLifeProviderRequest(prepareAgentContinuation([...prepared.messages, { role: 'system', content: '{}' }], { hasTools: true }).messages, prepared.tools).report
     input.mainGateway.providerBudget = { contextTokens: initialBudget.beforeTokens + initialBudget.toolTokens + 512 + 1024 + 32, outputReserve: 512, completionTokenField: 'maxTokens', contextSource: 'configured' }
     vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(options => actual.runAlicizationMainChatProviderStep({ ...options, streamTextImpl: () => ({ fullStream: new ReadableStream({ start(controller) {
       controller.enqueue({ type: 'tool-call', toolCallId: 'rejected-candidate', toolName: 'life_execute_work_plan', arguments: { value: 'original request', capabilityBindings: [] } })
@@ -757,6 +998,61 @@ describe('main chat background run', () => {
     finally { await server.close() }
   })
 
+  it.each(['complete', 'direct', 'revoke'] as const)('runs deferred discovery through actual SQLite life receipts and SSE: %s', async (mode) => {
+    const actual = await vi.importActual<typeof import('./main-chat-stream-runner')>('./main-chat-stream-runner')
+    const directory = await mkdtemp(join(tmpdir(), 'alicization-capability-life-'))
+    const database = await setupAlicizationDb(directory, { cardId: 'card-1' })
+    const scope = { cardId: 'card-1', turnId: 'turn-1', conversationId: 'conversation-1', userId: 'local-user-stable' }
+    const execute = vi.fn(async () => ({ status: 'completed', result: 'observed archive' }))
+    const tools = Array.from({ length: 40 }, (_, index) => ({ type: 'function', function: { name: index === 39 ? 'rare_archive' : `test_catalog_${index}`, description: `${index === 39 ? 'Archive contents' : 'General utility'} ${'operation interface '.repeat(35)}`, parameters: { type: 'object', properties: {}, additionalProperties: false } }, execute }))
+    const prepared = createPrepared({ tools })
+    prepared.tools.push(...await Promise.all(createCapabilityDiscoveryTools(() => prepared.tools, prepared.toolRegistry)))
+    const steps = [{ name: capabilitySearchName, args: { query: 'archive' } }, ...(mode === 'direct' ? [] : [{ name: capabilityDescribeName, args: { names: ['rare_archive'] } }]), { name: 'rare_archive', args: {} }]
+    const server = await startProviderHttpFaultServer({ respond: ({ attempt, body }) => {
+      const offered = JSON.parse(body).tools.map((item: any) => item.function.name)
+      if (attempt === 1)
+        expect(offered).not.toContain('rare_archive')
+      if (attempt === 3 && mode === 'complete')
+        expect(offered).toContain('rare_archive')
+      const step = steps[attempt - 1]
+      return { status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: encodeOpenAICompatibleSse(step
+        ? [{ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: `discovery-${attempt}`, type: 'function', function: { name: step.name, arguments: JSON.stringify(step.args) } }] }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }]
+        : [{ choices: [{ index: 0, delta: { content: buildProviderReply('这次观察已返回。') }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }]) }
+    } })
+    prepared.chatConfig = { apiKey: 'test', baseURL: server.baseUrl, model: 'test' }
+    const life = createLifeTurnRuntime({ read: database.readLifeState, commit: database.commitLifeState, getIngress: database.getLifeIngress, getEffect: database.getLifeEffect, now: Date.now })
+    const originalAfter = life.afterAction
+    life.afterAction = async (result) => {
+      await originalAfter(result)
+      if (mode === 'revoke' && String(result.id).includes('discovery-2'))
+        prepared.toolRegistry.setActivationStatus('test.rare_archive', 'revoked')
+    }
+    const input = createInput('帮我看看刚才的内容', { life, prepareTurn: vi.fn(async () => prepared), providerRetryPolicy: { maxRetries: 0 }, turnLoop: { ...scope, persistence: database } })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(options => actual.runAlicizationMainChatProviderStep(options))
+    try {
+      await runAlicizationMainChatBackground(input)
+      expect(execute).toHaveBeenCalledTimes(mode === 'revoke' ? 0 : 1)
+      expect(server.requests).toHaveLength(mode === 'complete' ? 4 : 3)
+      const view = await database.readLifeState()
+      expect(view.effects.filter(effect => effect.kind === 'execute')).toHaveLength(mode === 'complete' ? 3 : 2)
+      expect(view.effects.filter(effect => effect.kind === 'execute').every(effect => effect.status === 'settled')).toBe(true)
+      const events = await database.listRuntimeEvents(scope)
+      expect(events.filter(event => event.eventType === 'action.settlement.completed')).toHaveLength(mode === 'complete' ? 3 : 2)
+      if (mode !== 'revoke') {
+        expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+        expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, expect.objectContaining({ status: 'completed' }))
+      }
+      else {
+        expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledOnce()
+      }
+    }
+    finally {
+      await server.close()
+      await database.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('preserves an admitted action exactly once when repairing a factual follow-up', async () => {
     const execute = vi.fn(async () => ({ status: 'completed', actual: 'one result' }))
     const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: {} } }, execute }] })
@@ -823,7 +1119,7 @@ describe('main chat background run', () => {
     const execute = vi.fn(async () => ({ status: 'completed', actual: 'one observation' }))
     const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: {} } }, execute }] })
     const input = createInput('执行这个本地操作', { prepareTurn: vi.fn(async () => prepared) })
-    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'cognition' as const, revision, contentHash: String(revision), metaKey: 'perception_state_v1' }] }))
+    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, personaDevelopment: { format: 'persona-behavior-projection-v1' as const, soulHash: null, facets: [], effects: zeroPersonaEffects() }, text: JSON.stringify({ revision }), owners: [{ owner: 'cognition' as const, revision, contentHash: String(revision), metaKey: 'perception_state_v1' }] }))
     input.reviewLifeReply = vi.fn<typeof input.reviewLifeReply>(async (options) => {
       reviews += 1
       if (mode === 'rebased' && reviews > 1) {
@@ -862,7 +1158,7 @@ describe('main chat background run', () => {
   it('keeps revoked memory evidence blocked when a review refresh revalidates the same draft', async () => {
     let revision = 1
     const input = createInput('继续刚才的记忆线', { prepareTurn: vi.fn(async () => createPrepared({ memoryContext: { workingMemory: { version: 'working-memory-v1' }, availableLongTermEvidenceIds: revision === 1 ? ['memory-known'] : [] } })) })
-    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'memory' as const, revision, contentHash: String(revision), metaKey: 'life:memory-head' }] }))
+    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, personaDevelopment: { format: 'persona-behavior-projection-v1' as const, soulHash: null, facets: [], effects: zeroPersonaEffects() }, text: JSON.stringify({ revision }), owners: [{ owner: 'memory' as const, revision, contentHash: String(revision), metaKey: 'life:memory-head' }] }))
     input.reviewLifeReply = vi.fn(async () => {
       revision = 2
       throw new LifeStateConflictError('Consumed life owner memory became stale before commit')
@@ -884,7 +1180,7 @@ describe('main chat background run', () => {
     const execute = vi.fn(async () => ({ status: 'completed', actual: 'only the returned observation' }))
     const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: {} } }, execute }] })
     const input = createInput('执行这个本地操作', { prepareTurn: vi.fn(async () => prepared) })
-    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'cognition' as const, revision, contentHash: String(revision), metaKey: 'perception_state_v1' }] }))
+    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, personaDevelopment: { format: 'persona-behavior-projection-v1' as const, soulHash: null, facets: [], effects: zeroPersonaEffects() }, text: JSON.stringify({ revision }), owners: [{ owner: 'cognition' as const, revision, contentHash: String(revision), metaKey: 'perception_state_v1' }] }))
     input.reviewLifeReply = vi.fn().mockImplementationOnce(async () => {
       revision = 2
       throw new LifeStateConflictError('Reply grounding read set is stale; context must be prepared again')
@@ -907,7 +1203,7 @@ describe('main chat background run', () => {
   it('revalidates one public reply against refreshed life state without replaying its text', async () => {
     let revision = 1
     const input = createInput()
-    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'cognition' as const, revision, contentHash: String(revision), metaKey: 'perception_state_v1' }] }))
+    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, personaDevelopment: { format: 'persona-behavior-projection-v1' as const, soulHash: null, facets: [], effects: zeroPersonaEffects() }, text: JSON.stringify({ revision }), owners: [{ owner: 'cognition' as const, revision, contentHash: String(revision), metaKey: 'perception_state_v1' }] }))
     input.reviewLifeReply = vi.fn().mockImplementationOnce(async () => {
       revision = 2
       throw new LifeStateConflictError('Reply grounding read set is stale; context must be prepared again')
@@ -932,7 +1228,7 @@ describe('main chat background run', () => {
     const execute = vi.fn(async () => ({ status: 'completed', actual: 'one observation' }))
     const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', parameters: { type: 'object', properties: {} } }, execute }] })
     const input = createInput('执行这个本地操作', { prepareTurn: vi.fn(async () => prepared) })
-    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'cognition' as const, revision, contentHash: String(revision), metaKey: 'perception_state_v1' }] }))
+    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, personaDevelopment: { format: 'persona-behavior-projection-v1' as const, soulHash: null, facets: [], effects: zeroPersonaEffects() }, text: JSON.stringify({ revision }), owners: [{ owner: 'cognition' as const, revision, contentHash: String(revision), metaKey: 'perception_state_v1' }] }))
     input.life.recordContextUse = vi.fn(async () => {
       records += 1
       if (mode === 'rebased' && records > 1)
@@ -975,7 +1271,7 @@ describe('main chat background run', () => {
     const prepared = createPrepared({ tools: [{ type: 'function', function: { name: 'test_action', description: 'Test local action', parameters: { type: 'object', properties: {} } }, execute }] })
     const prepareTurn = vi.fn(async () => prepared)
     const input = createInput('执行这个本地操作', { prepareTurn, turnLoop: { conversationId: 'conversation-1', persistence: createInMemoryPersistence(), userId: 'host' } })
-    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'habit' as const, revision, contentHash: String(revision), metaKey: 'mind-head:card-1:habit-policy' }] }))
+    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, personaDevelopment: { format: 'persona-behavior-projection-v1' as const, soulHash: null, facets: [], effects: zeroPersonaEffects() }, text: JSON.stringify({ revision }), owners: [{ owner: 'habit' as const, revision, contentHash: String(revision), metaKey: 'mind-head:card-1:habit-policy' }] }))
     input.life.beforeAction = vi.fn().mockRejectedValueOnce(new LifeStateConflictError('Consumed life owner habit became stale before commit')).mockResolvedValue({ id: 'actual-effect', cached: null, authorizeDispatch: vi.fn(async () => {}), assertDispatchCurrent: vi.fn(async () => ({ expiresAt: null })) })
     const action = (id: string) => ({ kind: 'action', action: { actionId: id, input: {}, providerToolName: 'test_action', capabilityId: 'test.test_action', toolCallId: id } })
     vi.mocked(runAlicizationMainChatProviderStep)
@@ -1014,7 +1310,7 @@ describe('main chat background run', () => {
     const prepared = createPrepared({ chatConfig: { apiKey: 'test-key', baseURL: server.baseUrl, model: 'gpt-test' }, tools: [{ type: 'function', function: { name: 'test_action', description: 'Inspect the owned request', parameters: { type: 'object', properties: {} } }, execute }] })
     const prepareTurn = vi.fn(async () => prepared)
     const input = createInput('执行这个本地操作', { prepareTurn, turnLoop: { conversationId: 'conversation-1', persistence: createInMemoryPersistence(), userId: 'host' } })
-    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, text: JSON.stringify({ revision }), owners: [{ owner: 'habit' as const, revision, contentHash: String(revision), metaKey: 'mind-head:card-1:habit-policy' }] }))
+    input.life.context = vi.fn(async () => ({ revision, growthCandidateId: null, personaDevelopment: { format: 'persona-behavior-projection-v1' as const, soulHash: null, facets: [], effects: zeroPersonaEffects() }, text: JSON.stringify({ revision }), owners: [{ owner: 'habit' as const, revision, contentHash: String(revision), metaKey: 'mind-head:card-1:habit-policy' }] }))
     input.life.beforeAction = vi.fn().mockRejectedValueOnce(new LifeStateConflictError('Consumed life owner habit became stale before commit')).mockResolvedValue({ id: 'fresh-effect', cached: null, authorizeDispatch: vi.fn(async () => {}), assertDispatchCurrent: vi.fn(async () => ({ expiresAt: null })) })
     vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(options => actual.runAlicizationMainChatProviderStep(options))
     try {
@@ -2126,7 +2422,7 @@ describe('main chat background run', () => {
 
     await runAlicizationMainChatBackground(input)
 
-    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledTimes(16)
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledTimes(agentHarnessMaxModelSteps)
     expect(commitMemoryWriteIntent).not.toHaveBeenCalled()
     expect(events.map(event => event.eventType)).toContain('runtime.timed_out')
     expect(events.map(event => event.eventType)).toContain('memory.write.rejected')

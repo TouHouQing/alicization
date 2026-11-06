@@ -1,5 +1,21 @@
 # Stage UI
 
+## Large local history
+
+Chat restoration indexes stable turn identities and legacy text/time candidates before deduplicating messages. It preserves the earliest matching message, interrupted prefixes, tool settlements and playback receipts without comparing every message against the entire session. Exact snapshot copies are matched by occurrence count, preserving timestamp-free legacy rows without multiplying them on every window restore. Bundled model IDs resolve directly to this release's assets while the imported catalogue hydrates independently.
+
+## Conversation delivery
+
+The admitted chat stream updates one message immediately. `chat/text-presentation.ts` checks order and final-prefix integrity without waiting for articulation. `conversation-output-controller.ts` separately owns speech/silent expression by card, session, turn and playback epoch. New turns, stop, pause, model changes, session changes and host disposal revoke its queued work.
+
+Automatic voice selects up to 160 source characters in natural clauses, omitting fenced code and URL destinations. Full reading uses the same admitted message, up to the existing 12,000-character reply budget. It never generates another answer. Speech settings expose automatic reading and independent silent mouth movement; `speech-noop` remains the global no-sound selection. Existing proactive quiet policy retains authority over proactive deliveries.
+
+Actual audio progress drives the caption and mouth. Adapter-provided UTF-16 word/character timings are validated; ordinary xsAI audio has no alignment timestamps and uses an explicitly estimated syllable cursor scaled to audio duration. Acoustic energy still caps mouth opening, including silence and playback gaps. Durable heard position only advances at a completed phrase, regardless of estimated visual progress.
+
+`conversation-delivery-bus.ts` uses a dedicated Eventa BroadcastChannel for bounded playback projections and read/stop controls across packaged desktop windows. It does not reuse the general speech bus's file-page local fallback. Revisions and retired epochs reject old progress. `speechDelivery` on a message caches the last projection; an active disk cache alone never resumes speech. Desktop expression receipts mark deliberate excerpts with `excerpt-only`; those receipts cannot satisfy whole-message or voice-reminder delivery proofs.
+
+Validation covers source selection, independent reading, real audio clocks, stale events, Live2D acoustic gating, cross-window ownership, and restart-safe delivery proof. Desktop product acceptance supports `LIFE_PRODUCT_CONVERSATION_DELIVERY=1` with the existing owned background Live2D runner.
+
 Visible text holds one dialogue expression over the latest resident emotional state until delivery ends or is interrupted. Resident updates continue underneath it. The existing chat stream relays embodiment metadata to the stage in the same ordered, session and generation bound channel as visible glyphs; it omits retained prompt history, rejects cancelled or foreign turns and does not echo remote events. Card, pause, renderer and speech-mode changes revoke transient text presentation. Audio still derives timing and playback outcomes from its own real source.
 
 Header metadata prepares the face while suppressing a gesture. The first actual visible glyph admits that prepared text performance once; subsequent glyphs and metadata updates preserve the one-action limit. An action-admission change participates in performance deduplication so an immediate first glyph cannot lose its gesture to the preparation frame's short deduplication window.

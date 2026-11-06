@@ -1683,7 +1683,7 @@ describe('main chat stream runner', () => {
     expect(releaseLock).toHaveBeenCalledOnce()
   })
 
-  it('disables parallel tool calls in the Provider request', async () => {
+  it('allows multi-call proposals while retaining single-step execution ownership', async () => {
     const streamTextImpl = vi.fn(() => ({
       fullStream: new ReadableStream({
         start(controller) {
@@ -1727,7 +1727,7 @@ describe('main chat stream runner', () => {
     })
 
     expect(streamTextImpl).toHaveBeenCalledWith(expect.objectContaining({
-      parallelToolCalls: false,
+      parallelToolCalls: true,
     }))
   })
 
@@ -2028,7 +2028,7 @@ describe('main chat stream runner', () => {
     },
   )
 
-  it('fails transparently when a Provider emits a second tool call in one step', async () => {
+  it('accepts a fully validated multi-tool batch without executing any proposal', async () => {
     const emitToolCall = vi.fn()
 
     await expect(runAlicizationMainChatProviderStep({
@@ -2073,10 +2073,8 @@ describe('main chat stream runner', () => {
           },
         }),
       }),
-    })).rejects.toMatchObject({
-      code: 'chat-provider-parallel-tool-calls',
-    })
-    expect(emitToolCall).not.toHaveBeenCalled()
+    })).resolves.toMatchObject({ kind: 'actions', actions: [{ toolCallId: 'parallel-tool-call-1' }, { toolCallId: 'parallel-tool-call-2' }] })
+    expect(emitToolCall).toHaveBeenCalledTimes(2)
   })
 
   it.each(['single', 'parallel', 'missing'] as const)('drains actual xsAI proposals after wire finish and enforces the %s boundary', async (mode) => {
@@ -2112,12 +2110,51 @@ describe('main chat stream runner', () => {
         await expect(result).resolves.toMatchObject({ kind: 'action', action: { toolCallId: 'after-finish-0', providerToolName: 'inspect', input: {} } })
         expect(emitToolCall).toHaveBeenCalledOnce()
       }
+      else if (mode === 'parallel') {
+        await expect(result).resolves.toMatchObject({ kind: 'actions', actions: [{ toolCallId: 'after-finish-0' }, { toolCallId: 'after-finish-1' }] })
+        expect(emitToolCall).toHaveBeenCalledTimes(2)
+      }
       else {
-        await expect(result).rejects.toMatchObject({ code: mode === 'parallel' ? 'chat-provider-parallel-tool-calls' : 'chat-provider-tool-call-missing' })
+        await expect(result).rejects.toMatchObject({ code: 'chat-provider-tool-call-missing' })
         expect(emitToolCall).not.toHaveBeenCalled()
       }
       expect(server.requests).toHaveLength(1)
       // xsAI receives proposal stubs; only the EventLoop may admit execution.
+      expect(execute).not.toHaveBeenCalled()
+    }
+    finally { await server.close() }
+  })
+
+  it.each(['empty-content', 'coalesced-tools', 'missing', 'length', 'content_filter'] as const)('checks actual xsAI settled finish metadata for %s without executing proposals', async (mode) => {
+    const execute = vi.fn()
+    const emitToolCall = vi.fn()
+    const call = { index: 0, id: 'coalesced-call', type: 'function', function: { name: 'inspect', arguments: '{}' } }
+    const reason = mode === 'missing' ? null : mode === 'length' || mode === 'content_filter' ? mode : 'tool_calls'
+    const chunks = mode === 'coalesced-tools'
+      ? [{ choices: [{ index: 0, delta: { tool_calls: [call] }, finish_reason: reason }] }]
+      : [{ choices: [{ index: 0, delta: { tool_calls: [call] }, finish_reason: null }] }, { choices: [{ index: 0, delta: { content: '' }, finish_reason: reason }] }]
+    const server = await startProviderHttpFaultServer({ respond: () => ({ status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: encodeOpenAICompatibleSse(chunks) }) })
+    try {
+      const result = runAlicizationMainChatProviderStep({
+        payload: { cardId: 'card-1', turnId: `coalesced-${mode}`, providerId: 'openai-compatible' } as any,
+        prepared: createPrepared({ chatConfig: { apiKey: 'test', baseURL: server.baseUrl, model: 'test' }, tools: [{ type: 'function', function: { name: 'inspect', parameters: { type: 'object', properties: {}, additionalProperties: false } }, execute }] }),
+        messages: [{ role: 'user', content: 'Inspect once.' }],
+        controller: new AbortController(),
+        firstEventTimeoutMs: 1000,
+        providerContinuationTimeoutMs: 1000,
+        providerRetryPolicy: { maxRetries: 0 },
+        isRunActive: () => true,
+        nonProgressEventTypes: new Set(),
+        emitToolCall,
+      })
+      if (mode === 'empty-content' || mode === 'coalesced-tools') {
+        await expect(result).resolves.toMatchObject({ kind: 'action', action: { toolCallId: call.id, input: {} } })
+        expect(emitToolCall).toHaveBeenCalledOnce()
+      }
+      else {
+        await expect(result).rejects.toMatchObject({ code: mode === 'missing' ? 'chat-provider-finish-missing' : 'chat-provider-tool-batch-incomplete' })
+        expect(emitToolCall).not.toHaveBeenCalled()
+      }
       expect(execute).not.toHaveBeenCalled()
     }
     finally { await server.close() }
@@ -2149,7 +2186,33 @@ describe('main chat stream runner', () => {
     finally { await server.close() }
   })
 
-  it('rejects a second proposal after finish even when a first proposal preceded finish', async () => {
+  it.each(['invalid-tail', 'duplicate', 'over-budget', 'length', 'content_filter'] as const)('admits no partial batch after %s', async (mode) => {
+    const messages: any[] = []
+    const emitToolCall = vi.fn()
+    const result = runAlicizationMainChatProviderStep({
+      payload: { cardId: 'card-1', turnId: `batch-${mode}` } as any,
+      prepared: createPrepared({ tools: [{ type: 'function', function: { name: 'inspect', parameters: { type: 'object', properties: {}, additionalProperties: false } } }] }),
+      messages,
+      maxToolCalls: mode === 'over-budget' ? 1 : 8,
+      controller: new AbortController(),
+      firstEventTimeoutMs: 1000,
+      providerRetryPolicy: { maxRetries: 0 },
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set(),
+      emitToolCall,
+      streamTextImpl: () => ({ fullStream: new ReadableStream({ start(controller) {
+        controller.enqueue({ type: 'tool-call', toolCallId: 'first', toolName: 'inspect', arguments: {} })
+        controller.enqueue({ type: 'tool-call', toolCallId: mode === 'duplicate' ? 'first' : 'second', toolName: 'inspect', arguments: mode === 'invalid-tail' ? '{' : {} })
+        controller.enqueue({ type: 'finish', finishReason: ['length', 'content_filter'].includes(mode) ? mode : 'tool_calls' })
+        controller.close()
+      } }) }),
+    })
+    await expect(result).rejects.toThrow()
+    expect(messages).toEqual([])
+    expect(emitToolCall).not.toHaveBeenCalled()
+  })
+
+  it('drains the whole batch when a second proposal follows wire finish', async () => {
     const emitToolCall = vi.fn()
     await expect(runAlicizationMainChatProviderStep({
       payload: { cardId: 'card-1', turnId: 'late-second-proposal' } as any,
@@ -2167,15 +2230,15 @@ describe('main chat stream runner', () => {
         controller.enqueue({ type: 'tool-call', toolCallId: 'second', toolName: 'inspect', arguments: {} })
         controller.close()
       } }) }),
-    })).rejects.toMatchObject({ code: 'chat-provider-parallel-tool-calls' })
-    expect(emitToolCall).not.toHaveBeenCalled()
+    })).resolves.toMatchObject({ kind: 'actions', actions: [{ toolCallId: 'first' }, { toolCallId: 'second' }] })
+    expect(emitToolCall).toHaveBeenCalledTimes(2)
   })
 
-  it('returns a tool action when the Provider closes after a tool result without a finish event', async () => {
+  it('rejects a tool proposal from a stream without a finish event', async () => {
     const toolCallId = 'tool-action-without-finish'
     const emitToolCall = vi.fn()
 
-    const result = await runAlicizationMainChatProviderStep({
+    const result = runAlicizationMainChatProviderStep({
       payload: {
         cardId: 'card-1',
         turnId: 'turn-tool-action-without-finish',
@@ -2227,25 +2290,8 @@ describe('main chat stream runner', () => {
       }),
     })
 
-    expect(result).toMatchObject({
-      kind: 'action',
-      action: {
-        toolCallId,
-        providerToolName: 'codex',
-        input: {
-          prompt: '检查当前仓库',
-        },
-      },
-    })
-    expect(emitToolCall).toHaveBeenCalledWith({
-      cardId: 'card-1',
-      turnId: 'turn-tool-action-without-finish',
-      toolCallId,
-      toolName: 'codex',
-      arguments: {
-        prompt: '检查当前仓库',
-      },
-    })
+    await expect(result).rejects.toMatchObject({ code: 'chat-provider-finish-missing' })
+    expect(emitToolCall).not.toHaveBeenCalled()
   })
 
   it('consumes the xsAI fullStream in order when the provider does not use onEvent', async () => {

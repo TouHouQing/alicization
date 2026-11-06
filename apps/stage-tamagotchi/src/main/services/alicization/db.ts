@@ -98,7 +98,7 @@ import type {
   AlicizationWorkingMemoryCleaningQueueItem,
   AlicizationWorkingMemoryCleaningQueueResult,
 } from '../../../shared/eventa'
-import type { LifeCommitInput, LifeCommitReceipt, LifeFactVersion, LifeOwner, LifeStateReadScope, LifeStateView } from '../../../shared/life-contracts'
+import type { LifeCommitInput, LifeCommitReceipt, LifeFactVersion, LifeIngress, LifeOwner, LifeStateReadScope, LifeStateView } from '../../../shared/life-contracts'
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
 import type {
   WorkingMemoryLongTermCleaningStatus,
@@ -202,6 +202,8 @@ import * as v from 'valibot'
 
 import sqlite3 from './sqlite3-runtime'
 
+import { assertRetrievedDialogue } from './agent-harness/retrieved-dialogue-proof'
+import { buildSessionSearchQuery, initializeSessionSearchIndex } from './agent-harness/session-search-index'
 import { executionDigest } from './execution/acceptance-compiler'
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
 import { createAlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
@@ -220,6 +222,7 @@ import {
 } from './life-core/working-memory-long-term-cleaning'
 import { createWorkingMemoryLongTermCleaningStoreRuntime } from './life-core/working-memory-long-term-cleaning-store'
 import { projectWorkingMemoryLongTermCandidate } from './life-core/working-memory-long-term-projection'
+import { withdrawnWorkingMemorySourcesSql, workingMemorySourceTurnIds } from './life-core/working-memory-sources'
 import { parseLifeFactValidity } from './life-fact-validity'
 import { retrieveLifeHistoricalFacts } from './life-historical-recall'
 import { assertLifeInputReadSet, lifeInputReadAssertion, lifeInputReadSetSchema } from './life-input-read-set'
@@ -1945,12 +1948,18 @@ async function loadLatestEpisodicReconsolidationOverlayByEventId(
 }
 
 export interface AlicizationDbService {
+  readOpenAgentProviderRequests: (limit: number) => Promise<LifeIngress[]>
+  readRecentAgentEntries: (source: string, limit: number) => Promise<{ cardId: string, entries: LifeIngress[] }>
+  searchAgentConversationTurns: (input: import('./agent-harness/session-search').SessionSearchInput) => Promise<import('./agent-harness/session-search').SessionTurnRow[]>
+  readAgentConversationTurn: (id: string) => Promise<import('./agent-harness/session-search').SessionTurnRow | null>
   snapshotLifeDatabase: (path: string) => Promise<void>
   commitLifeState: (input: LifeCommitInput, options?: DbWriteOptions) => Promise<LifeCommitReceipt>
   readLifeClosure: (turnId: string) => Promise<import('../../../shared/life-closure-contracts').LifeClosureRecord>
   readLifeTurnExecutionEffects: (turnId: string) => Promise<import('../../../shared/life-contracts').LifeEffect[]>
   readPendingLifeExecutionEffects: () => Promise<import('../../../shared/life-contracts').LifeEffect[]>
   readLifeState: (input?: LifeStateReadScope) => Promise<LifeStateView>
+  readPersonaSources: (facetId: string, version: number) => Promise<import('../../../shared/persona-development-contracts').PersonaSourcePreview[]>
+  readPersonaLearningEvidence: () => Promise<import('./persona-development/runtime').PersonaExtractionSource[]>
   readLifeObligationHistory: (input: import('../../../shared/life-history-contracts').LifeObligationHistoryRequest) => Promise<import('../../../shared/life-history-contracts').LifeObligationHistoryPage>
   getLifeIngress: (id: string) => Promise<import('../../../shared/life-contracts').LifeIngress | null>
   readLifeIngressPage: (input: { source: string, afterId?: string, limit?: number }) => Promise<{ cardId: string, entries: import('../../../shared/life-contracts').LifeIngress[], next: string | null }>
@@ -2007,6 +2016,8 @@ export interface AlicizationDbService {
     cursor?: string | null
   }) => Promise<AlicizationMemoryReplaySessionListResult>
   upsertWorkingMemoryCheckpoint: (snapshot: WorkingMemorySnapshot) => Promise<void>
+  replaceWorkingMemoryCheckpoint: (expected: WorkingMemorySnapshot, next: WorkingMemorySnapshot) => Promise<boolean>
+  workingMemorySourcesCurrent: (snapshot: WorkingMemorySnapshot) => Promise<boolean>
   clearWorkingMemoryCheckpoints: (cardId?: string, sessionId?: string) => Promise<void>
   listConversationTurnsSince: (sinceExclusive: number, options?: { cardId?: string, limit?: number }) => Promise<Array<{
     turnId: string | null
@@ -3830,6 +3841,11 @@ export async function setupAlicizationDb(
       `)
     })
 
+    await runInTransaction(database, () => initializeSessionSearchIndex({
+      run: (sql, parameters) => run(database, sql, parameters),
+      get: (sql, parameters) => get(database, sql, parameters),
+    }))
+
     await run(database, `
       CREATE TABLE IF NOT EXISTS alicization_runtime_events (
         event_id TEXT PRIMARY KEY,
@@ -4490,7 +4506,7 @@ export async function setupAlicizationDb(
         const audit = await get<{ payload_ref_json: string, payload_hash: string }>(database, `SELECT payload_ref_json, payload_hash FROM life_ingress WHERE card_id = ? AND ingress_id = ? AND source = 'reply-grounding' AND status = 'settled'`, [cardId, input.lifeReplyFence.reviewId])
         if (!audit || createHash('sha256').update(audit.payload_ref_json).digest('hex') !== audit.payload_hash)
           throw new Error('Reply publication has no intact grounding audit')
-        const reviewed = JSON.parse(audit.payload_ref_json) as { accepted: boolean, turnId: string, textHash: string, sourceInputReadSet: unknown, requestedIntervalHash?: string | null, readOnlyTurnScopeHash?: string | null, claims: Array<{ kind: string, quote: string, binding: { kind: string, id: string, version: string } | null, meaningMatchesBinding: boolean }> }
+        const reviewed = JSON.parse(audit.payload_ref_json) as { accepted: boolean, turnId: string, textHash: string, sourceInputReadSet: unknown, retrievedConversationSources?: unknown, requestedIntervalHash?: string | null, readOnlyTurnScopeHash?: string | null, claims: Array<{ kind: string, quote: string, binding: { kind: string, id: string, version: string } | null, meaningMatchesBinding: boolean }> }
         const textHash = createHash('sha256').update(assistantText).digest('hex')
         if (reviewed.accepted !== true || reviewed.turnId !== turnId || reviewed.textHash !== textHash)
           throw new Error('Reply publication differs from its accepted semantic review')
@@ -4500,6 +4516,7 @@ export async function setupAlicizationDb(
         // Validate before idempotent commit handling too: an earlier publication
         // does not authorize speaking again after its source has been held.
         await assertLifeInputReadSet({ cardId, get: <T>(sql: string, params?: unknown[]) => get<T>(database, sql, params) }, sourceReadSet.output)
+        await assertRetrievedDialogue(<T>(sql: string, parameters: unknown[]) => get<T>(database, sql, parameters), cardId, reviewed.retrievedConversationSources ?? [])
         if (reviewed.readOnlyTurnScopeHash) {
           const scope = lifeReadOnlyTurnScope(await lifeStateStore.getTurnExecutionEffectsInside(turnId), turnId)
           if (!scope || scope.fingerprint !== reviewed.readOnlyTurnScopeHash)
@@ -5499,6 +5516,24 @@ export async function setupAlicizationDb(
         ],
       )
     })
+  }
+
+  async function workingMemorySourcesCurrent(snapshot: WorkingMemorySnapshot) {
+    const cardId = resolveMemoryCardId(snapshot.cardId, 'working memory source validation')
+    const ids = workingMemorySourceTurnIds(snapshot)
+    return !await get(database, withdrawnWorkingMemorySourcesSql, [JSON.stringify(ids), cardId, cardId])
+  }
+
+  async function replaceWorkingMemoryCheckpoint(expected: WorkingMemorySnapshot, next: WorkingMemorySnapshot) {
+    const cardId = resolveMemoryCardId(expected.cardId, 'working memory compaction')
+    if (next.cardId !== cardId || next.sessionId !== expected.sessionId || next.updatedAt !== expected.updatedAt)
+      throw new Error('Working memory compaction crossed its checkpoint boundary')
+    return enqueueWrite(() => runInTransaction(database, async () => {
+      if (!await workingMemorySourcesCurrent(expected))
+        return false
+      const result = await run(database, `UPDATE working_memory_checkpoints SET snapshot_json = ? WHERE card_id = ? AND session_id = ? AND snapshot_json = ?`, [serializeWorkingMemoryCheckpoint(next), cardId, expected.sessionId, serializeWorkingMemoryCheckpoint(expected)])
+      return result.changes === 1
+    }))
   }
 
   async function clearWorkingMemoryCheckpoints(cardIdRaw?: string, sessionIdRaw?: string) {
@@ -16246,11 +16281,34 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
   if (!readOnly)
     lifeReader = await openDatabase(dbPath, options?.sqliteDriver, { readOnly: true })
+  const agentConversationProjection = 'turn.id, turn.turn_id AS turnId, turn.session_id AS sessionId, turn.user_text AS userText, turn.assistant_text AS assistantText, turn.structured_json AS structuredJson, turn.created_at AS createdAt'
+  const agentConversationFrom = `conversation_turns AS turn JOIN life_ingress AS ingress ON ingress.card_id = turn.card_id AND ingress.ingress_id = 'user:' || turn.turn_id AND ingress.kind = 'user-turn' AND ingress.source = 'dialogue' AND ingress.status = 'settled'`
   return {
     dbPath,
+    readOpenAgentProviderRequests: async (limit) => {
+      if (!Number.isInteger(limit) || limit < 1 || limit > 64)
+        throw new Error('Provider recovery lookup exceeded its budget')
+      const rows = await all<{ id: string }>(lifeReader ?? database, `SELECT started.ingress_id AS id FROM life_ingress AS started WHERE started.card_id=? AND started.source='agent-provider-usage-started' AND NOT EXISTS (SELECT 1 FROM life_ingress AS finished WHERE finished.card_id=started.card_id AND finished.ingress_id=substr(started.ingress_id,1,length(started.ingress_id)-7)||'settled' AND finished.source='agent-provider-usage-settled' AND finished.status='settled') ORDER BY started.occurred_at LIMIT ?`, [boundCardId, limit])
+      const entries = await Promise.all(rows.map(row => lifeStateStore.getIngress(row.id)))
+      return entries.filter((entry): entry is LifeIngress => !!entry)
+    },
+    readRecentAgentEntries: async (source, limit) => {
+      if (!source.startsWith('agent-') || source.length > 128 || !Number.isInteger(limit) || limit < 1 || limit > 64)
+        throw new Error('Agent journal lookup exceeded its scope or budget')
+      const rows = await all<{ id: string }>(lifeReader ?? database, `SELECT ingress_id AS id FROM life_ingress WHERE card_id=? AND source=? AND status='settled' ORDER BY occurred_at DESC, rowid DESC LIMIT ?`, [boundCardId, source, limit])
+      const entries = await Promise.all(rows.reverse().map(row => lifeStateStore.getIngress(row.id)))
+      return { cardId: boundCardId, entries: entries.filter((entry): entry is LifeIngress => !!entry) }
+    },
+    searchAgentConversationTurns: async (input) => {
+      const query = buildSessionSearchQuery(boundCardId, input)
+      return all<import('./agent-harness/session-search').SessionTurnRow>(lifeReader ?? database, query.sql, query.parameters)
+    },
+    readAgentConversationTurn: async id => await get<import('./agent-harness/session-search').SessionTurnRow>(lifeReader ?? database, `SELECT ${agentConversationProjection} FROM ${agentConversationFrom} WHERE turn.card_id = ? AND turn.id = ?`, [boundCardId, id]) ?? null,
     snapshotLifeDatabase: (path: string) => enqueueWrite(async () => { await run(database, 'VACUUM INTO ?', [sqliteFileSystemPath(path)]) }),
     commitLifeState: lifeStateStore.commit,
     readLifeState: lifeStateStore.read,
+    readPersonaSources: lifeStateStore.readPersonaSources,
+    readPersonaLearningEvidence: lifeStateStore.readPersonaLearningEvidence,
     readLifeObligationHistory: lifeStateStore.readObligationHistory,
     readLifeTurnExecutionEffects: lifeStateStore.getTurnExecutionEffects,
     readPendingLifeExecutionEffects: lifeStateStore.getPendingExecutionEffects,
@@ -16270,7 +16328,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       const ids = normalizeStringArray(turnIds, 500)
       if (!ids.length)
         return new Set<string>()
-      const rows = await all<{ turn_id: string }>(lifeReader ?? database, `SELECT DISTINCT turn_id FROM life_expression_receipts WHERE card_id = ? AND presentation_verified = 1 AND (state = 'rendered' OR (state = 'audio-ended' AND segment_id = 'utterance')) AND turn_id IN (${ids.map(() => '?').join(',')})`, [cardId, ...ids])
+      const rows = await all<{ turn_id: string }>(lifeReader ?? database, `SELECT DISTINCT turn_id FROM life_expression_receipts WHERE card_id = ? AND presentation_verified = 1 AND (state = 'rendered' OR (state = 'audio-ended' AND segment_id = 'utterance' AND error_code IS NULL)) AND turn_id IN (${ids.map(() => '?').join(',')})`, [cardId, ...ids])
       return new Set(rows.map(row => row.turn_id))
     },
     hasPublishedLifeTurn: async (cardId, turnId) => {
@@ -16325,6 +16383,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     listWorkingMemoryCheckpoints,
     listMemoryWorkbenchReplaySessions,
     upsertWorkingMemoryCheckpoint,
+    replaceWorkingMemoryCheckpoint,
+    workingMemorySourcesCurrent,
     clearWorkingMemoryCheckpoints,
     listConversationTurnsSince,
     listConversationTurnsBySession,

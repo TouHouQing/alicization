@@ -29,7 +29,7 @@ export async function readLifeDomains(tx: Pick<LifeTransaction, 'all' | 'cardId'
   }
   return {
     execution,
-    soulActivations: (await tx.all<LifeSoulActivation & { authorization: string }>(`SELECT operation_id AS id, base_hash AS baseHash, target_hash AS targetHash, staged_relative_path AS stagedPath, backup_relative_path AS backupPath, source_refs_json AS authorization, status, target_soul_revision AS soulRevision FROM life_soul_activation_intents WHERE card_id = ? AND status IN ('prepared','file-replaced','conflicted') ORDER BY created_at`, [tx.cardId])).map(({ authorization, ...intent }) => { const parsed = JSON.parse(authorization); return { ...intent, ...(parsed?.proposalId ? { personaAuthorization: parsed } : {}) } }),
+    soulActivations: (await tx.all<LifeSoulActivation & { authorization: string }>(`SELECT operation_id AS id, base_hash AS baseHash, target_hash AS targetHash, staged_relative_path AS stagedPath, backup_relative_path AS backupPath, source_refs_json AS authorization, status, target_soul_revision AS soulRevision FROM life_soul_activation_intents WHERE card_id = ? AND status IN ('prepared','file-replaced','conflicted') ORDER BY created_at`, [tx.cardId])).map(({ authorization, ...intent }) => { const parsed = JSON.parse(authorization); return { ...intent, ...(parsed?.proposalId ? { personaAuthorization: parsed } : {}), ...(parsed?.developmentId ? { developmentAuthorization: parsed } : {}) } }),
     obligations: obligations.map(row => mapLifeObligation(tx.cardId, row)),
     ingress: ingress.map(mapLifeIngress),
     effects: effects.map(mapLifeEffect),

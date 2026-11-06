@@ -17,6 +17,8 @@ import { Download } from '@proj-airi/unplugin-fetch'
 import { DownloadLive2DSDK } from '@proj-airi/unplugin-live2d-sdk'
 import { defineConfig } from 'electron-vite'
 
+import { agentRuntimeAssets } from './build/agent-runtime-assets'
+
 const appNodeModulesDir = resolve(join(import.meta.dirname, 'node_modules'))
 const workspaceRoot = resolve(join(import.meta.dirname, '..', '..'))
 const stageUIAssetsRoot = resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src', 'assets'))
@@ -72,6 +74,7 @@ export default defineConfig({
       },
     },
     plugins: [
+      agentRuntimeAssets(),
       Yaml(),
 
       {

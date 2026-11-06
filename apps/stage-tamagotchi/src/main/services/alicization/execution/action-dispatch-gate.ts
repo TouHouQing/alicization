@@ -10,6 +10,7 @@ import { actionResponsibility } from './action-responsibility'
 import { mainFilesystemDispatchInput } from './filesystem-dispatch-input'
 import { mainFilesystemMutationDispatchInput } from './filesystem-mutation-input'
 import { executionOperationResources, recordedExecutionResources } from './uncertain-resource-fence'
+import { assertWorkSchedule } from './work-schedule'
 
 /** A main-owned, single-use dispatch gate; target-specific approval remains in each adapter. */
 export function createActionDispatchGate(options: {
@@ -56,6 +57,11 @@ export function createActionDispatchGate(options: {
     if (ingress && !['accepted', 'processing'].includes(ingress.status))
       throw new Error('Action source was ended or withdrawn before adapter dispatch')
     const currentResponsibility = actionResponsibility({ view, ingress: ingress ?? await options.getIngress(options.turnId), turnId: options.turnId, actionId: options.actionId })
+    if (currentResponsibility.kind === 'work-step') {
+      const plan = view.execution?.plans.find(plan => plan.id === currentResponsibility.planId)
+      if (plan)
+        await assertWorkSchedule(options.getIngress, plan, (options.now ?? Date.now)())
+    }
     if (responsibilityHash !== executionDigest(currentResponsibility))
       throw new Error('Action responsibility changed before adapter dispatch')
     options.signal.throwIfAborted()

@@ -4,6 +4,7 @@ import type { LifeCommitInput, LifeCommitReceipt, LifeFactVersion, LifeOwner, Li
 import type { LifePolicyCommand, LifePolicyEvaluation } from '../../../shared/life-policy-contracts'
 import type { PersonaTrainingDatasetExample } from './persona-training-dataset-runtime'
 
+import { isLifeBehaviorExampleEligible } from './life-behavior-example-policy'
 import { parseLifeGrowthSnapshot } from './life-growth-repository'
 import { fingerprintLifePolicyCandidate, fingerprintPolicyGold } from './life-policy-evaluation'
 import { projectLifePolicyContext, replayLifePolicyShadow } from './life-policy-shadow-replay'
@@ -39,7 +40,7 @@ export function createLifePolicyDevelopmentRuntime(options: {
       throw new Error('Policy evaluation is held behind foreground work')
     running = true
     try {
-      const examples = (await options.examples()).filter(example => example.state === 'staged' && example.piiStatus === 'clear' && example.allowTraining && example.consentSnapshot.granted && example.provenance?.kind === 'working-memory-cleaning').slice(0, 3)
+      const examples = (await options.examples()).filter(isLifeBehaviorExampleEligible).slice(0, 3)
       const gold = (await options.gold()).filter(gold => gold.cardId === input.cardId && gold.humanConfirmed && gold.query.trim() && gold.query.length <= 4000).slice(0, 3)
       if (examples.length < 3 || gold.length < 3)
         throw new Error('Three cleaned behavior examples and three human gold cases are required')

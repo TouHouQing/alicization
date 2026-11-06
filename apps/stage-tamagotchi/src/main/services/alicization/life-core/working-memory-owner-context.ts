@@ -13,6 +13,7 @@ import {
   uniqueWorkingMemoryTexts,
 } from './working-memory'
 import { buildWorkingMemoryLongTermCandidateQueue } from './working-memory-long-term-queue'
+import { selectWorkingMemoryTimeline } from './working-memory-retention'
 
 export interface WorkingMemoryOwnerContext {
   version: 'working-memory-owner-context-v1'
@@ -40,6 +41,8 @@ export interface WorkingMemoryOwnerContext {
     corrections: string[]
     importance: number
     createdAt: number
+    evidence?: WorkingMemorySnapshot['compressedTimeline'][number]['evidence']
+    method?: WorkingMemorySnapshot['compressedTimeline'][number]['method']
   }>
   obligations: string[]
   queryHints: string[]
@@ -111,17 +114,17 @@ function buildOwnerObligations(snapshot: WorkingMemorySnapshot) {
 }
 
 function buildOwnerCompressedTimeline(snapshot: WorkingMemorySnapshot): WorkingMemoryOwnerContext['compressedTimeline'] {
-  return snapshot.compressedTimeline
-    .slice(-8)
+  return selectWorkingMemoryTimeline(snapshot, 8)
     .map(episodelet => ({
       id: compactInternalStructuredFact(episodelet.id, 180),
-      sourceTurnIds: uniqueWorkingMemoryTexts(episodelet.sourceTurnIds, 40, 120),
-      summary: compactInternalStructuredFact(episodelet.summary, 520),
+      sourceTurnIds: uniqueWorkingMemoryTexts(episodelet.sourceTurnIds, 128, 160),
+      summary: compactInternalStructuredFact(episodelet.summary, 1800),
       thread: compactInternalStructuredFact(episodelet.thread, 220) || null,
       commitments: uniqueInternalStructuredFactLines(episodelet.commitments, 6),
       corrections: uniqueInternalStructuredFactLines(episodelet.corrections, 6),
       importance: Math.max(0, Math.min(1, numberOrZero(episodelet.importance))),
       createdAt: numberOrZero(episodelet.createdAt),
+      ...(episodelet.evidence ? { evidence: episodelet.evidence, method: episodelet.method } : {}),
     }))
     .filter(episodelet => episodelet.summary || episodelet.commitments.length > 0 || episodelet.corrections.length > 0)
 }

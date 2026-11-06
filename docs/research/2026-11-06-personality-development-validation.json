@@ -1,0 +1,3374 @@
+{
+  "format": "personality-development-validation-v1",
+  "recordedAt": "2026-11-05T18:44:32.479591+00:00",
+  "head": "45f74b07740e44eda1bc92252932a74c952355d8",
+  "includesUncommittedWork": true,
+  "scope": "P0-P9 engineered personality development; real 14-day longitudinal use is pending",
+  "regression": {
+    "uniqueCases": 546,
+    "passedAfterVerifiedReruns": 546,
+    "unresolvedFailures": 0,
+    "untestedCases": 0,
+    "files": 46,
+    "reports": [
+      "output/personality-verified-regression.json",
+      "output/personality-real-rechecks.json",
+      "output/personality-extraction-verified.json"
+    ],
+    "method": "Union of the full selected suite and actually passed isolated reruns, keyed by file/fullName; filtered tests are not counted as executed. Original failing reports are retained."
+  },
+  "typecheck": {
+    "scope": "all workspace applications/packages",
+    "passed": true,
+    "log": "output/personality-workspace-types-verified.log",
+    "postDiagnosticsNodeCheck": {
+      "passed": true,
+      "log": "output/personality-node-types-post-diagnostics.log"
+    }
+  },
+  "lint": {
+    "workspaceErrors": 0,
+    "workspaceWarningsRetained": 1212,
+    "workspaceLog": "output/personality-workspace-lint-verified.log",
+    "newModulesErrors": 0,
+    "newModulesWarnings": 0,
+    "newModulesLog": "output/personality-new-modules-lint-verified.log"
+  },
+  "scale": {
+    "scope": "100000 independently identified synthetic reviewed reflections and matching provenance rows in real SQLite; no model quality or elapsed-day claim",
+    "witnesses": 100000,
+    "decisionWindow": 128,
+    "representedDays": 16,
+    "reviewMs": 52.06439999999975,
+    "passed": true
+  },
+  "product": {
+    "passed": true,
+    "checks": 18,
+    "report": "output\\playwright\\persona-growth-packaged-20261106\\report.json",
+    "inspection": "output\\playwright\\persona-growth-packaged-20261106\\persona-growth-after-shutdown.json",
+    "actualConsumedTrials": 1,
+    "renderer": "live2d",
+    "backgroundViewport": true,
+    "historicalSupport": "synthetic; not actual elapsed days"
+  },
+  "package": {
+    "scope": "QA identity with current compiled production entry",
+    "executable": "C:\\Users\\Administrator\\Desktop\\git\\alicization\\apps\\stage-tamagotchi\\dist\\life-installer-qa-20261106-42d14862\\win-unpacked\\alicization-lifeqa-20261106-42d14862.exe",
+    "exeSha256": "bdef9b4b2c251546625a18a00bc841e03efb02a0c07eef19adee4b6fa7dd75d4",
+    "asarSha256": "3d8623bc7bf850c23e0b6a503baa7a6adda6cf374ab8e250ea7a4d891b785f6b",
+    "compiledMainSha256": "4fdabea2b7e2c1fec8ce1a50cf4bba900a850d066961e67fdbc833db10a90a8b"
+  },
+  "sourceSnapshot": {
+    "files": 2895,
+    "sha256": "a8689c01001c1d0b78d4a53517735c6732c3d9ccbc5f8226960afa2b8e745ac5",
+    "manifest": "output/personality-source-snapshot.json"
+  },
+  "longitudinal": {
+    "actualFourteenDayTrial": "pending",
+    "reason": "Historical fixture dates and short tests do not establish elapsed real-world use"
+  },
+  "cleanup": {
+    "state": "blocked-by-automatic-approval-review",
+    "reason": "blocked by policy",
+    "credentialsRemoved": true,
+    "nativeExitVerified": true,
+    "retainedProfiles": [
+      "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\alicization-life-product-regression-Qobe9T",
+      "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\alicization-life-product-regression-9mSEO9"
+    ]
+  },
+  "cases": [
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-episode-sync.test.ts",
+      "test": "autobiographical episode sync does not duplicate an unchanged ripe recollection",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-episode-sync.test.ts",
+      "test": "autobiographical episode sync does not persist blocked task-thread diagnostics as autobiographical memory",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-episode-sync.test.ts",
+      "test": "autobiographical episode sync does not persist cancelled task-thread diagnostics as autobiographical memory",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-episode-sync.test.ts",
+      "test": "autobiographical episode sync does not persist dead-lettered task-thread diagnostics as autobiographical memory",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-episode-sync.test.ts",
+      "test": "autobiographical episode sync does not persist failed task-thread diagnostics as autobiographical memory",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-episode-sync.test.ts",
+      "test": "autobiographical episode sync does not persist needs-affirmation task-thread diagnostics as autobiographical memory",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-episode-sync.test.ts",
+      "test": "autobiographical episode sync does not persist running task-thread diagnostics as autobiographical memory",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-episode-sync.test.ts",
+      "test": "autobiographical episode sync persists a ripe recollection as evidence without reply or relationship instructions",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-episode-sync.test.ts",
+      "test": "autobiographical episode sync persists dream summary evidence without generated identity or relationship narrative",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-episode-sync.test.ts",
+      "test": "autobiographical episode sync persists task-thread status and result evidence without generated feeling or lesson text",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-episodes.test.ts",
+      "test": "autobiographical episodes does not create an autobiographical episode from reply planning prose alone",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-episodes.test.ts",
+      "test": "autobiographical episodes does not let a released temporary-noise reflection become the autobiographical episode lesson carry",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-episodes.test.ts",
+      "test": "autobiographical episodes writes an autobiographical episode fragment when inner motive or self line shifts",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self absorbs relationship outcomes and reflections into numeric drift without fixed doctrine text",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self carries a real reflection revision without adding runtime-authored dialogue doctrine",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self carries cleaned person-state evidence into narrative without a fixed rewrite",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self does not learn an originating interaction again when row IDs or recent windows change",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self does not let a legacy unknown reflection ledger entry shape formal autobiographical self",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self does not maintain a topic-word denylist for autobiographical evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self does not treat unanswered contact as negative personality evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self ignores superseded reflection prose when a current reflection is available",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self keeps an ordinary continuity reflection when it is evidence rather than an instruction template",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self keeps autobiographical goal summaries owner-safe instead of copying scene text",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self keeps default autobiographical text empty instead of injecting a fixed persona script",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self keeps denied reflection candidates out of formal autobiographical self",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self keeps learned traits unchanged through ten thousand maintenance projections",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self keeps pending reflection candidates out of formal autobiographical self",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self keeps superseded reflection candidates out of formal autobiographical self",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self lets reinforcement events sediment into preference evolution without adding prose templates",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self preserves SOUL personality authority in numeric persona evolution",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self treats boundary pressure as future autonomy learning without inflating closeness",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/autobiographical-self.test.ts",
+      "test": "autobiographical self uses cleaned autobiographical consolidation text as memory evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/action-dispatch-gate.test.ts",
+      "test": "main-owned adapter dispatch permission rechecks current source, exact input, one-time consumption, cancellation and resource expiry at the adapter boundary",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/action-dispatch-gate.test.ts",
+      "test": "main-owned adapter dispatch permission refuses mutation of the original approved read object: maxResults",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/action-dispatch-gate.test.ts",
+      "test": "main-owned adapter dispatch permission refuses mutation of the original approved read object: path",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/action-dispatch-gate.test.ts",
+      "test": "main-owned adapter dispatch permission refuses mutation of the original approved read object: query",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/action-dispatch-gate.test.ts",
+      "test": "main-owned adapter dispatch permission refuses mutation of the original approved read object: regex",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility automatically repairs and resumes after the real writer has released ownership",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility coalesces active pauses and settles their control markers when the root is cancelled",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility does not silently change the initial repair policy in a plan revision",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility does not spend durable model attempts when the provider has not admitted a request",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility expires a crashed planning owner and atomically refuses its late proposal",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility feeds back a meaningless revision before dispatch and preserves one failed read plus one repaired read",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility feeds back a mistyped target before dispatch and completes the original byte-copy goal through an observed path binding",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility feeds back compiler rejection and bounds automatic retries; always invalid=false",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility feeds back compiler rejection and bounds automatic retries; always invalid=true",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility holds host-denied without calling a model or replaying a real write",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility holds literal without calling a model or replaying a real write",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility holds system-denied without calling a model or replaying a real write",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility holds unknown-write without calling a model or replaying a real write",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility honours a stop from the existing task control after an automatic plan revision",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility keeps a failed stop fenced until an explicit Continue succeeds",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility keeps a host pause durable instead of treating it as a repairable read failure",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility permits one model owner and rejects a late result after cancellation",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility persists a three-attempt budget through separate planner invocations",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility preserves a host revision made while the model was planning",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility projects one committed comparison while the real planner waits, then drains it on cancel",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility projects one committed comparison while the real planner waits, then drains it on complete",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility projects one committed comparison while the real planner waits, then drains it on pause",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rebases an unrelated life event once without a second model request",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rechecks a host stop after the model wait and never applies the stale proposal",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility refuses an unadmitted response and a late admission callback without creating an attempt",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rejects a mistyped unobserved repair path before publishing a revision or proposing another read",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rejects an unchanged failed read even when unrelated discovery changes=false",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rejects an unchanged failed read even when unrelated discovery changes=true",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rejects authority-fields while preserving the original failed plan and real bytes",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rejects changed-interface while preserving the original failed plan and real bytes",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rejects changed-verified while preserving the original failed plan and real bytes",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rejects changed-write while preserving the original failed plan and real bytes",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rejects duplicate-read while preserving the original failed plan and real bytes",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rejects missing input before dispatch and keeps bounded production feedback; always invalid=false",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rejects missing input before dispatch and keeps bounded production feedback; always invalid=true",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rejects new-write while preserving the original failed plan and real bytes",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility rejects source withdrawal during the provider wait",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility repairs a later unstarted read binding from real directory receipts and keeps the original writes exact",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility repairs the exact referenced read and removes an obsolete prerequisite without redirecting the write or byte criterion",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility resumes a deferred repair on actual provider release without another host action or a spent model attempt",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility retains a pause across unrelated history and database restart, then resumes only on explicit Continue",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility retains canonical writes and verified observations when the planner returns only future reads",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility retains manual continuation for an existing plan without recorded repair policy",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility runs three actual configured-model revisions through real file operations and independent goal verification",
+      "status": "passed",
+      "report": "output/personality-real-rechecks.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility settles the exact admission when cancellation wins during its pending database commit",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "test": "grounded future read repair within one responsibility uses the production scheduler, actual files and ledger; keeps the first write exact and independently fulfils the same root",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/initiative-arbiter.test.ts",
+      "test": "buildInitiativeArbitration keeps personality authority out of proposal why text",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/initiative-arbiter.test.ts",
+      "test": "buildInitiativeArbitration learned restraint only ranks existing speech proposals and cannot create initiative from nothing",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/initiative-arbiter.test.ts",
+      "test": "buildInitiativeArbitration leaves the wait proposal reason empty when no authored reason exists",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/initiative-arbiter.test.ts",
+      "test": "buildInitiativeArbitration preserves the dynamic concern summary without adding persona or project narration",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/initiative-arbiter.test.ts",
+      "test": "buildInitiativeArbitration uses typed commitments for repair without a fixed repair sentence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/initiative-engine.test.ts",
+      "test": "buildInitiativeSnapshot does not infer initiative policy from free-form long-term memory prose",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/initiative-engine.test.ts",
+      "test": "buildInitiativeSnapshot keeps a live event sentence authored by the active proposal",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/initiative-engine.test.ts",
+      "test": "buildInitiativeSnapshot keeps a transparent Provider failure as the initiative reason",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/initiative-engine.test.ts",
+      "test": "buildInitiativeSnapshot keeps factual structured-looking text without applying a local cue matcher",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/initiative-engine.test.ts",
+      "test": "buildInitiativeSnapshot uses explicit late-night tension as rest protection",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/initiative-engine.test.ts",
+      "test": "buildInitiativeSnapshot uses numeric long-term preference state without copying memory prose into why",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/initiative-engine.test.ts",
+      "test": "buildInitiativeSnapshot uses the emotional kernel state without projecting a local restraint field",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/initiative-engine.test.ts",
+      "test": "buildInitiativeSnapshot uses typed affective state instead of matching its prose",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-behavior-example-policy.test.ts",
+      "test": "local behavior eligibility does not require model-weight training consent",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-behavior-example-policy.test.ts",
+      "test": "local behavior eligibility keeps revoked, sensitive, contaminated and unsourced samples out: {\"behaviorLesson\":\"\"}",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-behavior-example-policy.test.ts",
+      "test": "local behavior eligibility keeps revoked, sensitive, contaminated and unsourced samples out: {\"piiReason\":\"fixed-template residue detected\"}",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-behavior-example-policy.test.ts",
+      "test": "local behavior eligibility keeps revoked, sensitive, contaminated and unsourced samples out: {\"piiStatus\":\"detected\"}",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-behavior-example-policy.test.ts",
+      "test": "local behavior eligibility keeps revoked, sensitive, contaminated and unsourced samples out: {\"provenance\":null}",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-behavior-example-policy.test.ts",
+      "test": "local behavior eligibility keeps revoked, sensitive, contaminated and unsourced samples out: {\"sensitivity\":\"secret\"}",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-behavior-example-policy.test.ts",
+      "test": "local behavior eligibility keeps revoked, sensitive, contaminated and unsourced samples out: {\"state\":\"revoked\"}",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner admits clear episode procedure and relationship candidates with reviewable evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner admits clear generic corrections without injecting persona retrieval semantics",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner admits clear preference candidates while keeping training blocked",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner admits explicit structured evidence without classifying its wording through local regex",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner admits high-confidence correction candidates but keeps training blocked",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner carries correction replacement metadata into the cleaned candidate",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner does not require raw correction cue words for explicit structured evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner normalizes non-finite cleaner time before admission",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner preserves natural language that discusses a key=value setting",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner rejects a structured summary even when the other candidate fields are natural language",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner rejects candidates without evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner rejects candidates without source turns",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner rejects contaminated unsupported kinds before review",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner rejects failure turn contamination even when the summary looks useful",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner rejects generic multiline structured residue",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner rejects legacy queue items without explicit structured memory evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner rejects non-pending candidates",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner rejects partially shaped structured evidence instead of admitting it",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner rejects wrong source candidates",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner routes low-salience candidates to review with a blocked cleaned candidate",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner routes private or low-confidence candidates to review",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts",
+      "test": "working memory long-term cleaner routes secret candidates to review",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning-store.test.ts",
+      "test": "working memory long-term cleaning store enqueues by idempotency key and lists due pending transactions once",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning-store.test.ts",
+      "test": "working memory long-term cleaning store lists only transactions in the requested card session and queue item scope",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning-store.test.ts",
+      "test": "working memory long-term cleaning store paginates and filters review transactions in SQLite before projection",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning-store.test.ts",
+      "test": "working memory long-term cleaning store paginates failed and dead-lettered transactions with transparent errors and timestamps",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning-store.test.ts",
+      "test": "working memory long-term cleaning store retries a selected failed or dead-lettered transaction as pending while preserving its raw error in the mutation result",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning.test.ts",
+      "test": "working memory long-term cleaning domain builds stable idempotency keys from owner queue identity and evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning.test.ts",
+      "test": "working memory long-term cleaning domain cancels a queued drain without letting later work bypass the active owner",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning.test.ts",
+      "test": "working memory long-term cleaning domain creates a pending transaction without allowing training by default",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning.test.ts",
+      "test": "working memory long-term cleaning domain forces training off on both transaction and normalized item",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning.test.ts",
+      "test": "working memory long-term cleaning domain keeps distinct source ids separate within the same card and session",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning.test.ts",
+      "test": "working memory long-term cleaning domain keeps transaction and item queue ids aligned after normalization",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning.test.ts",
+      "test": "working memory long-term cleaning domain normalizes unknown status to dead-lettered instead of pretending it is valid",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning.test.ts",
+      "test": "working memory long-term cleaning domain serializes concurrent drain calls so one DB runtime cannot process two batches at once",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-projection.test.ts",
+      "test": "working memory long-term projection projects a correction into memory fact and reflection without training artifacts",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-projection.test.ts",
+      "test": "working memory long-term projection projects a fact correction into a searchable current claim and a replacement episode",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-projection.test.ts",
+      "test": "working memory long-term projection projects preference procedure episode and relationship candidates into their owned stores",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-queue.test.ts",
+      "test": "working memory long-term candidate queue builds fixed-length canonical queue ids without leaking long candidate text",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-queue.test.ts",
+      "test": "working memory long-term candidate queue carries correction replacement metadata into the long-term queue",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-queue.test.ts",
+      "test": "working memory long-term candidate queue does not copy quoted fixed-template residue into queue summaries or evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-queue.test.ts",
+      "test": "working memory long-term candidate queue excludes failure and fixed-template candidates from the long-term cleaning queue",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-queue.test.ts",
+      "test": "working memory long-term candidate queue rejects typed failure and authorization artifacts even when audit ids are missing",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-queue.test.ts",
+      "test": "working memory long-term candidate queue turns cleaned WorkingMemory candidates into pending long-term cleaning queue items",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-evidence-repository.test.ts",
+      "test": "source correction across cognition, emotion and responsibility atomically removes an invalid emotion cause and blocks its old plan while preserving identity across restart",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-evidence-repository.test.ts",
+      "test": "source correction across cognition, emotion and responsibility invalidates carried emotion causality, rejects reuse of the withdrawn source, and can appraise remaining grounded evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-evidence-repository.test.ts",
+      "test": "source correction across cognition, emotion and responsibility withdraws a mixed relationship appraisal, preserves other grounded evidence and permits a fresh appraisal",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-evidence-repository.test.ts",
+      "test": "source correction across cognition, emotion and responsibility withdraws an appraisal without erasing an independently sourced current conversation requirement",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-outreach-repository.test.ts",
+      "test": "bounded ordinary initiative holds quiet hours, repeated evidence, cooldown and a used daily budget without penalizing relationship trust",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-outreach-repository.test.ts",
+      "test": "bounded ordinary initiative reserves publication atomically and persists duplicate evidence across restart",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-persona-development-runtime.test.ts",
+      "test": "candidate-specific persona development loop evaluates actual paired generations, requires exact human review, adopts one SOUL and rolls it back",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-persona-development-runtime.test.ts",
+      "test": "candidate-specific persona development loop evaluates local behavior with training disabled while keeping exact review and withdrawal checks",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-persona-development-runtime.test.ts",
+      "test": "candidate-specific persona development loop holds preempted evaluations and refuses adopting or rolling back over a later manual identity edit",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-persona-development-runtime.test.ts",
+      "test": "candidate-specific persona development loop persists actual configured-model paired answers and keeps adoption behind exact human review",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-persona-development-runtime.test.ts",
+      "test": "candidate-specific persona development loop rejects raw or missing examples and withdraws evaluated material and an adopted revision when its source disappears",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-persona-proposal-runtime.test.ts",
+      "test": "dream proposals preserve the adopted identity stages an idempotent proposal without changing SOUL and holds it across restart or a human edit",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-persona-proposal-runtime.test.ts",
+      "test": "dream proposals preserve the adopted identity withdraws a proposal and its target material when a supporting consolidation is forgotten",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-persona-revision-policy.test.ts",
+      "test": "continuous learned persona scope allows a small temperament change while preserving name, values and human directives",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-persona-revision-policy.test.ts",
+      "test": "continuous learned persona scope rejects an abrupt temperament jump and a change to stable values",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-artifact-content.test.ts",
+      "test": "completed authored content rather than proposed plot keeps \"\\n\" inside exact review data without a provider-invalid enum literal",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-artifact-content.test.ts",
+      "test": "completed authored content rather than proposed plot keeps \"\\r\\n\" inside exact review data without a provider-invalid enum literal",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-artifact-content.test.ts",
+      "test": "completed authored content rather than proposed plot keeps \"\\t\" inside exact review data without a provider-invalid enum literal",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-artifact-content.test.ts",
+      "test": "completed authored content rather than proposed plot uses independently verified actual bytes after restart, rejects mismatched plot, forged excerpts and incomplete review, and withdraws with its source",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-continuity.test.ts",
+      "test": "self interests from actual choices across days carries verified own practice through restart and into real dialogue context, withdrawing it with its evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-intent.test.ts",
+      "test": "personal choice metadata is bounded and sourced reads only a present choice from the accepted dialogue format",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-project-runtime.test.ts",
+      "test": "real personal activity through the existing execution adapter creates a grounded artifact, independently verifies it, observes foreground priority and persists its budget after restart",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-project-runtime.test.ts",
+      "test": "real personal activity through the existing execution adapter writes and verifies a fictional creative artifact while holding unavailable or preempted generation",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-proposals.test.ts",
+      "test": "sourced present wishes become real personal actions excludes quoted host wishes, executable commands and future promises",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-proposals.test.ts",
+      "test": "sourced present wishes become real personal actions persists a choice without inventing a preference and independently proves its artifact after restart",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-series.test.ts",
+      "test": "persistent personal creative project with actual verified artifacts admits one due continuation as new evidence without creating a repeated timer loop",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-series.test.ts",
+      "test": "persistent personal creative project with actual verified artifacts continues the same plan across days and restart using the verified previous piece",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-series.test.ts",
+      "test": "persistent personal creative project with actual verified artifacts holds changed artifacts and removes the persisted plan when its interest source is withdrawn",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-series.test.ts",
+      "test": "persistent personal creative project with actual verified artifacts keeps the final planned piece attached to its series after a failed write and restart",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-series.test.ts",
+      "test": "persistent personal creative project with actual verified artifacts recovers interrupted last-piece authorship with false changed file and false prior proof",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-series.test.ts",
+      "test": "persistent personal creative project with actual verified artifacts recovers interrupted last-piece authorship with false changed file and true prior proof",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-series.test.ts",
+      "test": "persistent personal creative project with actual verified artifacts recovers interrupted last-piece authorship with true changed file and false prior proof",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-series.test.ts",
+      "test": "persistent personal creative project with actual verified artifacts recovers interrupted last-piece authorship with true changed file and true prior proof",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-personal-series.test.ts",
+      "test": "persistent personal creative project with actual verified artifacts starts actual creative work from a cleaned conversational preference, preserving its proof and daily budget after restart",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-policy-development-runtime.test.ts",
+      "test": "actual policy candidate evaluation refuses missing samples, stale review, foreground interruption and adoption of a regressing pair",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-policy-development-runtime.test.ts",
+      "test": "actual policy candidate evaluation runs the production policy reducer and actual configured-model pairs while retaining a shadow candidate",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-policy-migration.test.ts",
+      "test": "policy proof migration preserves identity and sources while returning an unsupported v4 active policy to review",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-project-development.test.ts",
+      "test": "personal activity, verified sharing and real feedback feeds verified work into dialogue and closes explicit feedback only after actual presentation",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-project-development.test.ts",
+      "test": "personal activity, verified sharing and real feedback feeds verified work into dialogue and closes proactive feedback only after actual presentation",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-project-experience-runtime.test.ts",
+      "test": "verified project experience and source withdrawal at the actual writer cannot reinsert a project episode when its source is forgotten during publication",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-project-experience-runtime.test.ts",
+      "test": "verified project experience and source withdrawal at the actual writer does not publish a stale verification snapshot or cross a card boundary",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-project-experience-runtime.test.ts",
+      "test": "verified project experience and source withdrawal at the actual writer recovers a crash between publication and indexing without duplicating the episode",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-project-experience-runtime.test.ts",
+      "test": "verified project experience and source withdrawal at the actual writer rejects a forged derivation at the actual journal writer without blocking a valid event",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-project-experience-runtime.test.ts",
+      "test": "verified project experience and source withdrawal at the actual writer rejects a forged generation at the actual journal writer without blocking a valid event",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-project-experience-runtime.test.ts",
+      "test": "verified project experience and source withdrawal at the actual writer rejects a forged narrative at the actual journal writer without blocking a valid event",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-project-experience-runtime.test.ts",
+      "test": "verified project experience and source withdrawal at the actual writer rejects a forged proof at the actual journal writer without blocking a valid event",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-soul-activation-runtime.test.ts",
+      "test": "sOUL file and committed identity continuity preserves a manual file edit made while an automatic replacement is prepared",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-soul-activation-runtime.test.ts",
+      "test": "sOUL file and committed identity continuity recovers a file replacement interrupted before database activation without losing revision continuity",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-state-store.test.ts",
+      "test": "durable life state admits distinct equal-text turns and prevents redispatch after restart uncertainty",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-state-store.test.ts",
+      "test": "durable life state atomically keeps owners and idempotent receipts across a real database restart",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-state-store.test.ts",
+      "test": "durable life state fulfils a voice reminder only after a complete replay, keeping an excerpt as partial evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-state-store.test.ts",
+      "test": "durable life state keeps a consumed cognition version across maintenance ticks but fences genuinely new observations",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-state-store.test.ts",
+      "test": "durable life state keeps idempotence beyond the view window, stores the current input durably, and keeps raw media out of life views",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-state-store.test.ts",
+      "test": "durable life state rejects an obsolete reminder publication and cannot resurrect cancellation through an old retry",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-state-store.test.ts",
+      "test": "durable life state rolls all owner writes back when a later compare-and-set check fails",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-state-store.test.ts",
+      "test": "durable life state rolls domain operations back with owner failures and rejects forged audio completion",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/life-state-store.test.ts",
+      "test": "durable life state separates reminder generation from proof and fences an earlier schedule generation",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-rules.test.ts",
+      "test": "main chat background rules normalizes executor surface input without letting deterministic text become final visible speech",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-rules.test.ts",
+      "test": "main chat background rules normalizes local browser and desktop tool results into execution payoff surfaces",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run archives a recovered committed reply through the durable delivery port before streaming",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run blocks a structured Provider reply that claims unavailable long-term evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run blocks publication and memory admission after the bounded repair also fails grounding",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run builds the runtime digest fallback only from available emotional facts",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run can privately revise a factual draft after fresh review rejects it without replaying its action",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run canonicalizes optional undefined tool fields before persisting the observation",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run commits memory writeback when a tool failure still leads to a completed Provider reply",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run commits the settled Provider reply before publishing WorkingMemory events",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run completes a partial published word and reviews the full composition (structured=false)",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run completes a partial published word and reviews the full composition (structured=true)",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run continues actual HTTP SSE text across a tool result with one visible reply and one execution",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run continues after one admitted action fills the request budget without replaying its effect or losing the result",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run continues one already spoken introduction across an actual tool action without replay or a second bubble",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run corrects missing method identity after mutation through actual HTTP without repeating an admitted action",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run corrects missing method identity after read through actual HTTP without repeating an admitted action",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run corrects missing method identity after second-invalid through actual HTTP without repeating an admitted action",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run corrects missing method identity after unknown through actual HTTP without repeating an admitted action",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run delegates failures without installing timeout reply recovery callbacks",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run delivers accepted header emotion through the real emitter before the first public glyph with uncommitted governance",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run does not clear a newer cancellation owner when the EventLoop turn finishes",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run does not complete or commit memory when the visible reply is no longer deliverable",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run does not double-finish when the failure handler throws after finishing",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run does not emit a tool result when observation append fails",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run does not emit a tool result when observation checkpoint fails",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run does not route an EventLoop-owned cancellation through the failure lifecycle",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run does not write memory or persona data after six real HTTP Provider failures",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run emits a tool result only after action.observation is durable",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run emits prepared liveness meta before the Provider step",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run finishes EventLoop Provider reply data after a completed turn",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run finishes an eighteen-action observed task through the production loop without the old sixteen-step failure",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run finishes exactly once and resolves when the failure handler throws before finishing",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run finishes plain Provider reply text as a Provider-authored visible reply",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run finishes the visible turn without waiting for deferred memory post-commit owners",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run fits a restarted historical reply with complete evidence while keeping mixed-request execution available",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run fits an ordinary conversation by exact historical interning while retaining its tools, recent words and required proof",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run gives a chronological repair its actual event evidence while keeping tools disabled and publishing only the admitted revision",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run handles a cancelled context-use race before provider dispatch with a fixed preparation budget",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run handles a cancelled review read-set race without repeating the provider action",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run handles a exhausted context-use race before provider dispatch with a fixed preparation budget",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run handles a exhausted review read-set race without repeating the provider action",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run handles a foreign-error context-use race before provider dispatch with a fixed preparation budget",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run handles a foreign-error review read-set race without repeating the provider action",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run handles a rebased context-use race before provider dispatch with a fixed preparation budget",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run handles a rebased review read-set race without repeating the provider action",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps UI and durable state completed when abort races reply commit persistence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps a receipt-guided correction under the original second review: accepted=false",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps a receipt-guided correction under the original second review: accepted=true",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps a successful tool observation when tool-result delivery fails",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps a successful tool result when action progress persistence fails",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps action ownership exact for 'corrected first proposal'",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps action ownership exact for 'invalid proposal after an admitted ac…'",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps action ownership exact for 'repeated invalid proposal'",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps all required context and tools by sending the same reduced output allocation to the actual provider boundary",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps explicit-workflow history compaction available when rejected arguments add a second request near the context limit",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps memory side failures outside the visible Provider reply",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps recalled long-term memory in the EventLoop participant context before Provider dispatch",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps revoked memory evidence blocked when a review refresh revalidates the same draft",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps the Provider action loop alive when tool-call delivery fails",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run keeps the accepted EventLoop cancellation authoritative across concurrent abort requests",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run never certifies a published prefix merely because its continuation is harmless",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run passes Provider memory evidence through the durable reply into WorkingMemory settlement",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run passes presented execution callbacks to the runtime settlement owner",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run passes the active provider retry policy to the EventLoop Provider step",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run passes the prepared tool surface to the EventLoop Provider step",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run persists an internal preparation deadline as timed-out without aborting the user cancellation controller",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run persists canonical action identity while executing and rendering the Provider alias",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run persists online tool progress under the active Turn OS action scope",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run persists preparation failures as context failures before the Provider starts",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run preserves actual local admission-error provenance through the production life observation: false",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run preserves actual local admission-error provenance through the production life observation: true",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run preserves an admitted action exactly once when repairing a factual follow-up",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run preserves full required context while offering the explicitly requested [ 'life_execute_work_plan' ] surface",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run preserves full required context while offering the explicitly requested [ Array(2) ] surface",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run preserves the original Provider failure across the EventLoop boundary",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run projects Provider tool calls only after model.tool_call.proposed is durable",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run projects a durable cancelled observation as a cancelled tool result",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run projects action progress only after its runtime checkpoint is durable",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run publishes a typed non-learning prefix before model and life review settlement",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run publishes memory write events from the final settled candidates instead of prepare-time candidates",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run publishes the Provider step reply and preserves the validated Provider artifact",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run reads a compacted observation back from SQLite over real local SSE without repeating the original action",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run refuses to run when the EventLoop owner is missing",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run registers EventLoop cancellation while the turn is active and removes its own entry after completion",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run rejects a tool action emitted during textual repair without publishing or dispatching it",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run rejects memory writeback without committing it when the Provider fails",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run rejects memory writeback without committing it when the model step budget is exhausted",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run rejects memory writeback without committing it when the turn is cancelled",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run removes action authority after three unchanged failed attempts while allowing an honest final reply",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run repairs an unbound promise once before publishing any text and disables tools during repair",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run repairs only the unpublished remainder after a public prefix: 'accepted suffix'",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run repairs only the unpublished remainder after a public prefix: 'repeated public prefix'",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run repairs only the unpublished remainder after a public prefix: 'still unsupported suffix'",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run reports runtime memory event persistence failure without replacing the Provider reply",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run reprepares a stale action before dispatch and preserves the tool observation without replaying an effect",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run requires a fresh model action after a rejected stale admission through actual HTTP SSE (honors required=false, owners changed=true)",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run requires a fresh model action after a rejected stale admission through actual HTTP SSE (honors required=true, owners changed=false)",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run requires a fresh model action after a rejected stale admission through actual HTTP SSE (honors required=true, owners changed=true)",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run returns a thrown tool failure to the Provider as a structured tool observation",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run revalidates one public reply against refreshed life state without replaying its text",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run routes date turns through the EventLoop Provider step",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run routes dialogue turns through the EventLoop Provider step",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run routes follow-up turns through the EventLoop Provider step",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run routes greeting turns through the EventLoop Provider step",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run routes identity turns through the EventLoop Provider step",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run routes the production turn through one EventLoop persistence owner",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run routes time turns through the EventLoop Provider step",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run runs deferred discovery through actual SQLite life receipts and SSE: complete",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run runs deferred discovery through actual SQLite life receipts and SSE: direct",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run runs deferred discovery through actual SQLite life receipts and SSE: revoke",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run settles a real SSE tool batch in SQLite with per-action admission: complete",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run settles a real SSE tool batch in SQLite with per-action admission: deny-tail",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run settles a real SSE tool batch in SQLite with per-action admission: revoke-tail",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run settles an expired final authority check without entering the adapter or inventing an unknown side effect",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run settles presented execution callbacks after an EventLoop Provider reply",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run settles through the failure lifecycle when preparation ignores the abort signal",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run shares one schema-correction budget across consecutive real read-only HTTP operations",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run starts preparation only after the EventLoop owns context assembly",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run stops language repair on unavailable independent review without replaying tools or claiming invalid provider format",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run surfaces a structured Provider payload without reply as a protocol failure",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run uses real SSE, SQLite ownership and native files for governed blocked-write execution",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run uses real SSE, SQLite ownership and native files for governed parallel execution",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "test": "main chat background run uses real SSE, SQLite ownership and native files for governed programmatic execution",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-meta.test.ts",
+      "test": "main chat stream meta changes signatures for real runtime facts",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-meta.test.ts",
+      "test": "main chat stream meta deduplicates unchanged emitted metadata and tracks the latest reply",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-meta.test.ts",
+      "test": "main chat stream meta prepares an accepted emotion header before full governance exists: null",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-meta.test.ts",
+      "test": "main chat stream meta prepares an accepted emotion header before full governance exists: {\"decisionTraceId\":\"uncommitted\"}",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-meta.test.ts",
+      "test": "main chat stream meta prepares the accepted header emotion before public text while keeping governance private on the wire",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-meta.test.ts",
+      "test": "main chat stream meta preserves literal reply and memory facts without adding reply-governance payloads",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-meta.test.ts",
+      "test": "main chat stream meta uses embodiment-script digital-life output when it is the available explicit authority",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner aborts with a first-event-timeout when the stream never produces progress",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner accepts a fully validated multi-tool batch without executing any proposal",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner accepts omitted arguments only for an explicitly parameterless tool",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner accepts plain-text visual grounding output as provider-authored visible reply",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner admits no partial batch after content_filter",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner admits no partial batch after duplicate",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner admits no partial batch after invalid-tail",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner admits no partial batch after length",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner admits no partial batch after over-budget",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner allows delayed first progress after non-progress activity within grace window",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner allows multi-call proposals while retaining single-step execution ownership",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner allows provider text when execution tools are offered",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner bounds reader cancellation before retrying a failed Provider attempt",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner buffers structured mind-turn deltas and releases only reply text on the visible stream surface",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner cancels a real Provider retry while waiting in backoff without starting another HTTP attempt",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner cancels a stalled fullStream reader when the provider deadline aborts",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner cancels a stalled retry attempt at the inherited total retry deadline: provider-step",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner cancels a stalled retry attempt at the inherited total retry deadline: stream",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner cancels the provider reader when the provider emits an error event",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner checks actual xsAI settled finish metadata for coalesced-tools without executing proposals",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner checks actual xsAI settled finish metadata for content_filter without executing proposals",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner checks actual xsAI settled finish metadata for empty-content without executing proposals",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner checks actual xsAI settled finish metadata for length without executing proposals",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner checks actual xsAI settled finish metadata for missing without executing proposals",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner checks asynchronous argument preparation before an SDK executes ahead of its notification: cancelled",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner checks asynchronous argument preparation before an SDK executes ahead of its notification: content",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner checks asynchronous argument preparation before an SDK executes ahead of its notification: revoked",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner checks exact work source before an SDK executes ahead of its notification: cancelled",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner checks exact work source before an SDK executes ahead of its notification: content",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner checks exact work source before an SDK executes ahead of its notification: revoked",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner checks exact work source before an SDK executes ahead of its notification: target",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner classifies Provider silence after semantic progress as Provider idle timeout",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner classifies metadata and keepalive without semantic progress as Provider liveness timeout",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner clears the first-event watchdog after the first Provider progress event",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner collapses drifting provider, executor, and result ids into one visible Codex execution",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner collects provider text from compatible delta event shapes instead of ending with an empty settlement",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner completes a real xsAI tool loop after 70 seconds of heartbeats and Provider continuation",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner completes immediately when fullStream emits finish without closing",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner consumes an actual HTTP SSE prefix while the provider withholds the rest until public delivery",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner consumes the xsAI fullStream in order when the provider does not use onEvent",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner continues the Provider reply immediately after a background Codex task is accepted",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner delivers public body before provider EOF and forbids retry after a published prefix",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner disposes the failed reader before starting a Provider retry",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner disposes the reader when a derived Provider promise rejects early",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner does not compact-retry after a provider emits only non-progress metadata",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner does not create a new Provider attempt when the outer turn is aborted during retry backoff",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner does not enforce a legacy executor channel when the model selects an available tool",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner does not force native response schema or convert emotional state into provider prose",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner does not let a liveness-only tool heartbeat mask a missing Provider first event",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner does not let continuous tool heartbeat refresh the Provider idle watchdog",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner does not replay the Provider request after a tool call has started",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner does not retry a transient Provider failure after visible progress has started",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner does not retry when the user aborts the outer turn",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner does not settle a provider finish before a completed tool hands off its result",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner does not settle a provider finish while the tool call is still active",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner does not shrink the available tool registry after a zero-event timeout",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner drains actual xsAI proposals after wire finish and enforces the missing boundary",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner drains actual xsAI proposals after wire finish and enforces the parallel boundary",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner drains actual xsAI proposals after wire finish and enforces the single boundary",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner drains the whole batch when a second proposal follows wire finish",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner fails transparently when fullStream reaches EOF without a finish event",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner falls back to queued legacy text and finish when fullStream has no protocol events",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner hard-stops the xsAI tool loop after a Codex failure even when the Provider fetch ignores abort",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner ignores optional Provider metadata fields and releases the provider-stream reply",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner keeps an async legacy onEvent source alive when the invoker resolves without a stream result",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner keeps an exhausted real HTTP Provider turn in the failure path without a reply eligible for memory or persona",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner keeps canonical Provider tools when the prepared surface already uses Provider names",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner keeps provider text provisional until the complete response passes settlement",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner keeps provider-stream JSON byte-for-byte, emits payload.reply, and settles lifecycle from the sidecar",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner keeps the Provider alias in continuation while returning a canonical action identity",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner keeps the Provider continuation watchdog active after the first text delta",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner keeps the continuation watchdog armed after a wire tool finish without EOF or a proposal",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner keeps tool-call and tool-result correlated when the provider omits toolCallId",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner keeps visual one-shot Provider JSON byte-for-byte and carries settlement only as a sidecar",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner omits native response schema so providers without json_schema support can stream plain text",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner omits the tools field when the current turn has no offered capabilities",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner parses xsAI tool-call args into renderer arguments and reminder diagnostics",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner passes the compressed WorkingMemory context into the actual Provider stream request",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner plans a bounded request reference only against the exact current source: current",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner plans a bounded request reference only against the exact current source: historical-only",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner preserves an early compatibility tool-start event while waiting for fullStream",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner preserves consecutive identical fullStream text deltas",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner preserves exact current-user literal bytes without another model transcription: multipart",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner preserves exact current-user literal bytes without another model transcription: text",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner projects internal coding-agent adapter names before visual one-shot Provider invocation",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner projects learned argument data before publishing a planning action and keeps provider input immutable",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner re-arms the provider deadline after a tool result without aborting the outer turn",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner records a redacted snapshot of the request actually sent to the Provider",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner records debug diagnostics when the stream settles without a progress event",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner records provider and executor phases from the ordered fullStream",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner rejects 'malformed JSON' instead of executing a tool with empty arguments",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner rejects 'missing required arguments' instead of executing a tool with empty arguments",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner rejects JSON-object tool arguments that violate the declared schema",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner rejects a fullStream that ends after text without a finish event",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner rejects a tool proposal from a stream without a finish event",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner rejects an explicit invalid argument value \"   \" for a parameterless tool",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner rejects an explicit invalid argument value \"\" for a parameterless tool",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner rejects an explicit invalid argument value null for a parameterless tool",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner rejects an unknown full-stream tool call before emitting a UI tool event",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner rejects provider memory claims that reference unavailable long-term evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner rejects the provider turn after a failed tool result instead of releasing a normal reply",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner rejects when fullStream closes after a tool result without Provider continuation",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner repairs a literal artifact contradiction before admission while fencing the original criteria and targets",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner repairs an omitted path character from exact current request parameters before publishing or dispatching an action: multipart",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner repairs an omitted path character from exact current request parameters before publishing or dispatching an action: text",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner repairs only locally validated pre-dispatch proposals once, respecting publication, cancellation and error origin",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner retries a Provider finish with no visible reply before failing the turn",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner retries after uncommitted text progress because the partial draft was never visible",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner retries five real HTTP 503 responses and records attempts 1 through 6 before accepting SSE success",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner retries five transient Provider failures and succeeds on the sixth attempt",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner returns the original Provider failure after the sixth failed attempt",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner reuses the prepared executor identity when provider stream events omit toolCallId",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner sends portable non-strict tools to OpenAI-compatible gateways",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner settles a failed Provider attempt before starting the next attempt",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner settles a terminal tool failure from progress even when the Provider never sends tool-result",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner settles delayed plain provider text without releasing it early",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner stops before Provider continuation when the real Codex adapter returns empty output",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner streams deltas, waits through tool-calls finishes, and records reminder debug signals",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner streams with the typed memory context unchanged",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner surfaces a non-allowlisted executor failure instead of converting it into Provider continuation timeout",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner surfaces a streaming tool call before a long-running executor returns",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner transmits the life schema intact and negotiates unsupported response formats before any action",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner treats finish=stop after a tool result as terminal provider output instead of continuation timeout",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner uses a legacy finish without duplicating text already received from fullStream",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner uses fullStream as the single event source when a compatibility onEvent also fires",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner uses the visual grounding one-shot path when capture grounding is required",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner validates a current work reference when SDK execution precedes its event: false",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner validates a current work reference when SDK execution precedes its event: true",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "test": "main chat stream runner waits for every concurrent tool result before accepting the Provider finish",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/migration.test.ts",
+      "test": "migrates the released v7 store with a consistent recoverable backup and preserves existing personhood",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development can support a repaired new habit from negative feedback while an interruption teaches no hypothesis",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development cancels learning when actual foreground activity resumes before a model answer can commit",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development decays positive and negative evidence independently and never amplifies through reading",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development deduplicates two representations of the same experience across restart",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development distinguishes negative, interrupted and unjudged trials from directions reinforced by feedback",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development extracts bounded actual model hypotheses from synthetic reviewed desktop experiences",
+      "status": "passed",
+      "report": "output/personality-extraction-verified.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development keeps mature identity during pause and immediately removes withdrawn SOUL material",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development pauses adaptation and rejects feedback for an unrelated reply",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development rejects host likes as own interests, wrong cards, stale evidence and changed hypothesis identities",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development requires independent days and exact interaction feedback before adopting a scoped habit into SOUL",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development restarts a corrected hypothesis with fresh evidence and never counts old roots again",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development restores the exact prior core if a personality source is forgotten during file replacement",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development uses the desktop extraction pipeline incrementally and keeps private evidence away from generation",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/repository.test.ts",
+      "test": "durable personality development withdraws contributing evidence and cannot resurrect a forgotten facet",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/scale.test.ts",
+      "test": "keeps a cross-day review window bounded over 100,000 actual independent SQLite witnesses",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-life.test.ts",
+      "test": "desktop presentation recovery admits bounded criteria edits only from the trusted local host control",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-life.test.ts",
+      "test": "desktop presentation recovery admits the real backup renderer page commands while retaining strict bounds and surface/card authority",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-life.test.ts",
+      "test": "desktop presentation recovery commits actual presentation callbacks while the same foreground turn is held without entering another card",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-life.test.ts",
+      "test": "desktop presentation recovery discards only requirements owned by the held input, preserving newer corrections and relationship state",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-life.test.ts",
+      "test": "desktop presentation recovery does not certify the former character after a window switches to another character",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-life.test.ts",
+      "test": "desktop presentation recovery keeps a hidden DOM observation separate from delivery and accepts two later visible turns on one surface",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-life.test.ts",
+      "test": "desktop presentation recovery keeps browser grants on the trusted host surface and rejects model-like extra fields",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-life.test.ts",
+      "test": "desktop presentation recovery keeps verifier listing read-only and restricts configuration changes to exact trusted IPC input",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-life.test.ts",
+      "test": "desktop presentation recovery lists methods during the same card background work and gives explicit governance control priority",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-life.test.ts",
+      "test": "desktop presentation recovery recovers an issued offline receipt after restart, preserves body health, and rejects a fabricated session",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-life.test.ts",
+      "test": "desktop presentation recovery retains the foreground character while a continued request is still generating",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-life.test.ts",
+      "test": "desktop presentation recovery reviews and copies the durable full input, rejects stale discard and foreign scope, and preserves its archive",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-coding-agent-delegation.test.ts",
+      "test": "runtime mind-state Coding Agent delegation does not block an interactive turn on an auxiliary semantics Provider request",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-coding-agent-delegation.test.ts",
+      "test": "runtime mind-state Coding Agent delegation does not retain the removed dialogue semantics Provider side path in background cognition",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-coding-agent-delegation.test.ts",
+      "test": "runtime mind-state Coding Agent delegation keeps interactive cognition usable when the auxiliary Provider is unavailable",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-coding-agent-delegation.test.ts",
+      "test": "runtime mind-state Coding Agent delegation rejects interactive cognition without a real turn id",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression builds emotional-kernel and initiative projection inputs from the fresher preferred resident projection instead of only the persisted previous shell",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression does not let an older persisted projection outrank current-turn person-state evidence",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression does not record a rest-protective warning desire as already surfaced once the final initiative holds that warning inward",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression does not turn emotional or embodiment observations into fixed continuity governance",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression exports a current-turn emotional transition ledger from runtime mind-state when emotional carry shifts",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression feeds current-turn execution callback carry and affective residue into long-horizon memory immediately instead of waiting for the next persisted seam",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression feeds host-confirmed resume reconsolidation into long-horizon memory so later initiative keeps it as a bounded confirmation boundary",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression ignores embodiment replay repair pressure across runtime behavior and derived state",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression ignores emotion replay repair pressure across runtime behavior and derived state",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression ignores initiative-execution replay repair pressure across runtime behavior and derived state",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression keeps embodiment lane evidence structural when a lane has no current observation",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression keeps initiative on the same rest-protective line once the current turn private-thought upgrades emotional carry",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression lets cautious embodiment recollection authority retune runtime emotional carry into measured-return instead of leaving body memory inert",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression lets the current-turn host model retune long-horizon memory formation immediately instead of leaving relationship context one turn late",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression normalizes persisted and in-memory person-state evidence before routing it into the life loop",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression passes live recollection intent into initiative rebuilding instead of leaving memory-led restraint only on the emotional-kernel side",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression refreshes emotional-kernel from the newly built private-thought before downstream memory and embodiment consumers read it",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression threads long-horizon memory into every emotional-kernel rebuild instead of leaving durable memory carry on only the initiative side",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-emotional-kernel-regression.test.ts",
+      "test": "runtime-mind-state emotional kernel regression turns blocked-before-dispatch reconsolidation into guarded-care so later recall and initiative wait at the confirmation boundary instead of widening into ordinary proactive closeness",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-provider-contract.test.ts",
+      "test": "runtime mind-state Provider contracts does not retain the removed dialogue-semantics Provider contract",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-provider-contract.test.ts",
+      "test": "runtime mind-state Provider contracts serializes 'alicization_subjective_inference' through native response_format",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-provider-contract.test.ts",
+      "test": "runtime mind-state Provider contracts strictly bounds subjective inference evidence candidates",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state-reflection-regression.test.ts",
+      "test": "runtime-mind-state reflection regression keeps every non-confirmed memory reflection out of formal runtime mind state",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state applies authority onto a visual presence state without disturbing other fields",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state applies recovering visual presence as a distinct silent body state",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state derives quiet co-vision presence for sustained focus without forcing speech",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state derives recovering silent-body authority without widening continuity modes",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state does not inherit long focus from a stale previous scene when candidate scene is fresh",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state does not let recovering silent-body authority overtake active dialogue or speaking pressure",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state does not re-persist or re-emit an identical visual presence state for the active card",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state does not treat a structurally identical visual presence state with different key order as changed",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state does not update visual presence caches when restore is aborted while storage is pending",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state persists body-authorized measured-return presence when emotional-kernel continuity is the strongest surviving authority",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state persists visual presence and mind heads for the active card without using card scope switches",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state restores cross-card perception and visual presence through scoped reads",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state serializes perception mutations so an older write cannot wipe a newer scene residue",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state softens quiet co-vision when relationship pressure is too low",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state stops visual and mind-head persistence without caching or emitting after abort",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/runtime-visual-presence-state.test.ts",
+      "test": "runtime visual presence state suppresses quiet co-vision while a conversation is active",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "packages/stage-ui-live2d/src/composables/live2d/text-mouth.test.ts",
+      "test": "compiled Live2D text mouth ownership drives the existing ParamA/I/U/E/O rig bindings and releases the previous vowel",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "packages/stage-ui-live2d/src/composables/live2d/text-mouth.test.ts",
+      "test": "compiled Live2D text mouth ownership shapes the actual audio playhead and never opens through silence after smoothing",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "packages/stage-ui-live2d/src/composables/live2d/text-mouth.test.ts",
+      "test": "compiled Live2D text mouth ownership smooths adjacent syllables in wall time but closes and cancels immediately",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "packages/stage-ui-live2d/src/composables/live2d/text-mouth.test.ts",
+      "test": "compiled Live2D text mouth ownership writes supported rig parameters, yields to audio and stops after the glyph",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "packages/stage-ui/src/components/scenes/stage-personality-expression.test.ts",
+      "test": "personality expression on the shared Live2D performance path applies restraint idempotently without creating motions or changing emotional meaning",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "packages/stage-ui/src/components/scenes/stage-personality-expression.test.ts",
+      "test": "personality expression on the shared Live2D performance path preserves negative affect and ignores invalid state",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "packages/stage-ui/src/components/scenes/stage-presence-pulse-performance.test.ts",
+      "test": "stage presence pulse performance keeps generic attentive pulses generic when no silent body authority is present",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "packages/stage-ui/src/components/scenes/stage-presence-pulse-performance.test.ts",
+      "test": "stage presence pulse performance settles quietly during an actual host approval while retaining the same emotional baseline",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "packages/stage-ui/src/components/scenes/stage-presence-pulse-performance.test.ts",
+      "test": "stage presence pulse performance softens non-speaking attentive pulses when long-horizon relationship timing says the opening should stay lower-pressure",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "packages/stage-ui/src/components/scenes/stage-presence-pulse-performance.test.ts",
+      "test": "stage presence pulse performance turns protective watch pulses into explicit low-pressure care performance",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    },
+    {
+      "file": "packages/stage-ui/src/components/scenes/stage-presence-pulse-performance.test.ts",
+      "test": "stage presence pulse performance turns quiet accompaniment pulses into soft nearby-attention performance instead of generic attentive calm",
+      "status": "passed",
+      "report": "output/personality-verified-regression.json"
+    }
+  ],
+  "plan": {
+    "engineeringP0ThroughP9": "complete",
+    "actualFourteenDayUse": "pending"
+  },
+  "reuse": {
+    "project": "Project-N-E-K-O/N.E.K.O",
+    "revision": "1ea9c88872a8a4f96bc431e1f98fdf903e2c8621",
+    "source": "memory/evidence.py",
+    "sourceUrl": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/1ea9c88872a8a4f96bc431e1f98fdf903e2c8621/memory/evidence.py",
+    "license": "Apache-2.0",
+    "modified": true,
+    "localModule": "apps/stage-tamagotchi/src/main/services/alicization/persona-development/evidence.ts",
+    "notice": "apps/stage-tamagotchi/resources/licenses/neko-persona-notice.txt",
+    "licenseText": "apps/stage-tamagotchi/resources/licenses/neko-license.txt"
+  }
+}

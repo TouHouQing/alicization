@@ -57,7 +57,9 @@ exports.open = async function (application, identity) {
     const id = ++nextId
     const timer = setTimeout(() => { pending.delete(id); reject(new Error('Owned native capture exceeded 8000ms')) }, 8000)
     pending.set(id, { resolve, reject, timer })
-    socket.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression, returnByValue: true, awaitPromise: true, includeCommandLineAPI: true } }))
+    // Native capture runs in the pinned local state helper. Every expression
+    // sent here is synchronous; never give Inspector another promise to await.
+    socket.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression, returnByValue: true, awaitPromise: false, includeCommandLineAPI: true } }))
   })
   clients.set(application, { socket, evaluate, identity, rendererUrl: renderer.href })
   return { transport: 'direct-node-inspector-return-by-value', exactPid: identity.pid, exactExecutableAndProfileVerified: true, retainedRemoteObjectHandles: 0, automaticRetries: 0, mutatingWindowOperations: 0, timeoutMs: 8000 }

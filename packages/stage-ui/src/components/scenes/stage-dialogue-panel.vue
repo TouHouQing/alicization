@@ -562,6 +562,7 @@ defineExpose({
             @proactive-feedback="emit('proactiveFeedback', $event)"
           />
           <StageQuickReplyComposer v-if="props.quickReplyEnabled" />
+          <slot name="delivery" />
         </div>
       </div>
     </div>

@@ -6,7 +6,9 @@ import { alicizationProviderResponseFormat } from '@proj-alicization/stage-share
 import { generateText } from '@xsai/generate-text'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { withProviderUsageScope } from './agent-harness/provider-usage-scope'
 import { buildWindowsVisualLocalizationContext, createWindowsVisualGrounder } from './execution/windows-visual-grounder'
+import { workingMemoryCompactionResponseFormat } from './life-core/working-memory-semantic-compaction'
 import { describeMainGatewayRequestTarget } from './main-gateway-request-target'
 import { createAlicizationMainGatewayWorkCoordinator } from './main-gateway-work-coordinator'
 import { createAlicizationMainGatewayOneShotRuntime } from './runtime-main-gateway-one-shot'
@@ -102,6 +104,35 @@ beforeEach(() => {
 })
 
 describe('runtime main gateway one-shot', () => {
+  it('delivers only the memory compactor job contract through the real provider sanitizer', async () => {
+    const { runtime } = createOneShotRuntimeHarness()
+    vi.mocked(generateText).mockResolvedValueOnce({ text: '{"selected":[{"id":0,"kind":"relationship"}]}' } as any)
+    const system = JSON.stringify({ type: 'alicization-memory-compaction-context', data: { version: 1, formatRequirements: 'Select only existing attributed source IDs; never rewrite facts.' } })
+    const result = await runtime.generateMainGatewayText({ cardId: 'card-test', source: 'memory-compaction', system, user: '{"candidates":[{"id":0,"role":"user","quote":"我希望你叫我小青"}]}', captureAgentSensorySnapshot: false, injectCustomDirectives: false, injectPerformanceManifest: false, responseFormat: workingMemoryCompactionResponseFormat })
+    expect(result).toContain('selected')
+    const request = vi.mocked(generateText).mock.calls[0]![0]
+    expect(JSON.stringify(request.messages)).toContain('alicization-memory-compaction-context')
+    expect(JSON.stringify(request.messages)).toContain('小青')
+    expect(request.responseFormat).toEqual(workingMemoryCompactionResponseFormat)
+    vi.mocked(generateText).mockResolvedValueOnce({ text: 'ordinary job' } as any)
+    await runtime.generateMainGatewayText({ source: 'dream', system, user: 'ordinary job' })
+    expect(JSON.stringify(vi.mocked(generateText).mock.calls[1]![0].messages)).not.toContain('alicization-memory-compaction-context')
+  })
+  it('accounts every auxiliary attempt under the actual root turn without debug logging', async () => {
+    const started = vi.fn(async (_record: unknown) => {})
+    const settled = vi.fn(async (_record: unknown) => {})
+    const { runtime } = createOneShotRuntimeHarness({ providerAccounting: () => ({ started, settled }), appendRuntimeDebugLine: async () => {} })
+    vi.mocked(generateText).mockResolvedValueOnce({ text: 'actual reviewed result', usage: { prompt_tokens: 120, completion_tokens: 8, total_tokens: 128 } } as any)
+    await withProviderUsageScope({ cardId: 'card-test', turnId: 'main-turn', rootTurnId: 'root-work' }, () => runtime.generateMainGatewayText({ source: 'execution-planning', system: '', user: 'Review existing work' }))
+    expect(started).toHaveBeenCalledTimes(1)
+    expect(settled).toHaveBeenCalledTimes(1)
+    expect(started.mock.calls[0]?.[0]).toMatchObject({ turnId: 'main-turn', rootTurnId: 'root-work', cardId: 'card-test', providerAttempt: 1 })
+    expect(settled.mock.calls[0]?.[0]).toMatchObject({ settlement: 'completed', usage: { inputTokens: 120, outputTokens: 8, totalTokens: 128 } })
+    expect(JSON.stringify(started.mock.calls)).not.toContain('Review existing work')
+    vi.mocked(generateText).mockRejectedValueOnce(new Error('provider failed'))
+    await runtime.generateMainGatewayText({ source: 'execution-planning', system: '', user: 'Retry review', providerRetryPolicy: { maxRetries: 0 } })
+    expect(settled.mock.calls[1]?.[0]).toMatchObject({ settlement: 'failed', usage: null })
+  })
   it.each(['proactive', 'execution-planning', 'persona-evaluation'] as const)('does not promote the native visual contract into an unrelated %s job', async (source) => {
     const { runtime } = createOneShotRuntimeHarness()
     vi.mocked(generateText).mockResolvedValueOnce({ text: 'owned response' } as any)

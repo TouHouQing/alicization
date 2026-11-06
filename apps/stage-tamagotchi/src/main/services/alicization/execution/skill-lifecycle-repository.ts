@@ -6,11 +6,12 @@ import { randomUUID } from 'node:crypto'
 import * as v from 'valibot'
 
 import { LifeStateConflictError } from '../life-state-store'
+import { maxDesktopSkillVersions } from './procedure-index'
 
 const id = v.pipe(v.string(), v.minLength(1), v.maxLength(512))
 const snapshot = v.strictObject({
   version: v.literal(1),
-  items: v.pipe(v.array(v.strictObject({ id, version: id, sourceHash: v.pipe(v.string(), v.regex(/^[a-f\d]{64}$/u)), evaluationStatus: v.picklist(['unvalidated', 'sandbox-passed', 'replay-passed', 'approved', 'failed']), activationStatus: v.picklist(['candidate', 'active', 'rolled-back', 'revoked']) })), v.maxLength(128)),
+  items: v.pipe(v.array(v.strictObject({ id, version: id, sourceHash: v.pipe(v.string(), v.regex(/^[a-f\d]{64}$/u)), evaluationStatus: v.picklist(['unvalidated', 'sandbox-passed', 'replay-passed', 'approved', 'failed']), activationStatus: v.picklist(['candidate', 'active', 'rolled-back', 'revoked']) })), v.maxLength(maxDesktopSkillVersions)),
 })
 
 /** Registry decisions survive restart in the same card's life-writer journal. */

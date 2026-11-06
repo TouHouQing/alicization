@@ -88,6 +88,7 @@ import {
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
 
+import { buildProcedureContext } from './agent-harness/procedure-context'
 import { buildAlicizationCodingAgentDelegationAuthority } from './coding-agent-task-contract'
 import { applyDesktopMemoryPromptBudget } from './desktop-memory-prompt-budget'
 import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
@@ -101,7 +102,10 @@ import {
   buildWorkingMemoryOwnerContext,
   projectWorkingMemoryOwnerEpisodes,
 } from './life-core/working-memory-owner-context'
+import { selectWorkingMemorySentences, workingMemoryRetention } from './life-core/working-memory-retention'
+import { createWorkingMemorySemanticCompactor } from './life-core/working-memory-semantic-compaction'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
+import { resolveLifeProviderRequestLimits } from './life-provider-budget'
 import {
   buildExecutionCapabilitySystemBlocks,
   buildMainGatewayTools,
@@ -356,6 +360,9 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     options?: { signal?: AbortSignal },
   ) => Promise<WorkingMemorySnapshot | null>
   persistWorkingMemoryCheckpoint?: (snapshot: WorkingMemorySnapshot) => Promise<void>
+  replaceWorkingMemoryCheckpoint?: (expected: WorkingMemorySnapshot, next: WorkingMemorySnapshot) => Promise<boolean>
+  workingMemorySourcesCurrent?: (snapshot: WorkingMemorySnapshot) => Promise<boolean>
+  generateWorkingMemorySelection?: (input: { cardId: string, system: string, user: string, signal?: AbortSignal }) => Promise<string | null>
   promptBudgetTokens?: number
   retrieveLongTermMemoryEvidence?: (input: {
     cardId: string
@@ -457,10 +464,17 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   desktopPressKeys?: BuildMainGatewayToolsOptions['desktopPressKeys']
   desktopWait?: BuildMainGatewayToolsOptions['desktopWait']
   createPersonalPiece?: BuildMainGatewayToolsOptions['createPersonalPiece']
+  queryLanguage?: BuildMainGatewayToolsOptions['queryLanguage']
+  searchSessions?: BuildMainGatewayToolsOptions['searchSessions']
+  extensionTools?: BuildMainGatewayToolsOptions['extensionTools']
+  scheduleWork?: BuildMainGatewayToolsOptions['scheduleWork']
+  listAutomations?: BuildMainGatewayToolsOptions['listAutomations']
+  cancelAutomation?: BuildMainGatewayToolsOptions['cancelAutomation']
   createWorkPlan?: BuildMainGatewayToolsOptions['createWorkPlan']
   createDeclaredWorkPlan?: BuildMainGatewayToolsOptions['createDeclaredWorkPlan']
   listExecutionVerifiers?: BuildMainGatewayToolsOptions['listExecutionVerifiers']
   listLearnedProcedures?: BuildMainGatewayToolsOptions['listLearnedProcedures']
+  readToolObservation?: BuildMainGatewayToolsOptions['readToolObservation']
   useLearnedProcedure?: BuildMainGatewayToolsOptions['useLearnedProcedure']
   prepareLearnedProcedureInput?: BuildMainGatewayToolsOptions['prepareLearnedProcedureInput']
   desktopInspectScene?: BuildMainGatewayToolsOptions['desktopInspectScene']
@@ -788,24 +802,27 @@ function buildWorkingMemoryRecentTurns(
 ): WorkingMemoryRecentTurnInput[] {
   const visibleMessages = messages
     .filter(message => message?.role === 'user' || message?.role === 'assistant')
-    .slice(-6)
+    .slice(-workingMemoryRetention.maxRawMessages)
   const recentMessages = visibleMessages.at(-1)?.role === 'user'
     ? visibleMessages.slice(0, -1)
     : visibleMessages
+  let recentExchangeId = 'message-1'
 
   const recentTurns: WorkingMemoryRecentTurnInput[] = recentMessages
     .map((message, index): WorkingMemoryRecentTurnInput | null => {
-      const text = normalizePreparedExecutionText(readTransportContentAsText(message.content), 1200)
+      const text = selectWorkingMemorySentences(readTransportContentAsText(message.content), workingMemoryRetention.maxStoredTurnChars)
       if (!text)
         return null
+      if (message.role === 'user')
+        recentExchangeId = `message-${index + 1}`
       return message.role === 'assistant'
         ? {
-            turnId: `message-${index + 1}`,
+            turnId: recentExchangeId,
             assistantText: text,
             createdAt: now - (recentMessages.length - index),
           }
         : {
-            turnId: `message-${index + 1}`,
+            turnId: recentExchangeId,
             userText: text,
             createdAt: now - (recentMessages.length - index),
           }
@@ -832,8 +849,8 @@ function mergeWorkingMemoryRecentTurns(
   const seenAssistantTexts = new Set<string>()
 
   const appendTurn = (turn: WorkingMemoryRecentTurnInput) => {
-    const userText = normalizePreparedExecutionText(turn.userText, 1200)
-    const assistantText = normalizePreparedExecutionText(turn.assistantText, 1200)
+    const userText = selectWorkingMemorySentences(turn.userText ?? '', workingMemoryRetention.maxStoredTurnChars)
+    const assistantText = selectWorkingMemorySentences(turn.assistantText ?? '', workingMemoryRetention.maxStoredTurnChars)
     const nextUserText = userText && !seenUserTexts.has(userText)
       ? userText
       : null
@@ -859,7 +876,7 @@ function mergeWorkingMemoryRecentTurns(
 
   return merged
     .sort((left, right) => Number(left.createdAt ?? 0) - Number(right.createdAt ?? 0))
-    .slice(-8)
+    .slice(-workingMemoryRetention.maxRawMessages)
 }
 
 function scopeProviderMessagesToWorkingMemoryOwner(
@@ -1761,6 +1778,16 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       staleAfterMs: options.dialogueSessionMirrorTtlMs,
     })
   const workingMemoryStore = options.workingMemoryStore ?? createWorkingMemoryStore()
+  const compactWorkingMemory = options.generateWorkingMemorySelection && options.replaceWorkingMemoryCheckpoint
+    ? createWorkingMemorySemanticCompactor({
+        store: workingMemoryStore,
+        generate: options.generateWorkingMemorySelection,
+        replace: options.replaceWorkingMemoryCheckpoint,
+        sourcesCurrent: options.workingMemorySourcesCurrent,
+        now: getNow,
+        onResult: event => options.appendRuntimeDebugLine?.('memory.semantic-compaction', event) ?? Promise.resolve(),
+      })
+    : null
   const workingMemoryHistoryOwner = options.workingMemoryHistoryOwner
     ?? (
       options.listConversationTurnsBySession
@@ -2725,10 +2752,17 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             desktopPressKeys: sessionBoundToolOptions.desktopPressKeys,
             desktopWait: sessionBoundToolOptions.desktopWait,
             createPersonalPiece: options.createPersonalPiece,
+            queryLanguage: options.queryLanguage,
+            searchSessions: options.searchSessions,
+            extensionTools: options.extensionTools,
+            scheduleWork: options.scheduleWork,
+            listAutomations: options.listAutomations,
+            cancelAutomation: options.cancelAutomation,
             createWorkPlan: options.createWorkPlan,
             createDeclaredWorkPlan: options.createDeclaredWorkPlan,
             listExecutionVerifiers: options.listExecutionVerifiers,
             listLearnedProcedures: options.listLearnedProcedures,
+            readToolObservation: options.readToolObservation,
             useLearnedProcedure: options.useLearnedProcedure,
             prepareLearnedProcedureInput: options.prepareLearnedProcedureInput,
             desktopInspectScene: sessionBoundToolOptions.desktopInspectScene,
@@ -2972,6 +3006,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       workingMemory: workingMemoryOwner.ownerContext,
       workingMemorySnapshot: workingMemoryOwner.snapshot,
       longTermRecall: longTermMemoryBundle,
+      workingMemoryByteBudget: Math.min(22_000, Math.max(1500, Math.floor(resolveLifeProviderRequestLimits(payload.providerConfig).contextTokens / 3))),
     })
     const memoryWriteItems = structuredClone(workingMemoryOwner.ownerContext.longTermQueue)
     const workingMemoryOwnedRuntimeSurface = applyWorkingMemoryOwnerToDigitalLifeRuntimeSurface({
@@ -3023,6 +3058,20 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const finalizedReturnedMindTurnContract = normalizedMindTurnContract
     messages = filterAlicizationProviderSystemMessages(messages)
     messages = injectAlicizationMainChatMemoryContext(messages, memoryContext)
+    // This is a bounded index of the existing skill owner, not another memory
+    // store. Execution still reloads the exact source, evaluation and interface.
+    if (allowTools && options.listLearnedProcedures && tools?.some(tool => tool.function.name === 'life_use_learned_procedure')) {
+      try {
+        const catalog = await awaitMainChatPreparationOwner(options.listLearnedProcedures(), input.abortSignal)
+        const context = buildProcedureContext(currentUserText, catalog)
+        if (context)
+          messages = [...messages, { role: 'system', content: context }]
+      }
+      catch (error) {
+        throwIfMainChatPreparationAborted(input.abortSignal)
+        await options.appendRuntimeDebugLine?.('life.procedure-context-unavailable', { turnId: payload.turnId, reason: errorMessageFrom(error) })
+      }
+    }
     messages = filterAlicizationProviderSystemMessages(messages)
     const promptBudgetResult = applyDesktopMemoryPromptBudget(
       messages,
@@ -3278,6 +3327,9 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             }
           }
           ownerSettlements = []
+          // The durable extractive checkpoint has already committed. Semantic
+          // selection is preemptible background work and cannot hold the reply.
+          await compactWorkingMemory?.(intent.workingMemorySnapshot, deferredMemorySignal)
           if (intent.memoryWriteItems.length === 0) {
             ownerSettlements.push({
               owner: 'long-term-memory-drain',

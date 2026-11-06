@@ -12,6 +12,7 @@ import type { UnElevenLabsOptions } from 'unspeech'
 
 import type { EmotionPayload } from '../../constants/emotions'
 import type { BrowserSpeechAudioSource } from '../../libs/speech-audio-playback'
+import type { ConversationDeliveryState } from '../../services/speech/conversation-delivery'
 import type {
   AlicizationDialogueEmbodimentEnvelope,
   AlicizationDialoguePerformancePayload,
@@ -31,7 +32,7 @@ import {
   supportsVrmBaseEmotion,
 } from '@proj-alicization/stage-ui-three/composables/vrm'
 import { createQueue } from '@proj-alicization/stream-kit'
-import { useDocumentVisibility, useLocalStorage, useMediaQuery, useNow, useResizeObserver } from '@vueuse/core'
+import { useBroadcastChannel, useDocumentVisibility, useLocalStorage, useMediaQuery, useNow, useResizeObserver } from '@vueuse/core'
 // import { createTransformers } from '@xsai-transformers/embed'
 // import embedWorkerURL from '@xsai-transformers/embed/worker?worker&url'
 // import { embed } from '@xsai/embed'
@@ -40,6 +41,7 @@ import { storeToRefs } from 'pinia'
 import { computed, nextTick, onBeforeMount, onErrorCaptured, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import ChatSpeechDelivery from '../scenarios/chat/speech-delivery.vue'
 import StageActivityIndicator from './stage-activity-indicator.vue'
 import StageDialoguePanel from './stage-dialogue-panel.vue'
 import StageEmbodimentDiagnosticsOverlay from './stage-embodiment-diagnostics-overlay.vue'
@@ -48,6 +50,8 @@ import { useDelayMessageQueue, useEmotionsMessageQueue } from '../../composables
 import { llmInferenceEndToken } from '../../constants'
 import { EMOTION_EmotionMotionName_value, EMOTION_VRMExpressionName_value } from '../../constants/emotions'
 import { resolveSpeechRequestStyle } from '../../services/embodiment/speech-synthesis-style'
+import { canonicalDeliveryTurn, deliveryKey } from '../../services/speech/conversation-delivery'
+import { createConversationOutputController } from '../../services/speech/conversation-output-controller'
 import {
   alicizationEmotionWhitelist,
   clampAlicizationPerformancePayloadToManifest,
@@ -60,6 +64,7 @@ import { useAudioContext, useSpeakingStore } from '../../stores/audio'
 import { useChatOrchestratorStore } from '../../stores/chat'
 import { useChatSessionStore } from '../../stores/chat/session-store'
 import { useChatStreamStore } from '../../stores/chat/stream-store'
+import { useConversationDeliveryStore } from '../../stores/conversation-delivery'
 import { useAiriCardStore } from '../../stores/modules'
 import { useSpeechStore } from '../../stores/modules/speech'
 import { useProvidersStore } from '../../stores/providers'
@@ -82,6 +87,7 @@ import {
   gateStageRuntimeCapabilities,
 } from './stage-execution-diagnostics-gate'
 import { resolveLive2DManifestActionCapabilities } from './stage-live2d-performance-manifest'
+import { applyStagePersonalityExpression } from './stage-personality-expression'
 import { resolveStagePresencePulsePerformance } from './stage-presence-pulse-performance'
 import { projectStageResidentBehavior } from './stage-resident-behavior-frame'
 import {
@@ -98,7 +104,6 @@ import {
   resolvePreferredExpressionAliasesFromRuntimeState,
   resolvePreferredMotionAliasesFromRuntimeState,
 } from './stage-runtime-embodiment-cues'
-import { resolvePresentedTextArticulation } from './stage-text-dialogue-delivery'
 import {
   resolveVrmManifestActionCapabilities,
   resolveVrmManifestBaseEmotions,
@@ -222,7 +227,6 @@ const {
   onBeforeMessageComposed,
   onEmbodimentMeta,
   onTextPresented,
-  onTokenLiteral,
   onTokenSpecial,
   onStreamEnd,
   onStreamCancelled,
@@ -359,7 +363,9 @@ watch(
 type CaptionChannelEvent
   = | { type: 'caption-speaker', text: string }
     | { type: 'caption-assistant', text: string }
-const captionPoster = createLazyBroadcastPoster<CaptionChannelEvent>('airi-caption-overlay')
+// The desktop caption receiver uses this native channel, including file://
+// windows. Payloads are bounded plain strings from the owned playback clock.
+const captionPoster = useBroadcastChannel<CaptionChannelEvent, CaptionChannelEvent>({ name: 'airi-caption-overlay' })
 const assistantCaption = ref('')
 const hoverCapable = useMediaQuery('(hover: hover) and (pointer: fine)')
 const stageCharacterHovered = ref(false)
@@ -391,8 +397,36 @@ const speechStore = useSpeechStore()
 const { ssmlEnabled, activeSpeechProvider, activeSpeechModel, activeSpeechVoice, pitch, rate } = storeToRefs(speechStore)
 const activeCardId = computed(() => selectedCardId.value || 'default')
 const speechRuntimeStore = useSpeechRuntimeStore()
+const conversationDeliveryStore = useConversationDeliveryStore()
+const conversationDelivery = ref<ConversationDeliveryState | null>(null)
+const conversationVoiceIntents = new Map<string, string>()
+const supersededConversationIntents = new Set<string>()
+let embodimentRuntime: ReturnType<typeof useStageEmbodimentRuntime> | null = null
 const chatIntentBridge = createStageChatIntentBridge({
   openIntent: options => speechRuntimeStore.openIntent(options),
+})
+const conversationOutput = createConversationOutputController({
+  state: (state) => {
+    conversationDelivery.value = state
+    conversationDeliveryStore.publish(state)
+  },
+  frame: frame => textArticulation.value = frame,
+  caption: (text) => {
+    if (assistantCaption.value === text)
+      return
+    assistantCaption.value = text
+    captionPoster.post({ type: 'caption-assistant', text })
+    presentPoster.post({ type: 'assistant-reset' })
+    if (text)
+      presentPoster.post({ type: 'assistant-append', text })
+  },
+  writeSpeech: text => chatIntentBridge.writeLiteral(text),
+  endSpeech: () => chatIntentBridge.end(),
+  cancelSpeech: cancelConversationSpeech,
+  perform: turnId => embodimentRuntime?.presentTextDialogue(turnId),
+  finishPerformance: turnId => embodimentRuntime?.finishTextDialogue(turnId),
+  silentMouth: () => speechStore.silentMouthEnabled,
+  rate: () => embodimentRuntime?.styledRate.value ?? rate.value,
 })
 const currentChatIntent = ref<ReturnType<typeof speechRuntimeStore.openIntent> | null>(null)
 const currentChatDeliveryTurnId = ref<string | null>(null)
@@ -401,7 +435,6 @@ const debugEmbodimentStorage = useLocalStorage(stageEmbodimentDebugStorageKey, f
 const showEmbodimentDiagnostics = computed(() => {
   return Boolean(props.debugEmbodiment || debugEmbodimentStorage.value)
 })
-let embodimentRuntime: ReturnType<typeof useStageEmbodimentRuntime> | null = null
 
 function logStageEmbodimentDebug(event: string, payload?: Record<string, unknown>) {
   if (!showEmbodimentDiagnostics.value)
@@ -903,15 +936,41 @@ const speechPipeline = createSpeechPipeline<BrowserSpeechAudioSource>({
   playback: playbackManager,
 })
 logStageStartupTrace('after-speech-pipeline')
-const speechReceiptProgress = new Map<string, { started: boolean, parts: Map<string, number> }>()
+function cancelConversationSpeech(epoch: string) {
+  const intentId = conversationVoiceIntents.get(epoch)
+  if (chatIntentBridge.current?.intentId === intentId)
+    chatIntentBridge.cancel('conversation-stopped')
+  else if (intentId)
+    speechPipeline.cancelIntent(intentId, 'conversation-stopped')
+  conversationVoiceIntents.delete(epoch)
+}
+const speechReceiptProgress = new Map<string, { started: boolean, parts: Map<string, number>, lastSentAt: number, alignedTextEnd: number | null, coverage: 'complete' | 'excerpt' }>()
 speechPipeline.on('onUtterancePlaybackResult', (event) => {
+  if (supersededConversationIntents.delete(event.intentId))
+    return
   if (event.result.errorCode === 'empty-utterance' && !speechReceiptProgress.get(event.intentId)?.started) {
+    const epoch = event.metadata?.conversationDeliveryEpoch
+    if (typeof epoch === 'string' && conversationVoiceIntents.get(epoch) === event.intentId && conversationOutput.source.trim()) {
+      conversationOutput.finishVoice(epoch, 'failed')
+      conversationVoiceIntents.delete(epoch)
+      const delivery = event.metadata?.lifeDelivery as { cardId?: string, turnId?: string } | undefined
+      if (delivery?.cardId && delivery.turnId)
+        emit('speechReceipt', { cardId: delivery.cardId, turnId: delivery.turnId, utteranceId: event.intentId, playbackEpoch: event.intentId, state: 'audio-failed', playedMs: 0, errorCode: 'no-playable-audio', alignedTextEnd: null, alignmentSource: null })
+    }
     speechReceiptProgress.delete(event.intentId)
     return
   }
+  const epoch = event.metadata?.conversationDeliveryEpoch
+  const currentDelivery = conversationOutput.current
+  const coverage = currentDelivery && currentDelivery.epoch === epoch && currentDelivery.partial ? 'excerpt' : speechReceiptProgress.get(event.intentId)?.coverage ?? 'complete'
+  if (typeof epoch === 'string' && conversationVoiceIntents.get(epoch) === event.intentId) {
+    conversationOutput.finishVoice(epoch, event.result.status)
+    conversationVoiceIntents.delete(epoch)
+  }
   const delivery = event.metadata?.lifeDelivery as { cardId?: string, turnId?: string } | undefined
   if (delivery?.cardId && delivery.turnId) {
-    emit('speechReceipt', { cardId: delivery.cardId, turnId: delivery.turnId, utteranceId: event.intentId, playbackEpoch: event.intentId, state: event.result.status === 'completed' ? 'audio-ended' : event.result.status === 'interrupted' ? 'audio-interrupted' : 'audio-failed', playedMs: event.result.playedMs, errorCode: event.result.errorCode })
+    const progress = speechReceiptProgress.get(event.intentId)
+    emit('speechReceipt', { cardId: delivery.cardId, turnId: delivery.turnId, utteranceId: event.intentId, playbackEpoch: event.intentId, state: event.result.status === 'completed' ? 'audio-ended' : event.result.status === 'interrupted' ? 'audio-interrupted' : 'audio-failed', playedMs: event.result.playedMs, errorCode: event.result.errorCode, alignedTextEnd: progress?.alignedTextEnd ?? null, alignmentSource: progress?.alignedTextEnd == null ? null : 'segment', coverage })
   }
   speechReceiptProgress.delete(event.intentId)
 })
@@ -1219,7 +1278,7 @@ const currentPerformanceManifest = computed(() => {
 
 function clampPresencePerformanceToManifest(performance: AlicizationDialoguePerformancePayload) {
   return clampAlicizationPerformancePayloadToManifest(
-    performance,
+    applyStagePersonalityExpression(performance, embodimentRuntime?.visualPresenceState.value?.personalityExpression),
     currentPerformanceManifest.value,
     performance.baseEmotion,
   ).performance
@@ -1246,23 +1305,30 @@ watch([stageModelRenderer, stageModelSelected], ([renderer]) => {
 
 const { killSwitch: activityKillSwitch } = storeToRefs(useAlicizationEpoch1Store())
 embodimentRuntime = useStageEmbodimentRuntime({
-  textOnly: computed(() => activeSpeechProvider.value === 'speech-noop'),
+  textOnly: computed(() => activeSpeechProvider.value === 'speech-noop' || !speechStore.autoReadEnabled),
   activeCardId,
-  onAudioPlaybackReceipt: ({ item, status, playedMs }) => {
+  onAudioPlaybackReceipt: ({ item, status, playedMs, activeAudio }) => {
+    const epoch = item.metadata?.conversationDeliveryEpoch
+    const aligned = typeof epoch === 'string' ? conversationOutput.audio({ epoch, segmentId: item.segmentId, text: item.text, status, playedMs, durationMs: resolveSpeechAudioDurationMs(item.audio), activeAudio: activeAudio === true, timings: item.audio?.kind === 'buffer' ? item.audio.textTimings : undefined }) : null
     const delivery = item.metadata?.lifeDelivery as { cardId?: string, turnId?: string } | undefined
     if (!delivery?.cardId || !delivery.turnId)
       return
     let progress = speechReceiptProgress.get(item.intentId)
     if (!progress) {
-      progress = { started: false, parts: new Map() }
+      progress = { started: false, parts: new Map(), lastSentAt: 0, alignedTextEnd: null, coverage: 'complete' }
       speechReceiptProgress.set(item.intentId, progress)
     }
     progress.parts.set(item.segmentId, playedMs)
+    if (aligned) {
+      progress.alignedTextEnd = aligned.alignedTextEnd
+      progress.coverage = aligned.coverage
+    }
     if (status === 'started' && !progress.started) {
       progress.started = true
       emit('speechReceipt', { cardId: delivery.cardId, turnId: delivery.turnId, utteranceId: item.intentId, playbackEpoch: item.intentId, state: 'audio-started', playedMs: 0, errorCode: null })
     }
-    else if (progress.started && status !== 'started') {
+    else if (progress.started && status !== 'started' && (status !== 'progress' || Date.now() - progress.lastSentAt >= 250)) {
+      progress.lastSentAt = Date.now()
       emit('speechReceipt', { cardId: delivery.cardId, turnId: delivery.turnId, utteranceId: item.intentId, playbackEpoch: item.intentId, state: 'audio-progress', playedMs: [...progress.parts.values()].reduce((sum, duration) => sum + duration, 0), errorCode: null })
     }
   },
@@ -1370,6 +1436,7 @@ useStageBodyActivity({ activity: activityPresence, cardId: () => activeCardId.va
   return points.some(([x, y]) => vrmViewerRef.value?.hitTestClientPoint(x, y))
 }, emit: receipt => emit('bodyActivityReceipt', receipt) })
 watch([activeCardId, stageModelSelected, () => props.paused, () => activityKillSwitch.value.state], () => {
+  conversationOutput.cancel()
   clearActivityPresence()
   embodimentRuntime.clearInteractionIntent()
 })
@@ -1562,9 +1629,11 @@ chatHookCleanups.push(onPlaybackEvent((event) => {
     // NOTICE: postCaption and postPresent may throw errors if the BroadcastChannel is closed
     // (e.g., when navigating away from the page). We wrap these in try-catch to prevent
     // breaking playback when the channel is unavailable.
-    assistantCaption.value += ` ${item.text}`
-    captionPoster.post({ type: 'caption-assistant', text: assistantCaption.value })
-    presentPoster.post({ type: 'assistant-append', text: item.text })
+    if (!item.metadata?.conversationDeliveryEpoch) {
+      assistantCaption.value += ` ${item.text}`
+      captionPoster.post({ type: 'caption-assistant', text: assistantCaption.value })
+      presentPoster.post({ type: 'assistant-append', text: item.text })
+    }
     return
   }
 
@@ -1581,6 +1650,11 @@ chatHookCleanups.push(onPlaybackEvent((event) => {
 }))
 
 chatHookCleanups.push(onBeforeMessageComposed(async (_message, context) => {
+  if (props.paused || activityKillSwitch.value.state === 'SUSPENDED')
+    return
+  if (!context.sessionId)
+    throw new Error('Conversation delivery requires its actual session')
+  conversationOutput.cancel()
   textArticulation.value = null
   currentChatDeliveryTurnId.value = null
   const prepareStartedAt = performance.now()
@@ -1605,12 +1679,19 @@ chatHookCleanups.push(onBeforeMessageComposed(async (_message, context) => {
   chatIntentBridge.cancel('prepare-next-message')
   currentChatIntent.value = null
 
-  currentChatIntent.value = chatIntentBridge.prepare({
-    ownerId: activeCardId.value,
-    priority: 'normal',
-    behavior: 'queue',
-    metadata: { ...createSpeechIntentMetadata('chat'), lifeDelivery: { cardId: activeCardId.value, turnId: `chat:${context.sessionId}:${context.message.id}` } },
-  })
+  const deliveryEpoch = crypto.randomUUID()
+  const deliveryTurnId = `chat:${context.sessionId}:${context.message.id}`
+  conversationOutput.begin({ cardId: activeCardId.value, sessionId: context.sessionId, turnId: deliveryTurnId, epoch: deliveryEpoch }, activeSpeechProvider.value !== 'speech-noop' && speechStore.autoReadEnabled ? 'voice' : 'silent')
+  currentChatIntent.value = conversationOutput.current?.mode === 'voice'
+    ? chatIntentBridge.prepare({
+        ownerId: activeCardId.value,
+        priority: 'normal',
+        behavior: 'queue',
+        metadata: { ...createSpeechIntentMetadata('chat'), conversationDeliveryEpoch: deliveryEpoch, lifeDelivery: { cardId: activeCardId.value, turnId: deliveryTurnId } },
+      })
+    : null
+  if (currentChatIntent.value)
+    conversationVoiceIntents.set(deliveryEpoch, currentChatIntent.value.intentId)
   currentChatDeliveryTurnId.value = `chat:${context.sessionId}:${context.message.id}`
   embodimentRuntime.beginTextDialogue(currentChatDeliveryTurnId.value)
 }))
@@ -1629,8 +1710,12 @@ chatHookCleanups.push(onEmbodimentMeta(async (meta, context) => {
     digitalLife: meta.digitalLife ?? null,
     speechTimeline: meta.speechTimeline ?? null,
   })
-  if (embodimentScript || meta.runtimeDigest || authoritativeMeta.voice || authoritativeMeta.speechStyle) {
+  if (meta.deliveryTurnId || embodimentScript || meta.runtimeDigest || authoritativeMeta.voice || authoritativeMeta.speechStyle) {
+    const previousIntent = currentChatIntent.value?.intentId
+    if (previousIntent)
+      supersededConversationIntents.add(previousIntent)
     currentChatIntent.value = chatIntentBridge.attachRuntimeMetadata({
+      deliveryTurnId: meta.deliveryTurnId,
       embodimentScript,
       runtimeDigest: meta.runtimeDigest ?? null,
       speechSynthesis: resolveRuntimeSpeechSynthesisMetadata({
@@ -1638,6 +1723,10 @@ chatHookCleanups.push(onEmbodimentMeta(async (meta, context) => {
         voice: authoritativeMeta.voice,
       }),
     })
+    if (currentChatIntent.value?.intentId === previousIntent)
+      supersededConversationIntents.delete(previousIntent!)
+    if (currentChatIntent.value && conversationOutput.current)
+      conversationVoiceIntents.set(conversationOutput.current.epoch, currentChatIntent.value.intentId)
   }
 
   if (meta.digitalLifeSpine)
@@ -1683,21 +1772,11 @@ chatHookCleanups.push(onEmbodimentMeta(async (meta, context) => {
   })
 }))
 
-chatHookCleanups.push(onTextPresented(async (unit, context) => {
+chatHookCleanups.push(onTextPresented(async (chunk, context) => {
   const turnId = `chat:${context.sessionId}:${context.message.id}`
   if (turnId !== currentChatDeliveryTurnId.value)
     return
-  textArticulation.value = activeSpeechProvider.value === 'speech-noop' ? resolvePresentedTextArticulation(unit, turnId, Date.now()) : null
-  if (activeSpeechProvider.value === 'speech-noop') {
-    embodimentRuntime.presentTextDialogue(turnId)
-    assistantCaption.value += unit.grapheme
-    captionPoster.post({ type: 'caption-assistant', text: assistantCaption.value })
-    presentPoster.post({ type: 'assistant-append', text: unit.grapheme })
-  }
-}))
-
-chatHookCleanups.push(onTokenLiteral(async (literal) => {
-  chatIntentBridge.writeLiteral(literal)
+  conversationOutput.append(chunk.text, chunk.offset)
 }))
 
 chatHookCleanups.push(onTokenSpecial(async (special) => {
@@ -1714,6 +1793,7 @@ chatHookCleanups.push(onStreamCancelled(async (_reason, context) => {
   const turnId = `chat:${context.sessionId}:${context.message.id}`
   if (turnId !== currentChatDeliveryTurnId.value)
     return
+  conversationOutput.cancel()
   textArticulation.value = null
   chatIntentBridge.cancel('chat-cancelled')
   currentChatIntent.value = null
@@ -1725,9 +1805,7 @@ chatHookCleanups.push(onAssistantResponseEnd(async (_message, context) => {
   const turnId = `chat:${context.sessionId}:${context.message.id}`
   if (turnId !== currentChatDeliveryTurnId.value)
     return
-  textArticulation.value = null
-  embodimentRuntime.finishTextDialogue(turnId)
-  chatIntentBridge.end()
+  conversationOutput.finish()
   currentChatIntent.value = null
   // const res = await embed({
   //   ...transformersProvider.embed('Xenova/nomic-embed-text-v1'),
@@ -1738,6 +1816,29 @@ chatHookCleanups.push(onAssistantResponseEnd(async (_message, context) => {
 }))
 
 logStageStartupTrace('after-chat-hook-register')
+
+chatHookCleanups.push(conversationDeliveryStore.onStop((key, epoch) => {
+  const current = conversationOutput.current
+  if (current && current.epoch === epoch && deliveryKey(current) === key)
+    conversationOutput.cancel()
+}))
+chatHookCleanups.push(conversationDeliveryStore.onRead((request) => {
+  if (props.paused || activityKillSwitch.value.state === 'SUSPENDED' || request.cardId !== activeCardId.value || request.sessionId !== chatSessionStore.activeSessionId || activeSpeechProvider.value === 'speech-noop' || request.text.length > 12000 || sending.value)
+    return
+  const message = messages.value.find(message => message.role === 'assistant' && message.id && canonicalDeliveryTurn(message.id) === canonicalDeliveryTurn(request.turnId))
+  if (!message || resolveStageBubbleText(message).trim() !== request.text.trim() || !resolveStageRenderedDeliveryTurn(message, activeCardId.value))
+    return
+  const epoch = crypto.randomUUID()
+  const turnId = resolveStageRenderedDeliveryTurn(message, activeCardId.value)!
+  conversationOutput.begin({ ...request, epoch }, 'voice', true)
+  embodimentRuntime.beginTextDialogue(canonicalDeliveryTurn(turnId))
+  const intent = chatIntentBridge.prepare({ ownerId: activeCardId.value, behavior: 'queue', metadata: { ...createSpeechIntentMetadata('chat'), conversationDeliveryEpoch: epoch, lifeDelivery: { cardId: activeCardId.value, turnId } } })
+  conversationVoiceIntents.set(epoch, intent.intentId)
+  conversationOutput.append(request.text, 0)
+  conversationOutput.finish()
+}))
+watch([() => chatSessionStore.activeSessionId, activeSpeechProvider, () => speechStore.autoReadEnabled, () => speechStore.silentMouthEnabled], () => conversationOutput.cancel())
+chatHookCleanups.push(chatOrchestrator.registerPipelineAborter(async () => conversationOutput.cancel()))
 
 // Resume audio context on first user interaction (browser requirement)
 let audioContextResumed = false
@@ -1862,13 +1963,15 @@ const proactiveFeedbackActions = computed(() => {
   }
 })
 const settledBubbleText = computed(() => resolveStageBubbleText(recentAssistantBubbleMessage.value))
-const bubbleLoading = computed(() => sending.value && !streamingBubbleText.value)
-const bubbleStreaming = computed(() => sending.value && !!streamingBubbleText.value)
+const deliveryActive = computed(() => conversationDelivery.value && ['waiting', 'speaking', 'silent'].includes(conversationDelivery.value.phase))
+const voiceDeliveryActive = computed(() => Boolean(deliveryActive.value && conversationDelivery.value?.mode === 'voice'))
+const bubbleLoading = computed(() => (sending.value && !streamingBubbleText.value) || (voiceDeliveryActive.value && !assistantCaption.value))
+const bubbleStreaming = computed(() => (sending.value && !!streamingBubbleText.value) || Boolean(deliveryActive.value))
 const bubbleText = computed(() => {
   if (bubbleLoading.value)
     return ''
 
-  return streamingBubbleText.value || settledBubbleText.value
+  return voiceDeliveryActive.value ? assistantCaption.value : streamingBubbleText.value || settledBubbleText.value
 })
 const dialogueHasVisibleContent = computed(() => {
   return props.quickReplyEnabled || bubbleLoading.value || bubbleStreaming.value || !!bubbleText.value
@@ -1984,6 +2087,7 @@ function hitTestClientPoint(clientX: number, clientY: number) {
 }
 
 onUnmounted(() => {
+  conversationOutput.cancel()
   clearRuntimeSegmentMotionFollowThroughTimer()
   embodimentRuntime.dispose()
   captionPoster.close()
@@ -2103,7 +2207,11 @@ defineExpose({
         @focus-change="handleDialoguePanelFocusChange"
         @interaction-change="dialoguePanelInteractionActive = $event"
         @proactive-feedback="handleProactiveFeedback"
-      />
+      >
+        <template #delivery>
+          <ChatSpeechDelivery compact :message-id="deliveryActive ? conversationDelivery?.turnId : recentAssistantBubbleMessage?.id" :text="streamingBubbleText || settledBubbleText" :saved="conversationDelivery ?? undefined" />
+        </template>
+      </StageDialoguePanel>
     </div>
   </div>
 </template>

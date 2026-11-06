@@ -3,6 +3,9 @@ import type { LifeCommitReceipt, LifeExpressionReceipt, LifeStateView } from './
 
 import { defineEventa, defineInvokeEventa } from '@moeru/eventa'
 
+export const electronLifePersonaDevelopmentCommand = defineInvokeEventa<{ status: string }, import('./persona-development-contracts').PersonaDevelopmentCommand>('alicization:life:persona-development-command')
+export const electronLifePersonaSources = defineInvokeEventa<import('./persona-development-contracts').PersonaSourcePreview[], { cardId: string, facetId: string, version: number }>('alicization:life:persona-sources')
+
 export const electronLifeExecutionChanged = defineEventa<{ cardId: string, revision: number }>('alicization:life:execution-changed')
 export const electronLifeAuthorizedBrowser = defineInvokeEventa<import('./authorized-browser-contracts').AuthorizedBrowserState, import('./authorized-browser-contracts').AuthorizedBrowserCommand>('alicization:life:authorized-browser')
 export const electronLifeProcedure = defineInvokeEventa<import('./procedure-contracts').ProcedureCommandResult, import('./procedure-contracts').ProcedureCommand>('alicization:life:procedure')

@@ -27,6 +27,8 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import { inheritActionNotStarted } from '../execution/action-dispatch-context'
+import { executeToolCallsScheduled } from '../third-party/codex-tool-scheduler'
+import { maxAgentToolBatchSize } from '../third-party/pi-tool-batch'
 import {
   createAlicizationRuntimeReplyDeliveryIntent,
   parseAlicizationRuntimeReplyArtifact,
@@ -85,6 +87,10 @@ export type AlicizationModelStep
     action: AlicizationModelAction
   }
   | {
+    kind: 'actions'
+    actions: AlicizationModelAction[]
+  }
+  | {
     kind: 'reply'
     reply: AlicizationModelTextReply
   }
@@ -119,6 +125,8 @@ export interface AlicizationEventLoopRuntimeView extends AlicizationTurnRuntimeS
 }
 
 export interface AlicizationEventLoopParticipant<TTurnInput = unknown, TModelContext = unknown> {
+  waitForActionStop?: (action: AlicizationModelAction, runtime: AlicizationEventLoopRuntimeView) => boolean
+  canRunInParallel?: (action: AlicizationModelAction, runtime: AlicizationEventLoopRuntimeView) => boolean
   assembleContext: (
     input: TTurnInput,
     runtime: AlicizationEventLoopRuntimeView,
@@ -131,6 +139,11 @@ export interface AlicizationEventLoopParticipant<TTurnInput = unknown, TModelCon
     action: AlicizationModelAction,
     runtime: AlicizationEventLoopRuntimeView,
   ) => Promise<AlicizationModelObservation>
+  onActionSettled?: (
+    action: AlicizationModelAction,
+    observation: AlicizationModelObservation,
+    runtime: AlicizationEventLoopRuntimeView,
+  ) => Promise<void>
   settleReply: (
     reply: AlicizationModelTextReply,
     runtime: AlicizationEventLoopRuntimeView,
@@ -602,7 +615,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
     }
 
     let state = createAlicizationTurnRuntimeState(input.scope, input.deliveryOwner)
-    let failureSurface: 'context' | 'provider' | 'tool' | 'delivery' = 'context'
+    const failure = { surface: 'context' as 'context' | 'provider' | 'tool' | 'delivery' }
     let currentActionId: string | null = null
     const providerFailure = {
       origin: 'none' as 'none' | 'invocation-or-validation',
@@ -899,7 +912,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
 
       for (let stepIndex = 1; stepIndex <= maxSteps; stepIndex++) {
         throwIfAborted(controller.signal)
-        failureSurface = 'provider'
+        failure.surface = 'provider'
         providerFailure.origin = 'none'
         let resolveModelStepStartDurability!: (
           result: { error: unknown | null },
@@ -949,14 +962,23 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
             controller.signal,
           )
           throwIfAborted(controller.signal)
-          if (participantStep.kind === 'action') {
-            const action = parseModelAction(participantStep.action)
-            if (state.actions[action.actionId])
-              throw new Error(`model action ${action.actionId} already exists in this turn`)
-            step = {
-              kind: 'action',
-              action,
+          if (participantStep.kind === 'action' || participantStep.kind === 'actions') {
+            const proposed = participantStep.kind === 'action' ? [participantStep.action] : participantStep.actions
+            if (!Array.isArray(proposed) || !proposed.length || proposed.length > maxAgentToolBatchSize)
+              throw new TypeError('model action batch must contain 1 to 8 actions')
+            const actions = proposed.map(parseModelAction)
+            const actionIds = new Set<string>()
+            const callIds = new Set<string>()
+            for (const action of actions) {
+              if (state.actions[action.actionId] || actionIds.has(action.actionId))
+                throw new Error(`model action ${action.actionId} already exists in this turn`)
+              if (action.toolCallId && callIds.has(action.toolCallId))
+                throw new Error('model batch contains duplicate toolCallId')
+              actionIds.add(action.actionId)
+              if (action.toolCallId)
+                callIds.add(action.toolCallId)
             }
+            step = { kind: 'actions', actions }
           }
           else if (participantStep.kind === 'reply') {
             step = {
@@ -965,7 +987,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
             }
           }
           else {
-            throw new TypeError('model step kind must be action or reply')
+            throw new TypeError('model step kind must be action, actions or reply')
           }
         }
         catch (error) {
@@ -973,144 +995,175 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           throw error
         }
 
-        if (step.kind === 'action') {
-          const action = step.action
-
-          currentActionId = action.actionId
-          await append('model.tool_call.proposed', {
-            actionId: action.actionId,
-            toolCallId: action.toolCallId,
-            capabilityId: action.capabilityId,
-            providerToolName: action.providerToolName,
-            arguments: action.input,
-          }, 'model')
+        if (step.kind === 'actions') {
+          const actions = step.actions
+          // Retain the complete model proposal before any effect. A proposed
+          // action is not dispatched authority and creates no active action.
+          for (const action of actions) {
+            await append('model.tool_call.proposed', {
+              actionId: action.actionId,
+              toolCallId: action.toolCallId,
+              capabilityId: action.capabilityId,
+              providerToolName: action.providerToolName,
+              arguments: action.input,
+            }, 'model')
+          }
           await append('model.step.completed', {
             stepIndex,
             outcome: 'action',
           }, 'model')
-          await append('action.started', {
-            actionId: action.actionId,
-            toolCallId: action.toolCallId,
-            capabilityId: action.capabilityId,
-            providerToolName: action.providerToolName,
-          })
-
-          failureSurface = 'tool'
-          toolFailure.origin = 'none'
-          let observation: AlicizationModelObservation
-          let observationLink: AlicizationActionObservationLink
-          try {
-            observation = await raceWithAbort(
-              () => options.participant.executeAction(
-                action,
-                currentRuntimeView(),
-              ),
-              controller.signal,
-            )
-          }
-          catch (error) {
-            toolFailure.origin = 'adapter-or-validation'
-            if (controller.signal.aborted) {
-              const timeoutReason = resolveAlicizationRuntimeTimeoutReason(
-                controller.signal.reason,
-              ) ?? resolveAlicizationRuntimeTimeoutReason(error)
-              if (timeoutReason)
-                await appendActiveActionFailure(controller.signal.reason ?? error)
-              throw error
-            }
-            observation = {
-              actionId: action.actionId,
-              observationId: `${action.actionId}:observation:${createEventId()}`,
-              toolCallId: action.toolCallId,
-              terminal: true,
-              outcome: isToolCancellation(error) ? 'cancelled' : 'failure',
-              output: toolFailureOutput(action, error),
-            }
-            toolFailure.origin = 'none'
-          }
-
-          try {
-            observation = normalizeTerminalToolObservation(observation)
-            throwIfAborted(controller.signal)
-            observationLink = parseAlicizationActionObservation(observation)
-            if (observationLink.actionId !== action.actionId)
-              throw new Error('tool observation actionId does not match the active model action')
-            if (action.toolCallId && observationLink.toolCallId !== action.toolCallId)
-              throw new Error('tool observation toolCallId does not match the active model action')
-            if (!observationLink.terminal)
-              throw new Error('tool execution returned without a terminal observation')
-          }
-          catch (error) {
-            toolFailure.origin = 'adapter-or-validation'
-            throw error
-          }
-
-          let resolveTerminalObservationDurability!: (
-            result: { error: unknown | null },
-          ) => void
-          const terminalObservationDurability = {
-            promise: new Promise<{ error: unknown | null }>((resolve) => {
-              resolveTerminalObservationDurability = resolve
-            }),
-            resolve: (result: { error: unknown | null }) => {
-              resolveTerminalObservationDurability(result)
+          let batchPause: string | null = null
+          await executeToolCallsScheduled(actions, {
+            signal: controller.signal,
+            canRunInParallel: action => !batchPause && options.participant.canRunInParallel?.(action, currentRuntimeView()) === true,
+            start: async (action) => {
+              await append('action.started', {
+                actionId: action.actionId,
+                toolCallId: action.toolCallId,
+                capabilityId: action.capabilityId,
+                providerToolName: action.providerToolName,
+              })
             },
-          }
-          let settlementId: string
-          do {
-            settlementId = `settlement:${createEventId()}`
-          } while (state.pendingActionSettlements[settlementId])
-          const settlement = {
-            settlementId,
-            actionId: action.actionId,
-            toolCallId: observationLink.toolCallId,
-            observationId: observationLink.observationId,
-          }
-          liveTurn.terminalObservationDurability = terminalObservationDurability
-          try {
-            await append(
-              'action.settlement.started',
-              settlement,
-              'runtime',
-              `${settlementId}:started`,
-            )
-            await append('action.observation', {
-              ...observationLink,
-              ...('output' in observation ? { output: observation.output } : {}),
-            }, 'tool')
-            await append(
-              'action.settlement.completed',
-              settlement,
-              'runtime',
-              `${settlementId}:completed`,
-            )
-            await append(actionTerminalEventType(observationLink.outcome, observation.output), {
-              actionId: action.actionId,
-              toolCallId: observationLink.toolCallId,
-            }, 'tool')
-            currentActionId = null
-            terminalObservationDurability.resolve({ error: null })
-            const deferredCancellation = takeDeferredCancellation(liveTurn)
-            if (
-              deferredCancellation
-              && claimTerminalAuthority(
-                liveTurn,
-                resolveTerminalCancellationStatus(deferredCancellation.reason),
-              )
-            ) {
-              controller.abort(deferredCancellation.reason)
-            }
-          }
-          catch (error) {
-            liveTurn.deferredCancellation = null
-            terminalObservationDurability.resolve({ error })
-            throw error
-          }
-          finally {
-            if (liveTurn.terminalObservationDurability === terminalObservationDurability)
-              liveTurn.terminalObservationDurability = null
-          }
-          throwIfAborted(controller.signal)
+            execute: async (action) => {
+              if (batchPause) {
+                return {
+                  actionId: action.actionId,
+                  observationId: `${action.actionId}:not-dispatched:${createEventId()}`,
+                  toolCallId: action.toolCallId,
+                  terminal: true,
+                  outcome: 'failure' as const,
+                  output: { ok: false, status: 'blocked', errorCode: 'BATCH_REPLAN_REQUIRED', noSideEffects: true, effectMayHaveOccurred: false, pausedByActionId: batchPause, summary: 'This queued proposal was not dispatched. Reassess the earlier replan request or uncertain effect before proposing fresh actions.' },
+                }
+              }
+              // Readers must actually quiesce on cancellation. Tool adapters own
+              // bounded deadlines; racing their promises would orphan readers.
+              return options.participant.canRunInParallel?.(action, currentRuntimeView()) === true || options.participant.waitForActionStop?.(action, currentRuntimeView()) === true
+                ? options.participant.executeAction(action, currentRuntimeView())
+                : raceWithAbort(() => options.participant.executeAction(action, currentRuntimeView()), controller.signal)
+            },
+            settle: async (action, body) => {
+              currentActionId = action.actionId
+              failure.surface = 'tool'
+              toolFailure.origin = 'none'
+              let observation: AlicizationModelObservation
+              let observationLink: AlicizationActionObservationLink
+              try {
+                if (!body.ok)
+                  throw body.error
+                observation = body.value
+              }
+              catch (error) {
+                toolFailure.origin = 'adapter-or-validation'
+                if (controller.signal.aborted) {
+                  const timeoutReason = resolveAlicizationRuntimeTimeoutReason(
+                    controller.signal.reason,
+                  ) ?? resolveAlicizationRuntimeTimeoutReason(error)
+                  if (timeoutReason)
+                    await appendActiveActionFailure(controller.signal.reason ?? error)
+                  throw error
+                }
+                observation = {
+                  actionId: action.actionId,
+                  observationId: `${action.actionId}:observation:${createEventId()}`,
+                  toolCallId: action.toolCallId,
+                  terminal: true,
+                  outcome: isToolCancellation(error) ? 'cancelled' : 'failure',
+                  output: toolFailureOutput(action, error),
+                }
+                toolFailure.origin = 'none'
+              }
+
+              try {
+                observation = normalizeTerminalToolObservation(observation)
+                throwIfAborted(controller.signal)
+                observationLink = parseAlicizationActionObservation(observation)
+                if (observationLink.actionId !== action.actionId)
+                  throw new Error('tool observation actionId does not match the active model action')
+                if (action.toolCallId && observationLink.toolCallId !== action.toolCallId)
+                  throw new Error('tool observation toolCallId does not match the active model action')
+                if (!observationLink.terminal)
+                  throw new Error('tool execution returned without a terminal observation')
+              }
+              catch (error) {
+                toolFailure.origin = 'adapter-or-validation'
+                throw error
+              }
+
+              let resolveTerminalObservationDurability!: (
+                result: { error: unknown | null },
+              ) => void
+              const terminalObservationDurability = {
+                promise: new Promise<{ error: unknown | null }>((resolve) => {
+                  resolveTerminalObservationDurability = resolve
+                }),
+                resolve: (result: { error: unknown | null }) => {
+                  resolveTerminalObservationDurability(result)
+                },
+              }
+              let settlementId: string
+              do {
+                settlementId = `settlement:${createEventId()}`
+              } while (state.pendingActionSettlements[settlementId])
+              const settlement = {
+                settlementId,
+                actionId: action.actionId,
+                toolCallId: observationLink.toolCallId,
+                observationId: observationLink.observationId,
+              }
+              liveTurn.terminalObservationDurability = terminalObservationDurability
+              try {
+                await append(
+                  'action.settlement.started',
+                  settlement,
+                  'runtime',
+                  `${settlementId}:started`,
+                )
+                await append('action.observation', {
+                  ...observationLink,
+                  ...('output' in observation ? { output: observation.output } : {}),
+                }, 'tool')
+                await append(
+                  'action.settlement.completed',
+                  settlement,
+                  'runtime',
+                  `${settlementId}:completed`,
+                )
+                await append(actionTerminalEventType(observationLink.outcome, observation.output), {
+                  actionId: action.actionId,
+                  toolCallId: observationLink.toolCallId,
+                }, 'tool')
+                currentActionId = null
+                terminalObservationDurability.resolve({ error: null })
+                const deferredCancellation = takeDeferredCancellation(liveTurn)
+                if (
+                  deferredCancellation
+                  && claimTerminalAuthority(
+                    liveTurn,
+                    resolveTerminalCancellationStatus(deferredCancellation.reason),
+                  )
+                ) {
+                  controller.abort(deferredCancellation.reason)
+                }
+              }
+              catch (error) {
+                liveTurn.deferredCancellation = null
+                terminalObservationDurability.resolve({ error })
+                throw error
+              }
+              finally {
+                if (liveTurn.terminalObservationDurability === terminalObservationDurability)
+                  liveTurn.terminalObservationDurability = null
+              }
+              await options.participant.onActionSettled?.(action, observation, currentRuntimeView())
+              const output = observation.output
+              if (output && typeof output === 'object' && !Array.isArray(output)) {
+                const record = output as Record<string, unknown>
+                if (record.replanRequired === true || record.effectMayHaveOccurred === true)
+                  batchPause ??= action.actionId
+              }
+              throwIfAborted(controller.signal)
+            },
+          })
           continue
         }
 
@@ -1128,7 +1181,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           outcome: 'reply',
           ...deliveryIntent,
         }, 'model', `${deliveryIntent.deliveryId}:intent`)
-        failureSurface = 'delivery'
+        failure.surface = 'delivery'
         let resolveReplyDeliverySettlement!: (
           result: { delivered: boolean },
         ) => void
@@ -1268,9 +1321,9 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         }
       }
 
-      if (failureSurface === 'tool' && toolFailure.origin === 'none')
+      if (failure.surface === 'tool' && toolFailure.origin === 'none')
         throw error
-      if (failureSurface === 'provider' && providerFailure.origin === 'none')
+      if (failure.surface === 'provider' && providerFailure.origin === 'none')
         throw error
 
       if (!claimTerminalAuthority(liveTurn, 'failed')) {
@@ -1292,26 +1345,26 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         await appendActiveActionFailure(error)
       }
       if (
-        failureSurface === 'provider'
+        failure.surface === 'provider'
         && providerFailure.origin === 'invocation-or-validation'
       ) {
         await append('provider.failed', {
           error: errorMessage(error),
-          surface: failureSurface,
+          surface: failure.surface,
         })
       }
       else if (
-        failureSurface === 'tool'
+        failure.surface === 'tool'
         && toolFailure.origin === 'adapter-or-validation'
       ) {
         await append('tool.failed', {
           error: errorMessage(error),
-          surface: failureSurface,
+          surface: failure.surface,
         }, 'tool')
       }
       await append('turn.failed', {
         error: errorMessage(error),
-        surface: failureSurface,
+        surface: failure.surface,
       }, 'runtime', `${input.scope.turnId}:terminal:failed`)
       const result = {
         status: 'failed',

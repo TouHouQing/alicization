@@ -7,6 +7,7 @@ import { readFile } from 'node:fs/promises'
 
 import * as v from 'valibot'
 
+import { isLifeBehaviorExampleEligible } from './life-behavior-example-policy'
 import { fingerprintLifePersonaEvaluation, lifePersonaEvaluationPassed, lifePersonaEvaluationSchema } from './life-persona-evaluation'
 
 const judgement = v.strictObject({ identityPreserved: v.boolean(), truthfulnessPreserved: v.boolean(), companionshipPreserved: v.boolean(), agencyPreserved: v.boolean(), improved: v.boolean() })
@@ -70,7 +71,7 @@ export function createLifePersonaDevelopmentRuntime(options: {
       options.validateRevision(base, candidate)
       if (base.length > 40_000 || candidate.length > 40_000)
         throw new Error('Persona pair exceeds the evaluation context budget')
-      const examples = (await options.examples()).filter(example => example.state === 'staged' && example.piiStatus === 'clear' && example.allowTraining && example.consentSnapshot.granted && example.provenance?.kind === 'working-memory-cleaning').slice(0, 3)
+      const examples = (await options.examples()).filter(isLifeBehaviorExampleEligible).slice(0, 3)
       if (examples.length < 3)
         throw new Error('Three cleaned and permitted behavior examples are required; raw conversations cannot substitute')
       const evaluation: LifePersonaEvaluation = { format: 'persona-paired-evaluation-v1', proposalId: proposal.id, baseHash: String(proposal.payload.baseHash), targetHash: String(proposal.payload.targetHash), examples: examples.map(example => ({ id: example.id, contentHash: example.contentHash, sourceId: example.sourceId, sourceKind: example.sourceKind })), pairs: [], reviewedBy: null, approved: false }

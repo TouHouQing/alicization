@@ -1,8 +1,11 @@
 import type { Message } from '@xsai/shared-chat'
 
+import type { CompactedToolObservation } from './agent-harness/tool-observation'
+
 import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
 
+import { projectToolObservation } from './agent-harness/tool-observation'
 import { compactLifeHistoricalMemory } from './life-historical-memory-compaction'
 
 export interface LifeProviderBudgetReport {
@@ -15,6 +18,7 @@ export interface LifeProviderBudgetReport {
   afterTokens: number
   outputReserveReduction?: { requested: number, minimum: number, selected: number }
   droppedHistory: Array<{ index: number, hash: string }>
+  compactedToolObservations?: CompactedToolObservation[]
   compactedHistoricalMemory?: Array<{ index: number, sourceHash: string, omittedTurnIds: string[] }>
   deduplicatedHistoricalMemory?: Array<{ index: number, sourceHash: string, dictionaryEntries: number, references: number, savedBytes: number }>
 }
@@ -136,6 +140,31 @@ export function boundLifeProviderRequest(messages: Message[], tools: unknown, op
         break
     }
   }
+  // Codex/DSH retain authoritative history while reducing the inference view.
+  // Only offer references when this exact request has the governed reader.
+  const hasReceiptReader = Array.isArray(tools) && tools.some(tool => tool?.function?.name === 'life_read_tool_observation')
+  if (hasReceiptReader && cost(retained.map(item => item.message)) > budget) {
+    for (const item of retained) {
+      const projection = projectToolObservation(item.message, item.index, messages)
+      if (!projection)
+        continue
+      item.message = projection.message
+      ;(report.compactedToolObservations ??= []).push(projection.receipt)
+      if (cost(retained.map(item => item.message)) <= budget)
+        break
+    }
+  }
+  if (hasReceiptReader && cost(retained.map(item => item.message)) > budget) {
+    for (const item of retained) {
+      const projection = projectToolObservation(item.message, item.index, messages, { compactReference: true })
+      if (!projection)
+        continue
+      item.message = projection.message
+      ;(report.compactedToolObservations ??= []).push(projection.receipt)
+      if (cost(retained.map(item => item.message)) <= budget)
+        break
+    }
+  }
   const result = retained.map(item => item.message)
   report.afterTokens = cost(result)
   if (report.afterTokens > budget && options.allowOutputReserveReduction) {
@@ -151,8 +180,9 @@ export function boundLifeProviderRequest(messages: Message[], tools: unknown, op
   }
   if (report.afterTokens > budget) {
     const requiredCosts = retained.map(item => `${['system', 'assistant', 'user', 'tool'].includes(item.message.role) ? item.message.role : 'other'}#${item.index}=${messageCost(item.message)}`).join(',')
+    const contentShapes = retained.filter(item => item.message.role === 'user' && Array.isArray(item.message.content)).map(item => ({ index: item.index, parts: (item.message.content as Array<{ type?: string }>).slice(0, 8).map(part => ({ kind: part.type === 'text' || part.type === 'image_url' ? part.type : 'other', bytes: serializedCost(part) })) }))
     // Sizes identify the overgrown owner without logging its private content.
-    throw new Error(`PROVIDER_CONTEXT_BUDGET_EXCEEDED: identity, current request and required evidence do not fit; budget=${budget}, required=${report.afterTokens}, tools=${toolTokens}, messages=[${requiredCosts}]`)
+    throw new Error(`PROVIDER_CONTEXT_BUDGET_EXCEEDED: identity, current request and required evidence do not fit; budget=${budget}, required=${report.afterTokens}, tools=${toolTokens}, messages=[${requiredCosts}], contentShapes=${JSON.stringify(contentShapes)}`)
   }
   return { messages: result, report }
 }

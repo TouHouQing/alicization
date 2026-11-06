@@ -6,7 +6,7 @@ import {
 
 import { normalizeWorkingMemoryLongTermEvidence } from './working-memory'
 
-export const workingMemoryHistoryFallbackTurnBudget = 6
+export const workingMemoryHistoryFallbackTurnBudget = 12
 
 export interface WorkingMemoryConversationTurnRecord {
   turnId: string | null

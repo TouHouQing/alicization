@@ -25,6 +25,7 @@ import type { AlicizationProactiveLayeredContext } from './proactive-layered-con
 import { sanitizeAlicizationMemoryEvidenceText } from '@proj-alicization/stage-shared'
 
 import { buildPersonaGradualUnlock } from './persona-gradual-unlock'
+import { personaLearningEvidenceFingerprint, personaLearningEvidenceRoots } from './persona-learning-evidence-clock'
 import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
 
 export interface AlicizationAutobiographicalSelfInput {
@@ -484,7 +485,6 @@ function buildPreferenceTargets(input: AlicizationAutobiographicalSelfInput) {
   const reflectionHistory = summarizeReflectionHistory(input)
   const positiveCount = countOutcome(input, 'positive') + countOutcome(input, 'reply-within-120s')
   const dismissCount = countOutcome(input, 'dismiss')
-  const ignoredCount = countOutcome(input, 'ignored')
   const reflectionWeight = reflectionSignalWeight(input)
   const fatiguePressure = clamp01((input.context.relationship.fatigue ?? 0) / 100)
   const relationTrust = input.selfContinuity?.relationshipTrust ?? 0.46
@@ -512,8 +512,7 @@ function buildPreferenceTargets(input: AlicizationAutobiographicalSelfInput) {
     + outcomeHistory.closenessSupport * 0.16
     + outcomeHistory.trustSupport * 0.14
     + Math.max(0, reflectionHistory.relationship) * 0.12
-    - dismissCount * 0.08
-    - ignoredCount * 0.04,
+    - dismissCount * 0.08,
   )
   const truthfulGrounding = clamp01(
     misreadBurden * 0.28
@@ -548,7 +547,6 @@ function buildPreferenceTargets(input: AlicizationAutobiographicalSelfInput) {
     + (input.selfContinuity?.initiativeTemperament === 'reserved' ? 0.18 : 0)
     + (approach === 'give-space' ? 0.14 : 0)
     + dismissCount * 0.08
-    + ignoredCount * 0.06
     + (longHorizon?.preferenceBias.autonomyRespect ?? 0) * 0.14
     + (longHorizon?.preferenceBias.quietObservation ?? 0) * 0.2
     + (longHorizon?.identityBias.guardedness ?? 0) * 0.12
@@ -1005,7 +1003,6 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
 
   const positiveCount = countOutcome(input, 'positive') + countOutcome(input, 'reply-within-120s')
   const dismissCount = countOutcome(input, 'dismiss')
-  const ignoredCount = countOutcome(input, 'ignored')
   const attachmentStyle = resolveAttachmentStyle({
     companionship: preferenceEvolution.companionship,
     autonomyRespect: preferenceEvolution.autonomyRespect,
@@ -1048,7 +1045,6 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
         + (input.selfContinuity?.perceptionTrust ?? 0.54) * 0.16
         + positiveCount * 0.08
         - dismissCount * 0.12
-        - ignoredCount * 0.06
         + Math.max(0, reinforcement.temperDirectness) * 0.04
         - Math.max(0, reinforcement.temperGuardedness) * 0.08
         + 0.38,
@@ -1147,7 +1143,6 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     + (input.selfContinuity?.perceptionTrust ?? 0.54) * 0.16
     + positiveCount * 0.08
     - dismissCount * 0.12
-    - ignoredCount * 0.06
     + Math.max(0, reinforcement.temperDirectness) * 0.04
     - Math.max(0, reinforcement.temperGuardedness) * 0.08
     + outcomeHistory.boundaryLift * 0.06
@@ -1198,16 +1193,24 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     longHorizonMemory: input.longHorizonMemory ?? null,
   })
 
+  const growthEvidenceFingerprint = personaLearningEvidenceFingerprint(input)
+  const currentEvidenceRoots = personaLearningEvidenceRoots(input)
+  const previousEvidenceRoots = new Set(input.previous?.growthEvidenceRoots ?? [])
+  const sameEvidence = input.previous?.growthEvidenceRoots
+    ? currentEvidenceRoots.every(root => previousEvidenceRoots.has(root))
+    : input.previous?.growthEvidenceFingerprint === growthEvidenceFingerprint
   return {
-    personaDrift,
-    preferenceEvolution,
+    growthEvidenceFingerprint,
+    growthEvidenceRoots: [...new Set([...previousEvidenceRoots, ...currentEvidenceRoots])].slice(-512),
+    personaDrift: sameEvidence ? previous.personaDrift : personaDrift,
+    preferenceEvolution: sameEvidence ? previous.preferenceEvolution : preferenceEvolution,
     activeGoals,
-    behaviorSignatures,
+    behaviorSignatures: sameEvidence ? previous.behaviorSignatures : behaviorSignatures,
     identityNarrative,
     relationshipDoctrine,
     gradualUnlock,
     latestInflection,
-    stability,
+    stability: sameEvidence ? previous.stability : stability,
     updatedAt: input.now,
   }
 }

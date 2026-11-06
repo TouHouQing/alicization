@@ -25,7 +25,7 @@ import type {
   AlicizationProactiveMetadata,
 } from '../stores/alicization-bridge'
 import type { ChatEmbodimentMetaHookPayload } from '../stores/chat/hooks'
-import type { PresentedChatTextUnit } from '../stores/chat/text-presentation'
+import type { PresentedChatTextChunk } from '../stores/chat/text-presentation'
 
 export interface ChatSlicesText {
   type: 'text'
@@ -110,6 +110,7 @@ export interface ChatAssistantStructuredPayload {
 }
 
 export interface ChatAssistantMessage extends AssistantMessage {
+  speechDelivery?: import('../services/speech/conversation-delivery').ConversationDeliveryState
   delivery?: { status: 'interrupted', reason: 'cancelled' | 'failed', visibleText: string }
   id?: string
   origin?: 'user-turn' | 'subconscious-proactive'
@@ -154,7 +155,7 @@ export type ChatStreamEvent
     | { type: 'after-compose', message: string, sessionId: string, context: ChatStreamEventContext }
     | { type: 'before-send', message: string, sessionId: string, context: ChatStreamEventContext }
     | { type: 'after-send', message: string, sessionId: string, context: ChatStreamEventContext }
-    | { type: 'text-presented', presentation: PresentedChatTextUnit, sessionId: string, context: ChatStreamEventContext }
+    | { type: 'text-presented', presentation: PresentedChatTextChunk, sessionId: string, context: ChatStreamEventContext }
     | { type: 'embodiment-meta', meta: ChatEmbodimentMetaHookPayload, sessionId: string, context: ChatStreamEventContext }
     | { type: 'token-literal', literal: string, sessionId: string, context: ChatStreamEventContext }
     | { type: 'token-special', special: string, sessionId: string, context: ChatStreamEventContext }

@@ -1,4 +1,5 @@
 import { executionSchemaSql } from './execution/execution-schema'
+import { personaDevelopmentSchemaSql } from './persona-development/schema-sql'
 
 // Generated from the reviewed schema draft; keep migrations and the design in sync.
 export const lifeSchemaSql = String.raw`
@@ -326,4 +327,5 @@ CREATE TABLE IF NOT EXISTS life_evidence_cleanup_visits (
   FOREIGN KEY(card_id, job_id) REFERENCES life_evidence_cleanup_jobs(card_id, job_id) ON DELETE CASCADE
 );
 ${executionSchemaSql}
+${personaDevelopmentSchemaSql}
 `

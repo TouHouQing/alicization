@@ -24,6 +24,14 @@ describe('working memory history owner', () => {
         structuredJson: null,
         createdAt: 2,
       },
+      ...Array.from({ length: 6 }, (_, index) => ({
+        turnId: `empty-budget-filler-${index}`,
+        sessionId: 'session-owner',
+        userText: null,
+        assistantText: null,
+        structuredJson: null,
+        createdAt: 2,
+      })),
       {
         turnId: 'turn-clean-provider',
         sessionId: 'session-owner',

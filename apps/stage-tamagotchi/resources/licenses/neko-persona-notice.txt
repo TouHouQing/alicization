@@ -1,0 +1,18 @@
+Project N.E.K.O. personality evidence adaptation
+
+Copyright 2025-2026 Project N.E.K.O. Team
+Copyright (c) 2025 Hongzhi Wen
+
+Upstream: https://github.com/Project-N-E-K-O/N.E.K.O
+Revision: 1ea9c88872a8a4f96bc431e1f98fdf903e2c8621
+Source: memory/evidence.py
+License: Apache-2.0; the full text is bundled in neko-license.txt.
+The upstream project notice is bundled in neko-notice.txt.
+
+Alicization adapts the independent positive/negative evidence clocks and
+exponential half-life calculation into TypeScript in persona-development/evidence.ts.
+The SQLite provenance ledger, scoped hypotheses, exact-turn feedback, bounded
+trials, SOUL adoption, interruption, correction and UI integration are Alicization
+implementations. No upstream cloud-memory service or full persona subsystem is bundled.
+
+Modified for Alicization, 2026.

@@ -2,6 +2,7 @@ import type { LifeStateView } from '../../../../shared/life-contracts'
 
 import { executionDigest } from './acceptance-compiler'
 import { isDeclaredWorkReference } from './declared-work-reference'
+import { scheduledWorkAdmission } from './scheduled-work-admission'
 import { executionWorkAcknowledgment } from './work-acknowledgment'
 import { normalizeWorkProposal } from './work-plan-tool'
 
@@ -11,7 +12,11 @@ export function acceptedWorkPlanAdmissions(view: LifeStateView, turnId: string) 
   if (!view.ingress.some(item => item.id === source && item.kind === 'user-turn' && ['accepted', 'processing'].includes(item.status)))
     return []
   return view.effects.flatMap((effect) => {
-    if (effect.kind !== 'execute' || effect.turnId !== turnId || effect.status !== 'settled' || effect.receipt?.outcome !== 'success' || effect.payload.capabilityId !== 'tool.life_execute_work_plan')
+    if (effect.kind !== 'execute' || effect.turnId !== turnId || effect.status !== 'settled' || effect.receipt?.outcome !== 'success')
+      return []
+    if (effect.payload.capabilityId === 'tool.life_schedule_work')
+      return scheduledWorkAdmission(view, effect, turnId)
+    if (effect.payload.capabilityId !== 'tool.life_execute_work_plan')
       return []
     const parameters = effect.payload.parameters as Record<string, unknown> | undefined
     const output = effect.receipt.output as Record<string, unknown> | undefined

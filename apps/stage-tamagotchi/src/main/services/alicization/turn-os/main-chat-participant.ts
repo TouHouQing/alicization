@@ -55,6 +55,10 @@ export type AlicizationMainChatProviderStep
     action: AlicizationModelAction
   }
   | {
+    kind: 'actions'
+    actions: AlicizationModelAction[]
+  }
+  | {
     kind: 'reply'
     artifact: AlicizationRuntimeReplyArtifact
   }
@@ -76,6 +80,8 @@ export function createAlicizationMainChatParticipant<TPrepared extends {
     content?: unknown
   }>
 }>(options: {
+  canRunInParallel?: (action: AlicizationModelAction, context: AlicizationMainChatParticipantContext<TPrepared>) => boolean
+  waitForActionStop?: (action: AlicizationModelAction, context: AlicizationMainChatParticipantContext<TPrepared>) => boolean
   runProviderStep: (
     context: AlicizationMainChatParticipantContext<TPrepared>,
     runtime: AlicizationEventLoopRuntimeView,
@@ -110,6 +116,14 @@ export function createAlicizationMainChatParticipant<TPrepared extends {
   const contextByTurnId = new Map<string, AlicizationMainChatParticipantContext<TPrepared>>()
 
   return {
+    waitForActionStop: (action, runtime) => {
+      const context = contextByTurnId.get(runtime.turnId)
+      return !!context && options.waitForActionStop?.(action, context) === true
+    },
+    canRunInParallel: (action, runtime) => {
+      const context = contextByTurnId.get(runtime.turnId)
+      return !!context && options.canRunInParallel?.(action, context) === true
+    },
     assembleContext: async (input, runtime) => {
       const payloadTurnId = requiredText(input.payload.turnId, 'main chat payload turnId')
       const payloadCardId = requiredText(input.payload.cardId, 'main chat payload cardId')
@@ -164,7 +178,13 @@ export function createAlicizationMainChatParticipant<TPrepared extends {
       const context = contextByTurnId.get(runtime.turnId)
       if (!context)
         throw new Error('main chat participant context is unavailable for tool execution')
-      const observation = await options.executeTool(action, context, runtime)
+      return options.executeTool(action, context, runtime)
+    },
+
+    onActionSettled: async (action, observation, runtime) => {
+      const context = contextByTurnId.get(runtime.turnId)
+      if (!context)
+        throw new Error('main chat participant context is unavailable for tool settlement')
       if (!action.toolCallId)
         throw new Error('main chat tool action requires a Provider toolCallId')
       context.providerMessages.push({
@@ -172,7 +192,6 @@ export function createAlicizationMainChatParticipant<TPrepared extends {
         tool_call_id: action.toolCallId,
         content: serializeProviderToolObservation(observation.output ?? observation),
       })
-      return observation
     },
 
     settleReply: async (reply, runtime) => {

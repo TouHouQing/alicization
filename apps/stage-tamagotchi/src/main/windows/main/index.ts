@@ -264,8 +264,12 @@ export async function setupMainWindow(params: {
           clearStageStartupWatchdogTimer()
         return
       case 'stage-page-mounted':
-        if (payload.route === '/')
+        if (payload.route === '/') {
+          // Bind the painted controls even while a body archive is loading.
+          // Waiting for the model leaves Windows' transparent surface blank.
+          bindInitialStageSurface('controls')
           scheduleStageStartupWatchdogTimer()
+        }
     }
   }
 

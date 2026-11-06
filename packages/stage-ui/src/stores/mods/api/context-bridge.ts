@@ -470,7 +470,7 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
                   await chatOrchestrator.emitEmbodimentMetaHooks(event.meta, remoteStreamGuard.context)
                 }
                 else if (event.type === 'text-presented') {
-                  chatStream.appendStreamLiteral(event.presentation.grapheme)
+                  chatStream.appendStreamLiteral(event.presentation.text)
                   await chatOrchestrator.emitTextPresentedHooks(event.presentation, remoteStreamGuard.context)
                 }
                 else {

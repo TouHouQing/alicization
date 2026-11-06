@@ -13,6 +13,7 @@ import { executionDigest } from './acceptance-compiler'
 import { resolveWorkInput, workInputHash } from './work-input-bindings'
 import { carryForwardVerifiedWork } from './work-plan-revision'
 import { workPlanSchema } from './work-plan-schema'
+import { assertWorkScheduleInside } from './work-schedule'
 
 export function validateWorkPlan(plan: WorkPlan, acceptance: TaskAcceptance) {
   v.parse(workPlanSchema, plan)
@@ -94,7 +95,7 @@ export async function applyExecutionWork(tx: LifeTransaction, mutation: Extract<
     const previous = await currentPlan(tx, plan.id)
     if ((previous?.revision ?? 0) !== mutation.expectedRevision || plan.revision !== mutation.expectedRevision + 1)
       throw new Error('Work plan revision CAS conflict')
-    if (previous && (previous.rootObligationId !== plan.rootObligationId || previous.rootThreadId !== plan.rootThreadId || previous.readRepairPolicy !== plan.readRepairPolicy))
+    if (previous && (previous.rootObligationId !== plan.rootObligationId || previous.rootThreadId !== plan.rootThreadId || previous.readRepairPolicy !== plan.readRepairPolicy || executionDigest(previous.schedule ?? null) !== executionDigest(plan.schedule ?? null)))
       throw new Error('Work plan cannot change its root identity or read-repair policy')
     if (await tx.get('SELECT 1 FROM life_work_slices WHERE card_id = ? AND plan_id = ? AND state IN (\'running\',\'stopping\')', [tx.cardId, plan.id]))
       throw new Error('Stop the old work slice before revising its plan')
@@ -204,6 +205,7 @@ export async function assertWorkAction(tx: LifeTransaction, effect: Pick<LifeEff
   if (!slice || slice.state !== 'running' || !ingress || !['accepted', 'processing'].includes(ingress.status) || !plan || plan.revision !== slice.plan_revision)
     throw new Error('Task-run authorization is absent, ended, or obsolete')
   await assertRoot(tx, plan)
+  await assertWorkScheduleInside(tx, plan)
   const step = plan.steps.find(item => item.id === effect.actionId)
   if (!step || step.capabilityId !== effect.payload.capabilityId)
     throw new Error('Task-run action differs from its accepted work step')

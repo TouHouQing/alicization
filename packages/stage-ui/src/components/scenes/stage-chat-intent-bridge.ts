@@ -39,6 +39,7 @@ interface StageChatIntentBridge {
   readonly current: IntentHandle | null
   prepare: (intentOptions: IntentOptions) => IntentHandle
   attachRuntimeMetadata: (input: {
+    deliveryTurnId?: string
     embodimentScript?: unknown
     runtimeDigest?: unknown
     speechSynthesis?: unknown
@@ -189,6 +190,14 @@ export function attachEmbodimentScriptToSpeechMetadata(
   }
 }
 
+export function attachDeliveryTurnToSpeechMetadata(metadata: SpeechIntentMetadata | null, turnId: string | undefined) {
+  const normalized = normalizeSpeechMetadataRecord(metadata)
+  const delivery = normalized?.lifeDelivery as { cardId?: string, turnId?: string } | undefined
+  if (!turnId || turnId.length > 512 || !delivery?.turnId || !isCurrentStageChatDelivery(turnId, delivery.turnId))
+    return normalized
+  return { ...normalized, lifeDelivery: { ...delivery, turnId } }
+}
+
 export function attachSpeechSynthesisToSpeechMetadata(
   metadata: SpeechIntentMetadata | null | undefined,
   speechSynthesis: unknown,
@@ -333,12 +342,15 @@ export function createStageChatIntentBridge(options: StageChatIntentBridgeOption
   }
 
   function attachRuntimeMetadata(input: {
+    deliveryTurnId?: string
     embodimentScript?: unknown
     runtimeDigest?: unknown
     speechSynthesis?: unknown
   }) {
     return applyMetadataUpgrade((metadata) => {
       let upgradedMetadata = metadata
+      if ('deliveryTurnId' in input)
+        upgradedMetadata = attachDeliveryTurnToSpeechMetadata(upgradedMetadata, input.deliveryTurnId)
       if ('speechSynthesis' in input)
         upgradedMetadata = attachSpeechSynthesisToSpeechMetadata(upgradedMetadata, input.speechSynthesis)
       if ('runtimeDigest' in input)

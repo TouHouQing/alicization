@@ -1,0 +1,240 @@
+{
+  "date": "2026-11-05",
+  "verifiedAt": "2026-11-04T19:00:45.511Z",
+  "baseCommit": "45f74b07740e44eda1bc92252932a74c952355d8",
+  "tests": {
+    "files": 57,
+    "passed": 670,
+    "total": 670,
+    "failed": 0,
+    "syntheticHistoricalRecords": 10071,
+    "backfillCase": "indexed attributed conversation search backfills 10,071 historical records once and uses the FTS index for a long-tail Chinese event",
+    "backfillDurationMs": 84.46849999999995
+  },
+  "checks": {
+    "workspaceTypecheck": "passed",
+    "workspaceLintFix": "passed",
+    "existingLintWarnings": 1209,
+    "nativeSQLite": {
+      "passed": true,
+      "verifiedAt": "2026-11-04T18:33:33.338Z",
+      "processId": 60244,
+      "electron": "40.8.0",
+      "node": "24.14.0",
+      "abi": "143",
+      "sqlite": "3.44.2",
+      "runtime": "delivered-exe-run-as-node-no-windows",
+      "checks": [
+        "trigram-index",
+        "schema-reopen",
+        "cross-card-filter",
+        "relevance-cursor",
+        "withdrawal-filter",
+        "revoked-compaction-source",
+        "current-compaction-source"
+      ]
+    }
+  },
+  "research": {
+    "repositories": 5,
+    "files": 32,
+    "bytes": 1032436
+  },
+  "delivery": "source changes; installer not rebuilt",
+  "limits": [
+    "No longitudinal evaluation with the user's actual model or private conversation data.",
+    "Legacy renderer-only cache rows are not automatically promoted to source-verified memory."
+  ],
+  "files": [
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory.ts",
+      "bytes": 11081,
+      "sha256": "c720870ab82e9056f171e78ed05e4de831ded9a112096ee99fb25e9d00c6458c"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-builder.ts",
+      "bytes": 24660,
+      "sha256": "11445674937f8a423b094662c783bfd0426cd46d0326908d65845d928e99b4f5"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-compressor.ts",
+      "bytes": 5451,
+      "sha256": "a022c0abe2f3e842fa5dff9bd632b4893d87a94045318a7ecc95b9278d5ffaa1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-retention.ts",
+      "bytes": 5207,
+      "sha256": "d0f5b75bcc516bf1694bde109e3cec1a0a5f1e14c5a625d18eebd679f8102585"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-retention.test.ts",
+      "bytes": 5135,
+      "sha256": "9af99b141db3c47c748bdff69a5233358c53e26318147b2af0e80e1ade54765d"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-checkpoint.ts",
+      "bytes": 13441,
+      "sha256": "5f5e07c70322f0ad5737d1ecefc293d4c5770e926416a088453ae03168446260"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-checkpoint.test.ts",
+      "bytes": 6037,
+      "sha256": "09923e02e6a0af91258345f7017848a6445ccff55adad8d01ea423be0c7b7c92"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-history-owner.ts",
+      "bytes": 4174,
+      "sha256": "3b1f6cb694650d31a7a833824f9dfd123d132a7bde4ba8455bd3f9ac301a6285"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-history-owner.test.ts",
+      "bytes": 4659,
+      "sha256": "8af5a7152ab46b09fd2143c30d63b8483a0cd676a81caf0c5799516e3d079c54"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-owner-context.ts",
+      "bytes": 8421,
+      "sha256": "1bdbf1d2560987e9e498f75ff28909cda43a324d07caa315dd982a356ffd35c3"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-semantic-compaction.ts",
+      "bytes": 8142,
+      "sha256": "c9d981f897a0b4dd41e4e711647e7ac2e45c78b5dc44cc419e53a49fca6fe0a1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-semantic-compaction.test.ts",
+      "bytes": 4727,
+      "sha256": "02f6ce088927858ed14d9ccc764dfbc0967f3731ddcf56e69965017cb5b131ab"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-sources.ts",
+      "bytes": 1670,
+      "sha256": "479aec9e790e60d5c1c38f506106f4213e95566dafab419a4b4e0073dee287d5"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-compaction.integration.test.ts",
+      "bytes": 2482,
+      "sha256": "e89c20f971d01379a5d05d416da761ed234ccde8739524dd89a95ff6794e071d"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-memory-context.ts",
+      "bytes": 22510,
+      "sha256": "106a4687d8c0d2c0b968c00458c3a3a58a9a0ddf0a4b86c8060368851d1a980c"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-memory-projection.ts",
+      "bytes": 2559,
+      "sha256": "8bdf9f9c93ea1d5f8db02d7468c119c362327590591266004d73d40db4dc4c91"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-memory-projection.test.ts",
+      "bytes": 2624,
+      "sha256": "eaa48bed58f761f881126fa6e13f604636dd5abe35048cffda604f263db95fc9"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/session-search.ts",
+      "bytes": 9880,
+      "sha256": "13dfd38a6ad7697bd6953168c4ba03d9e2de21d42aa57d799df636cf3198fea6"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/session-search.test.ts",
+      "bytes": 8741,
+      "sha256": "2745e532b597661e0908acc7253fa206bc79d93ed769e95078b7889fb74d4d72"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/session-search-index.ts",
+      "bytes": 6324,
+      "sha256": "3bbe9ed94552b0c410b1215c686008626eee1d2ee9250a60f7ec836374305679"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/session-search-index.test.ts",
+      "bytes": 5602,
+      "sha256": "59334bb1a1a0a4596194d4e532274db272646b07dee7d75e7d27004c5ce7dfba"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/retrieved-dialogue-proof.ts",
+      "bytes": 5652,
+      "sha256": "0ad35c6c7857ec40ee494d46d0109088e56dbc1d2524dfd2eb03bda5a4b77e97"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/long-term-memory-hybrid-retrieval.ts",
+      "bytes": 11946,
+      "sha256": "0186aa1017bbe421dcbe8f4082287ef72f7ae575cef39e0858a0f54ef0077b1c"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/long-term-memory-diversity.ts",
+      "bytes": 1879,
+      "sha256": "638175c9a92dfca273b8b0c33b4a724ff352516a1a3110301540d51a24280e1b"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/long-term-memory-diversity.test.ts",
+      "bytes": 1064,
+      "sha256": "2b4501c90e18aada205a7c0b478ca4e1de4672dc9fbfc0b03a0491dad2cd17da"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/db.ts",
+      "bytes": 641031,
+      "sha256": "d526d47b5cc7746b66b3372bc72c0a03db19030509c74fcf684713ae701e9cb7"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime.ts",
+      "bytes": 390765,
+      "sha256": "51d564564ad5b40e4487a45ae635b9f1d0f4ee6e9c91d6599b3448991b589493"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts",
+      "bytes": 152933,
+      "sha256": "f6df6086a1eb231ff832bf0d549922d53038fc38f82fe1a179a30e8ba2646ef6"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts",
+      "bytes": 346469,
+      "sha256": "e2a35dbbd0107650488652b2e4776b0c15e2ffe4df7234e1658c4207d6baddf1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-gateway-contract.ts",
+      "bytes": 2819,
+      "sha256": "693163cb3dc4503e603a6d91cab2a96914244bd12a1e9cb18a8341e6fe629f0f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-gateway-contract.test.ts",
+      "bytes": 2078,
+      "sha256": "e62fa31508fe5af2ddc5b173c32030386884d41639f9db6a0484ea6e00354126"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-gateway-work-coordinator.ts",
+      "bytes": 8424,
+      "sha256": "6e09b5c87186d0a4f34e5e0c89efb48f984693a55798f9aa46a2b371f8f97ae5"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-gateway-work-coordinator.test.ts",
+      "bytes": 13133,
+      "sha256": "8dc8ac11c720e573c136392ca30fc0e1d12d00a70fc29191e8373207bd39d8c0"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime-main-gateway-one-shot.ts",
+      "bytes": 66068,
+      "sha256": "93ffe8ecfaaed3c33d8862cebc37a35f8c56af96da88b2258267d3378383d637"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime-main-gateway-one-shot.test.ts",
+      "bytes": 72521,
+      "sha256": "bc6671dd62271082f350c8200ee559905174f3f6253891ff64663524efe32c30"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/memory-long-replay-soak-runner.test.ts",
+      "bytes": 10510,
+      "sha256": "c08169c6df743eede565a95f0f851942e5276124fe7f78663d12825ec76c2ec6"
+    },
+    {
+      "path": "packages/stage-shared/src/alicization-memory-workbench-contracts.ts",
+      "bytes": 92213,
+      "sha256": "1dd69c3ffc112e42ddb1b156fde17f6f5fbb57ecd0be3cf94e294327ea189496"
+    },
+    {
+      "path": "apps/stage-tamagotchi/README.md",
+      "bytes": 102385,
+      "sha256": "205945b7096a27db381be2c0d5b840e9d129cbc7e5eecae6f31539adffabf119"
+    }
+  ]
+}

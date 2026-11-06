@@ -37,7 +37,7 @@ describe('self interests from actual choices across days', () => {
         }
       }
       const own = deriveLifePersonalInterests(await db.readLifeState())
-      expect(own[0]).toMatchObject({ development: 'repeated-own-practice', permanentlyLikes: false })
+      expect(own[0]).toMatchObject({ development: 'repeated-practice', ownChoice: false, permanentlyLikes: false })
       expect(own[0].evidence).toHaveLength(3)
       // Routine effect-window paging must not erase the durable authorship proof.
       expect(deriveLifePersonalInterests({ ...(await db.readLifeState()), effects: [] })[0].evidence).toHaveLength(3)

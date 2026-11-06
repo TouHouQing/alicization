@@ -13,7 +13,7 @@ export interface PlayBrowserSpeechAudioOptions {
   observerNodes?: Array<AudioNode | null | undefined>
   onAudioNodeBound?: (node: AudioNode) => void
   onAudioStarted?: () => void
-  onAudioProgress?: (playedMs: number) => void
+  onAudioProgress?: (playedMs: number, activeAudio: boolean) => void
 }
 
 function disconnect(node: AudioNode) {
@@ -162,7 +162,7 @@ export async function playBrowserSpeechAudio(options: PlayBrowserSpeechAudioOpti
         started = true
         options.onAudioStarted?.()
         if (options.onAudioProgress)
-          progressTimer = setInterval(() => options.onAudioProgress?.(playedMs()), 250)
+          progressTimer = setInterval(() => options.onAudioProgress?.(playedMs(), audioContext.state === 'running' && [...sources.values()].some(entry => entry.start <= audioContext.currentTime && audioContext.currentTime < entry.start + entry.duration)), 50)
       }
     }
     signal.addEventListener('abort', abort, { once: true })

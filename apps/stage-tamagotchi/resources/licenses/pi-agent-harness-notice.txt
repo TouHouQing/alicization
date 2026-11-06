@@ -1,0 +1,25 @@
+Pi agent tool-text adaptation
+Copyright (c) 2025 Mario Zechner. MIT License.
+Full upstream license: pi-file-tools-license.txt (also retained beside source in pi-license.txt).
+
+Repository: https://github.com/earendil-works/pi
+Pinned commit: 62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6
+Source: packages/coding-agent/src/core/tools/truncate.ts
+Source SHA-256: 8e4507c3ed7ca7548cf7c2d7f77d07f2ae63a38b756789cbb44e9062db6c8762
+
+truncateMiddle's UTF-8 boundary and head/tail slicing implementation is adapted
+in src/main/services/alicization/third-party/pi-tool-text.ts.
+Changes: functional result, explicit minimum budgets, omission-marker accounting,
+and bounded byte-offset page reads integrated with settled local receipts.
+The original observations remain in Alicization's SQLite runtime event store.
+The complete Pi agent loop, session manager and coding-agent UI are not imported.
+
+2026-11-03: executeToolCallsSequential from packages/agent/src/agent-loop.ts adapted to a generic coordinator. Validation, policy admission and durable settlement remain owned by Alicization TurnOS.
+
+2026-11-04: pi-extension-program.ts adapts ExtensionRunner.emitToolCall and
+emitToolResult from packages/coding-agent/src/core/extensions/runner.ts at
+642e30b68930a644050794011555a04ed9027eb4. The permission-gate example is adapted
+in tests. Changes: standalone bundled JavaScript modules, isolated WASM heap,
+supported tool hooks, JSON boundaries and host-owned atomic checkpoints.
+Pi's experimental durable runtime is studied for ownership, recovery and
+UsageDoc semantics; its complete runtime and Node extension API are not embedded.

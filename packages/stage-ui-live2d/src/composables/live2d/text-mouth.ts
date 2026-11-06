@@ -12,9 +12,11 @@ export function useMotionUpdatePluginTextMouth(frame: () => StageTextArticulatio
   return (ctx) => {
     const current = frame()
     const now = Date.now()
-    // Actual playback keeps acoustic authority; text never invents speech energy
-    // or feeds the action/performance state machine.
-    if (!current || ctx.speechRenderState.value?.active || now > current.startedAt + current.durationMs + 150) {
+    const acoustic = ctx.speechRenderState.value
+    const audioClock = current?.clock === 'audio'
+    // Audio articulation has an actual playhead and can only shape existing
+    // acoustic energy. Silent articulation never overrides active playback.
+    if (!current || (audioClock ? !acoustic?.active : acoustic?.active) || now > current.startedAt + current.durationMs + 150) {
       previous = null
       transitionFrom = null
       return
@@ -33,6 +35,16 @@ export function useMotionUpdatePluginTextMouth(frame: () => StageTextArticulatio
       const weight = progress * progress * (3 - 2 * progress)
       for (const key of ['open', 'form', 'round', 'spread', 'closed'] as const)
         shape[key] = transitionFrom[key] + (shape[key] - transitionFrom[key]) * weight
+    }
+    // Apply the acoustic ceiling after smoothing so silence cannot inherit
+    // aperture from the previous vowel.
+    if (audioClock) {
+      const energy = Math.max(0, Math.min(1, acoustic?.mouthOpenRatio ?? 0))
+      shape.open = Math.min(shape.open, energy)
+      if (energy < 0.005) {
+        shape.open = 0
+        shape.closed = 1
+      }
     }
     previous = { frame: current, shape: { ...shape } }
     const parameters: Record<string, number> = {

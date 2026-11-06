@@ -6,6 +6,26 @@ import { useMotionUpdatePluginTextMouth } from './text-mouth'
 afterEach(() => vi.useRealTimers())
 
 describe('compiled Live2D text mouth ownership', () => {
+  it('shapes the actual audio playhead and never opens through silence after smoothing', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
+    const writes = new Map<string, number>()
+    const model = { getModel: () => ({ parameters: { ids: ['ParamMouthOpenY', 'ParamMouthForm'] } }), setParameterValueById: (id: string, value: number) => writes.set(id, value) }
+    let frame: any = { grapheme: '啊', phoneme: 'a', script: 'pinyin', offset: 0, durationMs: 400, endsPhrase: false, startedAt: 1000, turnId: 'one', clock: 'audio', audioElapsedMs: 100 }
+    const ctx = { model, speechRenderState: ref({ active: true, mouthOpenRatio: 0.3 }) } as any
+    const plugin = useMotionUpdatePluginTextMouth(() => frame)
+    plugin(ctx)
+    expect(writes.get('ParamMouthOpenY')).toBe(0.3)
+    vi.setSystemTime(1050)
+    frame = { ...frame, grapheme: '衣', phoneme: 'yi', offset: 1, startedAt: 1050 }
+    ctx.speechRenderState.value.mouthOpenRatio = 0
+    plugin(ctx)
+    expect(writes.get('ParamMouthOpenY')).toBe(0)
+    writes.clear()
+    ctx.speechRenderState.value.active = false
+    plugin(ctx)
+    expect(writes.size).toBe(0)
+  })
   it('drives the existing ParamA/I/U/E/O rig bindings and releases the previous vowel', () => {
     vi.useFakeTimers()
     vi.setSystemTime(1040)

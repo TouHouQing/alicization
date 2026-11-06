@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { setupAlicizationDb } from './db'
 import { createLifePersonalProjectRuntime } from './life-personal-project-runtime'
 import { pendingLifePersonalProposal, presentCreativeChoice, readLifePersonalProposals, withdrawLifePersonalProposal } from './life-personal-proposals'
+import { createLifeProjectExperienceRecorder } from './life-project-experience-runtime'
 import { createLifeTurnRuntime } from './life-turn-runtime'
 import { dispatchTaskThread } from './task-thread-dispatcher'
 
@@ -23,10 +24,13 @@ describe('sourced present wishes become real personal actions', () => {
       expect(readLifePersonalProposals(await db.readLifeState())).toHaveLength(1)
       await db.close()
       db = await setupAlicizationDb(root, { cardId: 'alice' })
-      const project = createLifePersonalProjectRuntime({ read: db.readLifeState, commit: db.commitLifeState, getIngress: db.getLifeIngress, getEffect: db.getLifeEffect, facts: cardId => db.readLifeFactVersions({ cardId }), upsertTask: db.upsertTaskThread, workspace: () => workspace, foregroundActive: () => false, now: Date.now, compose: async ({ topic }) => ({ title: topic, body: '小灯笼停在山坡上，看见远处窗户里的一点暖光。它沿着细细的小路走过去，发现等着它的不是答案，而是一扇一直没有关上的门。这是一段虚构的小故事。' }), dispatch: input => dispatchTaskThread(db, { ...input, ownedNoteRoot: workspace, cli: { ...input.cli, runtimeContext: { generatedAt: Date.now(), cardId: 'alice', turnId: input.threadId, sensory: { collectedAt: Date.now(), running: false, stale: true, ageMs: 0, foregroundWindow: null, capture: null } } } }), recordExperience: async () => {} })
+      const project = createLifePersonalProjectRuntime({ read: db.readLifeState, commit: db.commitLifeState, getIngress: db.getLifeIngress, getEffect: db.getLifeEffect, facts: cardId => db.readLifeFactVersions({ cardId }), upsertTask: db.upsertTaskThread, workspace: () => workspace, foregroundActive: () => false, now: Date.now, compose: async ({ topic }) => ({ title: topic, body: '小灯笼停在山坡上，看见远处窗户里的一点暖光。它沿着细细的小路走过去，发现等着它的不是答案，而是一扇一直没有关上的门。这是一段虚构的小故事。' }), dispatch: input => dispatchTaskThread(db, { ...input, ownedNoteRoot: workspace, cli: { ...input.cli, runtimeContext: { generatedAt: Date.now(), cardId: 'alice', turnId: input.threadId, sensory: { collectedAt: Date.now(), running: false, stale: true, ageMs: 0, foregroundWindow: null, capture: null } } } }), recordExperience: createLifeProjectExperienceRecorder({ read: db.readLifeState, commit: db.commitLifeState, readMeta: db.getMetaValue, appendEpisodes: db.appendEpisodicEvents }) })
       expect(await project.run('alice')).toMatchObject({ status: 'completed' })
       const goal = (await db.readLifeState()).obligations.find(item => item.kind === 'personal-project')!
       expect(goal.verification).toMatchObject({ independent: true, verdict: 'satisfied' })
+      expect(goal.personalChoice).toMatchObject({ proposalId: expect.any(String), sourceReplyHash: expect.any(String) })
+      expect(goal.personalAuthorship).toBeTruthy()
+      expect((await db.readPersonaLearningEvidence()).filter(source => source.ref.kind === 'goals' && !source.rejected)).toMatchObject([{ ref: { id: goal.id }, selfChosen: true }])
       expect(await readFile(goal.proof.path!, 'utf8')).toContain('小灯笼停在山坡上')
       expect(await project.run('alice')).toMatchObject({ status: 'held' })
       const choice = readLifePersonalProposals(await db.readLifeState())[0]

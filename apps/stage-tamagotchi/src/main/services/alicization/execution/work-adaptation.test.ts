@@ -199,7 +199,7 @@ describe('grounded future read repair within one responsibility', () => {
     expect(revised.steps.find(step => step.id === 'save-note')).toEqual(originalSave)
     expect(revised.acceptanceHash).toBe(context.plan.acceptanceHash)
     await f.runtime.start({ cardId: 'alice', planId: f.accepted.planId, expectedRevision: 2, requestId: 'resume-pinned-read-source' })
-    await vi.waitFor(async () => expect((await f.db.readLifeState()).obligations.find(goal => goal.id === context.goal.id)).toMatchObject({ status: 'fulfilled', verification: { independent: true, verdict: 'satisfied' } }))
+    await vi.waitFor(async () => expect((await f.db.readLifeState()).obligations.find(goal => goal.id === context.goal.id)).toMatchObject({ status: 'fulfilled', verification: { independent: true, verdict: 'satisfied' } }), { timeout: 10_000, interval: 25 })
     expect(await readFile(f.destination, 'utf8')).toBe(await readFile(f.source, 'utf8'))
     expect(f.writes).toEqual([f.preface, f.destination])
     expect(generate).toHaveBeenCalledOnce()

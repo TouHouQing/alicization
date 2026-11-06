@@ -21,6 +21,7 @@ import ExecutionWorkPlans from './components/execution-work-plans.vue'
 import FileRecovery from './components/file-recovery.vue'
 import LearnedProcedures from './components/learned-procedures.vue'
 import LifeObligationHistory from './components/life-obligation-history.vue'
+import PersonaGrowth from './components/persona-growth.vue'
 
 import { createDefaultLifeOutreachPolicy } from '../../../shared/life-contracts'
 import { electronLifeArtifactRestore, electronLifeBackupCommand, electronLifeClosure, electronLifeGrowthRollback, electronLifeInputCommand, electronLifeInputPreview, electronLifeObligationCommand, electronLifeOutreachPolicy, electronLifePersonaCommand, electronLifePersonalProposalWithdraw, electronLifePolicyCommand, electronLifeProjectFeedback, electronLifeView } from '../../../shared/life-events'
@@ -337,6 +338,7 @@ async function updatePolicy() {
     <ExecutionWorkPlans v-if="view" :view="view" :refresh="() => refresh(true)" />
     <FileRecovery v-if="view" :view="view" :refresh="() => refresh(true)" />
     <ExecutionStorage v-if="view" :card-id="view.cardId" />
+    <PersonaGrowth v-if="view" :view="view" :refresh="() => refresh(true)" />
     <p v-if="view?.backupRestore" role="status" class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
       {{ t('settings.life.backup.restored') }}
     </p>

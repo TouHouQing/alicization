@@ -41,6 +41,7 @@ export function assertExecutionJson(value: unknown) {
 }
 
 export const workPlanSchema = v.strictObject({
+  schedule: v.optional(v.strictObject({ at: v.pipe(v.number(), v.integer(), v.minValue(0)), groupId: id, index: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(15)) })),
   id,
   cardId: id,
   rootThreadId: id,

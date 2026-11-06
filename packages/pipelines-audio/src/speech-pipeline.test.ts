@@ -4,9 +4,36 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it, vi } from 'vitest'
 
+import { createPlaybackManager } from './managers/playback-manager'
 import { createSpeechPipeline } from './speech-pipeline'
 
 describe('speech pipeline', () => {
+  it('stops actual buffered playback after synthesis has retired its intent', async () => {
+    let playbackSignal: AbortSignal | undefined
+    const playback = createPlaybackManager<string>({
+      play: (_item, signal) => new Promise((resolve) => {
+        playbackSignal = signal
+        signal.addEventListener('abort', () => resolve({ status: 'interrupted', playedMs: 123, errorCode: 'user-stop' }), { once: true })
+      }),
+    })
+    const pipeline = createSpeechPipeline<string>({ tts: async () => 'buffered-audio', playback })
+    const synthesized = vi.fn()
+    const delivered = vi.fn()
+    pipeline.on('onIntentEnd', synthesized)
+    pipeline.on('onUtterancePlaybackResult', delivered)
+    const intent = pipeline.openIntent({ intentId: 'completed-synthesis', ownerId: 'card' })
+    try {
+      intent.writeLiteral('A naturally spoken sentence.')
+      intent.end()
+      await vi.waitFor(() => expect(synthesized).toHaveBeenCalledOnce())
+      expect(playbackSignal?.aborted).toBe(false)
+      expect(delivered).not.toHaveBeenCalled()
+      pipeline.cancelIntent(intent.intentId, 'user-stop')
+      expect(playbackSignal?.aborted).toBe(true)
+      await vi.waitFor(() => expect(delivered).toHaveBeenCalledWith(expect.objectContaining({ result: { status: 'interrupted', playedMs: 123, errorCode: 'user-stop' } })))
+    }
+    finally { pipeline.stopAll('test-complete') }
+  })
   it.each(['interrupt', 'replace'] as const)('keeps the new %s intent owned when the cancelled synthesis finishes late', async (behavior) => {
     const playback = {
       schedule: vi.fn(),

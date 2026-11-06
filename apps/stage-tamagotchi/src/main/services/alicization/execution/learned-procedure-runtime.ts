@@ -64,7 +64,7 @@ export function createLearnedProcedureRuntime(options: {
         return { input: raw, projection: null }
       arguments_[entry.name] = entry.value
     }
-    const item = (await options.repository.list()).find(item => item.candidate.id === raw.id && item.candidate.version === raw.version && item.sourceValid && item.evaluation?.status === 'passed')
+    const item = (await options.repository.list([`procedure:${raw.version}`])).find(item => item.candidate.id === raw.id && item.candidate.version === raw.version && item.sourceValid && item.evaluation?.status === 'passed')
     if (!item)
       return { input: raw, projection: null }
     instantiateProcedureTemplate(item.candidate.template, arguments_, options.registry, raw.goal)
@@ -155,7 +155,7 @@ export function createLearnedProcedureRuntime(options: {
     const prepared = await prepareInput({ cardId: input.cardId, turnId: input.turnId, input: { id: input.id, version: input.version, goal: input.goal, arguments: Object.entries(input.arguments).map(([name, value]) => ({ name, value })) }, signal: input.abortSignal ?? new AbortController().signal })
     if (prepared.projection)
       throw new Error('Procedure literal content must be prepared from the current request before dispatch')
-    const item = (await options.repository.list()).find(item => item.candidate.id === input.id && item.candidate.version === input.version && item.sourceValid && item.evaluation?.status === 'passed')
+    const item = (await options.repository.list([`procedure:${input.version}`])).find(item => item.candidate.id === input.id && item.candidate.version === input.version && item.sourceValid && item.evaluation?.status === 'passed')
     if (!item)
       throw new Error('Procedure has no current independent replay proof')
     await options.loader.load({ id: input.id, version: input.version, tools: options.registry.list().filter(tool => tool.activationStatus === 'active').map(tool => tool.capabilityId), permissions: procedureRequiredPermissions(item.candidate.template, options.registry) })

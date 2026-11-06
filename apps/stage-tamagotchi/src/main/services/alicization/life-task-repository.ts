@@ -7,7 +7,7 @@ import { projectTaskAcceptance } from './execution/acceptance-repository'
 import { assertWorkStepParentProjection } from './execution/work-step-parent-projection'
 import { lifeGoalProofSchema } from './life-goal-verifier'
 import { assertLifeMemoryEvidence } from './life-memory-evidence'
-import { boundedJson } from './life-transaction'
+import { assertLifeTime, boundedJson } from './life-transaction'
 
 interface TaskRow { id: string, current_attempt_id: string | null, status: string, goal: string, turn_id: string | null, created_at: number, metadata_json: string | null }
 const statuses: Record<string, LifeObligationStatus> = { 'planned': 'accepted', 'needs-affirmation': 'proposed', 'running': 'in-progress', 'paused': 'blocked', 'blocked': 'blocked', 'completed': 'verifying', 'failed': 'failed', 'cancelled': 'cancelled', 'dead-lettered': 'blocked' }
@@ -25,6 +25,14 @@ export async function projectLifeTask(tx: LifeTransaction, threadId: string) {
   const previous = await tx.get<{ status: LifeObligationStatus, source_ref_json: string, generation: number }>('SELECT status, source_ref_json, generation FROM life_obligations WHERE card_id = ? AND obligation_id = ?', [tx.cardId, id])
   const source = previous ? JSON.parse(previous.source_ref_json) as { attemptId?: string, invalidatedBy?: unknown } : null
   const newAttempt = !!previous && source?.attemptId !== task.current_attempt_id
+  const scheduledAt = metadata?.scheduledAt
+  if (scheduledAt !== undefined) {
+    if (typeof scheduledAt !== 'number')
+      throw new Error('Scheduled work needs an exact persisted timestamp')
+    assertLifeTime(scheduledAt)
+    if (previous && (await tx.get<{ due_at: number }>('SELECT due_at FROM life_obligations WHERE card_id=? AND obligation_id=?', [tx.cardId, id]))?.due_at !== scheduledAt)
+      throw new Error('An existing work responsibility cannot change its original schedule')
+  }
   if (source?.invalidatedBy && task.status === 'running')
     throw Object.assign(new Error('Task source was invalidated; execution requires a new task with current evidence'), { code: 'TASK_SOURCE_INVALIDATED' })
   if (previous && ['fulfilled', 'cancelled', 'superseded'].includes(previous.status) && !newAttempt)
@@ -64,6 +72,8 @@ export async function projectLifeTask(tx: LifeTransaction, threadId: string) {
       throw new Error('An executing task cannot change its accepted goal proof')
     await tx.run('UPDATE life_obligations SET required_proof_json = ? WHERE card_id = ? AND obligation_id = ?', [boundedJson(proof), tx.cardId, id])
   }
+  if (!previous && typeof scheduledAt === 'number')
+    await tx.run('UPDATE life_obligations SET due_at=?, timezone=\'UTC\', status=\'waiting\' WHERE card_id=? AND obligation_id=?', [scheduledAt, tx.cardId, id])
   const proofRow = await tx.get<{ required_proof_json: string }>('SELECT required_proof_json FROM life_obligations WHERE card_id = ? AND obligation_id = ?', [tx.cardId, id])
   const acceptedProof = JSON.parse(proofRow!.required_proof_json) as import('../../../shared/life-contracts').LifeObligation['proof']
   const acceptance = await projectTaskAcceptance(tx, { obligationId: id, generation, sourceTurnId: task.turn_id, proof: acceptedProof, criteria: metadata?.acceptanceCriteria, planned: task.status === 'planned' })

@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  attachDeliveryTurnToSpeechMetadata,
   attachEmbodimentScriptToSpeechMetadata,
   attachFallbackDialogueMetadataToSpeechMetadata,
   attachRuntimeDigestToSpeechMetadata,
@@ -95,6 +96,13 @@ function buildRuntimeDigest() {
     summary: 'dominant=active-memory | speak=true | act=false',
   } as any
 }
+
+it('binds the actual transport attempt before voice starts without accepting a foreign turn', () => {
+  const metadata = { lifeDelivery: { cardId: 'alice', turnId: 'chat:session:turn' } }
+  expect(attachDeliveryTurnToSpeechMetadata(metadata, 'chat:session:turn:gw1')?.lifeDelivery).toEqual({ cardId: 'alice', turnId: 'chat:session:turn:gw1' })
+  expect(attachDeliveryTurnToSpeechMetadata(metadata, 'chat:session:foreign:gw2')?.lifeDelivery).toEqual(metadata.lifeDelivery)
+  expect(attachDeliveryTurnToSpeechMetadata(null, 'chat:session:turn:gw1')).toBeNull()
+})
 
 describe('stage chat intent bridge', () => {
   it('does not maintain a legacy metadata-key denylist', () => {

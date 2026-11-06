@@ -31,9 +31,10 @@ export function deriveLifePersonalInterests(view: LifeStateView) {
     const dismissed = goals.some(goal => goal.personalDevelopment?.feedback.some(item => item.feedback === 'dismiss'))
     return {
       subject: `self:${view.cardId}`,
+      ownChoice: goals.every(goal => Boolean(goal.personalChoice)),
       topic: goals[0].personalTopic,
       activity: goals[0].personalActivity,
-      development: dismissed ? 'reconsidering' : days.size >= 3 ? 'repeated-own-practice' : 'trying',
+      development: dismissed ? 'reconsidering' : days.size >= 3 ? goals.every(goal => Boolean(goal.personalChoice)) ? 'repeated-own-practice' : 'repeated-practice' : 'trying',
       permanentlyLikes: false,
       evidence: goals.map(goal => ({ kind: 'obligation', id: goal.id, version: String(goal.generation), verifiedAt: goal.verification!.verifiedAt })).slice(0, 8),
       feedback: goals.flatMap(goal => goal.personalDevelopment?.feedback ?? []).slice(-8),

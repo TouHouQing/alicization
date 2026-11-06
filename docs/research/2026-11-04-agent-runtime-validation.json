@@ -1,0 +1,1525 @@
+{
+  "version": "alicization-agent-runtime-acceptance-v1",
+  "reviewDate": "2026-11-04",
+  "finalizedAt": "2026-11-03T22:42:04.621Z",
+  "baseCommit": "45f74b07740e44eda1bc92252932a74c952355d8",
+  "verdict": "Implementation delivered; complete acceptance is not green. Two real Codex cases remain failed; preserve unknown outcomes.",
+  "allRequestedAcceptancePassed": false,
+  "sourceFingerprint": "6e893ecae2cfdbc436d8b4001da9c21195069241f8c6f80bbd8c5ab4472a0692",
+  "sourceInputs": [
+    {
+      "path": "apps/stage-tamagotchi/build/agent-runtime-assets.ts",
+      "bytes": 1777,
+      "sha256": "4c8e14b73b4a67274193b9fc4a7709a2f87f4b0c80a67e19c8e559808427a9fa"
+    },
+    {
+      "path": "apps/stage-tamagotchi/electron.vite.config.ts",
+      "bytes": 12362,
+      "sha256": "c9cf30b4a593adf61d410a9266c73b3c85bf5be910429ecbb8bd290944358d14"
+    },
+    {
+      "path": "apps/stage-tamagotchi/package.json",
+      "bytes": 8420,
+      "sha256": "1f7335102cc0f3419a8dbef71a4d4cd9f30eb1dba8bdc4aad28267a6f43c48cb"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/codex-agent-harness-license.txt",
+      "bytes": 10926,
+      "sha256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/codex-agent-harness-notice.txt",
+      "bytes": 859,
+      "sha256": "48fe1c3807090a84b04b6a544d4cbb8477dcd7ba3eef3201eee471bed6d25f8c"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/deepseek-harness-license.txt",
+      "bytes": 1065,
+      "sha256": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/hermes-agent-license.txt",
+      "bytes": 1091,
+      "sha256": "e29dfaf6905a8d396a58ea4bd84ad27057756bbd9599b5bec0971ae34d2a2118"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/hermes-agent-notice.txt",
+      "bytes": 635,
+      "sha256": "3a2e6632fdd8ca4ac8b7bdfb7bd6bf1625d155298916aeaaf01d75298af3a2c2"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/pi-agent-harness-notice.txt",
+      "bytes": 1618,
+      "sha256": "d16336b803b386ab30c8d3d8abdc52c4e99a8dfd10120eb0018c364e68dfb850"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/quickjs-emscripten-license.txt",
+      "bytes": 1102,
+      "sha256": "3c6040aa318612a234cc951609b640c0c63d85ae5a98a9330d3116f1553a79db"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/quickjs-wasm-license.txt",
+      "bytes": 2263,
+      "sha256": "446a69ae534aa8612d8b16d3bfc670c5a5050597dca3ce9820441a60d5d04fbb"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/typescript-language-server-license.txt",
+      "bytes": 13189,
+      "sha256": "899d21038f87dd6243dd33b7ee82a078e639d4325a427c01e64d8116315b9680"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/typescript-license.txt",
+      "bytes": 9197,
+      "sha256": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47"
+    },
+    {
+      "path": "apps/stage-tamagotchi/scripts/codex-real-acceptance.ts",
+      "bytes": 58233,
+      "sha256": "e1976678dc0a90da8c260c130ccd11a484af321fd10083d85561685f37dab59e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/scripts/life-acceptance/agent-runtime-product-checks.cjs",
+      "bytes": 11500,
+      "sha256": "a79e5324a3bf858a3491587666728ef2e2b7b88ff11ace494d58c411609bec6f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/scripts/life-acceptance/learned-procedure-inspection.ts",
+      "bytes": 3026,
+      "sha256": "a135140e4fa4d0d1ad8e929a83b683b42b6dc51f02f54959ad5c63813e722847"
+    },
+    {
+      "path": "apps/stage-tamagotchi/scripts/life-acceptance/learned-procedure-product-checks.cjs",
+      "bytes": 7131,
+      "sha256": "75b8a6f3a60a2cff3663ccaca22a1fb39db34755cb873cb1f0a7df18f6816856"
+    },
+    {
+      "path": "apps/stage-tamagotchi/scripts/life-acceptance/life-product-regression.cjs",
+      "bytes": 94959,
+      "sha256": "b200201c764c5940d9fa562985547dd1fdce1fafda82b541bab793c6e2224851"
+    },
+    {
+      "path": "apps/stage-tamagotchi/scripts/life-acceptance/native-capture-observer.cjs",
+      "bytes": 7199,
+      "sha256": "e14d712a23e3adf9da46007d180a33879fcf9df25f4a89b085207c5d87fc70f7"
+    },
+    {
+      "path": "apps/stage-tamagotchi/scripts/life-acceptance/native-observation-promise.cjs",
+      "bytes": 1881,
+      "sha256": "7c816e2d771ccd3cd4a6533fdc3d57445c344b86a09ab00d1f5ce049fc569db1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/agent-runtime-assets.ts",
+      "bytes": 661,
+      "sha256": "ce41a0ba88e9658a59a6f898f955d4e7f259afbc0549bffa0104267f51e37e2e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/capability-disclosure.test.ts",
+      "bytes": 9773,
+      "sha256": "7719202abaf2a1c6346af1a2e2e9e11229307b44fbabeb087e2151bb98566f77"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/capability-disclosure.ts",
+      "bytes": 7416,
+      "sha256": "862caf5326c42d42f7133b5eafa2a3b15f015aa97d42f0dda459ec1e190ea8b5"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/capability-search-vocabulary.ts",
+      "bytes": 1929,
+      "sha256": "bae024141d7bea7ce907324c12d79f3d04f98821db51747341da30e8635a4362"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/extension-checkpoint.test.ts",
+      "bytes": 2567,
+      "sha256": "2f76513c8872c1b962333c19f8d02ca317cd72c3a12274fc05b13e30de84b2fc"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/extension-checkpoint.ts",
+      "bytes": 3097,
+      "sha256": "be879bc97a7cdfc36404189f085d536ccf0f2fe20a777dde75973c047b746282"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/external-agent-usage.integration.test.ts",
+      "bytes": 5039,
+      "sha256": "fd57014855aea055418825644b41cc968ddd4d0863b05e68b7ab32eeb135bf90"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/external-agent-usage.test.ts",
+      "bytes": 1689,
+      "sha256": "8414d5e1b3ff81963cc768790dc4dd6daf95ecd59eb17256089677d49377a527"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/external-agent-usage.ts",
+      "bytes": 2130,
+      "sha256": "b82d3ca8cf0879a619bba1bc94b48154b067cec1698bf834ed9467abbccea565"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/governed-read-scope.ts",
+      "bytes": 709,
+      "sha256": "e1369e9ba056f0c35aedf3dd827cf75870ca7b46106179b9b0b8749d84c56657"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/isolated-program.test.ts",
+      "bytes": 2445,
+      "sha256": "c51cd1a3bf612b609e9261e49741f8284081e540b488f0f47ca59ffab5498165"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/isolated-program.ts",
+      "bytes": 7189,
+      "sha256": "87c480b9dd2b91161b21d5c9fe7cded69a52b1e6e67350da27e8512f129363f3"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/language-tool.ts",
+      "bytes": 1591,
+      "sha256": "0317622007b6da2da9d47c395a1a768506271e4b10ebf5ba0a10e984b3a00caf"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/lsp-framing.test.ts",
+      "bytes": 857,
+      "sha256": "b1bb3a4dee459423681e72b6b20b9c52f706eaaeac8bf79bf1d0a593114e76ab"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/native-language-runtime.integration.test.ts",
+      "bytes": 7417,
+      "sha256": "465b059ce7b4fa6613da99087e2833f73a15b143add2a536f905c2aed16d6087"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/native-language-runtime.ts",
+      "bytes": 12758,
+      "sha256": "72c868941bb7a49df0669a5b3d82e6663759368e5f0e64fc304308ed35ffe40e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/owned-read-settlement.test.ts",
+      "bytes": 2689,
+      "sha256": "039b9dedd010ce594eb5a501731e4ee36cea41d6331aab91b96e53c39ac7b106"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/parallel-admission.ts",
+      "bytes": 1054,
+      "sha256": "fc374d87b22057a1334a273cafffb52ac8cb7a58c5edfedf3501a30754d378ba"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/parallel-scheduler.test.ts",
+      "bytes": 3154,
+      "sha256": "1d9fe9739cb71d0f1d7304020d1e5d54d6d125429d8af7b0ce8ce38c6d7e3220"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/pi-extension-runtime.test.ts",
+      "bytes": 12098,
+      "sha256": "e4a4ccccd1a3cd8751bf6d4442b8a9fd6239088ec783697c3560cb752300bd9e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/pi-extension-runtime.ts",
+      "bytes": 12297,
+      "sha256": "28925cdac663288e70e55445cf1d87fd659899af9cf7ff731935c2542006148b"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/procedure-catalog-page.test.ts",
+      "bytes": 1702,
+      "sha256": "542aff8a115ac0df75086b8bc05957fafc6c8610d0c901462559b8fd438ad632"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/procedure-catalog-page.ts",
+      "bytes": 2609,
+      "sha256": "035d4560f3a162786677d00e92e7510ed125047a56046975d944cd1b31350b38"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/procedure-context.test.ts",
+      "bytes": 3493,
+      "sha256": "3e784da455a8b0ef033098ba505d23b12878179405d7a8fe5816f292d5675a3a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/procedure-context.ts",
+      "bytes": 4720,
+      "sha256": "7c187fc710e4228d9ff765d6f61e6d5c3903dba1a410f90e02c1e451708b8860"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/programmatic-tool.ts",
+      "bytes": 1609,
+      "sha256": "41cdbecc59be598813a330aabaf565ef3d7b3ba5442e1bd478d8ae0ac7cebf34"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/progress-context.test.ts",
+      "bytes": 7072,
+      "sha256": "af8eb3c0735b3a250743dabb3a63a4b3bd7153f3f733069a8601a210c6e74021"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/progress-context.ts",
+      "bytes": 5847,
+      "sha256": "b3c574257282c69745a7801254cbe82c241ad671d0fcbad229dbff8ec59343f1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/provider-step-completion.test.ts",
+      "bytes": 1230,
+      "sha256": "e6fedf640311e3d4ef2dac6dca5f696e91b9da5c5736aaf3bd66e89910c29a79"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/provider-step-completion.ts",
+      "bytes": 1594,
+      "sha256": "2a33d1d0d05d1555185c7756e30a7b1afe5b0d88ff30e45caaecc099c3587f60"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/provider-usage-ledger.test.ts",
+      "bytes": 3396,
+      "sha256": "ca1c6c902080e245878a30cebeb792de0b46fab431bcab83e4039a09a547d875"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/provider-usage-ledger.ts",
+      "bytes": 5132,
+      "sha256": "f2f9a2f649951b97a2fc509a55516ba4c3615a1fb888655ba3c11d862755fee4"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/provider-usage-scope.ts",
+      "bytes": 403,
+      "sha256": "83a88136df506d836b4b5cebd315bd0d78fcd22728cc1c637350e54e84efd500"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/provider-usage.test.ts",
+      "bytes": 4195,
+      "sha256": "7f41098d751809fc87dd92265b4c4a6a48288ac18b5cc0414bd04fb595070ecf"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/provider-usage.ts",
+      "bytes": 2291,
+      "sha256": "5b46201a8354214d5b796f5bb378d9a552e5ba962ce10e9f5878b1f74e85621c"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/retrieved-dialogue-proof.ts",
+      "bytes": 5362,
+      "sha256": "fceec309c57ccf034af64dd9b251c7631bd236ea3948dedb9797739ece40ea14"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/session-search.test.ts",
+      "bytes": 7740,
+      "sha256": "4e8a885cfff896fcea508c0cc93bcbdc007f44d5b17ad641733c1a841e9b7e8d"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/session-search.ts",
+      "bytes": 5419,
+      "sha256": "ae0b25f0e9260028675e86c5dbfc03bdd53314f8f0e89666edf3e7e555d2c39a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/skill-selection.test.ts",
+      "bytes": 3171,
+      "sha256": "2432cbac313c4545f6b8a3878152d3a734aa78a4a7ec30198aa91a125d715c72"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/tool-observation.test.ts",
+      "bytes": 6480,
+      "sha256": "d71d15c556eabdb33355f01089daf297ff8635d822480c4780b3fecd7faf1cd6"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/tool-observation.ts",
+      "bytes": 7026,
+      "sha256": "46fe7056392c8bab40b014f9086f61006dc1b22e9459fd204669f75598b504f3"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/work-automation.test.ts",
+      "bytes": 6672,
+      "sha256": "7aee04eae571f3027a6a4895810c2c4bb99e131d9b92ddd1030253b726513cd7"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/work-automation.ts",
+      "bytes": 9437,
+      "sha256": "fd33de6fbb8237f7d37dec33c86600a332ee04a5607f4d8839a42cd9b85986b4"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/codex-real-acceptance.test.ts",
+      "bytes": 24791,
+      "sha256": "35fb27fc8b6ec00f4ec116d9654af4167d56a8a907a91b840ed56acf1d2f62a3"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/db.ts",
+      "bytes": 640518,
+      "sha256": "d1ca979ca76bdaa25937703f7349cb2073c1c0d879dd63b221ad1594bda43c05"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/action-dispatch-gate.ts",
+      "bytes": 6357,
+      "sha256": "20e09635bf80630269fff022ebcb95ff98011358e99539812745b82d2919a8c7"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/learned-procedure-runtime.ts",
+      "bytes": 13360,
+      "sha256": "a6716d57e2a7f98dd4e48d8af459981f014d340723179b1e4be9a03d8727aead"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/main-filesystem-mutation-dispatch.test.ts",
+      "bytes": 15704,
+      "sha256": "36626ac4b3a58d48fcb06b53f1a7bdfd3e15c51ecd40f7a4f9b81b77eb4b0ad7"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/native-observation-promise.test.ts",
+      "bytes": 2052,
+      "sha256": "62b65671d923f20f5ebacfcc041f003b129af9a65ae2792e351031ab43ed6a72"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/owned-read-stop.ts",
+      "bytes": 713,
+      "sha256": "cbc22750de85f6216426a86b4b2e0284005976b86bd577157179394ae8f5dd5c"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-candidate-repository.ts",
+      "bytes": 18236,
+      "sha256": "2a14e9b6e34dd5fb25e273ca240dffb20e9880a78a7963b6858841bb03a04634"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-index.integration.test.ts",
+      "bytes": 4196,
+      "sha256": "40e1376da503cbe3fd822e8c782b89fe4f67007052ce083dbfbb1a82090f1e7a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-index.test.ts",
+      "bytes": 4076,
+      "sha256": "d89f3505b37d0d291523455c14d8bf500393dacdea7e7fe1f510601d31bfc862"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-index.ts",
+      "bytes": 4047,
+      "sha256": "091bc3e9bd5c27ea22a4087ff06a891412534a0741a3bf2459eaf4c9a87fcf3f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-learning.test.ts",
+      "bytes": 22243,
+      "sha256": "4b122b2351641752d4c5f2fd57b7f1f1c9cce7c80f88a16eb068d547b85281a5"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/scheduled-work-admission.ts",
+      "bytes": 2583,
+      "sha256": "8a0b8c978978f35cb2beef6e8ac4fca21862e55631cfafdbdb25f7e88ebc556b"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/skill-lifecycle-repository.test.ts",
+      "bytes": 11506,
+      "sha256": "e348c63759f875cb5661e25928c6b92c8cfba79f740bb073e880e602eaf10632"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/skill-lifecycle-repository.ts",
+      "bytes": 3352,
+      "sha256": "3363c558774995913c5a230a9133f02222dc161abe65ec14661e559902c97c63"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-plan-admission.ts",
+      "bytes": 3566,
+      "sha256": "eb476eccb2a0f5d337a37dcc19c5a9a8c9d598c5512163bd44f62087b8ca1c7b"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-plan-execution-runtime.ts",
+      "bytes": 58139,
+      "sha256": "e6db5792d6ca112a3a37c4ef8dc8d7b9224b1a575d5e5baa6742a37bfaf4b4d7"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-plan-recovery.ts",
+      "bytes": 5434,
+      "sha256": "0a87b1db9964ff454040b60f30aaec0a625957a388cd946c69e33faac7453326"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-plan-repository.ts",
+      "bytes": 25980,
+      "sha256": "32fe3093347cda33d1faf0f4978ba19b624c13b6f56145e131cb65c4d8964e00"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-plan-schema.ts",
+      "bytes": 3156,
+      "sha256": "7dbc1df0b949be4186e21042a92954df2b84e5721fedfaf7220d2b3974a75d8c"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-schedule.ts",
+      "bytes": 3375,
+      "sha256": "6115423328eaf439ce8c51d6f29ae95e7bfcd6145c7eff6f0bc5e5f8f3aaf007"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/executor-adapters/codex.ts",
+      "bytes": 103050,
+      "sha256": "d3983d0f595563a6e952de3b7a16507c920f63d3a3146b8a8fdce033f6044423"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-agent-read-evidence.test.ts",
+      "bytes": 3388,
+      "sha256": "f8a0d11a5e39d2c5d4ed12b8b4574342720a546b909655eacfea810c66b01862"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-agent-read-evidence.ts",
+      "bytes": 2275,
+      "sha256": "6edee2f82d8fc8dde63bd0d1fdc6a168e5cdb2d292ff190de49fb0e5fc3a5414"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-file-effect-evidence.ts",
+      "bytes": 2943,
+      "sha256": "6bc39b840869d30a104afe994e42d6de6e015a739bcbea698070a267f5c4429e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-provider-budget.test.ts",
+      "bytes": 17393,
+      "sha256": "ccd70c5aef5e2e8e2fe76d21d88a976814ad903d57dcd9dc7805ac0946ea1f77"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-provider-budget.ts",
+      "bytes": 11877,
+      "sha256": "75668f0a2705d9a6d4605db7fa7904b2c35aa2efaa74b7eb34e16e4f2efa62fc"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-reply-grounding-runtime.ts",
+      "bytes": 81386,
+      "sha256": "0719d04de5a7d65e75119813aa8975ccc74b0f446d6998b5deca24ff68792a21"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-task-repository.ts",
+      "bytes": 9604,
+      "sha256": "d7e3f80355bfafc34a7a68f7d11c41c9ebc17dffa974911a9877ce76149119ee"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-turn-runtime.ts",
+      "bytes": 22251,
+      "sha256": "8526e9643f6101253c6836bb7452b53d31b248e8b3a811b99e8139c33cfcd43d"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-workflow-tool-scope.ts",
+      "bytes": 824,
+      "sha256": "8bce1caf74328b912d04de3731b030e8be62e10f9290b1e95336e85728003260"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "bytes": 212639,
+      "sha256": "91964990284b1e68a94358a393140bd71a4888c9d1bad60f1079dfd4356f473f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.ts",
+      "bytes": 90633,
+      "sha256": "7cd687273b0e84ea00055d985a7585b430eb45211b7552c40755557dc37d80cd"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-execution-surface.test.ts",
+      "bytes": 181570,
+      "sha256": "77101e09361b7eeac67527723dbeaf138a8b489ea8f539e23fe748c1186d1500"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-execution-surface.ts",
+      "bytes": 213217,
+      "sha256": "b9f9a8ba17d3d869b5dabe9c05a7cba06a4b9e894ff16c3f6e5859d5ada70dbb"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.ts",
+      "bytes": 14548,
+      "sha256": "b4d500049b73c819aac50749ae1d9b5f610c6538e38e2c5aefa56f5fc372a8eb"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts",
+      "bytes": 344003,
+      "sha256": "2005c2f54554a012268ddd60a08c3b84623b3383ad98ec246585517e11bacefa"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts",
+      "bytes": 151091,
+      "sha256": "d41fef27145d0a4d7ffca33792434f332ab5770d13f0ee60a5323eb92caabb9f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "bytes": 233885,
+      "sha256": "d363e9861eb6e05de2efa77fa4123bb11ca2eae8ee2cb05cd9c64eeb8bbd9ecb"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.ts",
+      "bytes": 121070,
+      "sha256": "bbc34f23295608cf3b236a75a63d1b8e5ff7e705e01d56a33bc1de17a2fa38a8"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime-agent-inspection-scope.test.ts",
+      "bytes": 1170,
+      "sha256": "7e3987340e15b86c3560ed1d6fd9850b8be5ee9c5895fbbfa05a32ff3f1c4b19"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime-agent-inspection-scope.ts",
+      "bytes": 1424,
+      "sha256": "7670a2a67bcc07d9b97f53575cdd3d60e95d73d2020d913387e7a5bae78736ed"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime-inspection-intent.test.ts",
+      "bytes": 16999,
+      "sha256": "9fd98edf929537816d49c8796ebc459f7e2957d9a8824dfc34dde3ca26528b54"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime-inspection-intent.ts",
+      "bytes": 32929,
+      "sha256": "89be9286b5419d9422ca10b22b55da8198b30a35edc1a9a201abe7366f950d46"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime-main-chat-prelude.test.ts",
+      "bytes": 30391,
+      "sha256": "6e14d8832ed859fce78614137708ef3d24bd639209f97006b664434eaa5832c3"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime-main-chat-prelude.ts",
+      "bytes": 11687,
+      "sha256": "f0c74f765e5c1949be4402348c280337484ec413d626ab530d7fee76e064d685"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime-main-gateway-one-shot.test.ts",
+      "bytes": 70927,
+      "sha256": "ef2b8640b51e12e3c18b372a0952b30cd4e89230ef477da1d27eb3197553aef1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime-main-gateway-one-shot.ts",
+      "bytes": 65971,
+      "sha256": "1291f61b52bad899a58dc3e0df192d50aadf884f9d8a7de3383414eee3cad61d"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime-perception-helpers.ts",
+      "bytes": 23987,
+      "sha256": "dff16e5d9313efdc078aa54ebfae95e6512f90fb5b610d46695ffbe640713661"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime.ts",
+      "bytes": 389779,
+      "sha256": "65c9d12bd7f7181d36b19c01975ac646b5c8c7065e1dcbdfee391dee94b88279"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/codex-skill-selector.ts",
+      "bytes": 5524,
+      "sha256": "36fc5cce911e8456e15bd43a24bb01a267aa0520c4f4e6344e47234bf7716d70"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/codex-tool-scheduler.ts",
+      "bytes": 2040,
+      "sha256": "bbb23a4bc382bf78b0ff56fb3e259c117e82d7ff51fbc810bf5097435a655dc8"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/deepseek-lsp-framing.ts",
+      "bytes": 1800,
+      "sha256": "a8e6bbffea43542e7565d0ac86144f915db413903467d290d5108077f14a9372"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/deepseek-repeat-tool.ts",
+      "bytes": 1815,
+      "sha256": "3775d9b160c1eb2f98a46c57ce3d45c8eeb182e06fd57e1cb20bb0c2d444357a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/hermes-tool-catalog.ts",
+      "bytes": 2790,
+      "sha256": "c4e2c389c337b660065803440672c8cc966bbd373a725452764b2eae335d2f9e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/pi-extension-program.ts",
+      "bytes": 4826,
+      "sha256": "320acdcaf5f910b19d2417626adbd34499c596aa0f7b05a3545150e44a5a05d0"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/pi-tool-batch.ts",
+      "bytes": 769,
+      "sha256": "d411362ba29403e67d08ecebb4bf7abb05b6678d452f3989ebc1ca9b18fc713e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/pi-tool-text.ts",
+      "bytes": 2018,
+      "sha256": "97b41b2d33458d872f189fb8aa59d055052447565ac0ee1dd0b16683bd220398"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/event-loop.ts",
+      "bytes": 50038,
+      "sha256": "a5ce0c5ba3169a8c6abf9758508be2e06ecc6680eaebd4103a96b45bed531f0f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/main-chat-participant.test.ts",
+      "bytes": 23030,
+      "sha256": "aae1c3c09235a2c6be7025cda47ee7348c61a7208ad2223598fd1033f63ee58f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/main-chat-participant.ts",
+      "bytes": 8124,
+      "sha256": "0a09d44977ada85c4090189e5fe5e946846b578a03d541caa9ca15554d9bfecd"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/skill-loader.ts",
+      "bytes": 21972,
+      "sha256": "0297cea5be4142ee542026e1008d8f6075d790d8e89c77aebc5a42bce5016d03"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/tool-registry.test.ts",
+      "bytes": 28343,
+      "sha256": "d9b62204be3a97aa0c35b7727b978e4ae694b0e19846a49b9a2e6a2d43a76614"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/tool-registry.ts",
+      "bytes": 47634,
+      "sha256": "7c7600b22b62a3aa06bd25475bdf86c1d8b1ebf157775163eba58975b05644b0"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/shared/execution-contracts.ts",
+      "bytes": 4343,
+      "sha256": "ad761bad0b45115f4ef8adfbab460221607f5d590756841be7d3ee7f217409f4"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "bytes": 1211412,
+      "sha256": "3a271b360b144123625b8ef1c46bb8ac82f05d16ee88fcb4e049d9420492faf7"
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "bytes": 4467,
+      "sha256": "7b39b95895da2c35181d2f9af6b52f5f3d1031e899708c6d28bb51cb567790e4"
+    }
+  ],
+  "compiledMain": {
+    "path": "apps/stage-tamagotchi/out/main/index.js",
+    "bytes": 12703646,
+    "sha256": "113ba7f1bad24741b175bbfa5a007fed0d2e7a34841622c2e53a5946a5c6690f"
+  },
+  "runtimeAssets": [
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/lsp/lib/cli.mjs",
+      "bytes": 890213,
+      "sha256": "86ef128358dcd71d0c684d786d7751ee09fbbbbb2a521482b160007b8228be2e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/lsp/LICENSE",
+      "bytes": 13189,
+      "sha256": "899d21038f87dd6243dd33b7ee82a078e639d4325a427c01e64d8116315b9680"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/lsp/package.json",
+      "bytes": 2848,
+      "sha256": "090384304250e5b70e2a3f54aa99c0ae8465ebbdf136b05695c6a60eadcbbbd5"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/quickjs.LICENSE",
+      "bytes": 2263,
+      "sha256": "446a69ae534aa8612d8b16d3bfc670c5a5050597dca3ce9820441a60d5d04fbb"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/quickjs.wasm",
+      "bytes": 503134,
+      "sha256": "105c3bed22d457e43e3d1c3c1c6959fda62a8fe06f0fc8a985303c3a2be72232"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.d.ts",
+      "bytes": 992,
+      "sha256": "a7297ff837fcdf174a9524925966429eb8e5feecc2cc55cc06574e6b092c1eaa"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.decorators.d.ts",
+      "bytes": 13192,
+      "sha256": "8e7f8264d0fb4c5339605a15daadb037bf238c10b654bb3eee14208f860a32ea"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.decorators.legacy.d.ts",
+      "bytes": 1326,
+      "sha256": "782dec38049b92d4e85c1585fbea5474a219c6984a35b004963b00beb1aab538"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.dom.asynciterable.d.ts",
+      "bytes": 1887,
+      "sha256": "d7a3c8b952931daebdfc7a2897c53c0a1c73624593fa070e46bd537e64dcd20a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.dom.d.ts",
+      "bytes": 1874901,
+      "sha256": "080941d9f9ff9307f7e27a83bcd888b7c8270716c39af943532438932ec1d0b9"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.dom.iterable.d.ts",
+      "bytes": 29802,
+      "sha256": "2e80ee7a49e8ac312cc11b77f1475804bee36b3b2bc896bead8b6e1266befb43"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2015.collection.d.ts",
+      "bytes": 5229,
+      "sha256": "dc2df20b1bcdc8c2d34af4926e2c3ab15ffe1160a63e58b7e09833f616efff44"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2015.core.d.ts",
+      "bytes": 22866,
+      "sha256": "c57796738e7f83dbc4b8e65132f11a377649c00dd3eee333f672b8f0a6bea671"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2015.d.ts",
+      "bytes": 1241,
+      "sha256": "45b7ab580deca34ae9729e97c13cfd999df04416a79116c3bfb483804f85ded4"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2015.generator.d.ts",
+      "bytes": 2557,
+      "sha256": "515d0b7b9bea2e31ea4ec968e9edd2c39d3eebf4a2d5cbd04e88639819ae3b71"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2015.iterable.d.ts",
+      "bytes": 18200,
+      "sha256": "0559b1f683ac7505ae451f9a96ce4c3c92bdc71411651ca6ddb0e88baaaad6a3"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2015.promise.d.ts",
+      "bytes": 3200,
+      "sha256": "0dc1e7ceda9b8b9b455c3a2d67b0412feab00bd2f66656cd8850e8831b08b537"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2015.proxy.d.ts",
+      "bytes": 5251,
+      "sha256": "ce691fb9e5c64efb9547083e4a34091bcbe5bdb41027e310ebba8f7d96a98671"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2015.reflect.d.ts",
+      "bytes": 6493,
+      "sha256": "8d697a2a929a5fcb38b7a65594020fcef05ec1630804a33748829c5ff53640d0"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2015.symbol.d.ts",
+      "bytes": 1649,
+      "sha256": "4ff2a353abf8a80ee399af572debb8faab2d33ad38c4b4474cff7f26e7653b8d"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2015.symbol.wellknown.d.ts",
+      "bytes": 11010,
+      "sha256": "fb0f136d372979348d59b3f5020b4cdb81b5504192b1cacff5d1fbba29378aa1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2016.array.include.d.ts",
+      "bytes": 5204,
+      "sha256": "d15bea3d62cbbdb9797079416b8ac375ae99162a7fba5de2c6c505446486ac0a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2016.d.ts",
+      "bytes": 965,
+      "sha256": "3facaf05f0c5fc569c5649dd359892c98a85557e3e0c847964caeb67076f4d75"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2016.full.d.ts",
+      "bytes": 1032,
+      "sha256": "807e0e0bdc67605dd28efe18f20ab5fcd75d944ef95936120702335f9379094b"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2016.intl.d.ts",
+      "bytes": 1484,
+      "sha256": "68d18b664c9d32a7336a70235958b8997ebc1c3b8505f4f1ae2b7e7753b87618"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2017.arraybuffer.d.ts",
+      "bytes": 915,
+      "sha256": "eb3d66c8327153d8fa7dd03f9c58d351107fe824c79e9b56b462935176cdf12a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2017.d.ts",
+      "bytes": 1162,
+      "sha256": "e44bb8bbac7f10ecc786703fe0a6a4b952189f908707980ba8f3c8975a760962"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2017.date.d.ts",
+      "bytes": 1916,
+      "sha256": "38f0219c9e23c915ef9790ab1d680440d95419ad264816fa15009a8851e79119"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2017.full.d.ts",
+      "bytes": 1032,
+      "sha256": "1d242d5c24cf285c88bc4fb93c5ff903de8319064e282986edeb6247ba028d5e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2017.intl.d.ts",
+      "bytes": 1449,
+      "sha256": "4de680d5bb41c17f7f68e0419412ca23c98d5749dcaaea1896172f06435891fc"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2017.object.d.ts",
+      "bytes": 2473,
+      "sha256": "69ab18c3b76cd9b1be3d188eaf8bba06112ebbe2f47f6c322b5105a6fbc45a2e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2017.sharedmemory.d.ts",
+      "bytes": 7209,
+      "sha256": "a680117f487a4d2f30ea46f1b4b7f58bef1480456e18ba53ee85c2746eeca012"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2017.string.d.ts",
+      "bytes": 2378,
+      "sha256": "2f11ff796926e0832f9ae148008138ad583bd181899ab7dd768a2666700b1893"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2017.typedarrays.d.ts",
+      "bytes": 1542,
+      "sha256": "954296b30da6d508a104a3a0b5d96b76495c709785c1d11610908e63481ee667"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2018.asyncgenerator.d.ts",
+      "bytes": 2692,
+      "sha256": "ac9538681b19688c8eae65811b329d3744af679e0bdfa5d842d0e32524c73e1c"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2018.asynciterable.d.ts",
+      "bytes": 2257,
+      "sha256": "0a969edff4bd52585473d24995c5ef223f6652d6ef46193309b3921d65dd4376"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2018.d.ts",
+      "bytes": 1088,
+      "sha256": "5e1c4c362065a6b95ff952c0eab010f04dcd2c3494e813b493ecfd4fcb9fc0d8"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2018.full.d.ts",
+      "bytes": 1074,
+      "sha256": "95f1023b824c2c511c48f1201e2d1188bcb0ca1138a309a870b956d2e92e44ab"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2018.intl.d.ts",
+      "bytes": 3021,
+      "sha256": "9e9fbd7030c440b33d021da145d3232984c8bb7916f277e8ffd3dc2e3eae2bdb"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2018.promise.d.ts",
+      "bytes": 1353,
+      "sha256": "811ec78f7fefcabbda4bfa93b3eb67d9ae166ef95f9bff989d964061cbf81a0c"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2018.regexp.d.ts",
+      "bytes": 1232,
+      "sha256": "717937616a17072082152a2ef351cb51f98802fb4b2fdabd32399843875974ca"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2019.array.d.ts",
+      "bytes": 3163,
+      "sha256": "d7e7d9b7b50e5f22c915b525acc5a49a7a6584cf8f62d0569e557c5cfc4b2ac2"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2019.d.ts",
+      "bytes": 1071,
+      "sha256": "68d73b4a11549f9c0b7d352d10e91e5dca8faa3322bfb77b661839c42b1ddec7"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2019.full.d.ts",
+      "bytes": 1074,
+      "sha256": "08f6861df84fba9719c14d5adc3ba40be9f0c687639e6c4df3c05b9301b8ff94"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2019.intl.d.ts",
+      "bytes": 958,
+      "sha256": "74f7fa2d027d5b33eb0471c8e82a6c87216223181ec31247c357a3e8e2fddc5b"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2019.object.d.ts",
+      "bytes": 1473,
+      "sha256": "71c37f4c9543f31dfced6c7840e068c5a5aacb7b89111a4364b1d5276b852557"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2019.string.d.ts",
+      "bytes": 1528,
+      "sha256": "576711e016cf4f1804676043e6a0a5414252560eb57de9faceee34d79798c850"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2019.symbol.d.ts",
+      "bytes": 1006,
+      "sha256": "89c1b1281ba7b8a96efc676b11b264de7a8374c5ea1e6617f11880a13fc56dc6"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2020.bigint.d.ts",
+      "bytes": 38185,
+      "sha256": "d6d7ae4d1f1f3772e2a3cde568ed08991a8ae34a080ff1151af28b7f798e22ca"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2020.d.ts",
+      "bytes": 1201,
+      "sha256": "5efce4fc3c29ea84e8928f97adec086e3dc876365e0982cc8479a07954a3efd4"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2020.date.d.ts",
+      "bytes": 2956,
+      "sha256": "063600664504610fe3e99b717a1223f8b1900087fab0b4cad1496a114744f8df"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2020.full.d.ts",
+      "bytes": 1074,
+      "sha256": "1305d1e76ca44e30fb8b2b8075fa522b83f60c0bcf5d4326a9d2cf79b53724f8"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2020.intl.d.ts",
+      "bytes": 22438,
+      "sha256": "639e512c0dfc3fad96a84caad71b8834d66329a1f28dc95e3946c9b58176c73a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2020.number.d.ts",
+      "bytes": 1587,
+      "sha256": "368af93f74c9c932edd84c58883e736c9e3d53cec1fe24c0b0ff451f529ceab1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2020.promise.d.ts",
+      "bytes": 1803,
+      "sha256": "934019d7e3c81950f9a8426d093458b65d5aff2c7c1511233c0fd5b941e608ab"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2020.sharedmemory.d.ts",
+      "bytes": 5128,
+      "sha256": "52ada8e0b6e0482b728070b7639ee42e83a9b1c22d205992756fe020fd9f4a47"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2020.string.d.ts",
+      "bytes": 2556,
+      "sha256": "3bdefe1bfd4d6dee0e26f928f93ccc128f1b64d5d501ff4a8cf3c6371200e5e6"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2020.symbol.wellknown.d.ts",
+      "bytes": 1606,
+      "sha256": "59fb2c069260b4ba00b5643b907ef5d5341b167e7d1dbf58dfd895658bda2867"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2021.d.ts",
+      "bytes": 1036,
+      "sha256": "feecb1be483ed332fad555aff858affd90a48ab19ba7272ee084704eb7167569"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2021.full.d.ts",
+      "bytes": 1074,
+      "sha256": "4a66df3ab5de5cfcda11538cffddd67ff6a174e003788e270914c1e0248483cf"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2021.intl.d.ts",
+      "bytes": 8245,
+      "sha256": "965f36eae237dd74e6cca203a43e9ca801ce38824ead814728a2807b1910117d"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2021.promise.d.ts",
+      "bytes": 2262,
+      "sha256": "af3dd424cf267428f30ccfc376f47a2c0114546b55c44d8c0f1d57d841e28d74"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2021.string.d.ts",
+      "bytes": 1592,
+      "sha256": "995c005ab91a498455ea8dfb63aa9f83fa2ea793c3d8aa344be4a1678d06d399"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2021.weakref.d.ts",
+      "bytes": 3171,
+      "sha256": "959d36cddf5e7d572a65045b876f2956c973a586da58e5d26cde519184fd9b8a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2022.array.d.ts",
+      "bytes": 4676,
+      "sha256": "3925a6c820dcb1a06506c90b1577db1fdbf7705d65b62b99dce4be75c637e26b"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2022.d.ts",
+      "bytes": 1108,
+      "sha256": "ee7bad0c15b58988daa84371e0b89d313b762ab83cb5b31b8a2d1162e8eb41c2"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2022.error.d.ts",
+      "bytes": 2379,
+      "sha256": "0a3d63ef2b853447ec4f749d3f368ce642264246e02911fcb1590d8c161b8005"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2022.full.d.ts",
+      "bytes": 1074,
+      "sha256": "3cbad9a1ba4453443026ed38e4b8be018abb26565fa7c944376463ad9df07c41"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2022.intl.d.ts",
+      "bytes": 7692,
+      "sha256": "8cdf8847677ac7d20486e54dd3fcf09eda95812ac8ace44b4418da1bbbab6eb8"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2022.object.d.ts",
+      "bytes": 1085,
+      "sha256": "8444af78980e3b20b49324f4a16ba35024fef3ee069a0eb67616ea6ca821c47a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2022.regexp.d.ts",
+      "bytes": 1331,
+      "sha256": "b4b67b1a91182421f5df999988c690f14d813b9850b40acd06ed44691f6727ad"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2022.string.d.ts",
+      "bytes": 1155,
+      "sha256": "3287d9d085fbd618c3971944b65b4be57859f5415f495b33a6adc994edd2f004"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2023.array.d.ts",
+      "bytes": 40236,
+      "sha256": "df83c2a6c73228b625b0beb6669c7ee2a09c914637e2d35170723ad49c0f5cd4"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2023.collection.d.ts",
+      "bytes": 900,
+      "sha256": "436aaf437562f276ec2ddbee2f2cdedac7664c1e4c1d2c36839ddd582eeb3d0a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2023.d.ts",
+      "bytes": 999,
+      "sha256": "27bdc30a0e32783366a5abeda841bc22757c1797de8681bbe81fbc735eeb1c10"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2023.full.d.ts",
+      "bytes": 1074,
+      "sha256": "785921608325fa246b450f05b238f4b3ed659f1099af278ce9ebbc9416a13f1d"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2023.intl.d.ts",
+      "bytes": 2645,
+      "sha256": "8e3c06ea092138bf9fa5e874a1fdbc9d54805d074bee1de31b99a11e2fec239d"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2024.arraybuffer.d.ts",
+      "bytes": 2637,
+      "sha256": "87dc0f382502f5bbce5129bdc0aea21e19a3abbc19259e0b43ae038a9fc4e326"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2024.collection.d.ts",
+      "bytes": 1224,
+      "sha256": "b1cb28af0c891c8c96b2d6b7be76bd394fddcfdb4709a20ba05a7c1605eea0f9"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2024.d.ts",
+      "bytes": 1166,
+      "sha256": "8fd575e12870e9944c7e1d62e1f5a73fcf23dd8d3a321f2a2c74c20d022283fe"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2024.full.d.ts",
+      "bytes": 1074,
+      "sha256": "b3e9cef4eed59f8a2249ed834ba4aabe9d0d4e9037d4679487fa17dad99004a3"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2024.object.d.ts",
+      "bytes": 1259,
+      "sha256": "2fef54945a13095fdb9b84f705f2b5994597640c46afeb2ce78352fab4cb3279"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2024.promise.d.ts",
+      "bytes": 1389,
+      "sha256": "ac77cb3e8c6d3565793eb90a8373ee8033146315a3dbead3bde8db5eaf5e5ec6"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2024.regexp.d.ts",
+      "bytes": 1073,
+      "sha256": "56e4ed5aab5f5920980066a9409bfaf53e6d21d3f8d020c17e4de584d29600ad"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2024.sharedmemory.d.ts",
+      "bytes": 3077,
+      "sha256": "4ece9f17b3866cc077099c73f4983bddbcb1dc7ddb943227f1ec070f529dedd1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es2024.string.d.ts",
+      "bytes": 1194,
+      "sha256": "0a6282c8827e4b9a95f4bf4f5c205673ada31b982f50572d27103df8ceb8013c"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es5.d.ts",
+      "bytes": 218439,
+      "sha256": "c430d44666289dae81f30fa7b2edebf186ecc91a2d4c71266ea6ae76388792e1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.es6.d.ts",
+      "bytes": 1032,
+      "sha256": "df039a67536fe2acc3affdcbfb645892f842db36fe599e8e652e2f0c640a90d1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.esnext.array.d.ts",
+      "bytes": 1791,
+      "sha256": "1c9319a09485199c1f7b0498f2988d6d2249793ef67edda49d1e584746be9032"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.esnext.collection.d.ts",
+      "bytes": 3878,
+      "sha256": "e3a2a0cee0f03ffdde24d89660eba2685bfbdeae955a6c67e8c4c9fd28928eeb"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.esnext.d.ts",
+      "bytes": 1282,
+      "sha256": "2ab096661c711e4a81cc464fa1e6feb929a54f5340b46b0a07ac6bbf857471f0"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.esnext.decorators.d.ts",
+      "bytes": 1070,
+      "sha256": "d4b1d2c51d058fc21ec2629fff7a76249dec2e36e12960ea056e3ef89174080f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.esnext.disposable.d.ts",
+      "bytes": 6806,
+      "sha256": "51ad4c928303041605b4d7ae32e0c1ee387d43a24cd6f1ebf4a2699e1076d4fa"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.esnext.error.d.ts",
+      "bytes": 1029,
+      "sha256": "73f78680d4c08509933daf80947902f6ff41b6230f94dd002ae372620adb0f60"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.esnext.float16.d.ts",
+      "bytes": 20528,
+      "sha256": "196cb558a13d4533a5163286f30b0509ce0210e4b316c56c38d4c0fd2fb38405"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.esnext.full.d.ts",
+      "bytes": 1074,
+      "sha256": "bde31fd423cd93b0eff97197a3f66df7c93e8c0c335cbeb113b7ff1ac35c23f4"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.esnext.intl.d.ts",
+      "bytes": 893,
+      "sha256": "811c71eee4aa0ac5f7adf713323a5c41b0cf6c4e17367a34fbce379e12bbf0a4"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.esnext.iterator.d.ts",
+      "bytes": 8676,
+      "sha256": "22adec94ef7047a6c9d1af3cb96be87a335908bf9ef386ae9fd50eeb37f44c47"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.esnext.promise.d.ts",
+      "bytes": 1658,
+      "sha256": "60037901da1a425516449b9a20073aa03386cce92f7a1fd902d7602be3a7c2e9"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.esnext.sharedmemory.d.ts",
+      "bytes": 1067,
+      "sha256": "c5239f5c01bcfa9cd32f37c496cf19c61d69d37e48be9de612b541aac915805b"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.scripthost.d.ts",
+      "bytes": 9451,
+      "sha256": "cd034f499c6cdca722b60c04b5b1b78e058487a7085a8e0d6fb50809947ee573"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.webworker.asynciterable.d.ts",
+      "bytes": 1887,
+      "sha256": "ca417afee74054e99d5a8252b35bef26ca6e2942d67d343fce6b42fc9f432993"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.webworker.d.ts",
+      "bytes": 609557,
+      "sha256": "6d08cde2bfb6ff909efbf7cb7d6d55be412cf4b9f48fd0430185986973fa91f5"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.webworker.importscripts.d.ts",
+      "bytes": 1041,
+      "sha256": "80e18897e5884b6723488d4f5652167e7bb5024f946743134ecc4aa4ee731f89"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/lib.webworker.iterable.d.ts",
+      "bytes": 22768,
+      "sha256": "d6c6331ce67c41b2ad5bfb0c8c022403980b479a377a44da8f16b61120418f66"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/tsc.js",
+      "bytes": 267,
+      "sha256": "2cffde0b8c6760dfb0b5b0382bbb7e00ba6a8b2d981b9205b256a700a481d983"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/tsserver.js",
+      "bytes": 272,
+      "sha256": "e3ccfeec65ec5c470b8ffc5611878a31182650c7e8a062c38a719f83b523edcb"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/tsserverlibrary.d.ts",
+      "bytes": 865,
+      "sha256": "73b15a0b7cf5c6df9076b9408c5ce682f11813453bf54c54cb284f075b5224cf"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/tsserverlibrary.js",
+      "bytes": 1012,
+      "sha256": "7ca9b464de80a5382d9ccfed2b224323bc0274c8de61bf0464e89ee824677c76"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/typescript.d.ts",
+      "bytes": 588085,
+      "sha256": "e134052a6b1ded61693b4037f615dc72f14e2881e79c1ddbff6c514c8a516b05"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/typescript.js",
+      "bytes": 9112572,
+      "sha256": "3ae902c92cc44dace175c0e69e13a4b0899f6983c6121d76b9ab8dd5795e7675"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/typesMap.json",
+      "bytes": 16788,
+      "sha256": "4143fb8b1c5d4421dfa19a4b80ddf2da375fc0835a349c3b18519fda5955e1d9"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/typingsInstaller.js",
+      "bytes": 280,
+      "sha256": "2d48a038523ea7c626fa2796a30fa5fdc07612ea5fab83544423009d7683a213"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/watchGuard.js",
+      "bytes": 2313,
+      "sha256": "471200d4bc555ef8d8429358bdca2a68ea7c9bfff6c853b5b048d2512fe4092a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/_tsc.js",
+      "bytes": 6213092,
+      "sha256": "e8f349eabd48486bdb2bf9dc1a00c89d58297270c54b745838879e2859194419"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/_tsserver.js",
+      "bytes": 27888,
+      "sha256": "0efcc88cdf0593cc1dcc8b6afd605c7bed9eca6f648c70c8f0df8695114bf6d7"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/lib/_typingsInstaller.js",
+      "bytes": 10363,
+      "sha256": "62a69c574365f1c81633b86b3214f9df860aad08843028dd5244b00aa7f1e190"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/LICENSE.txt",
+      "bytes": 9197,
+      "sha256": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/package.json",
+      "bytes": 3620,
+      "sha256": "822ef7ca6452205657b6288b066481ecf508bfbf43455d715cf7d3ec457561e6"
+    },
+    {
+      "path": "apps/stage-tamagotchi/out/main/agent-runtime/typescript/ThirdPartyNoticeText.txt",
+      "bytes": 37824,
+      "sha256": "1af3c68039c57e539422da82a4faada506ce6d0ea6f90e0b699d02dbcdb7a90c"
+    }
+  ],
+  "environment": {
+    "hostNode": "v24.19.0",
+    "platform": "win32",
+    "architecture": "x64",
+    "codexCli": "0.160.0",
+    "backendRoute": "Existing configured custom HTTPS provider; configuration unchanged"
+  },
+  "finalTests": {
+    "aggregation": "Base serial batch, superseded only by newer full targeted LSP and Pi extension files. Earlier positive native results do not replace later failures.",
+    "files": 80,
+    "total": 1334,
+    "passed": 1332,
+    "failed": 2,
+    "skipped": 0,
+    "failures": [
+      {
+        "file": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/external-agent-usage.integration.test.ts",
+        "name": "persists an actual native Codex terminal usage report in the owning life ledger",
+        "status": "failed",
+        "evidence": "output/agent-runtime-20261104/closure-regression.json"
+      },
+      {
+        "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-delegated-replay.test.ts",
+        "name": "evaluates coding_agent.codex real writes, no-result and post-write interruption before activation and three fresh uses",
+        "status": "failed",
+        "evidence": "output/agent-runtime-20261104/closure-regression.json"
+      }
+    ],
+    "runs": [
+      {
+        "path": "output/agent-runtime-20261104/closure-regression.json",
+        "bytes": 529398,
+        "sha256": "df4be0dbfabd7a6fb4c78af94d9c85a4bcdbc631c5889fd46d42a52ee9304100",
+        "files": 79,
+        "total": 1332,
+        "passed": 1330,
+        "failed": 2,
+        "skipped": 0
+      },
+      {
+        "path": "output/agent-runtime-20261104/lsp-classified-final.json",
+        "bytes": 3631,
+        "sha256": "18349601723fdac811ac5db6d14a2004f0fd07ee63b329ebd94adf4fd2f837c0",
+        "files": 2,
+        "total": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "path": "output/agent-runtime-20261104/extension-names-final.json",
+        "bytes": 2408,
+        "sha256": "aef59ae3cf9615e41c23e4d076c284fb142b6e1ecb9c931ecf9027a392cb98d2",
+        "files": 1,
+        "total": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0
+      }
+    ]
+  },
+  "products": [
+    {
+      "path": "output/agent-runtime-20261104/product-agent-runtime-current/report.json",
+      "bytes": 80227,
+      "sha256": "afbf26511848463d58cc585fd02c3b421fe1c9661f465b50aaf022bb318d6dac",
+      "passed": true,
+      "checks": 25,
+      "renderer": "live2d",
+      "testedMainSha256": "113ba7f1bad24741b175bbfa5a007fed0d2e7a34841622c2e53a5946a5c6690f",
+      "matchesFinalMain": true,
+      "allWindowsOffscreenAndNonfocusableChecked": true,
+      "requests": 16,
+      "usageReported": 16,
+      "openRequests": 0,
+      "normalNativeExitObserved": true
+    },
+    {
+      "path": "output/agent-runtime-20261104/product-agent-runtime-scoped/report.json",
+      "bytes": 82603,
+      "sha256": "761e0653bc80bae173af4df0823e9f11d70c90617f1ff01f14f64d11a4a82593",
+      "passed": true,
+      "checks": 25,
+      "renderer": "live2d",
+      "testedMainSha256": "ef045d6814f12cae0b34547a84ee6032589c73b3d0e0c71bcd5c38ea3a8cacc2",
+      "matchesFinalMain": false,
+      "allWindowsOffscreenAndNonfocusableChecked": true,
+      "requests": 24,
+      "usageReported": 19,
+      "openRequests": 0,
+      "normalNativeExitObserved": true
+    },
+    {
+      "path": "output/agent-runtime-20261104/product-autonomous-method-fixed/report.json",
+      "bytes": 85126,
+      "sha256": "cb5d955cd57a10233c81cd3fac1ff0f43f02d1cf37672ceb5c99eea1dec7ff0b",
+      "passed": true,
+      "checks": 32,
+      "renderer": "live2d",
+      "testedMainSha256": "4dd0c5dc88aed8dffb5c197f56e5af7e5b3f181aff8b532b4716283a599ebd21",
+      "matchesFinalMain": false,
+      "allWindowsOffscreenAndNonfocusableChecked": true,
+      "naturalMethodRequests": 3,
+      "normalNativeExitObserved": true
+    }
+  ],
+  "postProductDelta": {
+    "feature": "Bound long Pi extension provider names to 64 characters with stable distinct hashes and preserve namespace boundaries; canonical identities retained",
+    "sources": [
+      "agent-harness/pi-extension-runtime.ts",
+      "agent-harness/pi-extension-runtime.test.ts"
+    ],
+    "validation": "extension-names-final.json",
+    "scope": "Real WASM, registry and SQLite tests plus the complete five-request product experience on the final compiled main; earlier product bundles remain separately identified."
+  },
+  "checks": [
+    {
+      "path": "output/agent-runtime-20261104/typecheck-delivery.log",
+      "bytes": 4060,
+      "sha256": "dbc07d5c32735f51748b5032ec5a9f47888823eb848a4174ce722ae072275767",
+      "observedExitCode": 0
+    },
+    {
+      "path": "output/agent-runtime-20261104/lint-delivery.log",
+      "bytes": 231768,
+      "sha256": "c2249aa26f02d072a8f7ac9f77431f7fa2284ea7df69e7f5bb1a9bebffeb9989",
+      "observedExitCode": 0
+    },
+    {
+      "path": "output/agent-runtime-20261104/build-delivery.log",
+      "bytes": 121114,
+      "sha256": "7d606be1823e65002e1ba9042252ec5daec6fe76c7236a4df427996ef56f3b0d",
+      "observedExitCode": 0
+    }
+  ],
+  "lint": {
+    "errors": 0,
+    "warnings": 1209
+  },
+  "cleanup": {
+    "profilesRemoved": 7,
+    "additionalNativeFixturesRemoved": 3,
+    "removedBytes": 124538239,
+    "evidenceExportedBeforeRemoval": true,
+    "receipts": [
+      {
+        "path": "output/agent-runtime-20261104/cleanup.json",
+        "bytes": 17737,
+        "sha256": "bd50281fb46f873a1a9def3c9745e13041fd8022ebe20d8e7628c63325fef5de"
+      },
+      {
+        "path": "output/agent-runtime-20261104/native-usage-cleanup.json",
+        "bytes": 2205,
+        "sha256": "3529cd9346ee5706d7f21909bbeba174dc6a90e456ab6a156ed071db789ff231"
+      }
+    ]
+  },
+  "earlierAttempts": [
+    {
+      "path": "output/agent-runtime-20261104/runtime-tests.json",
+      "bytes": 146008,
+      "sha256": "183be52a84d9e5d7eb48d361804c3061551ecd55730c445efdbc3380e5862827",
+      "total": 411,
+      "passed": 411,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "path": "output/agent-runtime-20261104/real-learning-and-repair.json",
+      "bytes": 23002,
+      "sha256": "19f5fda061adaf22957d66c30be4a0959b255d350ceb5f5d663ad76807bdd734",
+      "total": 55,
+      "passed": 55,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "path": "output/agent-runtime-20261104/final-regression.json",
+      "bytes": 508566,
+      "sha256": "270f5408d917672793f4c69e27abb19b721a6b4764f5a47aec59467629868efa",
+      "total": 1285,
+      "passed": 1285,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "path": "output/agent-runtime-20261104/final-verified-regression.json",
+      "bytes": 511396,
+      "sha256": "e86a35fb01decb1bf34e19c48a81ae5cbbcfdc26c83870593c6137c2ec376efb",
+      "total": 1289,
+      "passed": 1288,
+      "failed": 1,
+      "skipped": 0
+    },
+    {
+      "path": "output/agent-runtime-20261104/codex-replay-isolated.json",
+      "bytes": 28882,
+      "sha256": "17b1187da9e3eec1e8f8e2a2fa9de5b98be43af71805c9c0e35277b7b04eb0f4",
+      "total": 6,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 5
+    },
+    {
+      "path": "output/agent-runtime-20261104/native-usage-actual.json",
+      "bytes": 2703,
+      "sha256": "6115d5f116fbd229ac0db719e64868ef514f6de91f5975734102e0dd68b9e2bf",
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0
+    },
+    {
+      "path": "output/agent-runtime-20261104/native-usage-actual-fixed.json",
+      "bytes": 2704,
+      "sha256": "9ea0949503bcb49b5b726061841f8247d6980de1eb82b5b8cfd26f701a752d8c",
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0
+    },
+    {
+      "path": "output/agent-runtime-20261104/native-usage-current.json",
+      "bytes": 1027,
+      "sha256": "750637b354672c263ac4d80bbb4bcbdf09c30327ea0c5b766f94b69470edb6d7",
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "path": "output/agent-runtime-20261104/agent-perception-scope.json",
+      "bytes": 21328,
+      "sha256": "d27bd0511bf97d47704a039e84c3ae4ab2354e0bd90f99df953395605c4dcda1",
+      "total": 55,
+      "passed": 55,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "path": "output/agent-runtime-20261104/source-binding.json",
+      "bytes": 2017,
+      "sha256": "3b117bf2c70cea2c4ac3fb2c5a9aecc3ccc6691f3e1faf28aebd2d0fb7a8035c",
+      "total": 3,
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "limitations": [
+    "Final real Codex connection failed in one case; another delegated evaluation ended without a reliable receipt. An earlier isolated failure explicitly reported network stream disconnection. Not every current generic native failure has a confirmed root cause.",
+    "Pi compatibility covers declared isolated tool APIs and supported hooks, not the entire Node/UI/provider/durable SDK ABI.",
+    "Programmatic calls currently combine governed reads. Mutations and delegation use ordinary governed actions and work plans.",
+    "Native LSP currently supports TypeScript/JavaScript and JSX; its Windows Job Object provides process ownership/stop evidence rather than filesystem isolation.",
+    "Automation is finite elapsed-interval scheduling rather than a general cron engine. Session retrieval is literal bounded SQL rather than Hermes FTS5 ranking.",
+    "Short-term unseen-input and recovery tests do not prove months of generalization or equal-model performance parity with the four upstream products."
+  ]
+}

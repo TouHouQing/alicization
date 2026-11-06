@@ -130,6 +130,15 @@ import {
 import { electronLifeExecutionChanged } from '../../../shared/life-events'
 import { onAppBeforeQuit } from '../../libs/bootkit/lifecycle'
 import { invokeAlicizationMcpCallToolFromMain, invokeAlicizationMcpListToolsFromMain, requestAlicizationInterfaceApprovalFromMain } from '../airi/mcp-servers'
+import { withExternalAgentUsage } from './agent-harness/external-agent-usage'
+import { queryNativeLanguage } from './agent-harness/native-language-runtime'
+import { createPiExtensionRuntime } from './agent-harness/pi-extension-runtime'
+import { createProviderUsageLedger } from './agent-harness/provider-usage-ledger'
+import { currentProviderUsageScope } from './agent-harness/provider-usage-scope'
+import { readRetrievedDialogue } from './agent-harness/retrieved-dialogue-proof'
+import { createSessionSearchRuntime } from './agent-harness/session-search'
+import { readToolObservation } from './agent-harness/tool-observation'
+import { createWorkAutomationRuntime } from './agent-harness/work-automation'
 import { createAlicizationAgentRuntime } from './agent-runtime'
 import {
   deriveAlicizationAgentRuntimeTelemetryFromSession,
@@ -175,6 +184,7 @@ import {
   readTaskThreadActivityAt,
   sanitizeExecutionLedgerText,
 } from './execution-ledger-shared'
+import { assertActionDispatchCurrent } from './execution/action-dispatch-context'
 import { readBrowserDownloadAdmissions, readBrowserDownloads, recordBrowserDownload, recoverBrowserDownloads } from './execution/browser-download-repository'
 import { recordBrowserDownloadReservation } from './execution/browser-download-reservations'
 import { readBrowserDownloadQuarantines } from './execution/browser-download-resource-recovery'
@@ -194,6 +204,7 @@ import { createProcedureBrowserReplay } from './execution/procedure-browser-repl
 import { createProcedureCandidateRepository } from './execution/procedure-candidate-repository'
 import { createProcedureDelegatedReplay } from './execution/procedure-delegated-replay'
 import { createProcedureDesktopReplay } from './execution/procedure-desktop-replay'
+import { maxDesktopSkillVersions } from './execution/procedure-index'
 import { createProcedureSkillFileSystem } from './execution/procedure-skill-files'
 import { createRegisteredEffectRecovery } from './execution/registered-effect-recovery'
 import { createExecutionResourceBroker } from './execution/resource-broker'
@@ -223,6 +234,7 @@ import { companionChoicePolicy } from './life-companion-choice'
 import { readLifeConversationPreferences } from './life-conversation-preferences'
 import { readPresentedConversationStatements } from './life-conversation-statements'
 import { resolveAlicizationLearningEligibility } from './life-core/working-memory-policy'
+import { workingMemoryCompactionResponseFormat } from './life-core/working-memory-semantic-compaction'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
 import { lifeCreativeResponseFormat, parseLifeCreativeDraft } from './life-creative-activity'
 import { createLifeDailyActivityRuntime } from './life-daily-activity-runtime'
@@ -316,6 +328,9 @@ import {
   deriveExecutionResultFeedbackKind,
 } from './outcome-reinforcement'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
+import { createDesktopPersonaDevelopment } from './persona-development/composition'
+import { projectPersonaDevelopmentValues } from './persona-development/projection'
+import { personaDevelopmentKey } from './persona-development/schema'
 import {
   createPersonaTrainingProcessExecutor,
   normalizePersonaTrainingProcessConfig,
@@ -983,8 +998,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolvePersonaTrainingExecutorConfig: () => clonePersonaTrainingExecutorConfig(personaTrainingExecutorConfig),
   })
   const runtimeSkillsDirectory = join(userDataPath, 'alicizations', 'skills')
+  await createProviderUsageLedger(alicizationDb, activeCardId).recoverInterrupted()
   await mkdir(runtimeSkillsDirectory, { recursive: true })
-  const runtimeSkillRuntimes = new WeakMap<AlicizationDbService, { registry: ReturnType<typeof createCanonicalToolRegistry>, loader: AlicizationSkillLoader, procedures: ReturnType<typeof createLearnedProcedureRuntime> }>()
+  const runtimeSkillRuntimes = new WeakMap<AlicizationDbService, { registry: ReturnType<typeof createCanonicalToolRegistry>, loader: AlicizationSkillLoader, procedures: ReturnType<typeof createLearnedProcedureRuntime>, extensions: ReturnType<typeof createPiExtensionRuntime> }>()
   let windowsKeyboardReady = false
   let windowsVisualReady = false
   const procedureRuntimes = new Set<WeakRef<ReturnType<typeof createLearnedProcedureRuntime>>>()
@@ -998,6 +1014,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
     return live
   }
+  function currentWorkAutomation() {
+    return createWorkAutomationRuntime({ database: () => alicizationDb, work: () => workPlanRuntime, enabled: cardId => !runtimeShuttingDown && cardId === activeCardId && !isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(cardId).state !== 'SUSPENDED' })
+  }
   function currentSkillRuntime() {
     const database = alicizationDb
     const previous = runtimeSkillRuntimes.get(database)
@@ -1008,6 +1027,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const procedures = createProcedureCandidateRepository(database, activeCardId, runtimeToolRegistry)
     let learned: ReturnType<typeof createLearnedProcedureRuntime>
     const runtimeSkillLoader: AlicizationSkillLoader = createAlicizationSkillLoader({
+      maxVersions: maxDesktopSkillVersions,
       skillsDirectory: runtimeSkillsDirectory,
       skillRegistry: runtimeSkillRegistry,
       toolRegistry: runtimeToolRegistry,
@@ -1050,7 +1070,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const skillCardId = activeCardId
     learned = createLearnedProcedureRuntime({ cardId: skillCardId, database, registry: runtimeToolRegistry, repository: procedures, loader: runtimeSkillLoader, work: () => workPlanRuntime, browserReplay: createProcedureBrowserReplay, delegatedReplay: createProcedureDelegatedReplay, desktopReplay: createProcedureDesktopReplay, enabled: () => !runtimeShuttingDown && activeCardId === skillCardId && !isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(skillCardId).state !== 'SUSPENDED' })
     procedureRuntimes.add(new WeakRef(learned))
-    const runtime = { registry: runtimeToolRegistry, loader: runtimeSkillLoader, procedures: learned }
+    const extensions = createPiExtensionRuntime({ directory: join(userDataPath, 'alicizations', 'extensions', createHash('sha256').update(skillCardId).digest('hex')), cardId: skillCardId, registry: runtimeToolRegistry, database })
+    const runtime = { registry: runtimeToolRegistry, loader: runtimeSkillLoader, procedures: learned, extensions }
     runtimeSkillRuntimes.set(database, runtime)
     return runtime
   }
@@ -1930,6 +1951,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     syncSessionMirrorFromCurrentCardState,
   } = agentSessionMirrorRuntime
   const mainGatewayOneShotRuntime = createAlicizationMainGatewayOneShotRuntime({
+    providerAccounting: (cardId) => {
+      if (cardId !== activeCardId)
+        throw new Error('Provider accounting crossed the active life owner')
+      return createProviderUsageLedger(alicizationDb, cardId)
+    },
     getActiveCardId: () => activeCardId,
     getActiveProviderId: () => activeProviderId,
     getActiveModelId: () => activeModelId,
@@ -2063,6 +2089,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   } = mainChatRuntime
   redactStaleInspectionHistoryMessagesForChat = redactStaleInspectionHistoryMessages
   const mindStateRuntime = createAlicizationMindStateRuntime({
+    learnedInitiativeBias: async (context) => {
+      const [personality, soul] = await Promise.all([alicizationDb.getMetaValue(personaDevelopmentKey), alicizationDb.getMetaValue('life:soul-active')])
+      return projectPersonaDevelopmentValues({ ...(personality ? { [personaDevelopmentKey]: personality } : {}), ...(soul ? { 'life:soul-active': soul } : {}) }, context, false).effects.initiative
+    },
     buildDialogueIngressContext,
     generateMainGatewayText: mainGatewayTextProvider,
     buildMainGatewayAgentTurnId,
@@ -2650,19 +2680,41 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   mainChatRuntime.bindInspectionIntentFromMessageHistory(sensoryRuntime.resolveInspectionIntentFromMessageHistory)
   const workingMemoryStore = createWorkingMemoryStore()
   const mainChatSessionRuntime = createAlicizationMainChatSessionRuntime({
+    scheduleWork: ({ cardId, turnId, abortSignal, ...input }) => currentWorkAutomation().schedule(input, { cardId, turnId, signal: abortSignal }),
+    listAutomations: cardId => currentWorkAutomation().list(cardId),
+    cancelAutomation: (groupId, cardId) => currentWorkAutomation().cancel(groupId, cardId),
+    extensionTools: () => currentSkillRuntime().extensions.tools(),
+    searchSessions: (input, signal) => createSessionSearchRuntime(alicizationDb, activeCardId).search(input, signal),
+    queryLanguage: (input, signal) => queryNativeLanguage(input, { signal: signal ?? new AbortController().signal, processJobsRoot: nativeKeyboardRoot, authorize: async () => {
+      const authority = await assertActionDispatchCurrent(true, { capabilityId: 'tool.life_language_query', parameters: input })
+      if (!authority?.effectId || authority.cardId !== activeCardId)
+        throw new Error('Language query has no current life action authority')
+    } }),
     appendRuntimeDebugLine,
-    buildToolRegistry: () => {
+    buildToolRegistry: async () => {
       // Ordinary dialogue must not wait for native compilation. Until its
       // real health result arrives the shortcut stays unavailable. Explicit
       // work dispatch still awaits readiness and rechecks its own authority.
       refreshWindowsKeyboardInBackground()
-      return currentSkillRuntime().registry
+      return currentSkillRuntime().extensions.refresh()
     },
     workingMemoryStore,
     createWorkPlan: input => workPlanRuntime.propose(input),
     createDeclaredWorkPlan: input => workPlanRuntime.proposeDeclared(input),
     listExecutionVerifiers: () => listExecutionVerificationRecipes(alicizationDb.getMetaValue),
-    listLearnedProcedures: async () => (await currentSkillRuntime().procedures.list()).filter(item => item.sourceValid && item.status === 'active' && item.evaluation?.status === 'passed').map(({ id, version, parameters, inputSchema, operations }) => ({ id, version, parameters, inputSchema, operations })),
+    readToolObservation: async (input) => {
+      const database = alicizationDb
+      const assertOwner = () => {
+        input.abortSignal?.throwIfAborted()
+        if (input.cardId !== activeCardId || database !== alicizationDb || isAlicizationKillSwitchSuspended() || getAlicizationCardKillSwitchSnapshot(input.cardId).state === 'SUSPENDED' || ![...chatRuns.values()].some(run => run.cardId === input.cardId && run.turnId === input.turnId && run.state === 'running' && !run.controller.signal.aborted))
+          throw new Error('Receipt read no longer belongs to the active life turn')
+      }
+      assertOwner()
+      const events = await database.listRuntimeEvents({ cardId: input.cardId, turnId: input.turnId, conversationId: input.conversationId, userId: localRuntimeUserId })
+      assertOwner()
+      return readToolObservation(events, input)
+    },
+    listLearnedProcedures: async () => (await currentSkillRuntime().procedures.list()).filter(item => item.sourceValid && item.status === 'active' && item.evaluation?.status === 'passed').map(({ id, version, parameters, inputSchema, operations }) => ({ id, version, parameters, inputSchema, operations, sourceValid: true, status: 'active', evaluationStatus: 'passed' })),
     useLearnedProcedure: input => currentSkillRuntime().procedures.use(input),
     prepareLearnedProcedureInput: input => currentSkillRuntime().procedures.prepareInput(input),
     createPersonalPiece: async ({ cardId, turnId, abortSignal }) => {
@@ -2711,6 +2763,24 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       await alicizationDb.getWorkingMemoryCheckpoint(cardId, sessionId, readOptions),
     persistWorkingMemoryCheckpoint: async snapshot =>
       await alicizationDb.upsertWorkingMemoryCheckpoint(snapshot),
+    replaceWorkingMemoryCheckpoint: async (expected, next) =>
+      await alicizationDb.replaceWorkingMemoryCheckpoint(expected, next),
+    workingMemorySourcesCurrent: async snapshot =>
+      await alicizationDb.workingMemorySourcesCurrent(snapshot),
+    generateWorkingMemorySelection: input => mainGatewayTextProvider({
+      cardId: input.cardId,
+      system: buildAlicizationProviderFactBlock('alicization-memory-compaction-context', { version: 1, formatRequirements: input.system }),
+      user: input.user,
+      source: 'memory-compaction',
+      abortSignal: input.signal,
+      timeoutMs: 15_000,
+      responseFormat: workingMemoryCompactionResponseFormat,
+      captureAgentSensorySnapshot: false,
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+      waitForProviderAvailability: true,
+      providerRetryPolicy: { maxRetries: 0 },
+    }),
     retrieveLongTermMemoryEvidence: async input => await alicizationDb.retrieveLongTermMemoryEvidence(input),
     executionCapabilityChannels: alicizationExecutionCapabilityChannels,
     executeMainGatewayTaskThread,
@@ -3314,7 +3384,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         })
     activity?.refresh()
     try {
-      const result = await executionInterrupts.run({ cardId: scopedCardId, threadId: invocation.input.threadId, signal: preparedInvocation.input.abortSignal, ...(backgroundInitiative ? { backgroundInitiative: true as const, confirmStopped: stopObserver.confirmStopped } : {}), ...(foregroundInvitation ? { foregroundInvitation } : {}) }, (signal) => {
+      const dispatch = (observeUsage: (events: AlicizationExecutionEventInput[]) => void = () => {}) => executionInterrupts.run({ cardId: scopedCardId, threadId: invocation.input.threadId, signal: preparedInvocation.input.abortSignal, ...(backgroundInitiative ? { backgroundInitiative: true as const, confirmStopped: stopObserver.confirmStopped } : {}), ...(foregroundInvitation ? { foregroundInvitation } : {}) }, (signal) => {
         dispatchStarted = true
         return taskThreadOrchestrator.dispatch({
           ...preparedInvocation,
@@ -3323,6 +3393,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             ...preparedInvocation.port,
             appendExecutionEvents: async (events) => {
               await preparedInvocation.port.appendExecutionEvents(events)
+              observeUsage(events)
               stopObserver.observe(events)
               activity?.refresh()
             },
@@ -3350,6 +3421,17 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           throw error
         return persistCancelledBeforeDispatch({ port: preparedInvocation.port, thread: existingThread, reason: errorMessageFrom(error) ?? error.message, now: Date.now, persistenceTimeoutMs: 1000 })
       })
+      const scope = currentProviderUsageScope()
+      const externalChannel = preparedInvocation.input.codex ? 'codex' : preparedInvocation.input.claudeCode ? 'claude-code' : null
+      const turnId = scope?.turnId ?? existingThread?.turnId ?? `execution:${invocation.input.threadId}`
+      const result = externalChannel
+        ? await withExternalAgentUsage({
+            accounting: createProviderUsageLedger(dispatchDatabase, scopedCardId),
+            request: { requestId: randomUUID(), cardId: scopedCardId, turnId, rootTurnId: scope?.rootTurnId ?? turnId, parentRequestId: scope?.requestId ?? null, providerId: externalChannel, model: 'external-cli-managed', measurement: 'external-agent-aggregate', requestHash: createHash('sha256').update(JSON.stringify(preparedInvocation.input)).digest('hex'), providerAttempt: 1, startedAt: Date.now() },
+            signal: preparedInvocation.input.abortSignal,
+            task: dispatch,
+          })
+        : await dispatch()
       if (result.thread.status === 'completed')
         await verifyLifeTaskCompletion({ cardId: scopedCardId, threadId: result.thread.id, read: dispatchDatabase.readLifeState, commit: dispatchDatabase.commitLifeState, readSetting: dispatchDatabase.getMetaValue, database: dispatchDatabase })
       const goalOutcome = projectLifeTaskOutcome(await dispatchDatabase.readLifeState(), result.thread.id)
@@ -4770,6 +4852,30 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     policyDevelopment = { database, runtime }
     return runtime
   }
+  let personaGrowth: { database: typeof alicizationDb, runtime: ReturnType<typeof createDesktopPersonaDevelopment> } | undefined
+  function currentPersonaGrowth() {
+    if (personaGrowth?.database === alicizationDb)
+      return personaGrowth.runtime
+    const database = alicizationDb
+    const cardId = activeCardId
+    const activator = lifeSoulActivator()
+    const runtime = createDesktopPersonaDevelopment({
+      database,
+      cardId,
+      readSoul: () => readFile(soulPath, 'utf8'),
+      activate: async (content, baseHash, authorization) => {
+        await activator.write(content, baseHash, undefined, authorization)
+        const snapshot = await bootstrap()
+        emitSoulChanged(snapshot)
+        return snapshot
+      },
+      generate: async (system, user, signal) => (await mainGatewayTextProvider({ cardId, system: buildAlicizationProviderFactBlock('alicization-personality-learning', { version: 1, formatRequirements: system }), user, source: 'persona-evaluation', abortSignal: signal, timeoutMs: 20_000, captureAgentSensorySnapshot: false, injectCustomDirectives: false, injectPerformanceManifest: false, providerRetryPolicy: { maxRetries: 0 } })) ?? '',
+      foregroundActive: () => mainGatewayWorkCoordinator.snapshot().activeForegroundCount > 0 || isAlicizationKillSwitchSuspended() || getAlicizationCardKillSwitchSnapshot(cardId).state === 'SUSPENDED',
+    })
+    personaGrowth = { database, runtime }
+    return runtime
+  }
+
   function currentPersonaDevelopment() {
     if (personaDevelopment?.database === alicizationDb)
       return personaDevelopment.runtime
@@ -4894,6 +5000,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       getIngress: database.getLifeIngress,
       readMemoryEvidence: cardId => database.readLifeFactVersions({ cardId, limit: 100 }),
       readTurnEffects: database.readLifeTurnExecutionEffects,
+      readRetrievedDialogue: turnId => readRetrievedDialogue(database, cardId, turnId),
       getEffect: database.getLifeEffect,
       readConversationStatements: conversationId => readPresentedConversationStatements({ turns: () => database.listConversationTurnsBySession(conversationId, { cardId, limit: 12 }), presented: ids => database.listPresentedLifeTurnIds(cardId, ids) }),
       read: database.readLifeState,
@@ -7162,6 +7269,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             await bootstrap()
           const previousVisualPresenceState = await ensureVisualPresenceState(activeCardId, { signal })
           const result = await runSubconsciousTickForCurrentCard(trigger, { signal })
+          if (soulLifecycleState.soulSnapshot?.frontmatter.initialized && (!storageMaintenance || await storageMaintenance.optionalWorkAllowed(signal))) {
+            await currentPersonaGrowth().run(activeCardId, signal).catch(async (error) => {
+              await appendAuditLog({ level: 'warning', category: 'alicization.persona-development', action: 'background-held', message: 'Personality development retained its prior version.', payload: { reason: errorMessageFrom(error) } })
+            })
+          }
           const nextVisualPresenceState = visualPresenceStateByCard.get(activeCardId)
             ?? await ensureVisualPresenceState(activeCardId, { signal })
           const quietCompanionshipOutcome = deriveQuietCompanionshipOutcome({
@@ -7605,6 +7717,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
     const foregroundLifeDatabase = alicizationDb
     const backgroundTask = foregroundWork.run(() => runWithBrowserSession(async () => await runAlicizationMainChatBackground({
+      beforeToolCall: async (cardId, event, signal) => {
+        if (cardId !== activeCardId)
+          throw new Error('Extension hook crossed the current life owner')
+        return currentSkillRuntime().extensions.beforeToolCall(event, signal)
+      },
+      providerAccounting: createProviderUsageLedger(foregroundLifeDatabase, normalizedPayload.cardId),
       captureBrowserBinding: authorizedBrowser.binding,
       life: createLifeTurnRuntime({ fileRecovery: owner => fileRecoveryForDatabase(foregroundLifeDatabase).forEffect(owner), resourceBroker: executionResources, getIngress: foregroundLifeDatabase.getLifeIngress, readUserInput: foregroundLifeDatabase.getLifeUserInput, readConversationStatements: conversationId => readPresentedConversationStatements({ turns: () => foregroundLifeDatabase.listConversationTurnsBySession(conversationId, { cardId: normalizedPayload.cardId, limit: 12 }), presented: ids => foregroundLifeDatabase.listPresentedLifeTurnIds(normalizedPayload.cardId, ids) }), getEffect: foregroundLifeDatabase.getLifeEffect, commit: foregroundLifeDatabase.commitLifeState, read: foregroundLifeDatabase.readLifeState, now: Date.now, onHostInteraction: async (cardId) => {
         const needs = await markSubconsciousInteraction(cardId)
@@ -8288,6 +8406,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     rescheduleTimer: () => scheduleNextReminderDueCheck('obligation-governance'),
     cancelExecution: executionInterrupts.cancel,
     personaCommand: input => currentPersonaDevelopment().command(input),
+    personaDevelopmentCommand: input => currentPersonaGrowth().command(input),
+    personaSources: (facetId, version) => alicizationDb.readPersonaSources(facetId, version),
     policyCommand: input => currentPolicyDevelopment().command(input),
     backupCommand: (input, metadata) => {
       const window = BrowserWindow.fromWebContents(metadata.raw!.ipcMainEvent!.sender)

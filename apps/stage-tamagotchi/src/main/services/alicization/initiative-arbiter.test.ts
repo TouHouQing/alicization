@@ -99,6 +99,19 @@ function createArbitrationInput(overrides: Record<string, unknown> = {}) {
 }
 
 describe('buildInitiativeArbitration', () => {
+  it('learned restraint only ranks existing speech proposals and cannot create initiative from nothing', () => {
+    const baseline = buildInitiativeArbitration(createArbitrationInput())
+    const quiet = buildInitiativeArbitration(createArbitrationInput({ learnedInitiativeBias: -0.15 }))
+    expect(quiet.proposals.map(item => item.id).sort()).toEqual(baseline.proposals.map(item => item.id).sort())
+    for (const proposal of quiet.proposals) {
+      const previous = baseline.proposals.find(item => item.id === proposal.id)!
+      expect(proposal.score).toBeLessThanOrEqual(previous.score)
+      if (!['speak', 'whisper'].includes(proposal.action))
+        expect(proposal.score).toBe(previous.score)
+    }
+    expect(buildInitiativeArbitration(createArbitrationInput({ learnedInitiativeBias: 100 })).selectedProposalId).toBe('fallback:wait')
+    expect(buildInitiativeArbitration(createArbitrationInput({ learnedInitiativeBias: Number.NaN }))).toEqual(baseline)
+  })
   it('leaves the wait proposal reason empty when no authored reason exists', () => {
     const arbitration = buildInitiativeArbitration(createArbitrationInput())
 

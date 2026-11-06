@@ -85,6 +85,7 @@ const alicizationProviderFactTypes = new Set([
   'alicization-perception',
   'alicization-spark-event',
   'alicization-turn-memory-context',
+  'alicization-learned-procedure-context',
 ]) as ReadonlySet<string>
 
 const providerFactKeyAliases = new Set([

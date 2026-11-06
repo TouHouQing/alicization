@@ -137,11 +137,11 @@ describe('codex real acceptance runner', () => {
     })).toBe(true)
   })
 
-  it('uses one immediate sleep command for the real cancel target', () => {
+  it('uses one portable immediate command for the real cancel target', () => {
     const prompt = buildRealPrompt('cancel', 2_000)
 
     expect(prompt).toBe(
-      'Immediately run exactly this terminal command and do nothing before it: /bin/sleep 600\n'
+      `Immediately run exactly this terminal command and do nothing before it: node -e 'console.log("alicization-codex-cancel-target"); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 600000)'\n`
       + 'Do not explain, inspect files, or call any other tool. Keep the command running until the external cancellation arrives.',
     )
   })

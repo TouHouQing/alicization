@@ -43,6 +43,8 @@ const {
   modelSearchQuery,
   speechProviderError,
   ssmlEnabled,
+  autoReadEnabled,
+  silentMouthEnabled,
   availableVoices,
 } = storeToRefs(speechStore)
 
@@ -258,6 +260,8 @@ function handleDeleteProvider(providerId: string) {
 <template>
   <div flex="~ col md:row gap-6">
     <div bg="neutral-100 dark:[rgba(0,0,0,0.3)]" rounded-xl p-4 flex="~ col gap-4" class="h-fit w-full md:w-[40%]">
+      <FieldCheckbox v-model="autoReadEnabled" :label="t('stage.chat.speech.auto-read')" :description="t('stage.chat.speech.auto-read-description')" />
+      <FieldCheckbox v-model="silentMouthEnabled" :label="t('stage.chat.speech.silent-mouth')" :description="t('stage.chat.speech.silent-mouth-description')" />
       <div>
         <div flex="~ col gap-4">
           <div>

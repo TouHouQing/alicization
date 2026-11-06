@@ -10,6 +10,12 @@ export interface PresentedChatTextUnit extends StageTextPresentation {
   presentedAt: number
 }
 
+export interface PresentedChatTextChunk {
+  text: string
+  offset: number
+  presentedAt: number
+}
+
 export function planChatTextPresentation(text: string): StageTextPresentation[] {
   // Resolve whole Han runs so 重庆/银行/重新 keep their contextual readings.
   const readings = new Map<number, string>()
@@ -31,15 +37,15 @@ export function planChatTextPresentation(text: string): StageTextPresentation[] 
       phoneme: phoneme ?? grapheme.toLowerCase(),
       script,
       offset,
-      // One shared clock for the visible text and body: about four Mandarin
-      // syllables/second, with phrase-final lengthening and real breath gaps.
+      // Independent articulation tempo: about four Mandarin syllables/second,
+      // with phrase-final lengthening and real breath gaps.
       durationMs: script === 'pinyin' ? (endsPhrase ? 290 : syllableMs) : script === 'latin' ? 85 : /[。！？.!?\n]/.test(grapheme) ? 440 : /[，,;；:：、]/.test(grapheme) ? 260 : 45,
       endsPhrase,
     }
   })
 }
 
-function waitForPresentation(ms: number, signal: AbortSignal): Promise<void> {
+export function waitForPresentation(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     let timer: ReturnType<typeof setTimeout>
     const finish = () => {
@@ -54,12 +60,11 @@ function waitForPresentation(ms: number, signal: AbortSignal): Promise<void> {
   })
 }
 
-/** Receiving never waits for mouth pacing; one cursor consumes the admitted body. */
+/** Reading consumes admitted network chunks; articulation owns a separate clock. */
 export function createChatTextPresenter(options: {
   signal: AbortSignal
   isCurrent: () => boolean
-  present: (unit: StageTextPresentation, visibleText: string) => Promise<number>
-  wait?: (ms: number, signal: AbortSignal) => Promise<void>
+  present: (chunk: Omit<PresentedChatTextChunk, 'presentedAt'>, visibleText: string) => Promise<number>
 }) {
   const controller = new AbortController()
   const signal = AbortSignal.any([options.signal, controller.signal])
@@ -82,26 +87,12 @@ export function createChatTextPresenter(options: {
     try {
       while (current()) {
         if (visible.length < received.length) {
-          // A bounded context window preserves readings such as 银行 without
-          // reparsing the complete reply on every displayed character.
-          let start = Math.max(0, visible.length - 32)
-          if (start && /[\uDC00-\uDFFF]/u.test(received[start]!))
-            start--
-          const contextual = planChatTextPresentation(received.slice(start, visible.length + 64)).find(unit => unit.offset === visible.length - start)
-          // A later ZWJ/combining mark may extend an already visible grapheme.
-          // Append that silent continuation without losing UTF-16 cursor order.
-          const unit = contextual ?? planChatTextPresentation(received.slice(visible.length, visible.length + 64))[0]!
-          unit.offset += contextual ? start : visible.length
-          if (!ended && unit.offset + unit.grapheme.length === received.length) {
-            unit.endsPhrase = false
-            if (unit.script === 'pinyin')
-              unit.durationMs = syllableMs
-          }
-          visible += unit.grapheme
-          const committedAt = await options.present(unit, visible)
+          const offset = visible.length
+          const text = received.slice(offset)
+          visible += text
+          const committedAt = await options.present({ text, offset }, visible)
           if (!Number.isFinite(committedAt))
             throw new TypeError('Text presentation needs its UI commit timestamp')
-          await (options.wait ?? waitForPresentation)(Math.max(0, unit.durationMs - Math.max(0, Date.now() - committedAt)), signal)
         }
         else if (ended) {
           return true
@@ -180,13 +171,12 @@ export function createChatTextPresenter(options: {
   }
 }
 
-/** Complete-body adapter over the same clock, for explicit non-streaming callers. */
+/** Complete-body adapter for explicit non-streaming callers. */
 export async function presentChatText(options: {
   text: string
   signal: AbortSignal
   isCurrent: () => boolean
-  present: (unit: StageTextPresentation, visibleText: string) => Promise<number>
-  wait?: (ms: number, signal: AbortSignal) => Promise<void>
+  present: (chunk: Omit<PresentedChatTextChunk, 'presentedAt'>, visibleText: string) => Promise<number>
 }) {
   if (!options.text)
     return !options.signal.aborted && options.isCurrent()

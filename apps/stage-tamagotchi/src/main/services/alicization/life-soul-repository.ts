@@ -5,6 +5,7 @@ import { isAbsolute } from 'node:path'
 
 import { assertLifePersonaAuthorization } from './life-persona-evaluation'
 import { assertLifeId } from './life-transaction'
+import { assertPersonaDevelopmentActivation } from './persona-development/repository'
 
 export async function applyLifeSoul(tx: LifeTransaction, mutation: Extract<LifeMutation, { type: 'soul-prepare' | 'soul-transition' }>) {
   if (mutation.type === 'soul-prepare') {
@@ -18,14 +19,18 @@ export async function applyLifeSoul(tx: LifeTransaction, mutation: Extract<LifeM
     }
     if (intent.personaAuthorization)
       await assertLifePersonaAuthorization(tx, intent.personaAuthorization.proposalId, intent.personaAuthorization.evaluationHash, intent.targetHash)
-    await tx.run(`INSERT INTO life_soul_activation_intents(card_id, operation_id, base_hash, target_hash, staged_relative_path, backup_relative_path, source_refs_json, status, target_soul_revision, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'prepared', ?, ?, ?)`, [tx.cardId, intent.id, intent.baseHash, intent.targetHash, intent.stagedPath, intent.backupPath, JSON.stringify(intent.personaAuthorization ?? null), intent.soulRevision, tx.now, tx.now])
+    if (intent.developmentAuthorization)
+      await assertPersonaDevelopmentActivation(tx, intent.developmentAuthorization, intent.targetHash)
+    await tx.run(`INSERT INTO life_soul_activation_intents(card_id, operation_id, base_hash, target_hash, staged_relative_path, backup_relative_path, source_refs_json, status, target_soul_revision, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'prepared', ?, ?, ?)`, [tx.cardId, intent.id, intent.baseHash, intent.targetHash, intent.stagedPath, intent.backupPath, JSON.stringify(intent.personaAuthorization ?? intent.developmentAuthorization ?? null), intent.soulRevision, tx.now, tx.now])
     return
   }
   const row = await tx.get<{ status: string, source_refs_json: string, target_hash: string }>('SELECT status, source_refs_json, target_hash FROM life_soul_activation_intents WHERE card_id = ? AND operation_id = ?', [tx.cardId, mutation.id])
   const allowed: Record<string, string[]> = { 'prepared': ['file-replaced', 'conflicted', 'failed'], 'file-replaced': ['activated', 'conflicted', 'failed'], 'activated': [], 'conflicted': [], 'failed': [], 'rolled-back': [] }
   if (row?.status !== mutation.expected || !allowed[mutation.expected]?.includes(mutation.status))
     throw new Error('SOUL activation fence became stale')
-  const authorization = JSON.parse(row.source_refs_json) as { proposalId?: string, evaluationHash?: string } | null
+  const authorization = JSON.parse(row.source_refs_json) as { proposalId?: string, evaluationHash?: string, developmentId?: string, facetHash?: string } | null
+  if (mutation.status === 'activated' && authorization?.developmentId && authorization.facetHash)
+    await assertPersonaDevelopmentActivation(tx, { developmentId: authorization.developmentId, facetHash: authorization.facetHash }, row.target_hash, true)
   if (mutation.status === 'activated' && authorization?.proposalId && authorization.evaluationHash) {
     await assertLifePersonaAuthorization(tx, authorization.proposalId, authorization.evaluationHash, row.target_hash, true)
     await tx.run(`UPDATE life_effect_intents SET status = 'settled', updated_at = ? WHERE card_id = ? AND effect_id = ? AND status IN ('prepared','settled')`, [tx.now, tx.cardId, authorization.proposalId])

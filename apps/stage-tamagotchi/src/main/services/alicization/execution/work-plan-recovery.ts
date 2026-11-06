@@ -68,7 +68,7 @@ export async function recoverExecutionWork(database: AlicizationDbService, isOwn
         await database.upsertTaskThread({ ...thread, status: 'paused', summary: '上次操作的结果还需要核对，已保留进度和产物。', expectedUpdatedAt: thread.updatedAt })
       continue
     }
-    if (goal.generation === plan.obligationGeneration && !goal.invalidatedBy && ['accepted', 'in-progress'].includes(goal.status))
+    if (goal.generation === plan.obligationGeneration && !goal.invalidatedBy && (['accepted', 'in-progress'].includes(goal.status) || goal.status === 'waiting' && plan.schedule) && (!plan.schedule || plan.schedule.at <= Date.now() && (await database.getLifeIngress(plan.schedule.groupId))?.status === 'settled'))
       candidates.push({ planId: plan.id, revision: plan.revision })
   }
   return candidates

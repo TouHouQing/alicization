@@ -129,17 +129,6 @@ export function projectWorkingMemoryLongTermCandidate(input: {
         createdAt: input.now,
         updatedAt: input.now,
       }],
-      personaReinforcements: [{
-        cardId: candidate.cardId,
-        sessionId: candidate.sessionId,
-        turnId: sourceTurnId(candidate),
-        sourceKind: 'reply',
-        dimension: 'truthful-grounding',
-        delta: Math.min(0.08, Math.max(0.02, candidate.confidence * 0.08)),
-        valence: 'reinforce',
-        summary,
-        createdAt: input.now,
-      }],
     }
   }
 

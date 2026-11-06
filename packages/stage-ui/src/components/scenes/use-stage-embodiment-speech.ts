@@ -262,7 +262,7 @@ function shouldForceRestrainedStopTailBodySuppression(input: {
 }
 
 export interface UseStageEmbodimentSpeechOptions {
-  onAudioPlaybackReceipt?: (event: { item: PlaybackItem<BrowserSpeechAudioSource>, status: 'started' | 'progress' | 'completed' | 'interrupted' | 'failed', playedMs: number, errorCode: string | null }) => void
+  onAudioPlaybackReceipt?: (event: { item: PlaybackItem<BrowserSpeechAudioSource>, status: 'started' | 'progress' | 'completed' | 'interrupted' | 'failed', playedMs: number, errorCode: string | null, activeAudio?: boolean }) => void
   audioContext: AudioContext
   digitalLifeSpineDigest?: Readonly<Ref<AlicizationDigitalLifeSpineDigest | null | undefined>>
   mouthOpenSize: Ref<number>
@@ -4667,8 +4667,8 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       audio: item.audio,
       audioContext: options.audioContext,
       signal,
-      onAudioStarted: () => options.onAudioPlaybackReceipt?.({ item, status: 'started', playedMs: 0, errorCode: null }),
-      onAudioProgress: playedMs => options.onAudioPlaybackReceipt?.({ item, status: 'progress', playedMs, errorCode: null }),
+      onAudioStarted: () => options.onAudioPlaybackReceipt?.({ item, status: 'started', playedMs: 0, errorCode: null, activeAudio: true }),
+      onAudioProgress: (playedMs, activeAudio) => options.onAudioPlaybackReceipt?.({ item, status: 'progress', playedMs, errorCode: null, activeAudio }),
       analyserNode: audioAnalyser.value,
       observerNodes: [lipSyncNode.value],
       onAudioNodeBound(node) {

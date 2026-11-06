@@ -48,9 +48,18 @@ export interface SpeechAudioChunk<TAudio> {
 
 // `SpeechAudioSource` keeps the pipeline transport-agnostic: providers can return
 // a ready buffer today or a lazy chunk stream later without changing queueing APIs.
+export interface SpeechTextTiming {
+  start: number
+  end: number
+  startMs: number
+  endMs: number
+}
+
 export interface BufferedSpeechAudioSource<TAudio> {
   kind: 'buffer'
   audio: TAudio
+  /** Adapter-provided alignment for the exact synthesized input; never LLM metadata. */
+  textTimings?: SpeechTextTiming[]
 }
 
 export interface StreamingSpeechAudioSource<TAudio> {
@@ -73,10 +82,11 @@ export function createSpeechAudioChunk<TAudio>(
   }
 }
 
-export function createBufferedSpeechAudioSource<TAudio>(audio: TAudio): BufferedSpeechAudioSource<TAudio> {
+export function createBufferedSpeechAudioSource<TAudio>(audio: TAudio, textTimings?: SpeechTextTiming[]): BufferedSpeechAudioSource<TAudio> {
   return {
     kind: 'buffer',
     audio,
+    ...(textTimings ? { textTimings } : {}),
   }
 }
 

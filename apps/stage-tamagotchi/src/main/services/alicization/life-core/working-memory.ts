@@ -68,6 +68,8 @@ export interface WorkingMemoryEpisodelet {
   executionCarry: string | null
   importance: number
   createdAt: number
+  evidence?: Array<{ turnId: string, role: WorkingMemoryTurnRole, quote: string, occurredAt?: number }>
+  method?: 'extractive' | 'model-selected'
 }
 
 export interface WorkingMemoryThread {
@@ -273,7 +275,7 @@ export function normalizeWorkingMemoryTurn(input: Omit<WorkingMemoryTurn, 'failu
   return {
     turnId: normalizeWorkingMemoryText(input.turnId, 120),
     role: input.role,
-    text: normalizeWorkingMemoryText(input.text, 1600),
+    text: normalizeWorkingMemoryText(input.text, 8000),
     createdAt: Number.isFinite(input.createdAt) ? Number(input.createdAt) : 0,
     source: input.source,
     visibility: input.visibility,

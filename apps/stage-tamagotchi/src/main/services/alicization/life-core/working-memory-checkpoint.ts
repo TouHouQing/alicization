@@ -17,11 +17,12 @@ import {
   normalizeWorkingMemoryTurn,
   uniqueWorkingMemoryTexts,
 } from './working-memory'
+import { boundWorkingMemoryTimeline } from './working-memory-compressor'
+import { workingMemoryRetention } from './working-memory-retention'
 
 export const workingMemoryCheckpointVersion = 'working-memory-checkpoint-v1'
 
-const maxRecentRawTurns = 8
-const maxCompressedTimeline = 32
+const maxRecentRawTurns = workingMemoryRetention.maxRawMessages + 8
 const maxTextEntries = 12
 const maxLongTermCandidates = 6
 
@@ -136,8 +137,8 @@ function normalizeCorrection(raw: unknown): WorkingMemoryCorrection | null {
 function normalizeEpisodelet(raw: unknown): WorkingMemoryEpisodelet | null {
   if (!isRecord(raw))
     return null
-  const sourceTurnIds = uniqueWorkingMemoryTexts(asArray(raw.sourceTurnIds).map(String), 40, 120)
-  const summary = normalizeWorkingMemoryText(raw.summary, 700)
+  const sourceTurnIds = uniqueWorkingMemoryTexts(asArray(raw.sourceTurnIds).map(String), 512, 160)
+  const summary = normalizeWorkingMemoryText(raw.summary, 1800)
   if (sourceTurnIds.length === 0 && !summary)
     return null
 
@@ -154,6 +155,18 @@ function normalizeEpisodelet(raw: unknown): WorkingMemoryEpisodelet | null {
     executionCarry: normalizeWorkingMemoryText(raw.executionCarry, 260) || null,
     importance: clampWorkingMemoryScore(raw.importance),
     createdAt: finiteNumber(raw.createdAt),
+    ...(Array.isArray(raw.evidence)
+      ? {
+          evidence: raw.evidence.filter(isRecord).flatMap((item) => {
+            const turnId = normalizeWorkingMemoryText(item.turnId, 160)
+            const quote = normalizeWorkingMemoryText(item.quote, 700)
+            return turnId && sourceTurnIds.includes(turnId) && quote && (item.role === 'user' || item.role === 'alice')
+              ? [{ turnId, role: item.role as 'user' | 'alice', quote, ...(Number.isFinite(item.occurredAt) ? { occurredAt: Number(item.occurredAt) } : {}) }]
+              : []
+          }).slice(0, workingMemoryRetention.maxEvidenceItems),
+          method: raw.method === 'model-selected' ? 'model-selected' : 'extractive',
+        }
+      : {}),
   }
 }
 
@@ -237,10 +250,9 @@ export function normalizeWorkingMemoryCheckpointSnapshot(
         })
       : null)
     .filter((turn): turn is WorkingMemorySnapshot['recentRawTurns'][number] => turn !== null)
-  snapshot.compressedTimeline = asArray(raw.compressedTimeline)
+  snapshot.compressedTimeline = boundWorkingMemoryTimeline(asArray(raw.compressedTimeline)
     .map(normalizeEpisodelet)
-    .filter((episode): episode is WorkingMemoryEpisodelet => episode !== null)
-    .slice(-maxCompressedTimeline)
+    .filter((episode): episode is WorkingMemoryEpisodelet => episode !== null))
   snapshot.currentThread = normalizeThread(raw.currentThread)
   snapshot.activeTask = normalizeTask(raw.activeTask)
   snapshot.unresolvedQuestions = asArray(raw.unresolvedQuestions)

@@ -14,6 +14,7 @@ import type {
 import type { MainGatewayResolvedConfig } from './runtime-soul'
 
 import { deriveMainChatActionObligation } from './main-chat-action-obligation'
+import { isAgentReadWithoutVisualSource } from './runtime-agent-inspection-scope'
 import { shouldInjectInteractivePerceptionForUserText } from './runtime-perception-helpers'
 import { preserveLatestUserMultimodalContent } from './runtime-transport-content'
 
@@ -154,8 +155,8 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
             mindTurnGovernance: null,
           },
         }
-    const perceptionInjectionAuthorized = shouldInjectInteractivePerceptionForUserText(latestUserText)
-      || rawPerceptionAugmentation.capture?.inspectionRequested === true
+    const perceptionInjectionAuthorized = !isAgentReadWithoutVisualSource(latestUserText) && (shouldInjectInteractivePerceptionForUserText(latestUserText)
+      || rawPerceptionAugmentation.capture?.inspectionRequested === true)
     const perceptionAugmentation = perceptionInjectionAuthorized
       ? rawPerceptionAugmentation
       : suppressUnrequestedPerceptionAugmentation(rawPerceptionAugmentation, messages)

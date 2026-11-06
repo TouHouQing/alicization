@@ -444,6 +444,8 @@ export interface AlicizationWorkingMemoryEpisodelet {
   executionCarry: string | null
   importance: number
   createdAt: number
+  evidence?: Array<{ turnId: string, role: AlicizationWorkingMemoryTurn['role'], quote: string, occurredAt?: number }>
+  method?: 'extractive' | 'model-selected'
 }
 
 export interface AlicizationWorkingMemoryThread {

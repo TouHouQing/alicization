@@ -1,8 +1,10 @@
 import type { LifeCommitInput, LifeCommitReceipt, LifeEffect, LifeEntity, LifeMutation, LifeSoulActivation, LifeStateView } from '../../../shared/life-contracts'
 
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
+
+import { personaSoulCore } from './persona-development/soul'
 
 const activeKey = 'life:soul-active'
 const hash = (content: string) => createHash('sha256').update(content).digest('hex')
@@ -34,6 +36,13 @@ export function createLifeSoulActivationRuntime(options: {
       throw new Error('SOUL staging reference escaped the active card')
     return path
   }
+  async function retireDevelopmentFiles(intent: LifeSoulActivation) {
+    if (!intent.developmentAuthorization)
+      return
+    // The stable core was never changed. Successful development does not need
+    // persistent duplicate copies of the private evidence payload.
+    await Promise.allSettled([rm(stagedPath(intent.stagedPath), { force: true }), rm(stagedPath(intent.backupPath), { force: true })])
+  }
 
   async function activate(content: string, intent?: LifeSoulActivation) {
     options.validate(content)
@@ -57,16 +66,20 @@ export function createLifeSoulActivationRuntime(options: {
     }
     for (const entity of options.entities?.(content, contentHash, soulRevision) ?? [])
       mutations.push({ type: 'entity-register', entity })
-    await options.commit({ cardId: options.cardId, operationKey: intent ? `soul-activate:${intent.id}` : `soul-external:${randomUUID()}`, source: intent ? 'soul-activation' : 'soul-file-observed', changes: [{ owner: 'soul', key: activeKey, value: JSON.stringify({ contentHash, soulRevision, ...(persona ? { persona } : {}) }), expectedValue: previous }], mutations })
+    await options.commit({ cardId: options.cardId, operationKey: intent ? `soul-activate:${intent.id}` : `soul-external:${randomUUID()}`, source: intent ? 'soul-activation' : 'soul-file-observed', changes: [{ owner: 'soul', key: activeKey, value: JSON.stringify({ contentHash, soulRevision, ...(persona ? { persona } : {}), ...(intent?.developmentAuthorization ? { development: intent.developmentAuthorization } : {}) }), expectedValue: previous }], mutations })
+    if (intent)
+      await retireDevelopmentFiles(intent)
 
     return soulRevision
   }
 
-  async function write(content: string, expectedBaseHash?: string, personaAuthorization?: LifeSoulActivation['personaAuthorization']) {
+  async function write(content: string, expectedBaseHash?: string, personaAuthorization?: LifeSoulActivation['personaAuthorization'], developmentAuthorization?: LifeSoulActivation['developmentAuthorization']) {
     options.validate(content)
     if (content.length > 2_000_000)
       throw new TypeError('SOUL content exceeds its storage budget')
     const before = await fileContent()
+    if (developmentAuthorization && (personaAuthorization || personaSoulCore(before) !== personaSoulCore(content)))
+      throw new Error('Local adaptation cannot replace the core personality')
     if (expectedBaseHash && hash(before) !== expectedBaseHash)
       throw new Error('SOUL changed since the mutation was prepared')
     if (before === content)
@@ -74,7 +87,7 @@ export function createLifeSoulActivationRuntime(options: {
     const view = await options.read()
     const active = view.values[activeKey] ? JSON.parse(view.values[activeKey]) as { soulRevision: number } : null
     const id = randomUUID()
-    const intent: LifeSoulActivation = { id, baseHash: hash(before), targetHash: hash(content), stagedPath: `.life/soul/${id}.new`, backupPath: `.life/soul/${id}.previous`, status: 'prepared', soulRevision: (active?.soulRevision ?? 0) + 1, ...(personaAuthorization ? { personaAuthorization } : {}) }
+    const intent: LifeSoulActivation = { id, baseHash: hash(before), targetHash: hash(content), stagedPath: `.life/soul/${id}.new`, backupPath: `.life/soul/${id}.previous`, status: 'prepared', soulRevision: (active?.soulRevision ?? 0) + 1, ...(personaAuthorization ? { personaAuthorization } : {}), ...(developmentAuthorization ? { developmentAuthorization } : {}) }
     await mkdir(join(options.rootDir, '.life', 'soul'), { recursive: true })
     await options.writeAtomic(stagedPath(intent.stagedPath), content)
     await options.writeAtomic(stagedPath(intent.backupPath), before)
@@ -88,8 +101,12 @@ export function createLifeSoulActivationRuntime(options: {
     catch (error) {
       // A candidate can lose its sources during the file write. Restore only
       // our exact replacement; a concurrent human edit is never overwritten.
-      if (personaAuthorization && hash(await fileContent()) === intent.targetHash)
+      if ((personaAuthorization || developmentAuthorization) && hash(await fileContent()) === intent.targetHash)
         await options.writeAtomic(options.soulPath, before)
+      if (developmentAuthorization) {
+        await options.commit({ cardId: options.cardId, operationKey: `development-failed:${intent.id}`, changes: [], mutations: [{ type: 'soul-transition', id: intent.id, expected: 'prepared', status: 'failed' }] })
+        await retireDevelopmentFiles(intent)
+      }
       throw error
     }
   }
@@ -97,6 +114,8 @@ export function createLifeSoulActivationRuntime(options: {
   async function recover() {
     const view = await options.read()
     let changed = false
+    for (const retired of view.soulActivations.filter(item => item.developmentAuthorization && ['activated', 'conflicted', 'failed'].includes(item.status)))
+      await retireDevelopmentFiles(retired)
     const active = JSON.parse(view.values[activeKey] ?? 'null') as { contentHash: string, persona?: { proposalId: string } } | null
     if (active?.persona && options.getEffect) {
       const proposal = await options.getEffect(active.persona.proposalId)
@@ -111,6 +130,26 @@ export function createLifeSoulActivationRuntime(options: {
     }
     for (const intent of view.soulActivations.filter(item => ['prepared', 'file-replaced'].includes(item.status))) {
       const content = await fileContent()
+      if (intent.developmentAuthorization) {
+        try {
+          if (hash(content) === intent.targetHash) {
+            await activate(content, intent)
+            changed = true
+            continue
+          }
+        }
+        catch {
+          const backup = await readFile(stagedPath(intent.backupPath), 'utf8')
+          if (hash(backup) !== intent.baseHash)
+            throw new Error('Personality recovery backup failed its hash check')
+          if (hash(await fileContent()) === intent.targetHash)
+            await options.writeAtomic(options.soulPath, backup)
+          await options.commit({ cardId: options.cardId, operationKey: `development-conflict:${intent.id}`, changes: [], mutations: [{ type: 'soul-transition', id: intent.id, expected: intent.status, status: 'conflicted' }] })
+          await retireDevelopmentFiles(intent)
+          changed = true
+          continue
+        }
+      }
       if (intent.personaAuthorization && options.getEffect) {
         const proposal = await options.getEffect(intent.personaAuthorization.proposalId)
         if (!proposal || proposal.status === 'cancelled') {
@@ -137,8 +176,20 @@ export function createLifeSoulActivationRuntime(options: {
       if (hash(staged) !== intent.targetHash)
         throw new Error('SOUL staged content failed its recovery hash check')
       options.validate(staged)
-      await options.writeAtomic(options.soulPath, staged)
-      await activate(staged, intent)
+      try {
+        await options.writeAtomic(options.soulPath, staged)
+        await activate(staged, intent)
+        changed = true
+      }
+      catch (error) {
+        if (!intent.developmentAuthorization)
+          throw error
+        if (hash(await fileContent()) === intent.targetHash)
+          await options.writeAtomic(options.soulPath, content)
+        await options.commit({ cardId: options.cardId, operationKey: `development-conflict:${intent.id}`, changes: [], mutations: [{ type: 'soul-transition', id: intent.id, expected: intent.status, status: 'conflicted' }] })
+        await retireDevelopmentFiles(intent)
+        changed = true
+      }
     }
     return changed
   }

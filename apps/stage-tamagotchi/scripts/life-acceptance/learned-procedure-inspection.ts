@@ -23,7 +23,9 @@ try {
   const view = await database.readLifeState()
   const deliveries = []
   for (const experience of experiences) {
-    const goal = view.obligations.find(goal => goal.summary === experience.goal)
+    const plan = view.execution?.plans.find(plan => plan.id === experience.planId)
+    assert.ok(plan)
+    const goal = view.obligations.find(goal => goal.id === plan.rootObligationId)
     assert.ok(goal)
     assert.ok(goal.verification)
     assert.equal(goal?.status, 'fulfilled')

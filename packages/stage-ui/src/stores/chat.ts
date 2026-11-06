@@ -84,6 +84,7 @@ import { interruptChatAssistantMessage, upsertChatAssistantMessage } from './cha
 import { useChatSessionStore } from './chat/session-store'
 import { useChatStreamStore } from './chat/stream-store'
 import { createChatTextPresenter } from './chat/text-presentation'
+import { useConversationDeliveryStore } from './conversation-delivery'
 import { useLLM } from './llm'
 import { useConsciousnessStore } from './modules/consciousness'
 import { useProvidersStore } from './providers'
@@ -1409,6 +1410,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
   const { trackFirstMessage } = useAnalytics()
 
   const chatSession = useChatSessionStore()
+  const conversationDelivery = useConversationDeliveryStore()
   const chatStream = useChatStreamStore()
   const chatContext = useChatContextStore()
   const presenceDispatcher = useAlicizationPresenceDispatcherStore()
@@ -1582,6 +1584,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     // NOTICE: Keep the assistant message id stable per turn so renderer-side
     // reconcile can upsert the main-process replay instead of inserting a duplicate.
     const buildingMessage: StreamingAssistantMessage = { role: 'assistant', content: '', slices: [], tool_results: [], createdAt: Date.now(), id: turnId }
+    const syncSpeechDelivery = () => {
+      const cardId = chatSession.sessionMetas[sessionId]?.characterId || 'default'
+      const state = conversationDelivery.states[conversationDelivery.key({ cardId, sessionId, turnId })]
+      if (state)
+        buildingMessage.speechDelivery = { ...state }
+    }
     let stagedAssistantResolution: StagedAssistantResolution | null = null
     let stagedSpeechDraft = ''
     let finalAssistantDisplayText = ''
@@ -1622,6 +1630,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       if (!text)
         return false
       Object.assign(buildingMessage, interruptChatAssistantMessage(buildingMessage, text, reason))
+      syncSpeechDelivery()
       upsertChatAssistantMessage(sessionMessagesForSend, toRaw(buildingMessage))
       chatSession.persistSessionMessages(sessionId)
       return true
@@ -2239,6 +2248,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               streamOptions.abortSignal?.addEventListener('abort', parentAbortHandler, { once: true })
             try {
               const executeBridgeStream = async (touch?: (kind?: StreamWatchdogTouchKind) => void) => {
+                // Bind early playback to this exact durable attempt before any
+                // public text. A complete embodiment script may arrive later.
+                await hooks.emitEmbodimentMetaHooks({ governance: null, deliveryTurnId: bridgeAttemptTurnId }, streamingMessageContext)
                 await bridgeStreamChat({
                   turnId: bridgeAttemptTurnId,
                   sessionId,
@@ -2703,6 +2715,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           return
 
         if (!isStaleGeneration() && buildingMessage.slices.length > 0) {
+          syncSpeechDelivery()
           upsertChatAssistantMessage(sessionMessagesForSend, toRaw(buildingMessage))
           chatSession.persistSessionMessages(sessionId)
         }

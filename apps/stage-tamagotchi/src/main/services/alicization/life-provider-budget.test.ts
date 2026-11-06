@@ -3,6 +3,39 @@ import { describe, expect, it } from 'vitest'
 import { boundLifeProviderRequest, lifeProviderOutputOptions, resolveLifeProviderRequestLimits } from './life-provider-budget'
 
 describe('final life provider budget', () => {
+  it('identifies oversized content kinds without logging private image bytes or user text', () => {
+    let failure = ''
+    try {
+      boundLifeProviderRequest([{ role: 'user', content: [{ type: 'text', text: 'PRIVATE_QUESTION' }, { type: 'image_url', image_url: { url: `data:image/png;base64,PRIVATE_FRAME${'a'.repeat(6000)}` } }] }], [], { contextTokens: 4096, outputReserve: 1024, safetyReserve: 512 })
+    }
+    catch (error) { failure = String(error) }
+    expect(failure).toContain('PROVIDER_CONTEXT_BUDGET_EXCEEDED')
+    expect(failure).toContain('"kind":"image_url"')
+    expect(failure).not.toContain('PRIVATE_FRAME')
+    expect(failure).not.toContain('PRIVATE_QUESTION')
+    expect(failure.length).toBeLessThan(1000)
+  })
+  it('continues a long current tool exchange through exact pageable receipts without dropping calls or life state', () => {
+    const tools = [{ type: 'function', function: { name: 'life_read_tool_observation', parameters: { type: 'object' } } }]
+    const messages = [
+      { role: 'system' as const, content: 'The adopted identity and relationship remain authoritative.' },
+      { role: 'user' as const, content: '检查这些日志并找出问题，保留原始任务。' },
+      ...Array.from({ length: 6 }, (_, index) => [
+        { role: 'assistant' as const, content: '', tool_calls: [{ id: `call-${index}`, type: 'function' as const, function: { name: 'read_log', arguments: JSON.stringify({ path: `log-${index}.txt` }) } }] },
+        { role: 'tool' as const, tool_call_id: `call-${index}`, content: `log-${index}\n${'ordinary log detail 中文🙂\n'.repeat(300)}ERROR: exact failure ${index}` },
+      ]).flat(),
+    ]
+    const original = structuredClone(messages)
+    const result = boundLifeProviderRequest(messages, tools, { contextTokens: 16384, outputReserve: 1024, safetyReserve: 512 })
+    expect(result.messages).toHaveLength(messages.length)
+    expect(result.messages.slice(0, 2)).toEqual(messages.slice(0, 2))
+    expect(result.report.droppedHistory).toEqual([])
+    expect(result.report.compactedToolObservations?.length).toBeGreaterThan(0)
+    for (let index = 2; index < result.messages.length; index += 2)
+      expect(result.messages[index]).toEqual(messages[index])
+    expect(result.report.afterTokens + result.report.toolTokens + 1536).toBeLessThanOrEqual(16384)
+    expect(messages).toEqual(original)
+  })
   it.each(['maxTokens', 'maxCompletionTokens'] as const)('reallocates a small overflow from output headroom while preserving all input and actual %s', (completionTokenField) => {
     const messages = [{ role: 'system' as const, content: 'Exact identity and source evidence 中文🙂'.repeat(45) }, { role: 'user' as const, content: '请写八百字，保留每个字和来源。' }]
     const tools = [{ type: 'function', function: { name: 'ordinary_execution', parameters: { type: 'object', properties: {} } } }]

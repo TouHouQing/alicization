@@ -10,9 +10,11 @@ import type {
   AlicizationMindTurnGovernance,
   AlicizationRuntimeDigest,
 } from '../alicization-bridge'
-import type { PresentedChatTextUnit } from './text-presentation'
+import type { PresentedChatTextChunk } from './text-presentation'
 
 export interface ChatEmbodimentMetaHookPayload {
+  /** Actual gateway attempt identity, supplied by the transport owner. */
+  deliveryTurnId?: string
   governance: AlicizationMindTurnGovernance | null
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   embodimentScript?: AlicizationEmbodimentScriptV1 | null
@@ -27,7 +29,7 @@ export interface ChatHookRegistry {
   onAfterMessageComposed: (cb: (message: string, context: ChatStreamEventContext) => Promise<void>) => () => void
   onBeforeSend: (cb: (message: string, context: ChatStreamEventContext) => Promise<void>) => () => void
   onAfterSend: (cb: (message: string, context: ChatStreamEventContext) => Promise<void>) => () => void
-  onTextPresented: (cb: (presentation: PresentedChatTextUnit, context: ChatStreamEventContext) => Promise<void>) => () => void
+  onTextPresented: (cb: (presentation: PresentedChatTextChunk, context: ChatStreamEventContext) => Promise<void>) => () => void
   onTokenLiteral: (cb: (literal: string, context: ChatStreamEventContext) => Promise<void>) => () => void
   onTokenSpecial: (cb: (special: string, context: ChatStreamEventContext) => Promise<void>) => () => void
   onStreamEnd: (cb: (context: ChatStreamEventContext) => Promise<void>) => () => void
@@ -41,7 +43,7 @@ export interface ChatHookRegistry {
   emitAfterMessageComposedHooks: (message: string, context: ChatStreamEventContext) => Promise<void>
   emitBeforeSendHooks: (message: string, context: ChatStreamEventContext) => Promise<void>
   emitAfterSendHooks: (message: string, context: ChatStreamEventContext) => Promise<void>
-  emitTextPresentedHooks: (presentation: PresentedChatTextUnit, context: ChatStreamEventContext) => Promise<void>
+  emitTextPresentedHooks: (presentation: PresentedChatTextChunk, context: ChatStreamEventContext) => Promise<void>
   emitTokenLiteralHooks: (literal: string, context: ChatStreamEventContext) => Promise<void>
   emitTokenSpecialHooks: (special: string, context: ChatStreamEventContext) => Promise<void>
   emitStreamEndHooks: (context: ChatStreamEventContext) => Promise<void>
@@ -59,7 +61,7 @@ export function createChatHooks(): ChatHookRegistry {
   const onAfterMessageComposedHooks: Array<(message: string, context: ChatStreamEventContext) => Promise<void>> = []
   const onBeforeSendHooks: Array<(message: string, context: ChatStreamEventContext) => Promise<void>> = []
   const onAfterSendHooks: Array<(message: string, context: ChatStreamEventContext) => Promise<void>> = []
-  const onTextPresentedHooks: Array<(presentation: PresentedChatTextUnit, context: ChatStreamEventContext) => Promise<void>> = []
+  const onTextPresentedHooks: Array<(presentation: PresentedChatTextChunk, context: ChatStreamEventContext) => Promise<void>> = []
   const onTokenLiteralHooks: Array<(literal: string, context: ChatStreamEventContext) => Promise<void>> = []
   const onTokenSpecialHooks: Array<(special: string, context: ChatStreamEventContext) => Promise<void>> = []
   const onStreamEndHooks: Array<(context: ChatStreamEventContext) => Promise<void>> = []
@@ -106,7 +108,7 @@ export function createChatHooks(): ChatHookRegistry {
     }
   }
 
-  function onTextPresented(cb: (presentation: PresentedChatTextUnit, context: ChatStreamEventContext) => Promise<void>) {
+  function onTextPresented(cb: (presentation: PresentedChatTextChunk, context: ChatStreamEventContext) => Promise<void>) {
     onTextPresentedHooks.push(cb)
     return () => {
       const index = onTextPresentedHooks.indexOf(cb)
@@ -233,7 +235,7 @@ export function createChatHooks(): ChatHookRegistry {
       await hook(message, context)
   }
 
-  async function emitTextPresentedHooks(presentation: PresentedChatTextUnit, context: ChatStreamEventContext) {
+  async function emitTextPresentedHooks(presentation: PresentedChatTextChunk, context: ChatStreamEventContext) {
     for (const hook of onTextPresentedHooks)
       await hook(presentation, context)
   }

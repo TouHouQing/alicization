@@ -4,6 +4,23 @@ chat:
   send: Send message
   input-hint: Enter to send · Shift + Enter for a new line
   preparing: Preparing a reply… You can stop it while waiting.
+  speech:
+    waiting: Preparing voice…
+    speaking: Reading aloud
+    silent: Expressing silently
+    completed: Read aloud
+    excerpt: Excerpt read; full text is available
+    text-only: Kept as text; full reading is available
+    interrupted: Reading stopped; text retained
+    failed: Voice failed; text retained
+    stop: Stop expression
+    read-full: Read full reply
+    current: Current spoken phrase
+    estimated: Current phrase; word position estimated from audio progress
+    auto-read: Automatically read replies
+    auto-read-description: Read short replies in natural phrases. For long replies, read opening clauses and leave code in the text.
+    silent-mouth: Silent articulation
+    silent-mouth-description: Use natural mouth movement without sound. Text display remains independent.
   message:
     reply-stopped: Reply stopped
     reply-interrupted: Reply interrupted. You can try again.

@@ -22,6 +22,7 @@ export async function bindLifeProject(tx: LifeTransaction, input: Extract<LifeMu
       if (!proposal || proposal.status !== 'proposed' || proposal.createdAt > tx.now || proposal.expiresAt <= tx.now || !await tx.get('SELECT 1 FROM life_ingress WHERE card_id = ? AND ingress_id = ? AND status = \'settled\' AND source = \'dialogue-settlement\'', [tx.cardId, `dialogue-settlement:user:${proposal.sourceTurnId}`]))
         throw new Error('Personal proposal source is absent, withdrawn or expired')
       await tx.run(`INSERT OR IGNORE INTO life_evidence_dependencies(card_id, source_kind, source_id, source_version, dependent_owner, dependent_id, dependent_version, relation, created_revision) VALUES (?, ?, ?, ?, 'goals', ?, '1', 'derived-from', ?)`, [tx.cardId, ref.kind, ref.id, ref.version, id, tx.revision])
+      await tx.run('UPDATE life_obligations SET source_ref_json = json_set(source_ref_json, \'$.personalChoice\', json(?)) WHERE card_id = ? AND obligation_id = ?', [boundedJson({ proposalId: proposal.id, sourceReplyHash: proposal.sourceReplyHash }), tx.cardId, id])
       continue
     }
     if (ref.cardId === tx.cardId && ref.kind === 'goals' && metadata?.personalActivity === 'practice-review-v1') {

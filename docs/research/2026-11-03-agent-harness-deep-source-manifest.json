@@ -1,0 +1,611 @@
+{
+  "files": [
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "LICENSE",
+      "bytes": 10926,
+      "sha256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/LICENSE"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "NOTICE",
+      "bytes": 242,
+      "sha256": "9d71575ecfd9a843fc1677b0efb08053c6ba9fd686a0de1a6f5382fd3c220915",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/NOTICE"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/core/src/tools/parallel.rs",
+      "bytes": 44259,
+      "sha256": "3d32fcedc0818b2947a1fdf8fee03dc5d65177fa9a882fb2ad9e09019893a55a",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/core/src/tools/parallel.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/core/src/tools/router.rs",
+      "bytes": 16890,
+      "sha256": "e6a7ef92ce0455ace849927c6431334af984e144c8d008af65887c8db5ef7fec",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/core/src/tools/router.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/core/src/context_manager/history.rs",
+      "bytes": 62993,
+      "sha256": "60e30e1ca546e1e186c14fe1b21a50cfea6f677f3294089c4396ca263c4322b1",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/core/src/context_manager/history.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/core/src/tools/handlers/plan.rs",
+      "bytes": 3334,
+      "sha256": "f1e0acbe71dc6160ade7f4751f00c98f2d5e999d6c0954d015bf7709c382ce50",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/core/src/tools/handlers/plan.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/core/src/tools/handlers/tool_search.rs",
+      "bytes": 24001,
+      "sha256": "b559fbee86f47031491e4f9ffd6c8d651065b40e9e49ee4e84075438419be72c",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/core/src/tools/handlers/tool_search.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/core/src/tools/context.rs",
+      "bytes": 20857,
+      "sha256": "6e47933ace1efa70332e3e28690cc3860498a5b9a33d278f847e4d0d65fa160c",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/core/src/tools/context.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/core/src/context_manager/normalize.rs",
+      "bytes": 17075,
+      "sha256": "a7b0aadc44591fa8bc550ef9cef22671076270d77e401fd0546173a86eab96a2",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/core/src/context_manager/normalize.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/ext/skills/src/catalog_prompt.rs",
+      "bytes": 10426,
+      "sha256": "8d70657e23809ca6723c6da9f051a6bc1418b0cf5755362071faaccfeb5cfdd9",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/skills/src/catalog_prompt.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/ext/skills/src/catalog_delta.rs",
+      "bytes": 12740,
+      "sha256": "256a0413a3ade6c6e7f5e5256f2fffa1da90b47516c8b7f9093ce47daa375759",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/skills/src/catalog_delta.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/ext/skills/src/catalog.rs",
+      "bytes": 16315,
+      "sha256": "747bef1a09de498bb5dd9dea10eca552391becfe9d885325d496a5bdfbc8391b",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/skills/src/catalog.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/ext/skills/src/selection.rs",
+      "bytes": 4174,
+      "sha256": "e28ed013dd5263710e97c6219226755c0db16fe250a81cf6ceeceadb98a335da",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/skills/src/selection.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/ext/skills/src/invocation.rs",
+      "bytes": 4317,
+      "sha256": "cb613cfac0d1bdfad5d456087e2805ee2fed64739f406babcf845dab73ff279d",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/skills/src/invocation.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/ext/skills/src/step_state.rs",
+      "bytes": 3996,
+      "sha256": "02864980e38c402d128b0cd1f3507ae95ece69077ac84470e609e6ee874b5bdd",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/skills/src/step_state.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/ext/skills/src/dynamic_skill_selector/fielded_bm25.rs",
+      "bytes": 7584,
+      "sha256": "92671e5c8c5d51f6f3e3334a72230daebe79f8221deda532089f048c0ea42841",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/skills/src/dynamic_skill_selector/fielded_bm25.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/ext/memories/src/local/search.rs",
+      "bytes": 11011,
+      "sha256": "e1c66711ad3ff5ac2ecc482f824a987ab86264bdb69ce859356a6330979b4f56",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/memories/src/local/search.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/ext/skills/src/dynamic_skill_selector/rrf_lexical_char.rs",
+      "bytes": 2878,
+      "sha256": "6ac4ad3c4525681ebf05ea2e5aac4d319c3f5594210504eb512c1eda317c3491",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/skills/src/dynamic_skill_selector/rrf_lexical_char.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/ext/skills/src/dynamic_skill_selector/weighted_lexical.rs",
+      "bytes": 6608,
+      "sha256": "9625d1683fb0f8198947735f856b002477e032a7c468076c1ef559bb08975a3d",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/skills/src/dynamic_skill_selector/weighted_lexical.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/ext/skills/src/dynamic_skill_selector/character_ngram.rs",
+      "bytes": 7731,
+      "sha256": "200231d62546e5689c8618eee9d3992d3c67e4a7062c0fdf86b56f5a5d243411",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/skills/src/dynamic_skill_selector/character_ngram.rs"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "LICENSE",
+      "bytes": 1069,
+      "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/LICENSE"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "packages/agent/src/agent-loop.ts",
+      "bytes": 29889,
+      "sha256": "9d7589b5071ea3b8b3e3c624f9cfc09a976ebf7436024a58213837de4645167d",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/agent/src/agent-loop.ts"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/ext/memories/src/prompts.rs",
+      "bytes": 2275,
+      "sha256": "05fd1987748219a053074b9d3a6f79647875eda289f544e6047abafce7d470ab",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/memories/src/prompts.rs"
+    },
+    {
+      "repository": "openai/codex",
+      "commit": "84dfc209d2697876dc7693611473e91616b3223d",
+      "path": "codex-rs/ext/memories/src/local/ad_hoc_note.rs",
+      "bytes": 4739,
+      "sha256": "4bf2b4ebe79c7c1df3bc2381286b9d7800b41c9b8ee2d96d153609fc606de3c1",
+      "url": "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/memories/src/local/ad_hoc_note.rs"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "packages/agent/src/types.ts",
+      "bytes": 21889,
+      "sha256": "6ad1a3e1ea6cfa0770421aca9a23726061d8d31fdeb5c17c8acd5d7cea0e74b1",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/agent/src/types.ts"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "packages/coding-agent/src/core/session-manager.ts",
+      "bytes": 64514,
+      "sha256": "444650a737052f0d710c19f9e50e115c24b49107130059d5bef458eacf3927c7",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/coding-agent/src/core/session-manager.ts"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "packages/agent/src/agent.ts",
+      "bytes": 20206,
+      "sha256": "6d0e56bf4443f0cfc5c6a82ce31a3b99f15ff816075bed36403dfa0c95a609c6",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/agent/src/agent.ts"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "packages/coding-agent/src/core/agent-session.ts",
+      "bytes": 165185,
+      "sha256": "b7c24bf1c1366e931083100d921a80d390d66bacde4acf7472a7b57af1bb69aa",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/coding-agent/src/core/agent-session.ts"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "packages/coding-agent/src/core/skills.ts",
+      "bytes": 14603,
+      "sha256": "79e7d971a26730e3a692c434c32dc63bd8ce36aa4bedaaaf96e405f4a39bc411",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/coding-agent/src/core/skills.ts"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "packages/coding-agent/src/core/compaction/compaction.ts",
+      "bytes": 35401,
+      "sha256": "32714966eb644da31cd84e8eb172965256160626b3d26ae9752c3894300f2b0b",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/coding-agent/src/core/compaction/compaction.ts"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "packages/coding-agent/src/core/system-prompt.ts",
+      "bytes": 9964,
+      "sha256": "eef891d637974d09a6611d33e52d66d5f2a93d6e9512259ba45f593c42143617",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/coding-agent/src/core/system-prompt.ts"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "packages/coding-agent/src/core/compaction/branch-summarization.ts",
+      "bytes": 13295,
+      "sha256": "274e63efb0722fed8ccf8656f6ee7ed7e75c9e9aa3ebd5c673e7d57b12bd72de",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/coding-agent/src/core/compaction/branch-summarization.ts"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "packages/coding-agent/src/core/tools/bash.ts",
+      "bytes": 15644,
+      "sha256": "4c1e12c7ffcafa11a180b4cb8df13549a43925c15d08a62b8794a4715c54c178",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/coding-agent/src/core/tools/bash.ts"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "packages/coding-agent/src/core/tools/edit-diff.ts",
+      "bytes": 18079,
+      "sha256": "f85a9809eb44b9828236050cf38a8e45933e5cfd583a186e9a0e55a664dd3e8d",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/coding-agent/src/core/tools/edit-diff.ts"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "packages/coding-agent/src/core/compaction/utils.ts",
+      "bytes": 5951,
+      "sha256": "37eab7698cdbff8b5987d4529005ea16d7e1ae4a5344d7d0443c3466444aa90e",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/coding-agent/src/core/compaction/utils.ts"
+    },
+    {
+      "repository": "earendil-works/pi",
+      "commit": "62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6",
+      "path": "packages/coding-agent/src/core/tools/edit.ts",
+      "bytes": 8274,
+      "sha256": "d05eb64ada7755eb5269befbee09fafd2bb26e266476c020ad9d721f9f0df8d7",
+      "url": "https://github.com/earendil-works/pi/blob/62752fd4c37a72e0f3c1cc83e9ac3b4299f31fe6/packages/coding-agent/src/core/tools/edit.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/core/agent-loop/src/inbox.ts",
+      "bytes": 8873,
+      "sha256": "336e10096a4899cdbef71e68da6896c5ed84c17a95c56729d17b8ba607bac1ca",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/agent-loop/src/inbox.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/core/agent-loop/src/agent.ts",
+      "bytes": 31142,
+      "sha256": "ad9ee0778c0a93dec40363f88b53f442add9b033837b9ff049675a1ada3df61f",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/agent-loop/src/agent.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/core/agent-loop/src/index.ts",
+      "bytes": 36758,
+      "sha256": "8c2f579b21e482ecbca023341a79fdbc083124a3d8e1160bfd2f00136214a3c9",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/agent-loop/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/core/agent-default-model/src/index.ts",
+      "bytes": 3494,
+      "sha256": "d841737984875b31c7972e0d3023c0f41b9d4b09090d2cce902bbbaf3db338dc",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/agent-default-model/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/core/agent-tool-presentation/src/index.ts",
+      "bytes": 2119,
+      "sha256": "05dc6d51f5f914d6ac91cbb525bf691ad73188165682cd0d1b6832dbcae226dd",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/agent-tool-presentation/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/context/agent-instructions/src/index.ts",
+      "bytes": 16304,
+      "sha256": "2cca75eef331d2ba2e615a6d7292037ad189121bbe53f773e5888149b24975b6",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/context/agent-instructions/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/compaction/command-compact/src/index.ts",
+      "bytes": 4237,
+      "sha256": "fc3be3d7e672a15ec9521148d17ca66466ace34fe7b4ac1ba96aab89dc51730a",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/compaction/command-compact/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/context/agent-instructions/src/render.ts",
+      "bytes": 23284,
+      "sha256": "09a7c1b445a18fd32d380116b82de62df6eb95f9e6934b737b5813119aa3a26d",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/context/agent-instructions/src/render.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/compaction/compaction-basic/src/region.ts",
+      "bytes": 23571,
+      "sha256": "295b53cc9e924f7cb2e843e0d0d296e89ead73da2aab9790282db30736e2e063",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/compaction/compaction-basic/src/region.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/compaction/compaction-basic/src/types.ts",
+      "bytes": 3793,
+      "sha256": "65fc3147b4b5a6d7ef422131374aa9f7a6e246d56feabca37755b9ca432ab57d",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/compaction/compaction-basic/src/types.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/compaction/compaction-basic/src/summarizer.ts",
+      "bytes": 9242,
+      "sha256": "03ef6eb0b6a011530829820e30ff709c2c1b34cfa37a98c19c0037432b9d2f55",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/compaction/compaction-basic/src/summarizer.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/compaction/compaction-basic/src/index.ts",
+      "bytes": 19522,
+      "sha256": "1d2ecc563147967f86842b37289682a4dd7feabccc9d9d8d55cfb01810166f54",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/compaction/compaction-basic/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/skill/skill-filesystem/src/index.ts",
+      "bytes": 39980,
+      "sha256": "fec9bf70095a01fd7eb61e5a7aa77480490a17e663224ecaeb84852cb025207f",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/skill/skill-filesystem/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/skill/tool-skill/src/index.ts",
+      "bytes": 19982,
+      "sha256": "ef4ec2ef9a44d403a288db66d3473aebde2c40183a42629b1f197d8be1878c4a",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/skill/tool-skill/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/skill/skill-office/src/index.ts",
+      "bytes": 4720,
+      "sha256": "e0f74bf63193aec6aa9bd65f0975e0ec9409ad4f40bef6a4a5b0f0e4aff69950",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/skill/skill-office/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/skill/skill/src/index.ts",
+      "bytes": 35965,
+      "sha256": "af4fad67fb086c3f5c93aed4604830718b4535e7e59a60d680404b07ea08477c",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/skill/skill/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/goal/command-goal/src/index.ts",
+      "bytes": 8229,
+      "sha256": "848444ac23f6a4c1f992fc5b10c1ba11d43106f9ce9a9fcc047973c512c3ce1f",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/goal/command-goal/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/goal/goal-round-driver/src/index.ts",
+      "bytes": 18403,
+      "sha256": "0e64af0eaa7fef5444f92f1664b4d987f8eaae72a86a3945fff75c57a4e4aacc",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/goal/goal-round-driver/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/skill/tool-workspace-dependencies/src/index.ts",
+      "bytes": 15494,
+      "sha256": "835e40ffefd839085d1ccb5612055f874abc6a6c3a26bad856c8f8206a7c4e28",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/skill/tool-workspace-dependencies/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/plan/plan-mode/src/index.ts",
+      "bytes": 20641,
+      "sha256": "c03bc85db4669205ef5375a0bcfa0fa70fd69c4ffc503b455adc756f5c4419e3",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/plan/plan-mode/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/feedback/command-feedback/src/index.ts",
+      "bytes": 4536,
+      "sha256": "03b5729262b3d8813c32f3a5b8f22b12f647ab430f9d1e70f2f2cf86fcb88f98",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/feedback/command-feedback/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/plan/plan-mode/src/types.ts",
+      "bytes": 1743,
+      "sha256": "6c1c6c1748fcc3b2d74c4945376287558d47534b686b1b7ac6c525edb7ffcce0",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/plan/plan-mode/src/types.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/todo/tool-todo/src/index.ts",
+      "bytes": 8696,
+      "sha256": "80559ed95b7fc9c1dc083312f187885254bf2c1498d0f7a079dad21427d24def",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/todo/tool-todo/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/todo/tool-todo/src/types.ts",
+      "bytes": 2044,
+      "sha256": "33868cc6852c37d188c79329e0a48c9206adc3c82521f2e52e492c25e0381bbe",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/todo/tool-todo/src/types.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/feedback/command-feedback/src/types.ts",
+      "bytes": 2519,
+      "sha256": "772d59df2473c5212f3d79f5993963232ac68060780a834d00a9f63011d8c458",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/feedback/command-feedback/src/types.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/session/message-quotes/src/index.ts",
+      "bytes": 149,
+      "sha256": "8389066f0935cf0c63bd0ea29e96a32d1d24bda61e9f5003925523dbec399185",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/session/message-quotes/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/spill/spill-local/src/index.ts",
+      "bytes": 7372,
+      "sha256": "f275c81bdc8cd95717a0c6296e75af5164fa8b94222b3fffcda3defad867ee4f",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/spill/spill-local/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/spill/spill-policy/src/index.ts",
+      "bytes": 8586,
+      "sha256": "ba9f8d0f9369a0f1a9f282b48e6ecda166ec1b368dac0dd2c0c743ae8988b342",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/spill/spill-policy/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "packages/guard/repeat-tool-reminder/src/index.ts",
+      "bytes": 10619,
+      "sha256": "1e917986fe9c5187d8f0fa11154ab2bf3b7c1d30db991540f4d1e62a2c59236d",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/guard/repeat-tool-reminder/src/index.ts"
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "path": "LICENSE",
+      "bytes": 1065,
+      "sha256": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/LICENSE"
+    }
+  ],
+  "failures": [
+    {
+      "error": "Error: HTTP 403 https://api.github.com/repos/deepseek-ai/deepseek-harness/git/blobs/0fc456eb08853b9fe54d0bf9ca3a26c05b4413cf",
+      "path": "packages/session/session-checkpoint-policy/src/index.ts"
+    },
+    {
+      "error": "Error: HTTP 403 https://api.github.com/repos/deepseek-ai/deepseek-harness/git/blobs/9ee3c7026b52df87510f0af1d4c55b073d4168a2",
+      "path": "packages/guard/timeout-policy/src/index.ts"
+    },
+    {
+      "error": "Error: HTTP 403 https://api.github.com/repos/deepseek-ai/deepseek-harness/git/blobs/66fda2da1554b1946a808365d438b348703ef431",
+      "path": "packages/workflow/tool-workflow/src/index.ts"
+    },
+    {
+      "error": "Error: HTTP 403 https://api.github.com/repos/deepseek-ai/deepseek-harness/git/blobs/c1844049393828e2617b0739b877ff4589566e6a",
+      "path": "packages/workflow/tool-workflow/src/types.ts"
+    }
+  ],
+  "format": "alicization-agent-harness-deep-source-manifest-v1",
+  "downloadedFileCount": 66,
+  "downloadedBytes": 1112416,
+  "webInspectedOnly": [
+    "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/tool-executor-native/src/index.ts",
+    "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/compaction/compaction-tool-result-pruner/src/index.ts",
+    "https://github.com/openai/codex/blob/84dfc209d2697876dc7693611473e91616b3223d/codex-rs/ext/skills/src/dynamic_skill_selector/fielded_bm25_tests.rs"
+  ],
+  "reusedModules": [
+    {
+      "repository": "openai/codex",
+      "upstream": [
+        "codex-rs/ext/skills/src/dynamic_skill_selector/fielded_bm25.rs",
+        "codex-rs/ext/skills/src/dynamic_skill_selector/character_ngram.rs",
+        "codex-rs/ext/skills/src/dynamic_skill_selector/rrf_lexical_char.rs"
+      ],
+      "local": "apps/stage-tamagotchi/src/main/services/alicization/third-party/codex-skill-selector.ts",
+      "license": "Apache-2.0",
+      "changes": [
+        "TypeScript",
+        "BM25 lexical channel instead of weighted lexical",
+        "Chinese bigram lexical expansion",
+        "bounded local ranking evidence"
+      ]
+    },
+    {
+      "repository": "earendil-works/pi",
+      "upstream": [
+        "packages/agent/src/agent-loop.ts"
+      ],
+      "symbols": [
+        "executeToolCallsSequential"
+      ],
+      "local": "apps/stage-tamagotchi/src/main/services/alicization/third-party/pi-tool-batch.ts",
+      "license": "MIT",
+      "changes": [
+        "Generic coordinator",
+        "durable execute-and-settle callback",
+        "pre-dispatch and post-settlement abort fence"
+      ]
+    },
+    {
+      "repository": "deepseek-ai/deepseek-harness",
+      "upstream": [
+        "packages/guard/repeat-tool-reminder/src/index.ts"
+      ],
+      "symbols": [
+        "sortJsonValue",
+        "canonicalize",
+        "observe"
+      ],
+      "local": "apps/stage-tamagotchi/src/main/services/alicization/third-party/deepseek-repeat-tool.ts",
+      "license": "MIT",
+      "changes": [
+        "Derived current-turn chain",
+        "unchanged observation identity",
+        "no plugin WeakMap or separate task store",
+        "prototype-safe canonical JSON keys"
+      ]
+    }
+  ]
+}

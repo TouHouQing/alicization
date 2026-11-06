@@ -1,5 +1,7 @@
 /* eslint-disable no-template-curly-in-string */
 
+import type { Buffer } from 'node:buffer'
+
 import type { Configuration } from 'electron-builder'
 
 import { existsSync } from 'node:fs'
@@ -40,6 +42,26 @@ export async function assertBundledJavaScriptRuntime(outputDirectory: string) {
       }
     }
   }
+}
+
+/** Builder's default exclusions must not remove executable language-service data. */
+export async function assertPackagedAgentRuntime(appDirectory: string, resourcesPath: string) {
+  const requireBuilderLib = createRequire(requireBuilder.resolve('app-builder-lib'))
+  const { extractFile } = requireBuilderLib('@electron/asar') as { extractFile: (archive: string, file: string) => Buffer }
+  const archive = join(resourcesPath, 'app.asar')
+  const runtime = join('out', 'main', 'agent-runtime')
+  async function compare(directory: string) {
+    for (const entry of await readdir(join(appDirectory, directory), { withFileTypes: true })) {
+      const file = join(directory, entry.name)
+      if (entry.isDirectory()) {
+        await compare(file)
+      }
+      else if (!(await readFile(join(appDirectory, file))).equals(extractFile(archive, file))) {
+        throw new Error(`Packaged Agent runtime differs from its compiled resource: ${file}`)
+      }
+    }
+  }
+  await compare(runtime)
 }
 
 export function assertPackagedSqlite3Runtime(
@@ -115,6 +137,9 @@ export default {
     '!{.eslintcache,eslint.config.ts,.yaml,dev-app-update.yml,CHANGELOG.md,README.md}',
     '!{.env,.env.*,.npmrc,pnpm-lock.yaml}',
     '!{tsconfig.json}',
+    // Standard libraries are runtime inputs to tsserver. The default root
+    // matcher always excludes .d.ts, so use a dedicated file-set matcher.
+    { from: 'out/main/agent-runtime/typescript/lib', to: 'out/main/agent-runtime/typescript/lib', filter: ['*.d.ts'] },
   ],
   asar: true,
   beforePack: context => assertBundledJavaScriptRuntime(join(context.packager.info.appDir, 'out')),
@@ -200,6 +225,10 @@ export default {
   // with no loadable node_sqlite3.node binding.
   npmRebuild: true,
   afterPack: async (context) => {
+    const resourcesPath = context.electronPlatformName === 'darwin'
+      ? join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, 'Contents', 'Resources')
+      : join(context.appOutDir, 'resources')
+    await assertPackagedAgentRuntime(context.packager.info.appDir, resourcesPath)
     if (context.electronPlatformName !== 'darwin')
       return
 

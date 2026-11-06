@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -8,6 +8,7 @@ import { setupAlicizationDb } from '../db'
 import { createAlicizationSkillLoader } from '../turn-os/skill-loader'
 import { createAlicizationSkillRegistry } from '../turn-os/skill-registry'
 import { createToolRegistry } from '../turn-os/tool-registry'
+import { maxDesktopSkillVersions } from './procedure-index'
 import { createSkillLifecyclePersistence } from './skill-lifecycle-repository'
 
 const source = `---
@@ -32,6 +33,32 @@ function loader(directory: string, persistence: ReturnType<typeof createSkillLif
 }
 
 describe('skill registry decisions in the existing life writer', () => {
+  it('discovers and persists 1000 versioned sources, restores only approved activations and respects the configured bound', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'alicization-skill-capacity-'))
+    let db = await setupAlicizationDb(root, { cardId: 'alice' })
+    const virtual = {
+      readdir: async () => Array.from({ length: 1000 }, (_, i) => ({ name: `s${i}`, isDirectory: () => true })),
+      readFile: async (path: string) => source.replace('skill.review', `skill.${basename(dirname(path))}`).replace('evaluationStatus: approved', 'evaluationStatus: unvalidated').replace('activationStatus: active', 'activationStatus: candidate'),
+    }
+    const build = (maxVersions = maxDesktopSkillVersions) => createAlicizationSkillLoader({ skillsDirectory: root, maxVersions, fileSystem: virtual, skillRegistry: createAlicizationSkillRegistry(), toolRegistry: createToolRegistry(), projection: { scope: 'card', executionChannel: 'skill', timeoutMs: 1000, supportsProgress: false, supportsCancellation: true, idempotency: 'none', providerToolName: item => item.id.replaceAll('.', '_'), adapterToolName: item => item.id }, availableTools: [], availablePermissions: [], ...createSkillLifecyclePersistence(db, 'alice') })
+    try {
+      const first = build()
+      expect(await first.discover({ productionOnly: false })).toHaveLength(1000)
+      await first.markEvaluation('skill.s999', '1.0.0', 'approved')
+      await first.activate('skill.s999', '1.0.0')
+      expect((await createSkillLifecyclePersistence(db, 'alice').readLifecycle())?.items).toHaveLength(1000)
+      await db.close()
+      db = await setupAlicizationDb(root, { cardId: 'alice' })
+      const restored = build()
+      expect(await restored.discover()).toMatchObject([{ id: 'skill.s999', activationStatus: 'active', evaluationStatus: 'approved' }])
+      expect(await restored.discover({ productionOnly: false })).toHaveLength(1000)
+      await expect(build(999).discover()).rejects.toThrow('version budget')
+    }
+    finally {
+      await db.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
   it('retries unrelated writer contention while refusing to overwrite a competing lifecycle decision', async () => {
     const root = await mkdtemp(join(tmpdir(), 'alicization-skill-contention-'))
     const db = await setupAlicizationDb(root, { cardId: 'alice' })

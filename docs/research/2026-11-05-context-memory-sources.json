@@ -1,0 +1,232 @@
+{
+  "collectedAt": "2026-11-04T17:16:17.185Z",
+  "sources": [
+    {
+      "name": "codex",
+      "repository": "openai/codex",
+      "commit": "031829da6aee2c419364243a7e163e102aa33338",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
+          "bytes": 10926,
+          "url": "https://github.com/openai/codex/blob/031829da6aee2c419364243a7e163e102aa33338/LICENSE"
+        },
+        {
+          "path": "NOTICE",
+          "sha256": "9d71575ecfd9a843fc1677b0efb08053c6ba9fd686a0de1a6f5382fd3c220915",
+          "bytes": 242,
+          "url": "https://github.com/openai/codex/blob/031829da6aee2c419364243a7e163e102aa33338/NOTICE"
+        },
+        {
+          "path": "codex-rs/core/src/compact.rs",
+          "sha256": "569696d5a10cd0a607f12cb76078762fb21d165c03cd43a605bd685603eb6a01",
+          "bytes": 35101,
+          "url": "https://github.com/openai/codex/blob/031829da6aee2c419364243a7e163e102aa33338/codex-rs/core/src/compact.rs"
+        },
+        {
+          "path": "codex-rs/core/src/compact_token_budget.rs",
+          "sha256": "49682d338de201896ee122e36b16dc62072ce791c4acea52c7c0a6b615e6e20f",
+          "bytes": 2782,
+          "url": "https://github.com/openai/codex/blob/031829da6aee2c419364243a7e163e102aa33338/codex-rs/core/src/compact_token_budget.rs"
+        },
+        {
+          "path": "codex-rs/core/src/context_manager/history.rs",
+          "sha256": "3abdb5f043e954d2e1fbbd472ef654c74550128f2ba8db29b280dce817c8710f",
+          "bytes": 69419,
+          "url": "https://github.com/openai/codex/blob/031829da6aee2c419364243a7e163e102aa33338/codex-rs/core/src/context_manager/history.rs"
+        },
+        {
+          "path": "codex-rs/prompts/templates/compact/prompt.md",
+          "sha256": "ab0c334d4faca17e3afbb9b16967c1b2fdcc7242a9a0880af57949fa236d6d07",
+          "bytes": 426,
+          "url": "https://github.com/openai/codex/blob/031829da6aee2c419364243a7e163e102aa33338/codex-rs/prompts/templates/compact/prompt.md"
+        },
+        {
+          "path": "codex-rs/prompts/templates/compact/summary_prefix.md",
+          "sha256": "e9b088e794a6bb9082ac053fcc760bd818d7e720ee4bcdc72c6e480de7b7cb0e",
+          "bytes": 399,
+          "url": "https://github.com/openai/codex/blob/031829da6aee2c419364243a7e163e102aa33338/codex-rs/prompts/templates/compact/summary_prefix.md"
+        }
+      ]
+    },
+    {
+      "name": "pi",
+      "repository": "earendil-works/pi",
+      "commit": "0c5b7ee39352658b54385cf29c25f777b20b0f20",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
+          "bytes": 1069,
+          "url": "https://github.com/earendil-works/pi/blob/0c5b7ee39352658b54385cf29c25f777b20b0f20/LICENSE"
+        },
+        {
+          "path": "packages/coding-agent/docs/compaction.md",
+          "sha256": "b5b23d10bb86d8ab32b67f80a7e57febd953222c6da6fd422ae91d232ef28faf",
+          "bytes": 24093,
+          "url": "https://github.com/earendil-works/pi/blob/0c5b7ee39352658b54385cf29c25f777b20b0f20/packages/coding-agent/docs/compaction.md"
+        },
+        {
+          "path": "packages/coding-agent/src/core/compaction/compaction.ts",
+          "sha256": "32714966eb644da31cd84e8eb172965256160626b3d26ae9752c3894300f2b0b",
+          "bytes": 35401,
+          "url": "https://github.com/earendil-works/pi/blob/0c5b7ee39352658b54385cf29c25f777b20b0f20/packages/coding-agent/src/core/compaction/compaction.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/compaction/utils.ts",
+          "sha256": "37eab7698cdbff8b5987d4529005ea16d7e1ae4a5344d7d0443c3466444aa90e",
+          "bytes": 5951,
+          "url": "https://github.com/earendil-works/pi/blob/0c5b7ee39352658b54385cf29c25f777b20b0f20/packages/coding-agent/src/core/compaction/utils.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/compaction/branch-summarization.ts",
+          "sha256": "274e63efb0722fed8ccf8656f6ee7ed7e75c9e9aa3ebd5c673e7d57b12bd72de",
+          "bytes": 13295,
+          "url": "https://github.com/earendil-works/pi/blob/0c5b7ee39352658b54385cf29c25f777b20b0f20/packages/coding-agent/src/core/compaction/branch-summarization.ts"
+        }
+      ]
+    },
+    {
+      "name": "deepseek",
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be",
+          "bytes": 1065,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159/LICENSE"
+        },
+        {
+          "path": "docs/subsystems/compaction.md",
+          "sha256": "eeda604d2e3da90ada52ef143cf7807f2f9969174379e5e2182442f763cf16e8",
+          "bytes": 19861,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159/docs/subsystems/compaction.md"
+        },
+        {
+          "path": "packages/compaction/compaction-basic/src/config.ts",
+          "sha256": "4972edc6447dcff87eab54c3a9c5984171238aa06aa0eb34ffde4bfac4ce1275",
+          "bytes": 14220,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159/packages/compaction/compaction-basic/src/config.ts"
+        },
+        {
+          "path": "packages/compaction/compaction-basic/src/index.ts",
+          "sha256": "1d2ecc563147967f86842b37289682a4dd7feabccc9d9d8d55cfb01810166f54",
+          "bytes": 19522,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159/packages/compaction/compaction-basic/src/index.ts"
+        },
+        {
+          "path": "packages/compaction/compaction-basic/src/region.ts",
+          "sha256": "295b53cc9e924f7cb2e843e0d0d296e89ead73da2aab9790282db30736e2e063",
+          "bytes": 23571,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159/packages/compaction/compaction-basic/src/region.ts"
+        },
+        {
+          "path": "packages/compaction/compaction-basic/src/summarizer.ts",
+          "sha256": "03ef6eb0b6a011530829820e30ff709c2c1b34cfa37a98c19c0037432b9d2f55",
+          "bytes": 9242,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159/packages/compaction/compaction-basic/src/summarizer.ts"
+        }
+      ]
+    },
+    {
+      "name": "hermes",
+      "repository": "NousResearch/hermes-agent",
+      "commit": "27cbcb122ff47a1d6878cf3c390b24395f98ee14",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "821556e6336796450ab852d375117b48a4887e71d255794fd6318d99982a5ab6",
+          "bytes": 1070,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/27cbcb122ff47a1d6878cf3c390b24395f98ee14/LICENSE"
+        },
+        {
+          "path": "agent/conversation_compression.py",
+          "sha256": "796494d28180659f2843599420840832e1f528ecad2110b498a59f53e34e6bcb",
+          "bytes": 249759,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/27cbcb122ff47a1d6878cf3c390b24395f98ee14/agent/conversation_compression.py"
+        },
+        {
+          "path": "agent/conversation_compression_checkpoint.py",
+          "sha256": "a727f29feaf07af89d80b8d201f53e68bdd20fd2e2e06a2285fd901d152d9b11",
+          "bytes": 3849,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/27cbcb122ff47a1d6878cf3c390b24395f98ee14/agent/conversation_compression_checkpoint.py"
+        },
+        {
+          "path": "agent/conversation_compression_archive.py",
+          "sha256": "ac7e79f15559cd24cd0efcaa868f8fc0f127ba0bbee280d51433b30e47b00890",
+          "bytes": 6455,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/27cbcb122ff47a1d6878cf3c390b24395f98ee14/agent/conversation_compression_archive.py"
+        },
+        {
+          "path": "agent/micro_compaction.py",
+          "sha256": "4c0f31b6f7eb5ed820e6cad70f208c53fb6399de3565146c01c56cc31621b392",
+          "bytes": 30835,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/27cbcb122ff47a1d6878cf3c390b24395f98ee14/agent/micro_compaction.py"
+        },
+        {
+          "path": "tools/session_search_tool.py",
+          "sha256": "efddaa1df4d73d859938d24ae5bdcc6fdfa631a64f760a5c71fa42bb169398ea",
+          "bytes": 44361,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/27cbcb122ff47a1d6878cf3c390b24395f98ee14/tools/session_search_tool.py"
+        },
+        {
+          "path": "website/docs/developer-guide/context-compression-and-caching.md",
+          "sha256": "e08e3b1387899d34af685139932b2bfdf12bf7ba173d05dbef7973a11a9a3012",
+          "bytes": 52819,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/27cbcb122ff47a1d6878cf3c390b24395f98ee14/website/docs/developer-guide/context-compression-and-caching.md"
+        }
+      ]
+    },
+    {
+      "name": "neko",
+      "repository": "Project-N-E-K-O/N.E.K.O",
+      "commit": "1ea9c88872a8a4f96bc431e1f98fdf903e2c8621",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "0d99b64baf1323c3a7f70a28075b14d573df6d773aa2d33d827053cc775062d8",
+          "bytes": 11357,
+          "url": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/1ea9c88872a8a4f96bc431e1f98fdf903e2c8621/LICENSE"
+        },
+        {
+          "path": "docs/architecture/memory-system.md",
+          "sha256": "8b464d3b83f11162fb61adca612069b0091510674cd63a777ea6d7a8f0ad0504",
+          "bytes": 19478,
+          "url": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/1ea9c88872a8a4f96bc431e1f98fdf903e2c8621/docs/architecture/memory-system.md"
+        },
+        {
+          "path": "memory/recent.py",
+          "sha256": "25255d2ce2368db7f11faf13833d39adf275e582f717c46494dfe994468abf51",
+          "bytes": 141532,
+          "url": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/1ea9c88872a8a4f96bc431e1f98fdf903e2c8621/memory/recent.py"
+        },
+        {
+          "path": "memory/recall.py",
+          "sha256": "2f5893f3c2a14f44b223bab1eb65675b96c5e1af7fbe6716412daa22030127c2",
+          "bytes": 33004,
+          "url": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/1ea9c88872a8a4f96bc431e1f98fdf903e2c8621/memory/recall.py"
+        },
+        {
+          "path": "memory/hybrid_recall.py",
+          "sha256": "cf2c477474760f8ccb0d4d92cd224be7294b3bd6465e33a9cbdd1cfd50b71111",
+          "bytes": 71488,
+          "url": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/1ea9c88872a8a4f96bc431e1f98fdf903e2c8621/memory/hybrid_recall.py"
+        },
+        {
+          "path": "memory/recall_render.py",
+          "sha256": "66bbc022133bd494d1bab133aa5d1654f11ec547150825999fb37a64fd290f7b",
+          "bytes": 8407,
+          "url": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/1ea9c88872a8a4f96bc431e1f98fdf903e2c8621/memory/recall_render.py"
+        },
+        {
+          "path": "config/memory_settings.py",
+          "sha256": "85789bdc0d8e93652b9403820a3ded89840b3216c04515b0874ad509f9f5a41e",
+          "bytes": 71437,
+          "url": "https://github.com/Project-N-E-K-O/N.E.K.O/blob/1ea9c88872a8a4f96bc431e1f98fdf903e2c8621/config/memory_settings.py"
+        }
+      ]
+    }
+  ]
+}

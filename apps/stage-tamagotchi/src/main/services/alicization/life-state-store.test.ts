@@ -159,6 +159,25 @@ describe('durable life state', () => {
     }
     finally { await db.close() }
   })
+  it('fulfils a voice reminder only after a complete replay, keeping an excerpt as partial evidence', async () => {
+    const { db } = await open()
+    try {
+      await db.commitLifeState({ cardId: 'alice', operationKey: 'voice-reminder', changes: [], mutations: [{ type: 'obligation-create', dedupeKey: 'voice-reminder', obligation: { id: 'voice-reminder', cardId: 'alice', generation: 1, revision: 0, kind: 'reminder', summary: 'Hear the complete reminder', status: 'waiting', sourceTurnId: null, deliveryTurnId: 'spoken', dueAt: null, timezone: null, proof: { kind: 'reminder', channel: 'audio-ended' }, threadId: null, scheduledTaskId: null, receiptId: null, createdAt: 100, updatedAt: 100 } }] })
+      const reminder = (await db.readLifeState()).obligations[0]!
+      await db.commitLifeState({ cardId: 'alice', operationKey: 'voice-ready', changes: [], mutations: [{ type: 'obligation-update', id: reminder.id, expectedGeneration: reminder.generation, expectedRevision: reminder.revision, status: 'verifying' }] })
+      const receipt: LifeExpressionReceipt = { cardId: 'alice', receiptId: 'excerpt-start', deliveryId: 'spoken', turnId: 'spoken', utteranceId: 'excerpt', segmentId: 'utterance', playbackEpoch: 'excerpt', surfaceSessionId: 'surface', sequence: 0, state: 'audio-started', playedMs: 0, alignedTextEnd: null, alignmentSource: null, errorCode: null, occurredAt: 100 }
+      await db.commitLifeState({ cardId: 'alice', operationKey: 'excerpt-start', changes: [], mutations: [{ type: 'expression-record', presentationVerified: true, receipt }] })
+      await db.commitLifeState({ cardId: 'alice', operationKey: 'excerpt-end', changes: [], mutations: [{ type: 'expression-record', presentationVerified: true, receipt: { ...receipt, receiptId: 'excerpt-end', sequence: 1, state: 'audio-ended', playedMs: 1000, alignedTextEnd: 5, alignmentSource: 'segment', errorCode: 'excerpt-only' } }] })
+      expect((await db.readLifeState()).obligations[0]?.status).toBe('verifying')
+      const replay = { ...receipt, utteranceId: 'full', playbackEpoch: 'full', receiptId: 'full-start', occurredAt: 200 }
+      await db.commitLifeState({ cardId: 'alice', operationKey: 'full-start', changes: [], mutations: [{ type: 'expression-record', presentationVerified: true, receipt: replay }] })
+      await db.commitLifeState({ cardId: 'alice', operationKey: 'full-end', changes: [], mutations: [{ type: 'expression-record', presentationVerified: true, receipt: { ...replay, receiptId: 'full-end', sequence: 1, state: 'audio-ended', playedMs: 4000, alignedTextEnd: 20, alignmentSource: 'segment' } }] })
+      expect((await db.readLifeState()).obligations[0]?.status).toBe('fulfilled')
+      const expression = JSON.parse((await db.getMetaValue('life:expression'))!)
+      expect(expression.lastReceipt).toMatchObject({ alignedTextEnd: 20, alignmentSource: 'segment', playedMs: 4000 })
+    }
+    finally { await db.close() }
+  })
   it('atomically keeps owners and idempotent receipts across a real database restart', async () => {
     const { root, db } = await open()
     const request = { cardId: 'alice', operationKey: 'turn-1', expectedRevision: 0, changes: [

@@ -2890,6 +2890,35 @@ wip:
     Check back in future updates for this functionality.
 
 life:
+  persona_growth:
+    correct: Add an exception
+    reconsider: Observe again
+    correction_label: When does this understanding not apply?
+    correction_hint: This stops the old assumption and starts fresh observation from new experiences.
+    save_correction: Save and observe again
+    cancel: Cancel
+    source_unavailable: The source has changed or been withdrawn. Its text is no longer available.
+    title: Growth and experience
+    description: Habits grounded in actual experience, changes being tried, and understandings that remain uncertain.
+    pause: Pause adaptation
+    resume: Resume adaptation
+    paused: New adaptation and trials are paused. Existing understandings can still be withdrawn.
+    empty: More independent experience is needed before a new habit can form.
+    withdraw: Withdraw this understanding
+    sources: View memory and sources
+    evidence: '{events} independent experiences · {days} days · {trials} positive trial outcomes'
+    status:
+      exploring: Exploring
+      supported: Emerging
+      trial: Trying
+      mature: Established in practice
+      disputed: Reconsidering
+    context:
+      companionship: Companionship
+      focused-work: Focused work
+      repair: Misunderstanding and repair
+      rest: Rest and fatigue
+      execution: Working together
   browser_access:
     title: Browser access
     description: Connect a configured local browser and allow only the selected tab and origins. Login credentials stay in that browser.

@@ -7,6 +7,7 @@ import { lifeRelationshipKey, preserveLifeConversationPreferences } from './life
 import { invalidateLifeGrowth } from './life-growth-repository'
 import { redactLifeProjectSource } from './life-project-redaction'
 import { assertLifeId, boundedJson } from './life-transaction'
+import { invalidatePersonaDevelopment } from './persona-development/repository'
 
 interface CleanupRow { job_id: string, source_ref_json: string, mode: 'correction' | 'forget', frontier_json: string, visited_json: string, cursor: number, status: string, started_revision: number }
 interface DependentRow { dependent_owner: string, dependent_id: string, dependent_version: string, relation: string }
@@ -39,6 +40,7 @@ export async function applyLifeEvidenceInvalidation(tx: LifeTransaction, input: 
     budget--
     const ref = frontier.shift()!
     const { offset = 0, ...reference } = ref
+    await invalidatePersonaDevelopment(tx, reference, job.mode === 'forget')
     const visitKey = hash(boundedJson(reference))
     if (await tx.get<{ reference_hash: string }>('SELECT reference_hash FROM life_evidence_cleanup_visits WHERE card_id = ? AND job_id = ? AND reference_hash = ?', [tx.cardId, jobId, visitKey]))
       continue

@@ -162,9 +162,13 @@ describe('memory long replay soak runner', () => {
     })
     expect(report.checkpoint).toMatchObject({
       writeCount: 4,
-      duplicateWritebackCount: 0,
+      // Rounds intentionally replay identical IDs and timestamps. Keeping both
+      // complete exchanges produces an identical checkpoint, without creating
+      // a new summary merely to make the writeback look different.
+      duplicateWritebackCount: 1,
       growthBytes: expect.any(Number),
     })
+    expect(new Set(fakeDb.readCheckpoint()?.recentRawTurns.map(turn => turn.turnId)).size).toBe(4)
     expect(report.sqlite).toEqual({
       sampleCount: 4,
       initialBytes: 100,

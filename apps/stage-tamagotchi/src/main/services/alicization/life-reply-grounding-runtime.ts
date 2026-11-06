@@ -1,4 +1,5 @@
 import type { LifeCommitInput, LifeCommitReceipt, LifeEffect, LifeFactVersion, LifeIngress, LifeStateView } from '../../../shared/life-contracts'
+import type { RetrievedDialogueProof } from './agent-harness/retrieved-dialogue-proof'
 import type { ReviewedWorkAcknowledgmentClause } from './execution/work-acknowledgment'
 import type { LifeConversationStatement } from './life-conversation-statements'
 
@@ -15,6 +16,7 @@ import { currentWorkAcknowledgmentRepairContext, currentWorkAdmissionRepairConte
 import { acceptedWorkPlanAdmissions } from './execution/work-plan-admission'
 import { extractExplicitLongTermMemoryEvidence } from './explicit-memory-evidence'
 import { lifeActivityOrderIssues } from './life-activity-order'
+import { lifeAgentReadEvidence } from './life-agent-read-evidence'
 import { lifeCompletionPeriod } from './life-completion-period'
 import { requiredExecutionReviewQuotes } from './life-completion-review-coverage'
 import { conversationPreferenceAllowsClaim, readLifeConversationPreferences } from './life-conversation-preferences'
@@ -23,6 +25,7 @@ import { assertedConversationPairs, hasExplicitConversationSequence, matchesLife
 import { isCurrentChoiceReflection, isCurrentHostCompletionAcknowledgment, isImmediateConversationalPresence } from './life-conversational-acknowledgment'
 import { verifiedLifeDailyActivities } from './life-daily-proof'
 import { completedLifeExecutionStep, currentLifeStoredMemory, hasExplicitActivityTimeQualifier, isCurrentHostPreferenceAcknowledgment, isPureActivityAbsenceStatement, isPureNonCompletionStatement, isPureOwnCreativeWish, lifeDialogueClaimSchema, lifeIntervalActivityAbsenceQuotes } from './life-dialogue-claim'
+import { lifeFileEffectEvidence } from './life-file-effect-evidence'
 import { lifeFileVerificationEvidence } from './life-file-verification-evidence'
 import { readLifeInputText } from './life-input-preview'
 import { createLifeInputReadSet, lifeInputReadAssertion } from './life-input-read-set'
@@ -129,6 +132,7 @@ An independently satisfied file obligation with fileVerification certifies actua
 Use hostStatements only for what the host actually asked, requested or said, bound to a host evidence record. Use companionStatements only for what the companion actually said or chose, bound to a companion record. Never bind a host request to the companion's answer from that turn. Claims contains only undertakings, execution, storage, boundaries and body results; do not put attributed speech there. Each speaker channel supplies its own permitted exact quotes and source IDs. Extract the shortest complete attributed clause, excluding independent present feelings. An array's existence never requires an assertion. If no actual matching source exists, use null and meaningMatchesBinding=false.
 An explicit second-person accomplishment such as "你今天完成了画稿" or "你已经完成过一张得到朋友肯定的画稿" belongs to hostStatements when it accurately reflects the supplied host's actual report. Bind the exact source dialogue and version, checking actor, object, time, negation and uncertainty. It is not the companion's task-complete or execution-step-complete. Without a matching report use null and meaningMatchesBinding=false. A host report never proves the companion executed anything or that a present external artifact exists.
 An execution-step-outcome can also describe data actually returned by a successful read; bind that factual read result to a completedExecutionSteps entry with returnedText. A successful click or dispatch does not prove a saved result.
+An execution-step-outcome may describe the exact verifiedPath, contentHash and byteLength of a completed file effect with fileVerification. That proof comes from an independent read-back of the matching file goal, not the write adapter alone. If returnedTextSource is independent-file-hash-match, returnedText is the submitted text whose full UTF-8 hash and byte count matched that read-back; it supports literal file content within the excerpt. This proves neither other files, semantic quality nor unrelated goals. Do not demand a second model-issued read for these same verified facts.
 Execution records with pastObservation=true certify only what was observed at observedAt in that prior turn. They cannot prove present file/window state or grant a new action. A failed read with an actual ENOENT result can support a past absence observation, never a successful read or write. Bind a past failed or cancelled attempt as execution-step-outcome.
 Temporal conversation links include a lone later or earlier marker connecting recalled events across sentences. Map each described event from its actual source, split compound events into independent links, and never invent an extra event or relation because the current question asks for recall.
 Extract only assertions of a PREVIOUS utterance in the corresponding speaker channel. Present feelings, current introspection, general opinions and explanations of what an event means to the speaker are NOT previous utterances: extract no conversation-statement from them. Do not classify the whole draft as one attributed statement; use its exact sentence or clause containing the attribution, and keep independent feelings out of that claim. Statements about what the host asked or what the companion actually said are conversation-statement, bound to conversationStatements with the correct speaker. "你让我写入文件" reports a host request, not a completed write. "我告诉你文件不存在" reports an actual prior reply, not a tool execution. Extract the attributed statement as a whole, including its subject; do not split its object into separate completion claims. Quoted dialogue proves only what was said. Any independent assertion of actual execution, present state, lasting memory or a new undertaking still needs its own matching non-dialogue evidence.
@@ -149,6 +153,7 @@ export function createLifeReplyGroundingRuntime(options: {
   readUserInput: (ingressId: string) => Promise<Record<string, unknown> | null>
   getIngress?: (id: string) => Promise<LifeIngress | null>
   readConversationStatements?: (conversationId: string) => Promise<Array<{ turnId: string, text: string, occurredAt: number }>>
+  readRetrievedDialogue?: (turnId: string) => Promise<{ statements: LifeConversationStatement[], sources: RetrievedDialogueProof }>
   readSpeakerIdentity?: () => { name: string, soulHash: string } | null
   commit: (input: LifeCommitInput, options?: { signal?: AbortSignal }) => Promise<LifeCommitReceipt>
   generate: (input: { system: string, user: string, signal: AbortSignal, responseFormat: ReturnType<typeof buildDraftBoundReviewFormat> }) => Promise<string | null>
@@ -228,7 +233,7 @@ export function createLifeReplyGroundingRuntime(options: {
     const stepProjections = []
     const boundary = readLifeQuietBoundary(view.values)
     const reviewedEffectIds = new Set<string>()
-    const reviewedReadOutcomeIds = new Set<string>()
+    const reviewedResultOutcomeIds = new Set<string>()
     const outcomeProjections = []
     const reviewedOutcomeIds = new Set<string>()
     for (const effect of observedEffects.filter(effect => !completedLifeExecutionStep(effect))) {
@@ -243,16 +248,18 @@ export function createLifeReplyGroundingRuntime(options: {
     }
     for (const effect of effects) {
       const output = effect.receipt?.output as Record<string, unknown>
+      const fileEvidence = lifeFileEffectEvidence(effect, view)
+      const agentReadEvidence = lifeAgentReadEvidence(effect, view)
       const readText = output.operation === 'read_file' && output.truncated === false && typeof output.content === 'string' && createHash('sha256').update(output.content).digest('hex') === output.contentHash ? output.content : null
       const interfaceText = ['browser_read_page', 'desktop_list_interactables'].includes(String(output.operation)) && typeof output.text === 'string' ? output.text.slice(0, 1600) : null
-      const projection = { binding: { kind: 'effect' as const, id: effect.id, version: String(effect.generation) }, observedAt: effect.receipt?.observedAt ?? null, capability: effect.payload.capabilityId, parameters: effect.payload.parameters, result: { finalStatus: 'completed', summary: output.summary, operation: output.operation, path: output.path, contentHash: output.contentHash, byteLength: output.byteLength, verifiedPath: output.verifiedPath, ...(interfaceText !== null ? { returnedText: interfaceText, surfaceScope: historicalIds.has(effect.id) ? 'previously-observed-interface' : 'current-displayed-interface', url: output.url, windowId: output.windowId } : {}), ...(readText !== null ? { returnedText: readText.slice(0, 1600), excerptTruncated: readText.length > 1600 } : {}) } }
+      const projection = { binding: { kind: 'effect' as const, id: effect.id, version: String(effect.generation) }, observedAt: effect.receipt?.observedAt ?? null, capability: effect.payload.capabilityId, parameters: effect.payload.parameters, result: { finalStatus: 'completed', summary: output.summary, operation: output.operation, path: output.path, contentHash: output.contentHash, byteLength: output.byteLength, verifiedPath: output.verifiedPath, ...fileEvidence, ...agentReadEvidence, ...(interfaceText !== null ? { returnedText: interfaceText, surfaceScope: historicalIds.has(effect.id) ? 'previously-observed-interface' : 'current-displayed-interface', url: output.url, windowId: output.windowId } : {}), ...(readText !== null ? { returnedText: readText.slice(0, 1600), excerptTruncated: readText.length > 1600 } : {}) } }
       const cost = JSON.stringify({ ...projection, sourceTurnId: effect.turnId, pastObservation: historicalIds.has(effect.id) }).length
       if (cost > remaining)
         continue
       remaining -= cost
       reviewedEffectIds.add(effect.id)
-      if (readText !== null || interfaceText !== null)
-        reviewedReadOutcomeIds.add(effect.id)
+      if (readText !== null || interfaceText !== null || fileEvidence !== null || agentReadEvidence !== null)
+        reviewedResultOutcomeIds.add(effect.id)
       stepProjections.push({ ...projection, sourceTurnId: effect.turnId, pastObservation: historicalIds.has(effect.id) })
     }
     const conversationId = view.ingress.find(event => event.id === `user:${input.turnId}`)?.payload.conversationId
@@ -260,6 +267,15 @@ export function createLifeReplyGroundingRuntime(options: {
       || draftReviewQuotes(input.text).some(quote => attributesConversationStatement(input.text, quote, 'host'))
     const conversationTimeline = conversationRecall ? await readLifeConversationTimeline(view, options.readUserInput, typeof conversationId === 'string' ? conversationId : undefined) : []
     const conversationStatements: LifeConversationStatement[] = []
+    const retrievedConversationSources: RetrievedDialogueProof = []
+    if (conversationRecall && options.readRetrievedDialogue) {
+      const retrieved = await options.readRetrievedDialogue(input.turnId)
+      for (const statement of retrieved.statements) {
+        const cost = JSON.stringify(statement).length
+        if (cost <= remaining) { remaining -= cost; conversationStatements.push(statement) }
+      }
+      retrievedConversationSources.push(...retrieved.sources)
+    }
     for (const event of conversationTimeline) {
       if (!event.inputHash)
         continue
@@ -567,7 +583,7 @@ export function createLifeReplyGroundingRuntime(options: {
             issues.push({ code: 'UNPROVEN_COMPLETION', quote: claim.quote })
             continue
           }
-          if (!matched || ref.kind !== 'effect' || (!reviewedOutcomeIds.has(ref.id) && !reviewedReadOutcomeIds.has(ref.id)) || !observedEffects.some(effect => effect.id === ref.id && String(effect.generation) === ref.version))
+          if (!matched || ref.kind !== 'effect' || (!reviewedOutcomeIds.has(ref.id) && !reviewedResultOutcomeIds.has(ref.id)) || !observedEffects.some(effect => effect.id === ref.id && String(effect.generation) === ref.version))
             issues.push({ code: 'UNPROVEN_COMPLETION', quote: claim.quote })
           continue
         }
@@ -619,7 +635,7 @@ export function createLifeReplyGroundingRuntime(options: {
     const reviewAttemptId = randomUUID()
     const reviewedAt = options.now()
     const id = `reply-review:${createHash('sha256').update(JSON.stringify({ cardId: input.cardId, turnId: input.turnId, textHash, reviewHash, reviewAttemptId })).digest('hex')}`
-    await options.commit({ cardId: input.cardId, operationKey: id, ...createLifeDialogueReadSet(input.owners), changes: [], mutations: [{ type: 'ingress-accept', ingress: { id, kind: 'system', source: 'reply-grounding', sourceKey: id, occurredAt: reviewedAt, payload: { turnId: input.turnId, textHash, reviewHash, reviewAttemptId, admissionRepairHash, repairMode: admissionRepair ? 'current-admission' : null, sourceInputReadSet, reviewWireValidation: wireValidation, reviewUnavailable, requiredExecutionReviewQuotes: requiredExecutionQuotes, rawReviewHash, artifactStatements: artifactStatements.map(statement => ({ ...statement, binding: reviewBindings.resolve(statement.binding), sourceExcerpt: undefined, sourceExcerptHash: createHash('sha256').update(statement.sourceExcerpt).digest('hex') })), artifactContentHashes: artifactContents.map(({ binding, effectId, contentHash }) => ({ binding, effectId, contentHash })), accepted: !issues.length, conversationTimeline: conversationTimeline.map(({ index, sourceId, inputHash, occurredAt }) => ({ index, sourceId, inputHash, occurredAt })), conversationLinks: parsed.success ? parsed.output.conversationLinks?.map(({ earlier, later, quote, earlierEvidence, laterEvidence, meaningMatchesEvents }) => ({ earlier, later, quoteHash: createHash('sha256').update(quote).digest('hex'), earlierEvidenceHash: createHash('sha256').update(earlierEvidence).digest('hex'), laterEvidenceHash: createHash('sha256').update(laterEvidence).digest('hex'), meaningMatchesEvents })) ?? null : null, issues: issues.map(issue => ({ code: issue.code, quote: issue.quote })), readOnlyTurnScopeHash: locallyGroundedNonActions.length ? readOnlyScope?.fingerprint : null, locallyGroundedNonActions, locallyGroundedWorkAcknowledgments, locallyGroundedInvocations, locallyBoundWorkPlanAdmissions, requestedIntervalHash: requestedInterval ? createHash('sha256').update(JSON.stringify(requestedInterval)).digest('hex') : null, contradictoryWorkStates, ignoredClaims, bindingAliases: reviewBindings.evidence(), claims: parsed.success ? parsed.output.claims.filter(claim => !ignoredClaims.some(ignored => ignored.kind === claim.kind && ignored.quote === claim.quote)).map(claim => ({ kind: claim.kind, quote: claim.quote, binding: claim.binding, reviewBinding: originalBindings.get(claim), meaningMatchesBinding: claim.meaningMatchesBinding, ...(claim.temporalScope ? { temporalScope: effectiveScopes.get(claim) ?? claim.temporalScope, reviewTemporalScope: claim.temporalScope } : {}) })) : [], readSet: input.owners } } }, { type: 'ingress-settle', id, status: 'settled' }, lifeInputReadAssertion(sourceInputReadSet)] }, { signal: input.signal })
+    await options.commit({ cardId: input.cardId, operationKey: id, ...createLifeDialogueReadSet(input.owners), changes: [], mutations: [{ type: 'ingress-accept', ingress: { id, kind: 'system', source: 'reply-grounding', sourceKey: id, occurredAt: reviewedAt, payload: { turnId: input.turnId, textHash, reviewHash, reviewAttemptId, admissionRepairHash, repairMode: admissionRepair ? 'current-admission' : null, sourceInputReadSet, retrievedConversationSources, reviewWireValidation: wireValidation, reviewUnavailable, requiredExecutionReviewQuotes: requiredExecutionQuotes, rawReviewHash, artifactStatements: artifactStatements.map(statement => ({ ...statement, binding: reviewBindings.resolve(statement.binding), sourceExcerpt: undefined, sourceExcerptHash: createHash('sha256').update(statement.sourceExcerpt).digest('hex') })), artifactContentHashes: artifactContents.map(({ binding, effectId, contentHash }) => ({ binding, effectId, contentHash })), accepted: !issues.length, conversationTimeline: conversationTimeline.map(({ index, sourceId, inputHash, occurredAt }) => ({ index, sourceId, inputHash, occurredAt })), conversationLinks: parsed.success ? parsed.output.conversationLinks?.map(({ earlier, later, quote, earlierEvidence, laterEvidence, meaningMatchesEvents }) => ({ earlier, later, quoteHash: createHash('sha256').update(quote).digest('hex'), earlierEvidenceHash: createHash('sha256').update(earlierEvidence).digest('hex'), laterEvidenceHash: createHash('sha256').update(laterEvidence).digest('hex'), meaningMatchesEvents })) ?? null : null, issues: issues.map(issue => ({ code: issue.code, quote: issue.quote })), readOnlyTurnScopeHash: locallyGroundedNonActions.length ? readOnlyScope?.fingerprint : null, locallyGroundedNonActions, locallyGroundedWorkAcknowledgments, locallyGroundedInvocations, locallyBoundWorkPlanAdmissions, requestedIntervalHash: requestedInterval ? createHash('sha256').update(JSON.stringify(requestedInterval)).digest('hex') : null, contradictoryWorkStates, ignoredClaims, bindingAliases: reviewBindings.evidence(), claims: parsed.success ? parsed.output.claims.filter(claim => !ignoredClaims.some(ignored => ignored.kind === claim.kind && ignored.quote === claim.quote)).map(claim => ({ kind: claim.kind, quote: claim.quote, binding: claim.binding, reviewBinding: originalBindings.get(claim), meaningMatchesBinding: claim.meaningMatchesBinding, ...(claim.temporalScope ? { temporalScope: effectiveScopes.get(claim) ?? claim.temporalScope, reviewTemporalScope: claim.temporalScope } : {}) })) : [], readSet: input.owners } } }, { type: 'ingress-settle', id, status: 'settled' }, lifeInputReadAssertion(sourceInputReadSet)] }, { signal: input.signal })
     if (admissionRepair)
       return { accepted: false, ...availability, issues, reviewId: id, repairContext: admissionRepair, repairMode: 'current-admission' }
     const currentWorkRepair = parsed.success && currentWorkAcknowledgmentRepairContext({ view, turnId: input.turnId, text: input.text, claims: parsed.output.claims, issues, hasRequestedInterval: Boolean(requestedInterval) })

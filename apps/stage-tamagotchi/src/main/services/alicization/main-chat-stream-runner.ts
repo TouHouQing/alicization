@@ -12,6 +12,7 @@ import type {
   AlicizationEmotionalKernelSnapshot,
   AlicizationVisibleReplyExecution,
 } from '../../../shared/eventa'
+import type { ProviderAccounting } from './agent-harness/provider-usage-ledger'
 import type { LifeProviderRequestLimits } from './life-provider-budget'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type {
@@ -27,7 +28,7 @@ import type {
 } from './visible-reply/facade'
 
 import { Buffer } from 'node:buffer'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
@@ -36,6 +37,9 @@ import { errorMessageFrom } from '@moeru/std'
 import { createAlicizationProviderVisibleArtifact, extractAlicizationToolExecutionFailure, isAlicizationProviderSchemaUnsupportedError, isAlicizationToolExecutionFailureResult } from '@proj-alicization/stage-shared'
 import { streamText } from '@xsai/stream-text'
 
+import { readSettledToolStepCompletion } from './agent-harness/provider-step-completion'
+import { readProviderUsage } from './agent-harness/provider-usage'
+import { currentProviderUsageScope } from './agent-harness/provider-usage-scope'
 import { restoreDeclaredWorkContent } from './execution/declared-work-content'
 import { declaredWorkProposal, matchesDeclaredWorkProposal } from './execution/declared-work-proposal'
 import { isDeclaredWorkReference } from './execution/declared-work-reference'
@@ -62,6 +66,7 @@ import {
 import { adaptAlicizationProviderTools } from './provider-tool-compatibility'
 import { projectProviderToolInput } from './provider-tool-input'
 import { parseReminderToolResultForDebug, sanitizeBriefText } from './runtime-realtime'
+import { maxAgentToolBatchSize } from './third-party/pi-tool-batch'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 import { createAlicizationMainWatchdogAbortError } from './turn-os/runtime-errors'
 import { resolveAlicizationPreparedVisibleReplyExecution } from './visible-reply/facade'
@@ -244,7 +249,9 @@ function isExplicitlyParameterlessTool(tool: Tool | undefined) {
 
 function createProviderToolProtocolError(
   code: 'chat-provider-tool-arguments-invalid'
-    | 'chat-provider-parallel-tool-calls'
+    | 'chat-provider-tool-batch-limit'
+    | 'chat-provider-tool-call-duplicate'
+    | 'chat-provider-tool-batch-incomplete'
     | 'chat-provider-tool-call-missing',
   message: string,
 ) {
@@ -445,6 +452,10 @@ export type AlicizationMainChatProviderStepResult
     action: AlicizationModelAction
   }
   | {
+    kind: 'actions'
+    actions: AlicizationModelAction[]
+  }
+  | {
     kind: 'reply'
     finishReason: string
     fullText: string
@@ -452,6 +463,8 @@ export type AlicizationMainChatProviderStepResult
   }
 
 export interface RunAlicizationMainChatProviderStepOptions {
+  providerAccounting?: ProviderAccounting
+  maxToolCalls?: number
   onReplyText?: (delta: string) => boolean | void
   onReplyAttemptStart?: () => void
   onReplyEmotion?: (emotion: string) => void
@@ -737,28 +750,6 @@ function resolveActiveProviderToolManifest(
     : undefined
 }
 
-function appendProviderToolCallMessage(
-  messages: Message[],
-  input: {
-    input: Record<string, unknown>
-    toolCallId: string
-    toolName: string
-  },
-) {
-  messages.push({
-    role: 'assistant',
-    content: '',
-    tool_calls: [{
-      id: input.toolCallId,
-      type: 'function',
-      function: {
-        name: input.toolName,
-        arguments: JSON.stringify(input.input),
-      },
-    }],
-  })
-}
-
 function createProviderFinishMissingError() {
   return Object.assign(
     new Error('chat-provider-finish-missing: Provider stream reached EOF without a finish event'),
@@ -834,7 +825,11 @@ async function runAlicizationMainChatProviderAttempt(
   let idleTimeout: ReturnType<typeof setTimeout> | undefined
   let continuationTimeout: ReturnType<typeof setTimeout> | undefined
   let providerRetryDeadlineTimeout: ReturnType<typeof setTimeout> | undefined
-  let pendingAction: AlicizationModelAction | null = null
+  const pendingActions: Array<AlicizationModelAction & { input: Record<string, unknown>, toolCallId: string }> = []
+  const requestedToolLimit = input.maxToolCalls ?? maxAgentToolBatchSize
+  if (!Number.isSafeInteger(requestedToolLimit) || requestedToolLimit < 0)
+    throw new RangeError('maxToolCalls must be a non-negative safe integer')
+  const maxToolCalls = Math.min(maxAgentToolBatchSize, requestedToolLimit)
 
   const clearFirstEventWatchdog = () => {
     if (firstEventTimeout) {
@@ -971,6 +966,11 @@ async function runAlicizationMainChatProviderAttempt(
   const providerAttempt = providerRetryAttempt + 1
   const providerRequestSnapshot = buildAlicizationProviderRequestSnapshot(input.messages)
   const providerRequestStartedAt = Date.now()
+  const usageRequestId = randomUUID()
+  const accountingScope = currentProviderUsageScope()
+  const accountingRequest = { requestId: usageRequestId, cardId: input.payload.cardId, turnId: input.payload.turnId, rootTurnId: accountingScope?.cardId === input.payload.cardId ? accountingScope.rootTurnId : input.payload.turnId, parentRequestId: accountingScope?.requestId ?? null, providerId: input.payload.providerId, model: input.prepared.chatConfig.model, requestHash: providerRequestSnapshot.requestHash, providerAttempt, startedAt: providerRequestStartedAt }
+  let observedUsage: ReturnType<typeof readProviderUsage> = null
+  let usageCompletion: Promise<void> | null = null
   const providerToolNames = Array.isArray(providerTools)
     ? providerTools
         .map(tool => sanitizeText(tool.function?.name))
@@ -980,10 +980,12 @@ async function runAlicizationMainChatProviderAttempt(
   let providerEventCount = 0
 
   appendDebugLine('chat-provider-request.started', {
+    requestId: usageRequestId,
     providerAttempt,
     request: providerRequestSnapshot,
   })
   appendDebugLine('chat-provider-request.dispatch', {
+    requestId: usageRequestId,
     providerAttempt,
     toolCount: providerToolNames.length,
     toolNames: providerToolNames,
@@ -1040,6 +1042,11 @@ async function runAlicizationMainChatProviderAttempt(
     }
   }
 
+  try { await input.providerAccounting?.started(accountingRequest) }
+  catch (error) {
+    await cleanupProviderAttempt('provider-accounting-unavailable')
+    throw error
+  }
   try {
     if (!input.isRunActive())
       throw createAbortError('chat-run-inactive')
@@ -1079,7 +1086,7 @@ async function runAlicizationMainChatProviderAttempt(
         abortSignal: providerController.signal,
         tools: providerTools,
         toolChoice: input.prepared.toolChoice,
-        parallelToolCalls: false,
+        parallelToolCalls: true,
         onEvent: enqueueLegacyEvent,
       })),
       providerController.signal,
@@ -1091,6 +1098,12 @@ async function runAlicizationMainChatProviderAttempt(
       hasFullStream: Boolean(readProviderFullStream(result)),
     })
     observeStreamTextResultErrors(result, error => providerController.abort(error))
+    const resultUsage = result && typeof result === 'object' ? (result as { usage?: unknown }).usage : null
+    if (resultUsage && typeof (resultUsage as Promise<unknown>).then === 'function') {
+      usageCompletion = Promise.resolve(resultUsage).then((usage) => {
+        observedUsage = readProviderUsage(usage) ?? observedUsage
+      }, () => {})
+    }
     const fullStream = readProviderFullStream(result)
     reader = fullStream?.getReader?.() ?? null
     appendDebugLine('chat-provider-request.reader-ready', {
@@ -1145,7 +1158,7 @@ async function runAlicizationMainChatProviderAttempt(
       if (eventType === 'text-delta') {
         const delta = readRawTextDelta(event)
         fullTextParts.push(delta)
-        if (replyDecoder && !pendingAction) {
+        if (replyDecoder && !pendingActions.length) {
           replyDelta = ''
           replyDecoder.push(delta)
           if (replyDelta && input.isRunActive() && !input.signal?.aborted) {
@@ -1164,10 +1177,10 @@ async function runAlicizationMainChatProviderAttempt(
       if (eventType === 'tool-call') {
         // A spoken introduction is immutable, but does not replace action
         // admission. Retry stays forbidden after that public prefix.
-        if (pendingAction) {
+        if (pendingActions.length >= maxToolCalls) {
           throw createProviderToolProtocolError(
-            'chat-provider-parallel-tool-calls',
-            'Provider emitted more than one tool call in a single model step',
+            'chat-provider-tool-batch-limit',
+            'Provider exceeded the remaining tool action budget for this step',
           )
         }
         const toolName = sanitizeText(event.toolName ?? event.name)
@@ -1214,24 +1227,26 @@ async function runAlicizationMainChatProviderAttempt(
           toolCallId: event.toolCallId,
           toolName,
         })
-        pendingAction = {
+        if (pendingActions.some(action => action.toolCallId === toolCallId))
+          throw createProviderToolProtocolError('chat-provider-tool-call-duplicate', 'Provider reused a tool call ID in this batch')
+        pendingActions.push({
           actionId: `${input.payload.turnId}:action:${toolCallId}`,
           toolCallId,
           providerToolName: toolName,
           capabilityId: providerInvocation.capabilityId,
           input: toolInput,
-        }
+        })
         return null
       }
 
       if (eventType === 'finish') {
+        observedUsage = readProviderUsage(event.usage) ?? observedUsage
         appendDebugLine('chat-provider-request.output-finished', { observedAt: Date.now(), providerAttempt, requestHash: providerRequestSnapshot.requestHash })
         finishObserved = true
         finishReason = wireFinishReason
         // xsAI emits the wire finish before completing its tool proposals.
-        // Drain those events through EOF so none are lost, including a second
-        // proposal that must still fail the single-action policy.
-        drainToolProposalsAfterFinish ||= toolFinish
+        // Admit the complete batch only after every proposal is validated.
+        drainToolProposalsAfterFinish ||= toolFinish || pendingActions.length > 0
         return null
       }
 
@@ -1281,7 +1296,7 @@ async function runAlicizationMainChatProviderAttempt(
           if (eventType === 'finish' && !drainToolProposalsAfterFinish)
             terminalEventObserved = true
         }
-        if (drainToolProposalsAfterFinish && pendingAction)
+        if (drainToolProposalsAfterFinish && pendingActions.length)
           terminalEventObserved = true
         if (terminalEventObserved)
           break
@@ -1299,34 +1314,42 @@ async function runAlicizationMainChatProviderAttempt(
       }
     }
 
-    if (!pendingAction)
+    if (!finishObserved && readerCompleted && pendingActions.length) {
+      const completion = await readSettledToolStepCompletion(result, pendingActions, providerController.signal)
+      if (completion) {
+        finishObserved = true
+        finishReason = completion.finishReason
+        observedUsage = readProviderUsage(completion.usage) ?? observedUsage
+        appendDebugLine('chat-provider-request.step-completion-observed', { providerAttempt, finishReason, toolCallCount: pendingActions.length, source: 'settled-sdk-step' })
+      }
+    }
+    if (!pendingActions.length)
       replyDecoder?.finish()
     const fullText = fullTextParts.join('')
     const text = fullText.trim()
-    const completedAction = pendingAction as (
-      AlicizationModelAction & {
-        input: Record<string, unknown>
-        toolCallId: string
+    if (pendingActions.length) {
+      // Pi rejects all proposals from an incomplete assistant message, even if
+      // an individual JSON argument happened to parse successfully.
+      if (!finishObserved)
+        throw createProviderFinishMissingError()
+      if (finishReason !== 'tool_calls' && finishReason !== 'tool-calls' && finishReason !== 'stop')
+        throw createProviderToolProtocolError('chat-provider-tool-batch-incomplete', 'Provider tool batch was truncated or filtered')
+      for (const action of pendingActions) {
+        if (input.prepared.toolRegistry.resolveProviderInvocation(action.providerToolName, action.input)?.capabilityId !== action.capabilityId)
+          throw createProviderToolProtocolError('chat-provider-tool-arguments-invalid', 'Tool was revoked before batch publication')
       }
-    ) | null
-    if (completedAction) {
       providerRequestSettlement = 'completed'
-      appendProviderToolCallMessage(input.messages, {
-        input: completedAction.input,
-        toolCallId: completedAction.toolCallId,
-        toolName: completedAction.providerToolName,
-      })
-      input.emitToolCall({
-        cardId: input.payload.cardId,
-        turnId: input.payload.turnId,
-        toolCallId: completedAction.toolCallId,
-        toolName: completedAction.providerToolName,
-        arguments: completedAction.input,
-      })
-      return {
-        kind: 'action',
-        action: completedAction,
+      input.messages.push({ role: 'assistant', content: '', tool_calls: pendingActions.map(action => ({
+        id: action.toolCallId,
+        type: 'function' as const,
+        function: { name: action.providerToolName, arguments: JSON.stringify(action.input) },
+      })) })
+      for (const action of pendingActions) {
+        input.emitToolCall({ cardId: input.payload.cardId, turnId: input.payload.turnId, toolCallId: action.toolCallId, toolName: action.providerToolName, arguments: action.input })
       }
+      return pendingActions.length === 1
+        ? { kind: 'action', action: pendingActions[0]! }
+        : { kind: 'actions', actions: pendingActions }
     }
     if (drainToolProposalsAfterFinish)
       throw createProviderToolProtocolError('chat-provider-tool-call-missing', 'Provider announced a tool finish without a completed tool proposal')
@@ -1346,7 +1369,7 @@ async function runAlicizationMainChatProviderAttempt(
     }
   }
   catch (error) {
-    input.attemptReplayState.hasToolCall = pendingAction !== null
+    input.attemptReplayState.hasToolCall = pendingActions.length > 0
     input.attemptReplayState.hasToolSideEffect = false
     const cause = error instanceof Error ? error.cause : null
     appendDebugLine('chat-provider-request.error', {
@@ -1391,12 +1414,41 @@ async function runAlicizationMainChatProviderAttempt(
     throw error
   }
   finally {
+    // xsAI can report usage in a final chunk after its first finish event.
+    // This bounded tail never delays public text or waits indefinitely for metrics.
+    if (providerRequestSettlement === 'completed' && usageCompletion) {
+      let usageTimeout: ReturnType<typeof setTimeout> | undefined
+      await Promise.race([usageCompletion, new Promise<void>((resolve) => {
+        usageTimeout = setTimeout(resolve, 100)
+      })])
+      if (usageTimeout)
+        clearTimeout(usageTimeout)
+    }
+    // Accounting is a durable owner, independent of optional debug output.
+    // Always clean up the transport even if storage is unavailable.
+    try {
+      await input.providerAccounting?.settled({ ...accountingRequest, finishedAt: Date.now(), settlement: providerRequestSettlement, usage: observedUsage })
+    }
+    finally {
+      await cleanupProviderAttempt(input.attemptReplayState.retryDecision?.retry ? 'provider-retry' : 'provider-step-settled')
+    }
+    appendDebugLine('chat-provider-request.usage', {
+      requestId: usageRequestId,
+      providerAttempt,
+      requestHash: providerRequestSnapshot.requestHash,
+      providerId: input.payload.providerId,
+      model: input.prepared.chatConfig.model,
+      settlement: providerRequestSettlement,
+      usage: observedUsage,
+      source: observedUsage ? 'provider-reported' : 'unavailable',
+    })
     await cleanupProviderAttempt(
       input.attemptReplayState.retryDecision?.retry
         ? 'provider-retry'
         : 'provider-step-settled',
     )
     appendDebugLine('chat-provider-request.settled', {
+      requestId: usageRequestId,
       providerAttempt,
       settlement: providerRequestSettlement,
       durationMs: Math.max(0, Date.now() - providerRequestStartedAt),

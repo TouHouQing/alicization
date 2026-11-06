@@ -87,6 +87,7 @@ export interface AlicizationSkillLoader {
 }
 
 export interface CreateAlicizationSkillLoaderOptions {
+  maxVersions?: number
   skillsDirectory: string
   skillRegistry: AlicizationSkillRegistry
   toolRegistry: ToolRegistry
@@ -229,6 +230,9 @@ export function createAlicizationSkillLoader(
   options: CreateAlicizationSkillLoaderOptions,
 ): AlicizationSkillLoader {
   assertProjectionOptions(options.projection)
+  const maxVersions = options.maxVersions ?? 128
+  if (!Number.isSafeInteger(maxVersions) || maxVersions < 1 || maxVersions > 4096)
+    throw new RangeError('Skill version budget must be between 1 and 4096')
 
   const fileSystem = options.fileSystem ?? defaultFileSystem
   const now = options.now ?? Date.now
@@ -301,7 +305,7 @@ export function createAlicizationSkillLoader(
     const directories = [...await fileSystem.readdir(options.skillsDirectory)]
       .filter(directory => directory.isDirectory())
       .sort((left, right) => left.name.localeCompare(right.name))
-    if (directories.length > 128)
+    if (directories.length > maxVersions)
       throw new Error('Skill discovery exceeds its version budget')
 
     const present = new Set<string>()

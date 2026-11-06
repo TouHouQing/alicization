@@ -1,0 +1,1860 @@
+{
+  "collectedAt": "2026-11-02T19:06:30.047Z",
+  "sources": [
+    {
+      "name": "codex",
+      "repository": "openai/codex",
+      "commit": "1a604d58da344c84528fecd5b5154105f597d70b",
+      "files": [
+        {
+          "path": "LICENSE",
+          "gitBlob": "4606e72e042564097e8780d66c1d4dcb611869bd",
+          "sha256": "aa5e89edcbbd01fc3fb188a527d8bdc0da5812305cab220c84348c14ea427288",
+          "bytes": 11127,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/LICENSE"
+        },
+        {
+          "path": "NOTICE",
+          "gitBlob": "2805899d56d0332d175cfc613c67d45d6f006db7",
+          "sha256": "3c505dc54be731583470ef3584e5cb96d60df7add3e7e36294cf4dea8316a5cb",
+          "bytes": 248,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/NOTICE"
+        },
+        {
+          "path": "README.md",
+          "gitBlob": "06b02fced7db972084bf0188cb03f60375b51c1c",
+          "sha256": "51fd30959ece9cb3c96fa8fe7e131f0c0f617f7844b0f8e96bde7fd08d22ec1f",
+          "bytes": 3415,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/README.md"
+        },
+        {
+          "path": "codex-rs/core/src/hook_runtime.rs",
+          "gitBlob": "02d710450024db7f79ae712996b2270c9a63350a",
+          "sha256": "c10cba23b9f24897800127345c7edfc9a1e6d064b5afb4231f73a7b80fb50949",
+          "bytes": 54455,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/hook_runtime.rs"
+        },
+        {
+          "path": "codex-rs/core/src/hook_runtime/executor.rs",
+          "gitBlob": "e779271aa2f3b48e4af884b4620682549d6c8f90",
+          "sha256": "7248d8e13ba19f56c6d53faa3066ceaf6ac61e12e38a08a7d5c680d75bca2ca2",
+          "bytes": 2828,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/hook_runtime/executor.rs"
+        },
+        {
+          "path": "codex-rs/core/src/mcp_skill_dependencies.rs",
+          "gitBlob": "5f4af05235c413ce278bc825eb5a32a700ca6e4b",
+          "sha256": "b668e24f4921cb24b3a9678ca0838d8b42ee312e6c9fc3adb139239d284e3cfe",
+          "bytes": 19540,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/mcp_skill_dependencies.rs"
+        },
+        {
+          "path": "codex-rs/core/src/mcp_tool_approval_templates.rs",
+          "gitBlob": "862768e704b06604cd313219090d43604256c41d",
+          "sha256": "7338875d24527297902e4a94ca30d2bc397a7a6b5382a4b1621185b0cd5e8daa",
+          "bytes": 12754,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/mcp_tool_approval_templates.rs"
+        },
+        {
+          "path": "codex-rs/core/src/responses_retry.rs",
+          "gitBlob": "6a4214609c9f9d2ddb61026d17a232497bd792d9",
+          "sha256": "f68f479215c02de0535667c16c4213a63b6e347dfa7388be29d3b958de625abd",
+          "bytes": 7793,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/responses_retry.rs"
+        },
+        {
+          "path": "codex-rs/core/src/session/context_window.rs",
+          "gitBlob": "edddb25461928a970e42f9b3d16ad8e102ee6233",
+          "sha256": "da783127ad4f835beb9737fb8837502dbbc03785e4655c7b68bcb24a02562897",
+          "bytes": 5437,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/session/context_window.rs"
+        },
+        {
+          "path": "codex-rs/core/src/session/daemon_recovery.rs",
+          "gitBlob": "bbf27dd3677aa69367792bbea6ceb53fb044e450",
+          "sha256": "68f792a6d37d174c3de3ce11fabaaa3470862058fbed5bfb8f65c78fd0276f18",
+          "bytes": 2351,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/session/daemon_recovery.rs"
+        },
+        {
+          "path": "codex-rs/core/src/session/input_queue.rs",
+          "gitBlob": "a22fc2684f5cfe257b5c001bda164561fbd26428",
+          "sha256": "275e8201ab319a9d849c150b00385f87b83c4b59a69e16b9bb6772586242f528",
+          "bytes": 32723,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/session/input_queue.rs"
+        },
+        {
+          "path": "codex-rs/core/src/session/retained_context.rs",
+          "gitBlob": "8c4203bf1335450112231dc5f6c5304aa73935a8",
+          "sha256": "3c53083d9e551ca7c5273243a6a646370c3c8a9d0fafa673cd77eecc15e5ae57",
+          "bytes": 10402,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/session/retained_context.rs"
+        },
+        {
+          "path": "codex-rs/core/src/session/rollout_budget.rs",
+          "gitBlob": "983efa96f8d5b0660c1a74575a80e30df6c58f4e",
+          "sha256": "6c7880cfd76dcaaa08ffbcbed3787a796db180d13c0b030abd4aace788feb1df",
+          "bytes": 1226,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/session/rollout_budget.rs"
+        },
+        {
+          "path": "codex-rs/core/src/session/rollout_reconstruction.rs",
+          "gitBlob": "1205827911262e75a802de1ad2371745dd7dd97c",
+          "sha256": "b8930085ef2c42e1c4b051ad45fcb30a504cb694bfb0ddaa8e64e14941624389",
+          "bytes": 31582,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/session/rollout_reconstruction.rs"
+        },
+        {
+          "path": "codex-rs/core/src/session/world_state.rs",
+          "gitBlob": "09fa3434d9fe950b587e91f7c92aeb482b2c7faa",
+          "sha256": "9a9e7e9ae1e1838aae54acc040c23db26d24370b9b5022fa1b3d051e90e2830f",
+          "bytes": 20504,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/session/world_state.rs"
+        },
+        {
+          "path": "codex-rs/core/src/state/turn_token_usage.rs",
+          "gitBlob": "455c78ccd54685d0f82158d6437f6bbb3e71a61c",
+          "sha256": "dc2eefadb980fb761817f9e805ba81d28c6bc8f07a485e9c924f27c83d984a41",
+          "bytes": 1901,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/state/turn_token_usage.rs"
+        },
+        {
+          "path": "codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs",
+          "gitBlob": "c23caa014599fb37ab77738a82396a0cb81cb7c1",
+          "sha256": "a570d02ad7d5f90b5e3f4bb401cd3d916a7b4f50fe7fa5e8531bda54477b284c",
+          "bytes": 8972,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs"
+        },
+        {
+          "path": "codex-rs/core/src/tools/handlers/multi_agents_v2/wait.rs",
+          "gitBlob": "703da4f8f2ad4c4f0eb6bdda7690c743a8f85c77",
+          "sha256": "069fb09f4101beeb9c48ca2da67e01df9fc85d336ddf0cc85108f24139e7887d",
+          "bytes": 6607,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/tools/handlers/multi_agents_v2/wait.rs"
+        },
+        {
+          "path": "codex-rs/core/src/tools/handlers/tool_search.rs",
+          "gitBlob": "65d879455738e483a10add4f94d8133ccfc0813c",
+          "sha256": "793daf41515738cc0c990a5d602b34f33cc855cf53b829966e8f5cd891d8e459",
+          "bytes": 24613,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/tools/handlers/tool_search.rs"
+        },
+        {
+          "path": "codex-rs/core/src/tools/handlers/unified_exec.rs",
+          "gitBlob": "ec7a7d24aa87a8b28d9380f2aa8338b541c18057",
+          "sha256": "76dd9d16e87762a89fc0b49b7f8c581665bd3e3d920f5c390a4e29ae9165abc1",
+          "bytes": 5784,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/tools/handlers/unified_exec.rs"
+        },
+        {
+          "path": "codex-rs/core/src/tools/handlers/unified_exec/write_stdin.rs",
+          "gitBlob": "ce64c7c0042e1837ebd2e407bad3e41db8d8eb7e",
+          "sha256": "677de6a3017769c5ab24293bfccebb51fac315956cd240e58e7cebc56c17176b",
+          "bytes": 5521,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/tools/handlers/unified_exec/write_stdin.rs"
+        },
+        {
+          "path": "codex-rs/core/src/unified_exec/async_watcher.rs",
+          "gitBlob": "49ae8b2cf27c7da1e8c9654e80c4ccaa5726361f",
+          "sha256": "26d7c9e85b0be8203b3deb11df52076a59cee7d4354b464da5c6d4f68d78fa4a",
+          "bytes": 16501,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/unified_exec/async_watcher.rs"
+        },
+        {
+          "path": "codex-rs/core/src/unified_exec/process_manager.rs",
+          "gitBlob": "9715d1b1a8d0c3e2f0c02c7b27858fa77bb75bd6",
+          "sha256": "a680a81695d962b5b1766dbd1233df4b908d35bf0f3d541c62cadaf7523f62ce",
+          "bytes": 76050,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/core/src/unified_exec/process_manager.rs"
+        },
+        {
+          "path": "codex-rs/ext/extension-api/src/registry.rs",
+          "gitBlob": "46fd6e66a9798c4c85d6406e69a1a575d7484d10",
+          "sha256": "516a3d7b6fe90a00adbe6bf2d9aa97f6a2cc3833d7ffeff15fc31610cefed1af",
+          "bytes": 13070,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/ext/extension-api/src/registry.rs"
+        },
+        {
+          "path": "codex-rs/ext/goal/src/runtime.rs",
+          "gitBlob": "8744473a073c17219da85f017cadbdea428d205f",
+          "sha256": "ef046aa6260c1d57b56fc24285b30c8c07fe3a1eac67363fe621686a5ca28ff6",
+          "bytes": 25426,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/ext/goal/src/runtime.rs"
+        },
+        {
+          "path": "codex-rs/ext/goal/src/tool.rs",
+          "gitBlob": "a2b7006f6e8e9ecc5123ab52bec34e7ff9786dbe",
+          "sha256": "928d2fc1422e94509cd5633cd63abf63b443ce12603509aa95e3186b493b41ba",
+          "bytes": 19408,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/ext/goal/src/tool.rs"
+        },
+        {
+          "path": "codex-rs/ext/history-notes/src/lib.rs",
+          "gitBlob": "06cc5ed8f000880db51aa4a6b1ceef2b0647f545",
+          "sha256": "c20f3eabb59b857e44d783b04c60656b713f56b4a248c012d10e398ddc090b3c",
+          "bytes": 73,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/ext/history-notes/src/lib.rs"
+        },
+        {
+          "path": "codex-rs/ext/mcp/src/lib.rs",
+          "gitBlob": "9418f490e307f442a461c4251a033e5c39a74e4a",
+          "sha256": "82452ea8215d2ca9f0966f9288bacfcf450e960efd63fc692314d60e735817c3",
+          "bytes": 2327,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/ext/mcp/src/lib.rs"
+        },
+        {
+          "path": "codex-rs/ext/memories/src/backend.rs",
+          "gitBlob": "acac8ebad8543485a50bdad67bc5d1bef45f1294",
+          "sha256": "e316022ab67ace67b6375a056db6ffec9c7dc1caf25c5cdba900c4f11ff49213",
+          "bytes": 5815,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/ext/memories/src/backend.rs"
+        },
+        {
+          "path": "codex-rs/ext/memories/src/extension.rs",
+          "gitBlob": "3d68e6f70824645e4601dd94fc74f84cdf8cde9d",
+          "sha256": "31efd19f891a4c5c4a55fb7f456a20811c5402487a9dfdfc7783393d35fc2e45",
+          "bytes": 6219,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/ext/memories/src/extension.rs"
+        },
+        {
+          "path": "codex-rs/ext/memories/src/local/ad_hoc_note.rs",
+          "gitBlob": "3410f6e176b1d5315a7bfda64a885e31cbd9be7a",
+          "sha256": "d576c1a39d6abcf58016efacda165be743f604ea176dd05665a589d1adfc0944",
+          "bytes": 4886,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/ext/memories/src/local/ad_hoc_note.rs"
+        },
+        {
+          "path": "codex-rs/ext/queue/src/lib.rs",
+          "gitBlob": "47fa50459533bac84a4c17dd96fb10eb684655d5",
+          "sha256": "ff93d74af3e2e76052a26d3875d7f98e68fc8bf46fc0fc097fbd213513f5d635",
+          "bytes": 658,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/ext/queue/src/lib.rs"
+        },
+        {
+          "path": "codex-rs/ext/skills/src/catalog_delta.rs",
+          "gitBlob": "6d0ab57d28822642aca4d19e158dd01e320b11fd",
+          "sha256": "2a069ff2abf3b8e67116e09524d90f8648aacb7287b363192508df3bea8ae400",
+          "bytes": 13104,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/ext/skills/src/catalog_delta.rs"
+        },
+        {
+          "path": "codex-rs/ext/skills/src/selection.rs",
+          "gitBlob": "9d100f0c0de494318be801473918b2f9470c96e3",
+          "sha256": "c17d97d391e0febfce1658b91dcde634c02a63e2c03b875112fbb197fb59286c",
+          "bytes": 4318,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/ext/skills/src/selection.rs"
+        },
+        {
+          "path": "codex-rs/ext/skills/src/tools/list.rs",
+          "gitBlob": "3d8a3b7ed04e10a28e877cf6728d8fe8082dc46c",
+          "sha256": "0739c107e42851c17c234ec99c8cd54a789933bcd1ec149bac788dd94b795a2b",
+          "bytes": 9906,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/ext/skills/src/tools/list.rs"
+        },
+        {
+          "path": "codex-rs/ext/skills/src/tools/read.rs",
+          "gitBlob": "a8dcaa19e60b32ef3e933913b9b010c6772c046b",
+          "sha256": "1d146bcd5db1f2124b9a09b0c344693a102b20e2c33b67c15c278f42a6642e9f",
+          "bytes": 19913,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/codex-rs/ext/skills/src/tools/read.rs"
+        },
+        {
+          "path": "bazel/rules/e2e_benchmark.bzl",
+          "gitBlob": "035419adad1ef455def97e3f6c0c235877b1c8df",
+          "sha256": "988d34cbe1232e225a2cd3c989d651a9304a02aa62d4c71efad76c68e73a4497",
+          "bytes": 1959,
+          "url": "https://github.com/openai/codex/blob/1a604d58da344c84528fecd5b5154105f597d70b/bazel/rules/e2e_benchmark.bzl"
+        }
+      ],
+      "note": "Retrieved source inventory. Focused implementation findings and inspected entry points are documented in the companion research matrix; inventory count is not a claim of exhaustive line-by-line review."
+    },
+    {
+      "name": "pi",
+      "repository": "earendil-works/pi",
+      "commit": "642e30b68930a644050794011555a04ed9027eb4",
+      "files": [
+        {
+          "path": "LICENSE",
+          "gitBlob": "b0a8e9b81083294360c69b4ec45d3d39a2b28197",
+          "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
+          "bytes": 1069,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/LICENSE"
+        },
+        {
+          "path": "README.md",
+          "gitBlob": "93184c10ff45b8b4ecc8c2e0f8e239501f3880e6",
+          "sha256": "69cb1e626257bd68d041f05513815e426717a843ddc0e7706802865ec7fd898c",
+          "bytes": 10635,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/README.md"
+        },
+        {
+          "path": "packages/agent/README.md",
+          "gitBlob": "a6fa8256b387cd43ab31992dc249aa658cbe23d7",
+          "sha256": "3712499846ca83ed25fc317ad2b3fb099812c6e43b3ccbc5c287b1a6bc7da06d",
+          "bytes": 21702,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/agent/README.md"
+        },
+        {
+          "path": "packages/ai/src/utils/provider-retry.ts",
+          "gitBlob": "9d7ef81f25c2773149b0068f24c8005706701ffc",
+          "sha256": "91350009509d50845ff0c609bf98bd8818081b6fcc64d034e6d45522f41db9ab",
+          "bytes": 4289,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/ai/src/utils/provider-retry.ts"
+        },
+        {
+          "path": "packages/ai/src/utils/retry.ts",
+          "gitBlob": "eabf6c7de00a3a28c35da8b03870d7e972e98fce",
+          "sha256": "3316a190562bda1e2a7905a3fb44ec2504fea6f800a85c7bc3396b6546fecea2",
+          "bytes": 11061,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/ai/src/utils/retry.ts"
+        },
+        {
+          "path": "packages/coding-agent/README.md",
+          "gitBlob": "db40c5e12c00d7a068a9642744dc6a9af528a099",
+          "sha256": "fbc7abec7d0829ac8bc4b217e950794e1ba4d8d1b3e0850f970da318ad72e863",
+          "bytes": 4080,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/README.md"
+        },
+        {
+          "path": "packages/coding-agent/docs/extensions.md",
+          "gitBlob": "5879058c70f013b6d08096c6eaf423ab3964bb03",
+          "sha256": "bafa75db48ba334a64fc30f467baebc80e81ac5562fcdd5502af05537fb6c120",
+          "bytes": 156365,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/docs/extensions.md"
+        },
+        {
+          "path": "packages/coding-agent/docs/rpc.md",
+          "gitBlob": "a39cc8da25c17e8d41af35bd32ac0bef5604b1b4",
+          "sha256": "37a03d180115460a0a275022f4aeabef1e5345458df6a9b6e8a6de18474de720",
+          "bytes": 8897,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/docs/rpc.md"
+        },
+        {
+          "path": "packages/coding-agent/docs/sdk.md",
+          "gitBlob": "7d0883b3ff7926c077414ccce9b4f7aa31f7065b",
+          "sha256": "d9034ccbf2219a58712d8dd4fcdf47e687d77131e71dd5d119d8a71e9bd2a2e8",
+          "bytes": 10147,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/docs/sdk.md"
+        },
+        {
+          "path": "packages/coding-agent/docs/session-format.md",
+          "gitBlob": "715341998fb36c905508ae958727ea49cc84b4d6",
+          "sha256": "4f8fc42179b332bcf71fe4c85cc95d914853ff7486d68742954a45316b512a4a",
+          "bytes": 15766,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/docs/session-format.md"
+        },
+        {
+          "path": "packages/coding-agent/docs/sessions.md",
+          "gitBlob": "aeb59a308c5d1f133f71865a151ff96ce5db8453",
+          "sha256": "094b5b33b4bc798ad489536da45eed038467f693b1b876584ae368c16022ba90",
+          "bytes": 5457,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/docs/sessions.md"
+        },
+        {
+          "path": "packages/coding-agent/docs/skills.md",
+          "gitBlob": "19d2bf28910ce49caaaf4dde86d1e96330ca7b31",
+          "sha256": "5b9805525b194474ef1fe5455a0917ef15ed7f710aa9bec2eee11879556469e5",
+          "bytes": 4793,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/docs/skills.md"
+        },
+        {
+          "path": "packages/coding-agent/examples/extensions/custom-compaction.ts",
+          "gitBlob": "447b5e27f1ed55f4872d99b4f479777cab148ee6",
+          "sha256": "ea797b3508fd8600526f381466e8b08bb84f3d234932a9d6ce512698527d0aa9",
+          "bytes": 3971,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/examples/extensions/custom-compaction.ts"
+        },
+        {
+          "path": "packages/coding-agent/examples/extensions/permission-gate.ts",
+          "gitBlob": "ce29f7eb5cf925a1449cfdfde3a5b8bc9137e530",
+          "sha256": "e32086ba9dd9b4ba0fd308b65241d9affa0b5ecd3f90ef7ea1b9f2b30cab8cc1",
+          "bytes": 1019,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/examples/extensions/permission-gate.ts"
+        },
+        {
+          "path": "packages/coding-agent/examples/extensions/plan-mode/index.ts",
+          "gitBlob": "bbeb7ab137a630b103126216ae79c9282fb8a072",
+          "sha256": "bef2bf0712aea7b7d0f73d174e24ac5309679e6cc143f7bcbf1a9e0121222af8",
+          "bytes": 12403,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/examples/extensions/plan-mode/index.ts"
+        },
+        {
+          "path": "packages/coding-agent/examples/extensions/plan-mode/utils.ts",
+          "gitBlob": "62123f9e3996be2dcab549addcb312b6ec59dbff",
+          "sha256": "12ea28d57cc55e68e8d52a2f1d16df8b2e7f2749cd694d41453028002a2bdad9",
+          "bytes": 4129,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/examples/extensions/plan-mode/utils.ts"
+        },
+        {
+          "path": "packages/coding-agent/examples/extensions/subagent/agents.ts",
+          "gitBlob": "b8a36598c61b524f4d4e9f4732e4ecf722191a59",
+          "sha256": "cc85ecd33b89aa575bea3d2a9a9da7654a6305da4de02e5041aa5342a1de29b4",
+          "bytes": 4562,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/examples/extensions/subagent/agents.ts"
+        },
+        {
+          "path": "packages/coding-agent/examples/extensions/subagent/index.ts",
+          "gitBlob": "843297454c6a46d5d66a06a31d1a8da17d48bf63",
+          "sha256": "1d11858d163e2a3a258af51c1923fc55ad825813acd6224462fd25ad61f5401b",
+          "bytes": 35523,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/examples/extensions/subagent/index.ts"
+        },
+        {
+          "path": "packages/coding-agent/examples/extensions/todo.ts",
+          "gitBlob": "71b7aae879c56aec68a3f8daf02a6f7a60c618b5",
+          "sha256": "b6e4d370c2b76daa1aab077dbb9437043bdb03666518354434623afc0db57166",
+          "bytes": 9001,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/examples/extensions/todo.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/compaction/branch-summarization.ts",
+          "gitBlob": "6f8bc0cb35f036f046cb2437c8887082025f4d38",
+          "sha256": "274e63efb0722fed8ccf8656f6ee7ed7e75c9e9aa3ebd5c673e7d57b12bd72de",
+          "bytes": 13295,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/compaction/branch-summarization.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/compaction/utils.ts",
+          "gitBlob": "1f05a14b4e787259b71d3dee4eef2c7f7d028a9c",
+          "sha256": "37eab7698cdbff8b5987d4529005ea16d7e1ae4a5344d7d0443c3466444aa90e",
+          "bytes": 5951,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/compaction/utils.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/extensions/loader.ts",
+          "gitBlob": "ff9f127c4073bad7fda0b0580201bc86cea7772f",
+          "sha256": "873cbe2ae4a15e9563c5a563d447b7aa3a05cca45e145d4250d54ad601bdc85f",
+          "bytes": 28384,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/extensions/loader.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/extensions/runner.ts",
+          "gitBlob": "77712e677f91dde65d4d4db906a26b16bbd9de9c",
+          "sha256": "3cd6d1ad18e8e4c7adf722aed9291bc64f06e3a7d461755c21e3cba4819f4e5e",
+          "bytes": 52023,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/extensions/runner.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/extensions/types.ts",
+          "gitBlob": "098f7fb0d02fd55660c6200c2d503ea75ba30e9e",
+          "sha256": "78cfd4937aa72c02be444354ef5cb94310b9b40e20e477969630eb81c6a7391b",
+          "bytes": 86152,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/extensions/types.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/model-resolver.ts",
+          "gitBlob": "d1abd57cf115a2049d21b7b2c3aa68ade41a10dd",
+          "sha256": "aa4ac64cae58ba346f53a44f131ee26f35385eb36c43456bb51e92b471ce609f",
+          "bytes": 25434,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/model-resolver.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/package-manager.ts",
+          "gitBlob": "5f4229b24993613ce9838cf2476e17a7c09f7588",
+          "sha256": "117f6a99c323c4284a905d1731756f745f435e11f82912b44363301f7b698fa0",
+          "bytes": 93303,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/package-manager.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/prompt-templates.ts",
+          "gitBlob": "7a0b34432b84b5ebd5479d6c0655e0be80821c15",
+          "sha256": "1bdaa7b3825f92bf33203fd7587014b878c55b3d812900cca5cad08fefd92171",
+          "bytes": 9735,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/prompt-templates.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/resource-loader.ts",
+          "gitBlob": "bb0740e49675be6a28a537fc1d8ae92d06fbb924",
+          "sha256": "933346d5752b71c52859c22c61adfe9dd50e8813e19db021d0bf8fca02f8463a",
+          "bytes": 49591,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/resource-loader.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/session-manager.ts",
+          "gitBlob": "20b6edaa913f691b1bbbdbd8c824788b1f9ddd22",
+          "sha256": "444650a737052f0d710c19f9e50e115c24b49107130059d5bef458eacf3927c7",
+          "bytes": 64514,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/session-manager.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/settings-manager.ts",
+          "gitBlob": "99bbeade0d212549375da990199797a8afdce3d6",
+          "sha256": "7b21f0900b96b8b11751c046cc009bdbd62b2a6f579a96e9727c737d0dd5e62d",
+          "bytes": 47254,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/settings-manager.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/system-prompt.ts",
+          "gitBlob": "e51e14fe4065d73c3a85947000eff04402fa7a52",
+          "sha256": "eef891d637974d09a6611d33e52d66d5f2a93d6e9512259ba45f593c42143617",
+          "bytes": 9964,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/system-prompt.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/tools/truncate.ts",
+          "gitBlob": "c926c4fbdf8b372386adbc9ffd34c7a0a0d62321",
+          "sha256": "8e4507c3ed7ca7548cf7c2d7f77d07f2ae63a38b756789cbb44e9062db6c8762",
+          "bytes": 9255,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/tools/truncate.ts"
+        },
+        {
+          "path": "packages/coding-agent/src/core/usage-totals.ts",
+          "gitBlob": "fdc406bcb3fef3d079949e5f4fbfdd46480edae2",
+          "sha256": "9295795b1320f73c7778296a788a9216185439dec117d5e3c7d83ab17f86a361",
+          "bytes": 3296,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/coding-agent/src/core/usage-totals.ts"
+        },
+        {
+          "path": "packages/evals/README.md",
+          "gitBlob": "406dec98828e03b328dcc8f8b4145127797f298d",
+          "sha256": "0f677918478088803c083f9366905608d348e527c2d66d2e0e7e555091ff7c0b",
+          "bytes": 6145,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/evals/README.md"
+        },
+        {
+          "path": "packages/evals/src/harness.ts",
+          "gitBlob": "0f8de18102eaf9d8bf6a2c05185187205265aad1",
+          "sha256": "0bb64d688c31ff6b98d2f698b1aee3e4b116223899ffea35e09f39ba7ab94a4d",
+          "bytes": 20636,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/evals/src/harness.ts"
+        },
+        {
+          "path": "packages/evals/evals/smoke.eval.ts",
+          "gitBlob": "bc96cdf9f20cc706fd571f622b609d03bf9d2c86",
+          "sha256": "16f8e41fc69798503fcc4ebaae987af8d6618063d6f648c867c5aace4ffc9dd6",
+          "bytes": 681,
+          "url": "https://github.com/earendil-works/pi/blob/642e30b68930a644050794011555a04ed9027eb4/packages/evals/evals/smoke.eval.ts"
+        }
+      ],
+      "note": "Retrieved source inventory. Focused implementation findings and inspected entry points are documented in the companion research matrix; inventory count is not a claim of exhaustive line-by-line review."
+    },
+    {
+      "name": "deepseek",
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "files": [
+        {
+          "path": "LICENSE",
+          "gitBlob": "c1f7a78e89e4e4dc7b86664c3b3c76eb5eee1785",
+          "sha256": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be",
+          "bytes": 1065,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/LICENSE"
+        },
+        {
+          "path": "README.md",
+          "gitBlob": "7941e30f7bdca9391befe39b9115d211157fa42d",
+          "sha256": "0f5516be2acde776f05572cbc8c3093c90549afe04ce118e11157d073d5d15f4",
+          "bytes": 2673,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/README.md"
+        },
+        {
+          "path": "packages/README.md",
+          "gitBlob": "ed7c55ec5a60e5c1a236e8047ec8357303147cb8",
+          "sha256": "b1afc202339f4754480f10f7798762a5d755cee4c3f457f5d204c76688c23978",
+          "bytes": 8472,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/README.md"
+        },
+        {
+          "path": "packages/attachment/README.md",
+          "gitBlob": "924482b79052ba9e26bb49aac0d05121e78ac083",
+          "sha256": "544953ac368eb6c2f09e292778f60e1ee933ec044291ffbb8c576585937f0ebd",
+          "bytes": 2158,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/attachment/README.md"
+        },
+        {
+          "path": "packages/attachment/attachment-local/src/index.ts",
+          "gitBlob": "2965fef0ccaec755823026256544382ad1ccdc5d",
+          "sha256": "4e2a7e494100253fc4d1107e99dc7e7459fec9d42b77e8e377af28bf59d3a7ac",
+          "bytes": 12750,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/attachment/attachment-local/src/index.ts"
+        },
+        {
+          "path": "packages/attachment/attachment/src/index.ts",
+          "gitBlob": "802df0cb6ba8b0d04d2d50db57319092e7890354",
+          "sha256": "24a1d29fe275adbb7d4efb0417eb0f56bcf06576f0003259f1c492f840f1ca6f",
+          "bytes": 12261,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/attachment/attachment/src/index.ts"
+        },
+        {
+          "path": "packages/compaction/README.md",
+          "gitBlob": "0fcfd4a33d6a2e51de76470e93cea5597b0956bb",
+          "sha256": "df5bfac02a13077befa6d9239804debc14adeb61a12e15ad1caf9cc92d735426",
+          "bytes": 2982,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/compaction/README.md"
+        },
+        {
+          "path": "packages/compaction/command-compact/src/index.ts",
+          "gitBlob": "2e95de4ae42d6ac6969b7a9aef7dd23504f93b0a",
+          "sha256": "fc3be3d7e672a15ec9521148d17ca66466ace34fe7b4ac1ba96aab89dc51730a",
+          "bytes": 4237,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/compaction/command-compact/src/index.ts"
+        },
+        {
+          "path": "packages/compaction/compaction-basic/src/index.ts",
+          "gitBlob": "096fa72fe46a1a715a3a34a2a109b4dc379de42b",
+          "sha256": "1d2ecc563147967f86842b37289682a4dd7feabccc9d9d8d55cfb01810166f54",
+          "bytes": 19522,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/compaction/compaction-basic/src/index.ts"
+        },
+        {
+          "path": "packages/compaction/compaction-image-offload/src/index.ts",
+          "gitBlob": "f6f68eaff50f365e641041868bfab425b4a9caaf",
+          "sha256": "86afdc7d1843fed07423c9d535ea8a55cdb18fddfc6798d3a132f1a1e5d0dbcf",
+          "bytes": 2036,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/compaction/compaction-image-offload/src/index.ts"
+        },
+        {
+          "path": "packages/compaction/compaction-tool-result-pruner/src/index.ts",
+          "gitBlob": "5f536bfc9b9848d2de0c807c9c8d255cd45914b8",
+          "sha256": "2890f336ca42f9d8259794eebbc4a9423f69a7394c41796b9981216ed29ed536",
+          "bytes": 7301,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/compaction/compaction-tool-result-pruner/src/index.ts"
+        },
+        {
+          "path": "packages/context/README.md",
+          "gitBlob": "a5c2326b94260d4cd5951e6614c865d78176a50f",
+          "sha256": "ada4b5995e3740bf3203a66099ef0dcb493263857d01948693eab714079b751f",
+          "bytes": 2835,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/context/README.md"
+        },
+        {
+          "path": "packages/context/agent-instructions/src/index.ts",
+          "gitBlob": "ec752e07150ff3da38e7d7264cee825f7d3f881b",
+          "sha256": "2cca75eef331d2ba2e615a6d7292037ad189121bbe53f773e5888149b24975b6",
+          "bytes": 16304,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/context/agent-instructions/src/index.ts"
+        },
+        {
+          "path": "packages/context/file-reference-local/src/index.ts",
+          "gitBlob": "a179cebafbad2e3b05741571d84c5475de3d1cdf",
+          "sha256": "463c4e58fb60a0018ee8036eae65ebff09b7cf75cf3101263e55a6b8664ae1de",
+          "bytes": 5735,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/context/file-reference-local/src/index.ts"
+        },
+        {
+          "path": "packages/context/file-reference/src/index.ts",
+          "gitBlob": "d6b30e783eac967230c66299eab131bd92e21dc5",
+          "sha256": "cfd2cb19db5d4b09bb7a974ed3c1080c5e77ab4b297a7fcf2a3772547824796f",
+          "bytes": 1756,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/context/file-reference/src/index.ts"
+        },
+        {
+          "path": "packages/core/README.md",
+          "gitBlob": "d88c679a4fa597359d6881852d37014e31810752",
+          "sha256": "33a4228c0ac16045e6c2873c41063a68f208057c15bc75f99c4ab7daaf23b726",
+          "bytes": 3627,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/README.md"
+        },
+        {
+          "path": "packages/core/agent-default-model/src/index.ts",
+          "gitBlob": "bfaffed66db62c2152079d76dc2171270bde1cc7",
+          "sha256": "d841737984875b31c7972e0d3023c0f41b9d4b09090d2cce902bbbaf3db338dc",
+          "bytes": 3494,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/agent-default-model/src/index.ts"
+        },
+        {
+          "path": "packages/core/agent-loop/src/agent.ts",
+          "gitBlob": "c4daa50c47c13fb86b94466774dfcac32b214076",
+          "sha256": "ad9ee0778c0a93dec40363f88b53f442add9b033837b9ff049675a1ada3df61f",
+          "bytes": 31142,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/agent-loop/src/agent.ts"
+        },
+        {
+          "path": "packages/core/agent-loop/src/index.ts",
+          "gitBlob": "381ef6e93a01eb06a7379f62a47b367f3e26dd0b",
+          "sha256": "8c2f579b21e482ecbca023341a79fdbc083124a3d8e1160bfd2f00136214a3c9",
+          "bytes": 36758,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/agent-loop/src/index.ts"
+        },
+        {
+          "path": "packages/core/agent-tool-presentation/src/index.ts",
+          "gitBlob": "59d36daf7613c458e732ea478c8cf8659478668c",
+          "sha256": "05dc6d51f5f914d6ac91cbb525bf691ad73188165682cd0d1b6832dbcae226dd",
+          "bytes": 2119,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/agent-tool-presentation/src/index.ts"
+        },
+        {
+          "path": "packages/core/tool-executor-native/src/index.ts",
+          "gitBlob": "457749152c004c3b61fe4981eb9c89718bdb1640",
+          "sha256": "a4a1094d63e6580b6255a05c466d1391ff17156fe3a9debc404e4b057c5a0881",
+          "bytes": 1423,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/core/tool-executor-native/src/index.ts"
+        },
+        {
+          "path": "packages/extensions/README.md",
+          "gitBlob": "f55a2b8fb961263d53c1d745586351b5e3f8681c",
+          "sha256": "bf7a94dc027841e5424ff2fb639a638d6520474f8de727f08df4c045fbb3bfd0",
+          "bytes": 2690,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/extensions/README.md"
+        },
+        {
+          "path": "packages/extensions/cordis-client-runner/src/index.ts",
+          "gitBlob": "53fd36149035784e5d91bad9bbda8de8066775c8",
+          "sha256": "6e1450909e2f6f301261c05988b7df8118e7c88f99a2a15b665708da88df7260",
+          "bytes": 387,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/extensions/cordis-client-runner/src/index.ts"
+        },
+        {
+          "path": "packages/extensions/cordis-host-runner/src/index.ts",
+          "gitBlob": "3c48a82bcfb42c3a80f3e2a92f33a7fcb5a0c54b",
+          "sha256": "2cb144c5c51cc65d90f0348080abc53f1f6bdcee069cd5b3409d4bf7531f5139",
+          "bytes": 53396,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/extensions/cordis-host-runner/src/index.ts"
+        },
+        {
+          "path": "packages/extensions/tool-cordis/src/index.ts",
+          "gitBlob": "eddc643cb996ab076329ba0d1480212b2d2eddc0",
+          "sha256": "6867b905b13bffbb8dfa2ad191f6985da9ca0c1df959a14656c13375180c853a",
+          "bytes": 3670,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/extensions/tool-cordis/src/index.ts"
+        },
+        {
+          "path": "packages/feedback/message-feedback/src/index.ts",
+          "gitBlob": "647e4f03fa9c0de4e336aaa8bd962cb256d57cf4",
+          "sha256": "a7e332e6897b0a9f3af0c10a6ec2d563a928eee1d97ecf81384e9ee5bbe405d8",
+          "bytes": 13480,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/feedback/message-feedback/src/index.ts"
+        },
+        {
+          "path": "packages/fs/README.md",
+          "gitBlob": "cab75bc08a96c3b70e4c05b856e34ea073ffcceb",
+          "sha256": "f204425fd3e7cdf54b5f2ed583bab475490497d2b4b5f4c6f7d37d7cfb3a6c47",
+          "bytes": 3898,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/fs/README.md"
+        },
+        {
+          "path": "packages/fs/fs-local/src/index.ts",
+          "gitBlob": "e9ee2b8395a85c802205867558c5bcd6e45f81d8",
+          "sha256": "e43441b0ad597efe3a8f4f111d4de1322ca38c8b62ec9842a813361cb79de334",
+          "bytes": 18550,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/fs/fs-local/src/index.ts"
+        },
+        {
+          "path": "packages/fs/fs-observation-policy/src/index.ts",
+          "gitBlob": "a0bd5031c46e9cb22f630d82d9d6f606250c67f9",
+          "sha256": "25d95687f89b4f32398d626e7901ac0a6bd5be9234aecade86d22433a6e8c7d3",
+          "bytes": 6301,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/fs/fs-observation-policy/src/index.ts"
+        },
+        {
+          "path": "packages/fs/fs-patch/src/index.ts",
+          "gitBlob": "8fe23a4d056d3663b5d30aa8483d6b1cc66e367f",
+          "sha256": "32985352dc476f40f3e15c70065b77c0d2c63033f5f6e0fe322fd6cd187534ea",
+          "bytes": 279,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/fs/fs-patch/src/index.ts"
+        },
+        {
+          "path": "packages/goal/README.md",
+          "gitBlob": "b5f0a4228c16b5ff7984365878ce139072d47e5e",
+          "sha256": "decf3f9a327587ec97ee20faffe7dd2dd264ae65354c8c9f844c97a17bcb5fbc",
+          "bytes": 2289,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/goal/README.md"
+        },
+        {
+          "path": "packages/goal/command-goal/src/index.ts",
+          "gitBlob": "9238d76632799d1e9c0384ea9f21593a9dcd0c24",
+          "sha256": "848444ac23f6a4c1f992fc5b10c1ba11d43106f9ce9a9fcc047973c512c3ce1f",
+          "bytes": 8229,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/goal/command-goal/src/index.ts"
+        },
+        {
+          "path": "packages/goal/goal-round-driver/src/index.ts",
+          "gitBlob": "2d20ee08d98b9eb4c36489c05b912df5b61b912a",
+          "sha256": "0e64af0eaa7fef5444f92f1664b4d987f8eaae72a86a3945fff75c57a4e4aacc",
+          "bytes": 18403,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/goal/goal-round-driver/src/index.ts"
+        },
+        {
+          "path": "packages/goal/goal/src/index.ts",
+          "gitBlob": "3d54ed75d6d15ff61468d0a2d6aa4109bd543311",
+          "sha256": "b3ea2930458f67afb97e7929b957e5859c42ee16fde95e3247734e3789e9c134",
+          "bytes": 23520,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/goal/goal/src/index.ts"
+        },
+        {
+          "path": "packages/guard/README.md",
+          "gitBlob": "1f001e7fb7198ce20b40e27e46842051f39fab3e",
+          "sha256": "efb6b359666bc4b44bb862d31269925b971fb1d816fb48c6da3b43ddf6c3da1e",
+          "bytes": 2264,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/guard/README.md"
+        },
+        {
+          "path": "packages/guard/repeat-tool-reminder/src/index.ts",
+          "gitBlob": "a79722aad0362e9f7360f33dd3cfe0f96e2fc804",
+          "sha256": "1e917986fe9c5187d8f0fa11154ab2bf3b7c1d30db991540f4d1e62a2c59236d",
+          "bytes": 10619,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/guard/repeat-tool-reminder/src/index.ts"
+        },
+        {
+          "path": "packages/guard/timeout-policy/src/index.ts",
+          "gitBlob": "9ee3c7026b52df87510f0af1d4c55b073d4168a2",
+          "sha256": "f4f2fc036ff273ff01588e29682504d1ff6fd3db6386345f2e7085074bec2959",
+          "bytes": 3560,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/guard/timeout-policy/src/index.ts"
+        },
+        {
+          "path": "packages/interaction/README.md",
+          "gitBlob": "dc5a3e17eb35309e434778483b503903c3a118a2",
+          "sha256": "7d7223218a588000502adade638d219c6ca6dee9721b7083823538d7d93e5b40",
+          "bytes": 2962,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/interaction/README.md"
+        },
+        {
+          "path": "packages/interaction/commands/src/index.ts",
+          "gitBlob": "5464704516df8d228541aea331ce08bb8b0001cd",
+          "sha256": "c9416db54cc48ab5b72adaa22d8534596e87bc8795d88ac5d807fdcccb4e6066",
+          "bytes": 22632,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/interaction/commands/src/index.ts"
+        },
+        {
+          "path": "packages/interaction/permission-presets/src/index.ts",
+          "gitBlob": "b071d0297aebfc69e8eb3b41ecd9844eccde31d5",
+          "sha256": "cbecb86032b5476be9922a866f5f291608c7cb3abf54dd1c9a31691a530580c2",
+          "bytes": 20205,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/interaction/permission-presets/src/index.ts"
+        },
+        {
+          "path": "packages/interaction/tool-ask-user/src/index.ts",
+          "gitBlob": "ec810319d225734a5fee3cb72f4aa25701bf581a",
+          "sha256": "e3699b7ff7fe8b57172ffcecf044281a88120edb62dbd4d0236319b93b5958ec",
+          "bytes": 4469,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/interaction/tool-ask-user/src/index.ts"
+        },
+        {
+          "path": "packages/jobs/README.md",
+          "gitBlob": "dcc16de1cae45418e4c3191bfc9678eb3d88020b",
+          "sha256": "bc592034ab2561bafd31ac37c58bd2e13cdfda07fea1c7fb5039639df4fed823",
+          "bytes": 2075,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/jobs/README.md"
+        },
+        {
+          "path": "packages/jobs/jobs-local/src/index.ts",
+          "gitBlob": "daa4ce0db3c19b135d3c7401c983655a5c70c1f4",
+          "sha256": "8c52fcba4410a89afd065b77a0cb98b558926292508cde276cce76355df76d19",
+          "bytes": 30527,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/jobs/jobs-local/src/index.ts"
+        },
+        {
+          "path": "packages/jobs/jobs/src/index.ts",
+          "gitBlob": "7f31c3795bc6cbbc6cebcb7defce3b717637f5b0",
+          "sha256": "dad5608d77cf93714237f32b9a8af6ffd69f2daf80a8f222ce3ea24d229672c8",
+          "bytes": 8821,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/jobs/jobs/src/index.ts"
+        },
+        {
+          "path": "packages/jobs/tool-jobs/src/index.ts",
+          "gitBlob": "dff4681cf16580ffcf727f7178a05de64f5e789e",
+          "sha256": "acdd47e8c5160eeda564c0edc012ba3ae3294be3e017e810c74c7037c1d87e56",
+          "bytes": 28047,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/jobs/tool-jobs/src/index.ts"
+        },
+        {
+          "path": "packages/lsp/README.md",
+          "gitBlob": "e9e8806fb1d915c4b8f03080d682a2ae7a5d4d8d",
+          "sha256": "9fdf811baf06ed42f12dbd22dbfba3f0ce41885f18d6c3cb1678e5b47bbbafb7",
+          "bytes": 2204,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/lsp/README.md"
+        },
+        {
+          "path": "packages/lsp/lsp-stdio/src/index.ts",
+          "gitBlob": "bfe1974e386bd396975c38de598d55601a6e2e12",
+          "sha256": "686eb214ff5b774ef0b39ec17b70145b15f38feeeea250d2e2eddcab93797425",
+          "bytes": 17225,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/lsp/lsp-stdio/src/index.ts"
+        },
+        {
+          "path": "packages/lsp/lsp/src/index.ts",
+          "gitBlob": "05e2cd36436874d57424d29187b512af99e58399",
+          "sha256": "6bc8126e11d6b80663d98a30b11a7cfff72359859caa23a6e3c2dc18f72d1ac3",
+          "bytes": 6310,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/lsp/lsp/src/index.ts"
+        },
+        {
+          "path": "packages/lsp/tool-lsp/src/index.ts",
+          "gitBlob": "3a3314a44e97ff08bcecce405d6020c4f11c2048",
+          "sha256": "e0df8a25641497ba5a34c7158e8ca5146748b174e58aa3c53e988a40ca839a90",
+          "bytes": 9389,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/lsp/tool-lsp/src/index.ts"
+        },
+        {
+          "path": "packages/mcp/README.md",
+          "gitBlob": "58430a8b1cc1e5e7b9ed021e2f434487d7148da8",
+          "sha256": "efda77171887309c058602ae80d786d33fbfbab470e064cd73e616921ee48d94",
+          "bytes": 2131,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/mcp/README.md"
+        },
+        {
+          "path": "packages/mcp/mcp-client/src/index.ts",
+          "gitBlob": "3f89532b91d915cad20d65fa06ae52ace088958d",
+          "sha256": "f279bd88743ca73b0d9834915d1bb31e455e21c87f4990808cfd55b273db4d1c",
+          "bytes": 9464,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/mcp/mcp-client/src/index.ts"
+        },
+        {
+          "path": "packages/mcp/mcp-resources/src/index.ts",
+          "gitBlob": "0ecaaa555bb653a0ae12c59fc2a0015a92302c16",
+          "sha256": "6b19614393d187629b7d273d8e8bca3d30f45cf0eac75b51493d0678eb809b65",
+          "bytes": 5314,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/mcp/mcp-resources/src/index.ts"
+        },
+        {
+          "path": "packages/plan/README.md",
+          "gitBlob": "7fdee38f5e26f94216970de493d80324a1bb4910",
+          "sha256": "c0c50476ba2959b8ff7ed4f7e224fb0af06c8c4b34b0ae862212513f665e0681",
+          "bytes": 1926,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/plan/README.md"
+        },
+        {
+          "path": "packages/plan/plan-mode/src/index.ts",
+          "gitBlob": "06af5c282831944ad8194f78fe85b65614e3b548",
+          "sha256": "c03bc85db4669205ef5375a0bcfa0fa70fd69c4ffc503b455adc756f5c4419e3",
+          "bytes": 20641,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/plan/plan-mode/src/index.ts"
+        },
+        {
+          "path": "packages/ptc-runtime/README.md",
+          "gitBlob": "d303c41555a24cdfde6efb176f3d0f40c3188447",
+          "sha256": "2559d876bb52353db49e59834943e49f428590bba225ca061d03aa7b8c1a5471",
+          "bytes": 2532,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/ptc-runtime/README.md"
+        },
+        {
+          "path": "packages/ptc-runtime/ptc-runtime-node/src/index.ts",
+          "gitBlob": "d39ee3ad3591fef8fb52b44ccd4f4263b5ca58ad",
+          "sha256": "c094e2eb7f0009f370c5e72d106ebdbb7c45022993a305914615e037c0174597",
+          "bytes": 4938,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/ptc-runtime/ptc-runtime-node/src/index.ts"
+        },
+        {
+          "path": "packages/ptc-runtime/ptc-runtime/src/index.ts",
+          "gitBlob": "2fa080fcdedddb50f24972341ff10be938f41053",
+          "sha256": "35ed9885719212b7c88f85c50d94ddcafa95d8488739273f75c61d5673e8f3b7",
+          "bytes": 8080,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/ptc-runtime/ptc-runtime/src/index.ts"
+        },
+        {
+          "path": "packages/sandbox/README.md",
+          "gitBlob": "1dae555fddd7e72ac7b706179ea3b775bb1c7eaf",
+          "sha256": "596d370240fe996245fe763804862c0c5dbbd6d48ac3b6f77bf72332f9bcbfea",
+          "bytes": 3049,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/sandbox/README.md"
+        },
+        {
+          "path": "packages/sandbox/sandbox-local/src/index.ts",
+          "gitBlob": "acf4b4e7387d7e6b3ec7931d96070896c3b71578",
+          "sha256": "a7a531c067547da088f37867b0c24dc366dab0a045fa53f7a16ff7d8b4a100ef",
+          "bytes": 28863,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/sandbox/sandbox-local/src/index.ts"
+        },
+        {
+          "path": "packages/sandbox/sandbox-policy/src/index.ts",
+          "gitBlob": "36fdc1f2e85b031bee52712bffe8f79e9500ecf7",
+          "sha256": "de18aa0f8f2ab668876f9f181dd521b72910da428eab185fb85dd30163af8d35",
+          "bytes": 10277,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/sandbox/sandbox-policy/src/index.ts"
+        },
+        {
+          "path": "packages/sandbox/sandbox-windows-acl/src/index.ts",
+          "gitBlob": "5de5d47b72cab3caf0b022bfeef620395630f214",
+          "sha256": "d279f21d9e09d70e726d62b1d91d3dccd983fb75db23aa6b322315b35ee6a2e9",
+          "bytes": 21861,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/sandbox/sandbox-windows-acl/src/index.ts"
+        },
+        {
+          "path": "packages/schedule/README.md",
+          "gitBlob": "74f1c5004fa02eec27c11a7d3e03205545c2e875",
+          "sha256": "f8c38d619c14d2f486e6171758850b8d86f9847f361c77a3746929c0ac5226ad",
+          "bytes": 2097,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/schedule/README.md"
+        },
+        {
+          "path": "packages/schedule/schedule/src/index.ts",
+          "gitBlob": "36b6eaaf91ba8a78b7f20276da10e2409213bf31",
+          "sha256": "696db3713491e9a58d7746f771d6ccaae9d1a897b9e6ee67cc169125498167e5",
+          "bytes": 36978,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/schedule/schedule/src/index.ts"
+        },
+        {
+          "path": "packages/schedule/tool-schedule/src/index.ts",
+          "gitBlob": "ab1ed612dcdd35811cefe842e01dcaec680b5140",
+          "sha256": "e4f401ae6a9daead74597573bf5b7a64e59a29c68c92e7eb98777efb6320defd",
+          "bytes": 22294,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/schedule/tool-schedule/src/index.ts"
+        },
+        {
+          "path": "packages/session-query/README.md",
+          "gitBlob": "240076d95b9f90e47758a1fc5fa10fc1540eda41",
+          "sha256": "b3e6babd9bf9badfc9f25d817a2b7552468b106573bbffaa76d39cd2032809de",
+          "bytes": 2498,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/session-query/README.md"
+        },
+        {
+          "path": "packages/session-query/session-log-export/src/index.ts",
+          "gitBlob": "5fe99dce5f64b6c9ce1e8dfaa10e50160b5d8f50",
+          "sha256": "0fcfa7fcf6a9b1c6282352c8c78f14f5e6cecc1e1d571b725f304be8b5743007",
+          "bytes": 8968,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/session-query/session-log-export/src/index.ts"
+        },
+        {
+          "path": "packages/session-query/session-query-sqlite/src/index.ts",
+          "gitBlob": "7c95afa28d8d048179e1d434d30950e5d00022b8",
+          "sha256": "72868e4ae967fee94967df5939ee092a582249ff7b37afc4fe0cf7660d48b8d3",
+          "bytes": 41094,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/session-query/session-query-sqlite/src/index.ts"
+        },
+        {
+          "path": "packages/session-query/session-query/src/index.ts",
+          "gitBlob": "838ce4c74f6ef47b7442922eaefb742da03ba466",
+          "sha256": "549f7f90c90efec63a5c7d69dbc65938c0f9578f85dcfc8ee25a49a43a8e83e3",
+          "bytes": 15460,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/session-query/session-query/src/index.ts"
+        },
+        {
+          "path": "packages/session/README.md",
+          "gitBlob": "2f14e2ca11ffdd49aff2f96169ca607ecbd69615",
+          "sha256": "09c9ee1a26073f485aba8b44c894787657e438e25c85c40fe187294739812938",
+          "bytes": 6498,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/session/README.md"
+        },
+        {
+          "path": "packages/session/message-quotes/src/index.ts",
+          "gitBlob": "c6974f8db04908a79767a57d25eb753698986e07",
+          "sha256": "8389066f0935cf0c63bd0ea29e96a32d1d24bda61e9f5003925523dbec399185",
+          "bytes": 149,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/session/message-quotes/src/index.ts"
+        },
+        {
+          "path": "packages/session/session-checkpoint-policy/src/index.ts",
+          "gitBlob": "0fc456eb08853b9fe54d0bf9ca3a26c05b4413cf",
+          "sha256": "2b93aae29cfb0b5757656f4e2e54c21d2ab5c11c1bccaed014735ecb9685fe35",
+          "bytes": 3361,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/session/session-checkpoint-policy/src/index.ts"
+        },
+        {
+          "path": "packages/session/session-format-catalog/src/index.ts",
+          "gitBlob": "854a9c89b607730f72280cbbf3a2fed273025459",
+          "sha256": "37e13aba514de83c0e7ad3a16be83e5ea48f7d7537b02675f71d1b31b35d2328",
+          "bytes": 346,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/session/session-format-catalog/src/index.ts"
+        },
+        {
+          "path": "packages/shell/README.md",
+          "gitBlob": "0d07e6551050ac58eaadd16233595abbf8f5fb5f",
+          "sha256": "d93700a06d4242f789a62136be14512d4ed2f3930ced653aaf3770cdaadbc266",
+          "bytes": 3281,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/shell/README.md"
+        },
+        {
+          "path": "packages/shell/bash-local/src/index.ts",
+          "gitBlob": "373c73976035daa5327fd60093607a7db11117ff",
+          "sha256": "03f7d8c0a6162aec6c71c719c937ab8b6b7fa011b7fcdc386e513c4d0aeab353",
+          "bytes": 18524,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/shell/bash-local/src/index.ts"
+        },
+        {
+          "path": "packages/shell/bash-sandbox/src/index.ts",
+          "gitBlob": "1cf112d309275b2c28a32eb349c7ad1dcb5d76b6",
+          "sha256": "45dec72853eb9ab2f40697b7618dd922eefc7d5a5c7eb427dcd590898ab1ad9f",
+          "bytes": 8389,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/shell/bash-sandbox/src/index.ts"
+        },
+        {
+          "path": "packages/shell/pwsh-local/src/index.ts",
+          "gitBlob": "06b7c32d2eee597276663d84ac1d401efa58ce4f",
+          "sha256": "feebf120ba9c27590b138da54fbc4124bbf79a1a63b56008199676c30239f5a4",
+          "bytes": 20246,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/shell/pwsh-local/src/index.ts"
+        },
+        {
+          "path": "packages/skill/README.md",
+          "gitBlob": "04aaf0089dceb9de35a1d489daeedca4c45eb6b2",
+          "sha256": "73cdf9d8ec9c44884de9b46743b58d42025dad35f2d91d81bd7a22773a1c9343",
+          "bytes": 2578,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/skill/README.md"
+        },
+        {
+          "path": "packages/skill/skill-filesystem/src/index.ts",
+          "gitBlob": "ea39cefb3d9f8e7b65150d64583360572fa6b346",
+          "sha256": "fec9bf70095a01fd7eb61e5a7aa77480490a17e663224ecaeb84852cb025207f",
+          "bytes": 39980,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/skill/skill-filesystem/src/index.ts"
+        },
+        {
+          "path": "packages/skill/skill-office/src/index.ts",
+          "gitBlob": "b1e5a8717999f970b3eda7ee7570e01ec6755f50",
+          "sha256": "e0f74bf63193aec6aa9bd65f0975e0ec9409ad4f40bef6a4a5b0f0e4aff69950",
+          "bytes": 4720,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/skill/skill-office/src/index.ts"
+        },
+        {
+          "path": "packages/skill/skill/src/index.ts",
+          "gitBlob": "9c6bbf0ccfc87dfce966de1c9e83cb66275066af",
+          "sha256": "af4fad67fb086c3f5c93aed4604830718b4535e7e59a60d680404b07ea08477c",
+          "bytes": 35965,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/skill/skill/src/index.ts"
+        },
+        {
+          "path": "packages/spill/README.md",
+          "gitBlob": "d90c7606cecaf87fbbccad98afd1846c9f587520",
+          "sha256": "c7a25f48b6db4997cf1fbac68aee7eff07cc6875e51418c298cd8b2d0d10d504",
+          "bytes": 2224,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/spill/README.md"
+        },
+        {
+          "path": "packages/spill/spill-local/src/index.ts",
+          "gitBlob": "feb9f32fb30c37aecd3f405acac78767c79f273a",
+          "sha256": "f275c81bdc8cd95717a0c6296e75af5164fa8b94222b3fffcda3defad867ee4f",
+          "bytes": 7372,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/spill/spill-local/src/index.ts"
+        },
+        {
+          "path": "packages/spill/spill-policy/src/index.ts",
+          "gitBlob": "faa60400df555be494d1eae0ea1bbcf6fb22c71a",
+          "sha256": "ba9f8d0f9369a0f1a9f282b48e6ecda166ec1b368dac0dd2c0c743ae8988b342",
+          "bytes": 8586,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/spill/spill-policy/src/index.ts"
+        },
+        {
+          "path": "packages/spill/spill/src/index.ts",
+          "gitBlob": "bd15fcdfa0ee3cf36e1da0eb51db9c6918596818",
+          "sha256": "4c3555aae98d69f14cd2d35e1c93c870ea15ba31c22d679a6d18cc881c555d70",
+          "bytes": 2539,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/spill/spill/src/index.ts"
+        },
+        {
+          "path": "packages/storage/README.md",
+          "gitBlob": "4cf5771092daafd4f3c7c4dfd2c3f8422a7822c6",
+          "sha256": "bb89ce11b1105c6d85f0582643bb74ebd1fab89f6b0457b9afd5fd996039282b",
+          "bytes": 2539,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/storage/README.md"
+        },
+        {
+          "path": "packages/storage/storage-domain/src/index.ts",
+          "gitBlob": "e02b97049a986d7767347e6a415a281151713ebc",
+          "sha256": "12f9dc7a1ba7bf0d4721e60b03f08a2132e0a8576c328c0b4c179b1c7baedbd8",
+          "bytes": 9764,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/storage/storage-domain/src/index.ts"
+        },
+        {
+          "path": "packages/storage/storage-json/src/index.ts",
+          "gitBlob": "634c143a0d6e81240067d932137456d18116b629",
+          "sha256": "bae1a1c29859dea20d21c2730bbf3c5a30e31ed6cd7d872b8e1c726e65a33a63",
+          "bytes": 4510,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/storage/storage-json/src/index.ts"
+        },
+        {
+          "path": "packages/storage/storage-sqlite/src/index.ts",
+          "gitBlob": "b80ecb4238f8e3db2d14798291671abc04cf9fd4",
+          "sha256": "2207d3028b67cc2f405e0fb95090fa502b1aa3ee01e4024b961feb56419d942f",
+          "bytes": 7266,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/storage/storage-sqlite/src/index.ts"
+        },
+        {
+          "path": "packages/subagent/README.md",
+          "gitBlob": "e030cf9a784005d42bfa5b48c73820dfd558e311",
+          "sha256": "4d464e32d4747451849fee100a45ca1bdafb16bb5d330a1ad651f23ad2d9d48a",
+          "bytes": 3092,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/subagent/README.md"
+        },
+        {
+          "path": "packages/subagent/subagent-acp/src/index.ts",
+          "gitBlob": "0cd92866536eb537e197809d2bb3f325ba47cad6",
+          "sha256": "67332be9da36170112ab984328bada908da9cfde78ba12e41a85cdada4b88790",
+          "bytes": 5477,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/subagent/subagent-acp/src/index.ts"
+        },
+        {
+          "path": "packages/subagent/subagent-claude-code/src/index.ts",
+          "gitBlob": "c594e9706b23e555a1bc8f5c68310c3467188af5",
+          "sha256": "8212098a44df69696a90bcfacafdeb03ae6972875b0c369d1248eae0e2cd93e4",
+          "bytes": 5186,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/subagent/subagent-claude-code/src/index.ts"
+        },
+        {
+          "path": "packages/subagent/subagent-codex/src/index.ts",
+          "gitBlob": "5fbd8cb042cc47cbf8c2ee4a3c56c64ecf9f581b",
+          "sha256": "177d094a5c6426efa5353c11df54d34f405ad56a78b2f75f79f3fa3a3aedf460",
+          "bytes": 4350,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/subagent/subagent-codex/src/index.ts"
+        },
+        {
+          "path": "packages/subprocess/README.md",
+          "gitBlob": "17e1f903c3216ac4b6ad4b217c025cb94db42b29",
+          "sha256": "af9899d1941f7d999b46c0299888b730438d5360e693136a965161727f4dc1f4",
+          "bytes": 2427,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/subprocess/README.md"
+        },
+        {
+          "path": "packages/subprocess/subprocess-local/src/index.ts",
+          "gitBlob": "be249270932b4384dc31f4b0cada90b2de78a166",
+          "sha256": "0839baefcbc7562ac73562cc7c5c3f1f983a8693bf3b76e0c956a5f93b4548ce",
+          "bytes": 17076,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/subprocess/subprocess-local/src/index.ts"
+        },
+        {
+          "path": "packages/subprocess/subprocess/src/index.ts",
+          "gitBlob": "6dbbc62719789249b7d2d284f2c4a9d622c4c8c5",
+          "sha256": "19e3fde571d0cd1f76e95696477a7d38677529aaf51b07c429965f2e4330065f",
+          "bytes": 8152,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/subprocess/subprocess/src/index.ts"
+        },
+        {
+          "path": "packages/subprocess/win32-process/src/index.ts",
+          "gitBlob": "5fc6de85ce0305a9c6a16a734ed73ddadb0f418b",
+          "sha256": "ef120e78e18da1f01fe27066d41eda6eca9ec214f2473e866c7e245b94b2d0bd",
+          "bytes": 844,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/subprocess/win32-process/src/index.ts"
+        },
+        {
+          "path": "packages/terminal/README.md",
+          "gitBlob": "9a09f296d6a1906f37d347363521e7ca3ead5906",
+          "sha256": "2e930c9f7ab4bd25bc5cf74622a45800a38b1845c5264e39c4ef1babb4eb623f",
+          "bytes": 2447,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/terminal/README.md"
+        },
+        {
+          "path": "packages/terminal/terminal-bash/src/index.ts",
+          "gitBlob": "5359948eb608e3cb58fcb112553f285b46d1d089",
+          "sha256": "276f101348241eb91cb4498eb7f4d7ff47d4cae802f5cc2d8059463454c6b916",
+          "bytes": 9920,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/terminal/terminal-bash/src/index.ts"
+        },
+        {
+          "path": "packages/terminal/terminal/src/index.ts",
+          "gitBlob": "d9e54444651ae1adcaaf80b653dca68472258a48",
+          "sha256": "0264b62850764a5e32f1e2da93540cdcbe6e0e6442314f72b25a8ee2da6d2995",
+          "bytes": 17458,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/terminal/terminal/src/index.ts"
+        },
+        {
+          "path": "packages/todo/README.md",
+          "gitBlob": "f43cabe8de26b448807c0db27b610516f62bc24d",
+          "sha256": "0e426d8ddc4418aacb557da3bed090f50e62b070bf24392a0aef26d54e164f1c",
+          "bytes": 1765,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/todo/README.md"
+        },
+        {
+          "path": "packages/todo/tool-todo/src/index.ts",
+          "gitBlob": "0f59f7be17899156b622d1fb98e6952f1153aa39",
+          "sha256": "80559ed95b7fc9c1dc083312f187885254bf2c1498d0f7a079dad21427d24def",
+          "bytes": 8696,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/todo/tool-todo/src/index.ts"
+        },
+        {
+          "path": "packages/web/README.md",
+          "gitBlob": "6ef56021066ca5960734fb1cd03f23b7943b6be6",
+          "sha256": "98dca3d67f8d2a535b65269ce74687b07e858a85c6dc3cf3cd4801e8fcbed2bd",
+          "bytes": 2668,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/web/README.md"
+        },
+        {
+          "path": "packages/web/tool-web/src/index.ts",
+          "gitBlob": "6869e6c6fd0cb4f4136b5073d0dad8768b81a29e",
+          "sha256": "96e56283d7bd3523ed649ea9cfc2594c9ad4bc03ca116166f92d28ed65eff8d3",
+          "bytes": 5228,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/web/tool-web/src/index.ts"
+        },
+        {
+          "path": "packages/web/web-deepseek-api/src/index.ts",
+          "gitBlob": "ff0f8d0a9a055d918f5ddd9b95e6d45f85882aa8",
+          "sha256": "634150f65f34607a36ced6de25f191d2e8a55ecf9c2190b9a9d33267d10771dc",
+          "bytes": 4947,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/web/web-deepseek-api/src/index.ts"
+        },
+        {
+          "path": "packages/web/web-fetch-http/src/index.ts",
+          "gitBlob": "eda6f90d3ef4060c5eb11e05db00f64249b25593",
+          "sha256": "eeef35fabf4230e20e14813f0c5e6e41005d2e3d1e7c48137d78fbf5fdf616e2",
+          "bytes": 3552,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/web/web-fetch-http/src/index.ts"
+        },
+        {
+          "path": "packages/workflow/README.md",
+          "gitBlob": "365021c54b862c5f0f888f57eaf55b4f7dbcd2d2",
+          "sha256": "7da16819ef4cc28e054f0da7439bc388cfa3fa8a3f5a5c0ef3b1d2a84901dc40",
+          "bytes": 2243,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/workflow/README.md"
+        },
+        {
+          "path": "packages/workflow/tool-workflow/src/index.ts",
+          "gitBlob": "66fda2da1554b1946a808365d438b348703ef431",
+          "sha256": "2657ec35455d78b524f7e040a426baff5bc34ea4946b58bf7552c767b196cbb2",
+          "bytes": 22152,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/workflow/tool-workflow/src/index.ts"
+        },
+        {
+          "path": "packages/workflow/workflow-ptc/src/index.ts",
+          "gitBlob": "9bd421697a125c87492d6b36c76257874955c630",
+          "sha256": "9f2777a72d6f0f0480894d7b57ac05dee137420a835d67da53eb28b5a274aeb7",
+          "bytes": 7907,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/workflow/workflow-ptc/src/index.ts"
+        },
+        {
+          "path": "packages/workflow/workflow/src/index.ts",
+          "gitBlob": "b78a9729770f3a68cf57877209e8b5d33291d0c0",
+          "sha256": "0f1f90b03be0061955df9c0820442663f59ce6dcc92d752d337368ada89e13bd",
+          "bytes": 7428,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/packages/workflow/workflow/src/index.ts"
+        },
+        {
+          "path": "benchmarks/agent-continuation/README.md",
+          "gitBlob": "f7c1415a877876470d326d23be8f70d6d130611f",
+          "sha256": "fc209eb9e6a441b5cc1fa8acbf945e5c44b95efa09ebd4a37fcc7cc3a0b55b58",
+          "bytes": 2397,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/benchmarks/agent-continuation/README.md"
+        },
+        {
+          "path": "benchmarks/agent-continuation/workload.ts",
+          "gitBlob": "0cd4c5435badf838dceacb1bf996f6e381cb556e",
+          "sha256": "95b7189e88d8cb8e21d05027d306c994a8d0243e549b566fde9412638b23d325",
+          "bytes": 5617,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/benchmarks/agent-continuation/workload.ts"
+        },
+        {
+          "path": "benchmarks/agent-continuation/agent-continuation.worker.ts",
+          "gitBlob": "775ca0ccd3b2ae01c1e13684cf229a68a6ce62a0",
+          "sha256": "350c1ac1dca1e860f58b60f4f76e63ec00b61cb649c2cc5c55f508d742b0eb65",
+          "bytes": 6321,
+          "url": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/benchmarks/agent-continuation/agent-continuation.worker.ts"
+        }
+      ],
+      "note": "Retrieved source inventory. Focused implementation findings and inspected entry points are documented in the companion research matrix; inventory count is not a claim of exhaustive line-by-line review."
+    },
+    {
+      "name": "hermes",
+      "repository": "NousResearch/hermes-agent",
+      "commit": "013bde4786db7afbd72c44a1d15ee78876c9cb96",
+      "files": [
+        {
+          "path": "CONTRIBUTING.md",
+          "gitBlob": "f5cdc740411959317fce0c903150b882f7c789e8",
+          "sha256": "22292387802fbfc15b33fe184610cedc627300eb6229d5127b7aed955262fa2f",
+          "bytes": 57145,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/CONTRIBUTING.md"
+        },
+        {
+          "path": "LICENSE",
+          "gitBlob": "75410e73319c72cd3e991a501c5455eb78f38375",
+          "sha256": "e29dfaf6905a8d396a58ea4bd84ad27057756bbd9599b5bec0971ae34d2a2118",
+          "bytes": 1091,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/LICENSE"
+        },
+        {
+          "path": "README.md",
+          "gitBlob": "1f5cfb9b49f78a09f94c04e12b38fec478dcc722",
+          "sha256": "38b023e1bb33bf302dbc7d0856dd7d79e87cbd67de506dac47a3fed6e5c776bc",
+          "bytes": 17490,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/README.md"
+        },
+        {
+          "path": "agent/agent_init_memory_provider.py",
+          "gitBlob": "1b970886f119a6ecacb1682c472d464040b8b321",
+          "sha256": "179113e7c8446c36cabea51476065608a1283d63571b71bf6607e44571e0ec30",
+          "bytes": 4278,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/agent_init_memory_provider.py"
+        },
+        {
+          "path": "agent/context_compressor.py",
+          "gitBlob": "667d0c578e53cc7df31f4c1a4f40c41cf4668a0d",
+          "sha256": "74cd0a55ad94bf8b354f85d97e235614e5542875a929613dd4946dafce89963c",
+          "bytes": 331086,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/context_compressor.py"
+        },
+        {
+          "path": "agent/context_compressor_prune.py",
+          "gitBlob": "043ee38bdc9fcfe622502c07dc453f71e4513aff",
+          "sha256": "567abd766f6963fde1a1a9d0863fd2c6fb42c9cfd37ee9036577dedbc40fad6a",
+          "bytes": 11540,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/context_compressor_prune.py"
+        },
+        {
+          "path": "agent/context_compressor_summary.py",
+          "gitBlob": "98cd03ce7335b63bfe44893d73efd5324a6b5ede",
+          "sha256": "138edc1f3d86939b373d6c64a48ce70605fb48b5cc91184e39bc281064796073",
+          "bytes": 5770,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/context_compressor_summary.py"
+        },
+        {
+          "path": "agent/context_compressor_tail.py",
+          "gitBlob": "cafc9b24706332d45b51ea8bd0918f0f256f40b0",
+          "sha256": "23f5c62c61b0fc7bda6830e8133488800f048de8d4eac5e789974833f185d112",
+          "bytes": 11782,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/context_compressor_tail.py"
+        },
+        {
+          "path": "agent/context_engine.py",
+          "gitBlob": "eec8ac0efcda5363ba8cc971c32e1562988e3b02",
+          "sha256": "516a4961c59af4c1048dc523b83f135b1fd0089423775fbe3fc04ffdcdb45cbb",
+          "bytes": 13154,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/context_engine.py"
+        },
+        {
+          "path": "agent/context_pin.py",
+          "gitBlob": "f402dcd752a89bb41e2f515944dc9b8c1a111b22",
+          "sha256": "59163058ee35c5dab1ba2072340fdf557c1975dffdcc4db91333a6760199e9d4",
+          "bytes": 3142,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/context_pin.py"
+        },
+        {
+          "path": "agent/context_references.py",
+          "gitBlob": "0d38a7a62b9caa46c7c7b6ec22daffe178c2c9ac",
+          "sha256": "c8131b655be3f8acb784d35ac1a2758395d792ba9355edc0db15e6cde1d1d811",
+          "bytes": 33749,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/context_references.py"
+        },
+        {
+          "path": "agent/conversation_compression.py",
+          "gitBlob": "b265ca006bd51bcd27320588e7a74ea5945a5b79",
+          "sha256": "796494d28180659f2843599420840832e1f528ecad2110b498a59f53e34e6bcb",
+          "bytes": 249759,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/conversation_compression.py"
+        },
+        {
+          "path": "agent/conversation_compression_archive.py",
+          "gitBlob": "fd4af86d88083fd868327cb8488f9227dab653fd",
+          "sha256": "ac7e79f15559cd24cd0efcaa868f8fc0f127ba0bbee280d51433b30e47b00890",
+          "bytes": 6455,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/conversation_compression_archive.py"
+        },
+        {
+          "path": "agent/conversation_compression_checkpoint.py",
+          "gitBlob": "49c508b3fd9595d22735a2ccf771f37c071573be",
+          "sha256": "a727f29feaf07af89d80b8d201f53e68bdd20fd2e2e06a2285fd901d152d9b11",
+          "bytes": 3849,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/conversation_compression_checkpoint.py"
+        },
+        {
+          "path": "agent/delegation_context.py",
+          "gitBlob": "6e94f8d3a931863cfaaba7c9a2e422630ef6345a",
+          "sha256": "a75b67e81e0867c55adeac7c9f686d326da7c0ebb81c032cec63a97df593894e",
+          "bytes": 8446,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/delegation_context.py"
+        },
+        {
+          "path": "agent/delegation_provider.py",
+          "gitBlob": "1ff587aaa6ee4b9f073c0911826f11b6a6d5d6d7",
+          "sha256": "3182eb1b2833e95bc2fa978b90ac5462138a63a7eec7dbc583cc452535101895",
+          "bytes": 6059,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/delegation_provider.py"
+        },
+        {
+          "path": "agent/iteration_budget.py",
+          "gitBlob": "d2e81ce12fa1033989ca1af4030c12772169feee",
+          "sha256": "c6ac199bf3d53ae6eb840fa1e72fa191e8c00af535f0621896a98196fe880f72",
+          "bytes": 1807,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/iteration_budget.py"
+        },
+        {
+          "path": "agent/memory_context.py",
+          "gitBlob": "2075328f123ab26e3e3b13c53aa8f03096eff622",
+          "sha256": "3ed4a7bb2d7b5d8394e204c911c7983e4e1804a797083fffc87a071767b3851f",
+          "bytes": 8618,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/memory_context.py"
+        },
+        {
+          "path": "agent/memory_manager.py",
+          "gitBlob": "ad5f82024142886a4ba28803b4718e39def3aa7a",
+          "sha256": "b181fbcd01bf88d6ee6a8fc2f5e4f58b3bbe58c6dfcadde00f6cea5f88405304",
+          "bytes": 51188,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/memory_manager.py"
+        },
+        {
+          "path": "agent/memory_manager_tools.py",
+          "gitBlob": "9ea93c833cb34b657272c9055e81b05ffcad0929",
+          "sha256": "dbd96b5e8aeae41afa6bbec48ad1a837315a268be2eedcf43c7cc609540c480d",
+          "bytes": 4613,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/memory_manager_tools.py"
+        },
+        {
+          "path": "agent/memory_provider.py",
+          "gitBlob": "c997046608283b1c18b0b422b4d803b1be69aaa6",
+          "sha256": "ac81dcf489c698891f0edebfe26845a75c50d2bde77ec3be8d7938a85c79f1fc",
+          "bytes": 11965,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/memory_provider.py"
+        },
+        {
+          "path": "agent/prompt_cache_boundary.py",
+          "gitBlob": "54b1be0dbd7ea546fdd1405111dbcc987997358a",
+          "sha256": "82dfe2db84454e42583a0fa9b512317db973c9e842380543c6f787add3f0d548",
+          "bytes": 2367,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/prompt_cache_boundary.py"
+        },
+        {
+          "path": "agent/prompt_cache_scope.py",
+          "gitBlob": "a08e6dfa9923773a1aeeeedfbf6ca157f8054083",
+          "sha256": "0a1eaa918b5473f059575d1471894d76a62836ae90b2d8cf934c11ed282f341e",
+          "bytes": 11545,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/prompt_cache_scope.py"
+        },
+        {
+          "path": "agent/prompt_caching.py",
+          "gitBlob": "1612ef56abfe52d59824bc2b2642b588e2027ddb",
+          "sha256": "b36630f00317fae22466ce4dbd7844c61f9390d60755f128b27a928eaa687e39",
+          "bytes": 19387,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/prompt_caching.py"
+        },
+        {
+          "path": "agent/session_persistence.py",
+          "gitBlob": "76237a3407e5cc22e2751eb4925d3ddd334c0433",
+          "sha256": "ea1eb6a430a9ef738c80f79f36f5c6fd5e61b481d7a6c27d72fa2b66c35a023d",
+          "bytes": 35594,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/session_persistence.py"
+        },
+        {
+          "path": "agent/skill_bundles.py",
+          "gitBlob": "d29b03b14ba9b88b05982e94cbb1052777bea73c",
+          "sha256": "2fe4e68c661c2d877faff88cbda89d65184a9245896b799664d19be3750dc149",
+          "bytes": 9336,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/skill_bundles.py"
+        },
+        {
+          "path": "agent/skill_preprocessing.py",
+          "gitBlob": "5464a68f51bb2abd5f1b69a81b71276b091f11e5",
+          "sha256": "679cac4702ae6e8f40284411216db0c0626a8e2bd951a269e46e5c2b38df763a",
+          "bytes": 7446,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/skill_preprocessing.py"
+        },
+        {
+          "path": "agent/skills_index_delta.py",
+          "gitBlob": "87526d4d9486d3b0e895bf3965c894279940e00d",
+          "sha256": "2e2ce28eff1d3c0e85e0ef2ff10197dd7e584beb83764903f0189c3601564a87",
+          "bytes": 6941,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/skills_index_delta.py"
+        },
+        {
+          "path": "agent/tool_call_batches.py",
+          "gitBlob": "b071c356a41bd8c8163a6436f7fc62a3679fd291",
+          "sha256": "b7652fda1d77516c6dc24881ae6f244e21633cc0f994870492549db0a6adaf0e",
+          "bytes": 3882,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/tool_call_batches.py"
+        },
+        {
+          "path": "agent/turn_usage.py",
+          "gitBlob": "6fd993664bed79232cd57a9102cb17f9562e6a67",
+          "sha256": "eead64e0b584521ab118094af5ebee7d886f30c2c4ff6984e6a2b8e1a4b276f3",
+          "bytes": 16873,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/turn_usage.py"
+        },
+        {
+          "path": "agent/usage_anchor.py",
+          "gitBlob": "b6dd325690d604a5af5b0f2c19b8bc4f6dcfaf44",
+          "sha256": "1d41b911b5809ec4a3eda590ab939b3c69a4085536ad4e02e2022119a8c149be",
+          "bytes": 9373,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/agent/usage_anchor.py"
+        },
+        {
+          "path": "cron/executions.py",
+          "gitBlob": "26f89649b712fb2c5577c51b9415cc2db39fe488",
+          "sha256": "ac22e4137f047c26b1fba332c0ae0078986d1c082f8afd48cbad10e89389168e",
+          "bytes": 33588,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/cron/executions.py"
+        },
+        {
+          "path": "cron/jobs.py",
+          "gitBlob": "1809214b9df26595d7a964f920ed47bb5bac927e",
+          "sha256": "210d1dd6bd9d82cde2d12fec698d5a7d84a58a96c7618ac06eb2381e7f362c22",
+          "bytes": 159888,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/cron/jobs.py"
+        },
+        {
+          "path": "cron/occurrences.py",
+          "gitBlob": "23c7eed0f682e9a431f5ae5f723f82bc3083f2af",
+          "sha256": "2ef885679802cc149cae1e0ca6822534c242b7f2948795d60a2f2d1e0602ddd3",
+          "bytes": 5757,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/cron/occurrences.py"
+        },
+        {
+          "path": "cron/scheduler.py",
+          "gitBlob": "ff780ef6ac2856da4aaf5e168b9500d3b0dc4ffa",
+          "sha256": "b5956a54f05a8d360b9652149cae0f603e92bc52bb4a5af2b911fbd457f98470",
+          "bytes": 219635,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/cron/scheduler.py"
+        },
+        {
+          "path": "cron/scheduler_preflight.py",
+          "gitBlob": "ce4cda23792e95025b873c160971906f0ae9116d",
+          "sha256": "2ef239959a6aefdbfa68163dac334709109b8c644fd4c2bd76c1b65746bfd9ce",
+          "bytes": 21536,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/cron/scheduler_preflight.py"
+        },
+        {
+          "path": "gateway/session_admission.py",
+          "gitBlob": "04c175a4b8f69e4fa961f50d03e38d19f58c68af",
+          "sha256": "2426c864e1c01bd6f090a878975a0a4a080f6f55f34381e247eda1ddaab15e19",
+          "bytes": 326,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/gateway/session_admission.py"
+        },
+        {
+          "path": "gateway/session_completion_notes.py",
+          "gitBlob": "6982d2c3e69021464d6f274a90e159e3a144e69e",
+          "sha256": "f03c2bc31fa30d8317b934c5d1b7475cb46b236ae17b63817e75eb05f29bf277",
+          "bytes": 4595,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/gateway/session_completion_notes.py"
+        },
+        {
+          "path": "gateway/session_db_recovery.py",
+          "gitBlob": "dcf2d9a662810efc278f3aa6e7e794a877ba2203",
+          "sha256": "055daa6ac9ab188f8c1c584550030b47a6e8c0b18c7d19edd6c541f036a7f791",
+          "bytes": 7854,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/gateway/session_db_recovery.py"
+        },
+        {
+          "path": "gateway/session_persistence.py",
+          "gitBlob": "41b48e64f70d61ca523739cc05cace4f9474d132",
+          "sha256": "92ab8f19425afe80e99e444b9a0475707049528697572cd8513106318bd3f08e",
+          "bytes": 36774,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/gateway/session_persistence.py"
+        },
+        {
+          "path": "hermes_state.py",
+          "gitBlob": "6a7ae615405ee714c0a87f83835408e36bd645ea",
+          "sha256": "dd50e9091ce6b9ebd76d157661bf82aa135d9c6bfe56ec57aed02b3cf901c4f2",
+          "bytes": 95327,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/hermes_state.py"
+        },
+        {
+          "path": "tools/code_execution_rpc.py",
+          "gitBlob": "e062d3e5e99a596f02d586259a019a462cf45d21",
+          "sha256": "4746de5caca13504496d02e4d072f87f1b218bedd26901916111d0cdeba92bcc",
+          "bytes": 12209,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/code_execution_rpc.py"
+        },
+        {
+          "path": "tools/code_execution_tool.py",
+          "gitBlob": "365645b04f674d2840b261f6e84a08af1a988383",
+          "sha256": "1271032c9c8916f2a0a560c7df4c6359900d3fcc934b95395ad84f5f0ef209af",
+          "bytes": 51087,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/code_execution_tool.py"
+        },
+        {
+          "path": "tools/delegate_tool.py",
+          "gitBlob": "8c431f3aad2af5438c08ca6fced09f21aa2c3d7a",
+          "sha256": "c674fe0a32c14c7502972e7ea4cf683501b9c14e21b06b2339060f04615b6993",
+          "bytes": 54091,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/delegate_tool.py"
+        },
+        {
+          "path": "tools/delegate_tool_dispatch.py",
+          "gitBlob": "e66f43e7dc7e9bdfb371966aac3f6ceaea6d6144",
+          "sha256": "8a185daafc1d965309851a8f6d8c1fb26c8230c849042a563009c5580d4afcc5",
+          "bytes": 29835,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/delegate_tool_dispatch.py"
+        },
+        {
+          "path": "tools/delegate_tool_results.py",
+          "gitBlob": "6f0ffabf3cc6db1cc2367f048d5f1cdf51099f56",
+          "sha256": "74f03a6ee71ba71fa32d451ab8bf999cab0789dd38b63dd3f5c467e38bb01109",
+          "bytes": 23430,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/delegate_tool_results.py"
+        },
+        {
+          "path": "tools/delegate_tool_tasks.py",
+          "gitBlob": "56a90f48a0dd8b819aab12f6a9d7cb477226adaf",
+          "sha256": "5cee5ec897c79dc7b9d3aa2cbb43f8ca94ce5a11e784d2a9374d7e37b935b165",
+          "bytes": 8343,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/delegate_tool_tasks.py"
+        },
+        {
+          "path": "tools/delegate_tool_toolsets.py",
+          "gitBlob": "25ec633153f916a88585f46fa9d14af2e0545e2f",
+          "sha256": "c839d14a931c3f1397525014ffab8ce41dfd8c171d16f7edb500bbb4cfbdd343",
+          "bytes": 5882,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/delegate_tool_toolsets.py"
+        },
+        {
+          "path": "tools/memory_tool.py",
+          "gitBlob": "abf8342f0b074ee239b2ea0cff8e260abc01a376",
+          "sha256": "00c86420cb4d824dbfe2806b1f748a1fc182b8c11ea2f902e8b77d3d035624dd",
+          "bytes": 25954,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/memory_tool.py"
+        },
+        {
+          "path": "tools/memory_tool_store.py",
+          "gitBlob": "03e84ff1b89489dcbb1d684b80924eaed00618e7",
+          "sha256": "0f665c95fcf44e3115c7a625622885e20254418b414a92a1f8570d1300e9fc31",
+          "bytes": 44405,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/memory_tool_store.py"
+        },
+        {
+          "path": "tools/process_registry.py",
+          "gitBlob": "1e14aa0e1f479272d10e22f8ab4bbf996f7be4e6",
+          "sha256": "aa5342d0ccc72327ea8afce484b22538719ceade9eb159abc9a438c22fc9151b",
+          "bytes": 149718,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/process_registry.py"
+        },
+        {
+          "path": "tools/process_registry_checkpoint.py",
+          "gitBlob": "176f0c3daba14cec23e1246aaa7725fa0e34d025",
+          "sha256": "046d77ac5beb39e0ca0b083140bfa19a25b9715c7376da0b8639d6bfdd26bb99",
+          "bytes": 8902,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/process_registry_checkpoint.py"
+        },
+        {
+          "path": "tools/process_registry_ownership.py",
+          "gitBlob": "f524444ae5608fbc5082db5d046f3d363e776cc3",
+          "sha256": "ee5eb296e2a213bbf858ad9ac15124b6de41168869dd2d7907b89b20207ad8b3",
+          "bytes": 5950,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/process_registry_ownership.py"
+        },
+        {
+          "path": "tools/process_registry_termination.py",
+          "gitBlob": "875c0ca69cccb100be03c08d85f56dce28a07764",
+          "sha256": "55b13dc215a52958f0dd8a631c892a4240e4bc7548a6b94074aa833de3a38d04",
+          "bytes": 8784,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/process_registry_termination.py"
+        },
+        {
+          "path": "tools/process_registry_wait_policy.py",
+          "gitBlob": "ed5bd28ad24b1ebb1a88aa6214aee09a9c1bd885",
+          "sha256": "0cec614130c1389545143abdab0875bf46e2a381f9b1465a4f303d020e1891da",
+          "bytes": 9832,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/process_registry_wait_policy.py"
+        },
+        {
+          "path": "tools/registry.py",
+          "gitBlob": "f272b26bc09766b2d1cb84060f6ac2a14abe166a",
+          "sha256": "0dd8939f3e102679a8236ab688653a906f3914ce9921000df13ef7a9b240d36c",
+          "bytes": 53070,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/registry.py"
+        },
+        {
+          "path": "tools/session_search_tool.py",
+          "gitBlob": "4cd76bae45c9b2f122eacb4c7cddef3e6bcf7526",
+          "sha256": "db33ec08257da698a1bd23347a1df4e29648ab72ebe525221cadd6a0d892d4b2",
+          "bytes": 44198,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/session_search_tool.py"
+        },
+        {
+          "path": "tools/skill_ledger.py",
+          "gitBlob": "dc983d1877187852738dc7eaadc839886e039595",
+          "sha256": "56121bfa4e5daa57ca7f9eb1767817e06e0ad00fae2e4c7f72bcaaf299e43c27",
+          "bytes": 28847,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/skill_ledger.py"
+        },
+        {
+          "path": "tools/skill_linter.py",
+          "gitBlob": "2ba1868debb3c363db087158c411b27eb4e7513b",
+          "sha256": "f0d337e3a121b4bf7478ba78b7d91943f83713b44bca7301de627d2dc600ef64",
+          "bytes": 11370,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/skill_linter.py"
+        },
+        {
+          "path": "tools/skill_lock.py",
+          "gitBlob": "c91bea3611329ff57f229e16d30eb50a165bb4a3",
+          "sha256": "748b3a2a1c3664c7eabdef5b949aba2165b6505b3f64dddee9b502a445ed5aad",
+          "bytes": 19958,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/skill_lock.py"
+        },
+        {
+          "path": "tools/skill_manager_batch.py",
+          "gitBlob": "78b72dde0ec168d16b7c80b604599c09f4941ae6",
+          "sha256": "a5fd36ae5790216f47832f21b48e61dc3dd6785d6eef9965de0bff90e5259870",
+          "bytes": 17516,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/skill_manager_batch.py"
+        },
+        {
+          "path": "tools/skill_manager_guards.py",
+          "gitBlob": "896189fbe8f609612e54c1186089cb20c33be65a",
+          "sha256": "3ca2e672a39061f3e2d9f58e402d5fb582a77d002d2d743d476e21a5a335e866",
+          "bytes": 13987,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/skill_manager_guards.py"
+        },
+        {
+          "path": "tools/skill_manager_tool.py",
+          "gitBlob": "d73835dbde5c845e4c42ecac561c34f02503f43e",
+          "sha256": "67df9575e2c22f7ac269e01404a2d6df6a5070d3633288dd00b479405c5bb853",
+          "bytes": 47942,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/skill_manager_tool.py"
+        },
+        {
+          "path": "tools/skill_provenance.py",
+          "gitBlob": "4ab73ce25634d642a831a3de4b66283ada19e4e0",
+          "sha256": "5c492a925cdde61c3257eb5db76568822d26be3d9a2c40d364a9997a3a7cb576",
+          "bytes": 1885,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/skill_provenance.py"
+        },
+        {
+          "path": "tools/skill_usage.py",
+          "gitBlob": "a0ef91d1e7e58163f7c4ae101dfa2d68cdbca968",
+          "sha256": "1985397006ca4418023a98281190c8fe6300226b10b288fcc777f9e07cf04f2a",
+          "bytes": 38880,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/skill_usage.py"
+        },
+        {
+          "path": "tools/skills_tool.py",
+          "gitBlob": "152c17410e6b26ff77feae968f9c0b3e2c9e8414",
+          "sha256": "0b6fbd304a6fff74c3e1afee3e959985b2205dc1926c7474ca5cc7a8bd8ea107",
+          "bytes": 42821,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/skills_tool.py"
+        },
+        {
+          "path": "tools/terminal_tool_background.py",
+          "gitBlob": "8c1f02ad6ae2c74b87e44785657b405ccb071601",
+          "sha256": "44038b1348e44993d0998c67cac0412125349d3f11eca188f38e69c9562f39f9",
+          "bytes": 15450,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/terminal_tool_background.py"
+        },
+        {
+          "path": "tools/todo_tool.py",
+          "gitBlob": "08d976ee2f03f0244892b03b4fd6948aceb4cd12",
+          "sha256": "a895fb70e9d6d118cc7992114e7efaece753d57af115cf822caf27e67cef4c87",
+          "bytes": 15371,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/todo_tool.py"
+        },
+        {
+          "path": "tools/tool_search.py",
+          "gitBlob": "4657a8e44a9c3530597d3de803374fbde0163418",
+          "sha256": "87e06c029304dae1ff1f592fa97f238165a04f1406cbdab68a2e3a0c3fd489a5",
+          "bytes": 32336,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/tool_search.py"
+        },
+        {
+          "path": "tools/tool_search_catalog.py",
+          "gitBlob": "15d3b39301252a64fa7a5f13adb08d099050c989",
+          "sha256": "647b51dc51fd984e78558cb0ec92d76b7b01c6f79d051fe44aeeb1051a256023",
+          "bytes": 16078,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/tool_search_catalog.py"
+        },
+        {
+          "path": "tools/tool_search_validation.py",
+          "gitBlob": "f52fa3d14ec56d1822bb7e393e3a178be6852eb1",
+          "sha256": "97d327a0c122a66023b570919ab9cdf968e4737fa16652283811ce8278079cc0",
+          "bytes": 13966,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/tools/tool_search_validation.py"
+        },
+        {
+          "path": "website/docs/developer-guide/context-compression-and-caching.md",
+          "gitBlob": "57893de91f1c2efa4702f1507660e5695be59afc",
+          "sha256": "e08e3b1387899d34af685139932b2bfdf12bf7ba173d05dbef7973a11a9a3012",
+          "bytes": 52819,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/website/docs/developer-guide/context-compression-and-caching.md"
+        },
+        {
+          "path": "website/docs/developer-guide/delegation-provider-plugin.md",
+          "gitBlob": "d6095adc21fbdd32306f6fb026f1200677992236",
+          "sha256": "7a77996972fc86975b29bc6942a17f156a00cda4561717af3b0b117d4794052f",
+          "bytes": 12299,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/website/docs/developer-guide/delegation-provider-plugin.md"
+        },
+        {
+          "path": "evals/approval_deny_dispatch.py",
+          "gitBlob": "fce4a442e5b5ce665ad79df9a559dd38f64342e1",
+          "sha256": "7c9ca774a6876a11a57fb05b6ce9b54715756472cfe2ee8f24f09365d0520445",
+          "bytes": 4084,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/evals/approval_deny_dispatch.py"
+        },
+        {
+          "path": "evals/browser_use/README.md",
+          "gitBlob": "35b48dee09a5babf6382dc45734a4d6e99da82d6",
+          "sha256": "63f5d3fb3e4f8bbe5dcb2ed3ccc2d1995fa0651afd4ddfbe1e7e4cbb62ecf67f",
+          "bytes": 5484,
+          "url": "https://github.com/NousResearch/hermes-agent/blob/013bde4786db7afbd72c44a1d15ee78876c9cb96/evals/browser_use/README.md"
+        }
+      ],
+      "note": "Retrieved source inventory. Focused implementation findings and inspected entry points are documented in the companion research matrix; inventory count is not a claim of exhaustive line-by-line review."
+    }
+  ],
+  "totalMaterials": 260,
+  "executedThirdPartyScripts": false,
+  "installedThirdPartyDependencies": false
+}

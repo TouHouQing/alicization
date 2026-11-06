@@ -58,6 +58,15 @@ describe('canonical ToolRegistry', () => {
     expect(() => createToolRegistry().register({ ...read, permissions: ['filesystem.write'] })).toThrow('read permissions')
     expect(() => createToolRegistry().register({ ...read, permissions: ['mcp.invoke'] })).toThrow('known reader')
   })
+  it('limits capability discovery to read metadata with bounded provider arguments', () => {
+    const registry = createCanonicalToolRegistry()
+    for (const name of ['life_search_capabilities', 'life_describe_capabilities'])
+      expect(registry.resolveActive(`tool.${name}`)).toMatchObject({ risk: 'low', permissions: ['workspace.read'], effects: { sideEffect: 'read', retryClass: 'read-only', compensation: 'none' } })
+    expect(registry.validateInput('tool.life_search_capabilities', { query: 'archive', limit: 3 }).valid).toBe(true)
+    expect(registry.validateInput('tool.life_search_capabilities', { query: 'archive', limit: 0 }).valid).toBe(false)
+    expect(registry.validateInput('tool.life_describe_capabilities', { names: ['one', 'two', 'three', 'four'] }).valid).toBe(false)
+    expect(registry.validateInput('tool.life_describe_capabilities', { names: ['one'], grantPermission: true }).valid).toBe(false)
+  })
   it('declares read and mutation recovery separately and freezes their policy contracts', () => {
     const registry = createCanonicalToolRegistry()
     expect(registry.get('tool.filesystem_read_file')?.effects).toMatchObject({ sideEffect: 'read', retryClass: 'read-only', compensation: 'none' })
@@ -106,10 +115,19 @@ describe('canonical ToolRegistry', () => {
       'tool.filesystem_read_file',
       'tool.filesystem_search_files',
       'tool.filesystem_write_file',
+      'tool.life_cancel_automation',
       'tool.life_create_personal_piece',
+      'tool.life_describe_capabilities',
       'tool.life_execute_work_plan',
+      'tool.life_language_query',
+      'tool.life_list_automations',
       'tool.life_list_execution_verifiers',
       'tool.life_list_learned_procedures',
+      'tool.life_programmatic_read',
+      'tool.life_read_tool_observation',
+      'tool.life_schedule_work',
+      'tool.life_search_capabilities',
+      'tool.life_search_sessions',
       'tool.life_use_learned_procedure',
       'tool.sensory_capture_state',
       'tool.set_reminder',

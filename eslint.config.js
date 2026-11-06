@@ -60,6 +60,13 @@ export default defineConfig({
     'markdown/require-alt-text': 'off',
   },
 }, {
+  files: ['apps/stage-tamagotchi/scripts/life-acceptance/life-product-regression.cjs'],
+  rules: {
+    // ESLint 9's code-path recursion overflows on this large QA orchestrator.
+    // Inline suppression cannot prevent that rule's visitor from executing.
+    'no-useless-return': 'off',
+  },
+}, {
   files: [
     'apps/stage-tamagotchi/src/main/services/alicization/**/*.test.ts',
   ],

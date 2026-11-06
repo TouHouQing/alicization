@@ -4,6 +4,23 @@ chat:
   send: 发送消息
   input-hint: Enter 发送 · Shift + Enter 换行
   preparing: 正在准备回复… 等待时可以点击中断按钮。
+  speech:
+    waiting: 正在准备声音…
+    speaking: 正在朗读
+    silent: 无声表达中
+    completed: 已朗读完
+    excerpt: 已朗读部分内容，可选择朗读全文
+    text-only: 本次保留为文字，可选择朗读全文
+    interrupted: 朗读已停止，正文已保留
+    failed: 朗读失败，正文已保留
+    stop: 停止表达
+    read-full: 朗读全文
+    current: 当前朗读的语句
+    estimated: 当前语句；字词位置按音频进度估算
+    auto-read: 自动朗读回复
+    auto-read-description: 短回复自然分句朗读；长回复先读开头的短句，代码保留在正文。
+    silent-mouth: 无声口型
+    silent-mouth-description: 不播放声音时，以自然节奏表现说话口型；不影响文字显示速度。
   message:
     reply-stopped: 回复已停止
     reply-interrupted: 回复未完成，可以重试。

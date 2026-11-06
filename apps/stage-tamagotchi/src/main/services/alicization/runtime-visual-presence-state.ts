@@ -9,6 +9,8 @@ import type { CardScopeOptions } from './runtime-soul'
 import { createHash, randomUUID } from 'node:crypto'
 
 import { lifeEmotionParameterVersion } from './life-appraisal-repository'
+import { personaContextForText, projectPersonaDevelopmentValues } from './persona-development/projection'
+import { personaDevelopmentKey, personaDigest } from './persona-development/schema'
 
 interface CreateAlicizationRuntimeVisualPresenceStateOptions {
   now: () => number
@@ -240,6 +242,16 @@ export function createAlicizationRuntimeVisualPresenceState(
       state,
       Number.isFinite(Number(state.updatedAt)) ? Math.max(0, Math.floor(Number(state.updatedAt))) : now(),
     )
+    const readPersonality = async () => {
+      const [personality, soul] = await Promise.all([alicizationDb.getMetaValue(personaDevelopmentKey), alicizationDb.getMetaValue('life:soul-active')])
+      const context = personaContextForText(JSON.stringify({ scene: canonicalState.currentScene, body: canonicalState.currentBodyState }))
+      const projection = projectPersonaDevelopmentValues({ ...(personality ? { [personaDevelopmentKey]: personality } : {}), ...(soul ? { 'life:soul-active': soul } : {}) }, context, false)
+      canonicalState.personalityExpression = { version: personaDigest(projection.facets.map(facet => [facet.id, facet.version])), expression: projection.effects.expression, warmth: projection.effects.warmth }
+    }
+    if (cardId === getActiveCardId())
+      await readPersonality()
+    else
+      await withCardScope(cardId, readPersonality, { label: `personality-expression:${cardId}`, signal: persistOptions.signal })
     const nextSerialized = JSON.stringify(canonicalState)
     const nextComparableSerialized = serializeComparableJson(canonicalState)
     if (previousState && serializeComparableJson(previousState) === nextComparableSerialized) {

@@ -22,6 +22,7 @@ export type AlicizationMainGatewaySource
     | 'subjective-inference'
     | 'counterfactual-deliberation'
     | 'memory-quality-trial'
+    | 'memory-compaction'
 
 export interface AlicizationMainGatewayBaseGenerateTextInput<
   TSource extends AlicizationMainGatewaySource = AlicizationMainGatewaySource,
@@ -55,7 +56,7 @@ export function resolveAlicizationMainGatewayAuditFamilyForSource(
     return 'dialogue-grounding'
   if (source === 'persona-evaluation' || source === 'personal-activity' || source === 'dream' || source === 'reminder' || source === 'proactive')
     return 'background-life'
-  if (source === 'counterfactual-deliberation' || source === 'memory-quality-trial')
+  if (source === 'counterfactual-deliberation' || source === 'memory-quality-trial' || source === 'memory-compaction')
     return 'memory-planning'
   if (source === 'subjective-inference')
     return 'mind-state'

@@ -10,6 +10,7 @@ import type {
   LongTermMemoryRetrievalChannel,
 } from './long-term-memory-rrf'
 
+import { selectDiverseLongTermEvidence } from './long-term-memory-diversity'
 import { longTermMemoryEvidenceVersion } from './long-term-memory-recall'
 import { reciprocalRankFusion } from './long-term-memory-rrf'
 
@@ -285,7 +286,7 @@ export function rankLongTermMemoryHybridEvidence(input: {
   ], 28, 180)
   const limit = Math.max(1, Math.min(8, Math.floor(input.limit ?? 5)))
 
-  return input.candidates
+  const ranked = input.candidates
     .map((candidate) => {
       const fusedRank = fusedById.get(candidate.id)
       if (!fusedRank)
@@ -339,5 +340,5 @@ export function rankLongTermMemoryHybridEvidence(input: {
     })
     .filter((item): item is RankedLongTermMemoryEvidence => item !== null && item.score >= 0.18)
     .sort((left, right) => right.score - left.score || right.candidate.confidence - left.candidate.confidence)
-    .slice(0, limit)
+  return selectDiverseLongTermEvidence(ranked, limit)
 }

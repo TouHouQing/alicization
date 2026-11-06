@@ -56,6 +56,30 @@ async function fixture() {
 }
 
 describe('candidate-specific persona development loop', () => {
+  it('evaluates local behavior with training disabled while keeping exact review and withdrawal checks', async () => {
+    const f = await fixture()
+    const connection = await new Promise<sqlite3.Database>((resolve, reject) => { const db = new sqlite3.Database(join(f.root, 'alicization.db'), error => error ? reject(error) : resolve(db)) })
+    try {
+      const examples = await f.options.examples()
+      for (const example of examples) {
+        example.allowTraining = false
+        example.consentSnapshot.granted = false
+        example.state = 'quarantined'
+        example.piiReason = 'source consent is not granted'
+      }
+      await new Promise<void>((resolve, reject) => connection.run(`UPDATE persona_training_dataset_examples SET allow_training = 0, consent_snapshot_json = ?, state = 'quarantined', pii_reason = 'source consent is not granted'`, [JSON.stringify({ granted: false, scope: 'persona-dataset', policyVersion: 'test-v1' })], error => error ? reject(error) : resolve()))
+      const runtime = createLifePersonaDevelopmentRuntime(f.options)
+      await runtime.command(f.command)
+      const evaluation = v.parse(lifePersonaEvaluationSchema, (await f.db.getLifeEffect(f.proposal.id))!.receipt)
+      expect(evaluation.pairs).toHaveLength(3)
+      await expect(runtime.command({ ...f.command, action: 'adopt', expectedEvaluationHash: fingerprintLifePersonaEvaluation(evaluation) })).rejects.toThrow('Review')
+      expect(examples.every(example => !example.allowTraining && !example.consentSnapshot.granted)).toBe(true)
+    }
+    finally {
+      await new Promise<void>((resolve, reject) => connection.close(error => error ? reject(error) : resolve()))
+      await f.close()
+    }
+  })
   it.skipIf(process.env.LIFE_QA_CONFIGURED_GROWTH !== '1')('persists actual configured-model paired answers and keeps adoption behind exact human review', async () => {
     const f = await fixture()
     try {

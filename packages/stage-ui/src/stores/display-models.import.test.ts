@@ -7,12 +7,14 @@ const mocks = vi.hoisted(() => ({
   entries: new Map<string, unknown>(),
   preview: vi.fn(),
   persist: vi.fn(),
+  read: vi.fn(),
+  iterate: vi.fn(),
 }))
 
 vi.mock('localforage', () => ({
   default: {
-    iterate: async (visit: (value: unknown, key: string) => void) => { for (const [key, value] of mocks.entries) visit(value, key) },
-    getItem: async (key: string) => mocks.entries.get(key) ?? null,
+    iterate: (...args: unknown[]) => mocks.iterate(...args),
+    getItem: (...args: unknown[]) => mocks.read(...args),
     setItem: (...args: unknown[]) => mocks.persist(...args),
     removeItem: async (key: string) => { mocks.entries.delete(key) },
   },
@@ -25,6 +27,11 @@ describe('model import and durable catalogue', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     mocks.entries.clear()
+    mocks.read.mockReset().mockImplementation(async (key: string) => mocks.entries.get(key) ?? null)
+    mocks.iterate.mockReset().mockImplementation(async (visit: (value: unknown, key: string) => void) => {
+      for (const [key, value] of mocks.entries)
+        visit(value, key)
+    })
     mocks.preview.mockReset().mockResolvedValue('data:image/png;base64,cHJldmlldw==')
     mocks.persist.mockReset().mockImplementation(async (key: string, value: unknown) => {
       mocks.entries.set(key, value)
@@ -32,6 +39,36 @@ describe('model import and durable catalogue', () => {
     })
   })
   afterEach(() => vi.useRealTimers())
+
+  it('resolves the bundled Live2D body while the imported catalogue is still waiting for storage', async () => {
+    vi.useFakeTimers()
+    const hydration = Promise.withResolvers<void>()
+    mocks.iterate.mockReturnValueOnce(hydration.promise)
+    const store = useDisplayModelsStore()
+    const loading = store.loadDisplayModelsFromIndexedDB()
+    let resolved = false
+    const body = store.getDisplayModel('preset-live2d-1').then((model) => {
+      resolved = true
+      return model
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    try {
+      expect(resolved).toBe(true)
+      expect(await body).toMatchObject({ id: 'preset-live2d-1', type: 'url', format: DisplayModelFormat.Live2dZip })
+      expect(mocks.read).not.toHaveBeenCalled()
+    }
+    finally {
+      hydration.resolve()
+      await loading
+    }
+  })
+
+  it('keeps bundled body URLs tied to the current release when storage contains an obsolete preset record', async () => {
+    mocks.entries.set('preset-live2d-1', { id: 'preset-live2d-1', type: 'url', format: DisplayModelFormat.Live2dZip, url: 'file:///removed-installation/body.zip' })
+    const body = await useDisplayModelsStore().getDisplayModel('preset-live2d-1')
+    expect(body?.type === 'url' && body.url).toContain('hiyori_pro_zh.zip')
+    expect(mocks.read).not.toHaveBeenCalled()
+  })
 
   it('rejects invalid Live2D models without changing the catalogue or writing a record', async () => {
     const store = useDisplayModelsStore()

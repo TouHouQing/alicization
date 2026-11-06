@@ -586,16 +586,17 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
 
   function cancelIntent(intentId: string, reason?: string) {
     const intent = intents.get(intentId)
-    if (!intent)
+    if (!intent) {
+      // Synthesis can retire before its buffered audio finishes. Playback owns
+      // that remaining lifetime and must still receive an exact-intent stop.
+      options.playback.stopByIntent(intentId, reason ?? 'canceled')
       return
+    }
     intent.canceled = true
     intent.controller.abort(reason ?? 'canceled')
     intent.closeStream()
 
-    if (activeIntent?.intentId === intentId) {
-      options.playback.stopByIntent(intentId, reason ?? 'canceled')
-      return
-    }
+    options.playback.stopByIntent(intentId, reason ?? 'canceled')
 
     const index = pending.findIndex(item => item.intentId === intentId)
     if (index >= 0)

@@ -2356,6 +2356,7 @@ export interface AlicizationPrivateThoughtSnapshot {
 }
 
 export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizationPersistentPresenceAuthoritySnapshot {
+  personalityExpression?: { version: string, expression: number, warmth: number }
   watchMode: AlicizationVisualWatchMode
   currentScene: AlicizationVisualSceneSnapshot | null
   attention: AlicizationVisualAttentionSnapshot | null

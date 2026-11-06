@@ -1,0 +1,10 @@
+Portions derived from NousResearch/hermes-agent, MIT License.
+Upstream commit: 013bde4786db7afbd72c44a1d15ee78876c9cb96
+Source: tools/tool_search_catalog.py
+Local adaptation: src/main/services/alicization/third-party/hermes-tool-catalog.ts
+
+Alicization modifications: TypeScript types, bounded Unicode and Han tokenization,
+deterministic ordering, preserved metadata generics and no Snowball dependency.
+Tool interfaces are projected from current executable registrations and settled
+life receipts. The original generic tool_call execution bridge is not copied.
+The accompanying hermes-agent-license.txt contains the upstream license.

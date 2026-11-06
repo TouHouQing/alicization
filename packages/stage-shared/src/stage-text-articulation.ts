@@ -11,6 +11,8 @@ export interface StageTextPresentation {
 export interface StageTextArticulationFrame extends StageTextPresentation {
   turnId: string
   startedAt: number
+  clock?: 'audio'
+  audioElapsedMs?: number
 }
 
 export interface StageTextMouthShape {
@@ -33,8 +35,8 @@ const vowels: Record<string, StageTextMouthShape> = {
 }
 
 export function resolveStageTextMouthShape(frame: StageTextArticulationFrame, now: number): StageTextMouthShape {
-  const elapsed = now - frame.startedAt
-  if (frame.script === 'silent' || elapsed < 0 || elapsed >= frame.durationMs)
+  const elapsed = frame.clock === 'audio' ? frame.audioElapsedMs ?? 0 : now - frame.startedAt
+  if (frame.script === 'silent' || !Number.isFinite(elapsed) || !Number.isFinite(frame.durationMs) || frame.durationMs <= 0 || elapsed < 0 || elapsed >= frame.durationMs)
     return closed
   const progress = elapsed / frame.durationMs
   const phoneme = frame.phoneme.toLowerCase().replace(/v/g, 'ü')

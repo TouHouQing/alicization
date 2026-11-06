@@ -1,0 +1,295 @@
+{
+  "format": "alicization-agent-harness-deep-validation-v1",
+  "date": "2026-11-03",
+  "baseline": "45f74b07740e44eda1bc92252932a74c952355d8",
+  "status": "passed-with-explicit-scope",
+  "sourceFingerprint": "400785270c416bbed77aab72e169a1a48f9774d1e69ea79309e392073ae29caa",
+  "inputs": [
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/codex-agent-harness-license.txt",
+      "bytes": 10926,
+      "sha256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/codex-agent-harness-notice.txt",
+      "bytes": 548,
+      "sha256": "3211fceb94c900609bff81cf60d94605ec7271e84f8e549e580a9415803b7eb3"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/deepseek-harness-license.txt",
+      "bytes": 1065,
+      "sha256": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/pi-agent-harness-notice.txt",
+      "bytes": 1080,
+      "sha256": "7dd6c9b92cff7c33ddbfc5629c91a8d7a5c295fd8423f84a4cdec2c08c125184"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/procedure-context.test.ts",
+      "bytes": 3493,
+      "sha256": "3e784da455a8b0ef033098ba505d23b12878179405d7a8fe5816f292d5675a3a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/procedure-context.ts",
+      "bytes": 4720,
+      "sha256": "7c187fc710e4228d9ff765d6f61e6d5c3903dba1a410f90e02c1e451708b8860"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/progress-context.test.ts",
+      "bytes": 7072,
+      "sha256": "af8eb3c0735b3a250743dabb3a63a4b3bd7153f3f733069a8601a210c6e74021"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/progress-context.ts",
+      "bytes": 5847,
+      "sha256": "b3c574257282c69745a7801254cbe82c241ad671d0fcbad229dbff8ec59343f1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/skill-selection.test.ts",
+      "bytes": 3171,
+      "sha256": "2432cbac313c4545f6b8a3878152d3a734aa78a4a7ec30198aa91a125d715c72"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/tool-observation.test.ts",
+      "bytes": 6480,
+      "sha256": "d71d15c556eabdb33355f01089daf297ff8635d822480c4780b3fecd7faf1cd6"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/tool-observation.ts",
+      "bytes": 7026,
+      "sha256": "46fe7056392c8bab40b014f9086f61006dc1b22e9459fd204669f75598b504f3"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-provider-budget.test.ts",
+      "bytes": 16659,
+      "sha256": "6f2593907aed267a9c7f0b5c1ed2f24975c343498d1a84133aaadb03de8c929f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-provider-budget.ts",
+      "bytes": 11476,
+      "sha256": "b1b995b7721cd7e15b84794fdb1b38174f9c4df4ed880cf4a4c1b3b0709d10dc"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-workflow-tool-scope.ts",
+      "bytes": 824,
+      "sha256": "8bce1caf74328b912d04de3731b030e8be62e10f9290b1e95336e85728003260"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "bytes": 201932,
+      "sha256": "0df6c7acbcf421a0663f0f01965ba2e5016be9f798b2beb9a8b6e9ed7205efad"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.ts",
+      "bytes": 85582,
+      "sha256": "6c8a72cb1e579dc00479542a2bf10c8d7c17f92cf3a1adf79702306faf3c6e92"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-execution-surface.test.ts",
+      "bytes": 181570,
+      "sha256": "77101e09361b7eeac67527723dbeaf138a8b489ea8f539e23fe748c1186d1500"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-execution-surface.ts",
+      "bytes": 210858,
+      "sha256": "3f3523db4fed57bbc8df8c7950fe8ab52ecc17df017474001c478751781be854"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.ts",
+      "bytes": 14548,
+      "sha256": "b4d500049b73c819aac50749ae1d9b5f610c6538e38e2c5aefa56f5fc372a8eb"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts",
+      "bytes": 344003,
+      "sha256": "2005c2f54554a012268ddd60a08c3b84623b3383ad98ec246585517e11bacefa"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts",
+      "bytes": 150383,
+      "sha256": "f04bb55eb692cf39c2618a8e7f55d1ba853605e33ac532f7861c547aea29fe23"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "bytes": 231568,
+      "sha256": "5ec5470a2b3b60b931749d5bac7f92bdaf07bc6725d1e47d584498a804b37ce1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.ts",
+      "bytes": 117409,
+      "sha256": "a09e3d8529ea9ba3fce74b384e989a4f0bb19e5a09408531c391f519e864f596"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime.ts",
+      "bytes": 385512,
+      "sha256": "19b7a0152781d7066401dcae64bfa8844bd73dedb1ecf073cbf53b2bbd9562b5"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/codex-skill-selector.ts",
+      "bytes": 5524,
+      "sha256": "36fc5cce911e8456e15bd43a24bb01a267aa0520c4f4e6344e47234bf7716d70"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/deepseek-repeat-tool.ts",
+      "bytes": 1815,
+      "sha256": "3775d9b160c1eb2f98a46c57ce3d45c8eeb182e06fd57e1cb20bb0c2d444357a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/pi-tool-batch.ts",
+      "bytes": 769,
+      "sha256": "d411362ba29403e67d08ecebb4bf7abb05b6678d452f3989ebc1ca9b18fc713e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/pi-tool-text.ts",
+      "bytes": 2018,
+      "sha256": "97b41b2d33458d872f189fb8aa59d055052447565ac0ee1dd0b16683bd220398"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/event-loop.ts",
+      "bytes": 48818,
+      "sha256": "527c26892ada767eba2e7656b843f1e57acce34635e25e0485776b5482d5b107"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/main-chat-participant.test.ts",
+      "bytes": 23030,
+      "sha256": "aae1c3c09235a2c6be7025cda47ee7348c61a7208ad2223598fd1033f63ee58f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/main-chat-participant.ts",
+      "bytes": 7497,
+      "sha256": "0e5f5fa89cb8fb033ec4189d55b7001f228ae49f3fb29c7d9d27756f2d121aac"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/tool-registry.test.ts",
+      "bytes": 27128,
+      "sha256": "1e789c1f4629f126ec39deb06bf1127db44eb3b266adf43f076010bb13dc8269"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/tool-registry.ts",
+      "bytes": 43873,
+      "sha256": "53fb033e5ad84f8bd55a917fbf52f88ffac3fff3208de1db51b94f1206847307"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cross-subsystem-regression",
+      "files": 28,
+      "passed": 803,
+      "failed": 0,
+      "skipped": 1,
+      "report": "output/agent-harness-deep-study-20261103/source-complete-regression.json"
+    },
+    {
+      "name": "actual-configured-model-work-repair",
+      "command": "ALICIZATION_RUN_REAL_WORK_REPAIR=1 pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts -t \"three actual configured-model revisions\" --maxWorkers=1",
+      "passed": 1,
+      "trials": 3,
+      "providerCalls": 3,
+      "report": "output/agent-harness-deep-study-20261103/real-model-repair.json",
+      "receipts": "output/work-adaptation-real-model-a98d30ee-23d5-4e56-bbf5-89830c026d60.json",
+      "receiptsSha256": "278e256ee3fe428e505dc32d999d7683177b4c04dc88cf6aa9901e3fda3fd617",
+      "note": "The opt-in case skipped in the broad run passed separately. Three real model requests over synthetic local file tasks; this is not a cross-product benchmark or real-model native tool-batch ranking."
+    },
+    {
+      "name": "workspace-types",
+      "command": "pnpm typecheck",
+      "exitCode": 0,
+      "log": "output/agent-harness-deep-study-20261103/typecheck-source-complete.log"
+    },
+    {
+      "name": "workspace-lint",
+      "command": "pnpm lint:fix",
+      "exitCode": 0,
+      "errors": 0,
+      "oxlintWarnings": 35,
+      "eslintWarnings": 1195,
+      "newHarnessModuleWarnings": 0,
+      "log": "output/agent-harness-deep-study-20261103/lint-fix-final-source.log"
+    },
+    {
+      "name": "desktop-production-build",
+      "command": "pnpm -F @proj-alicization/stage-tamagotchi build",
+      "exitCode": 0,
+      "log": "output/agent-harness-deep-study-20261103/build-source-complete.log"
+    },
+    {
+      "name": "patch-whitespace",
+      "command": "git diff --check",
+      "exitCode": 0,
+      "log": "output/agent-harness-deep-study-20261103/diff-check.log"
+    }
+  ],
+  "scenarios": [
+    "real local HTTP SSE -> xsAI -> complete multi-tool proposal -> production background runner -> per-action admission -> SQLite settlement -> one matched result per call -> single reply commit",
+    "complete batch persisted before first adapter dispatch; two model requests for two observations and final reply",
+    "first result durable before second dispatch; tool revoked or authority denied after first result does not dispatch second adapter",
+    "malformed tail, duplicate ID, over-budget batch, missing finish, length or content-filter finish never publish a partial batch",
+    "adapter exceptions reach next model request after durable settlement",
+    "cancellation and disk failure do not dispatch the remaining batch",
+    "owner replan or uncertain effect yields explicit unstarted tail results, then a fresh model step; skipped items do not create a repeated-failure streak",
+    "Codex-derived BM25 + character ranking + RRF, Chinese and structural parameter roles; source/activation/evaluation/version filters remain enforced",
+    "DeepSeek-derived canonical repeated-call reminders at 3/5/8 unchanged observations; changed observations reset the chain; exact source hashes survive receipt compaction",
+    "derived progress context <=1536 bytes in bounded production input scenarios; actual source receipts and identity preserved",
+    "original large tool result reconstructed exactly through current-turn SQLite byte pages without replaying the original operation",
+    "existing memory, reply grounding, verified procedures, goal acceptance, work revision, cancellation and embodiment projection regressions"
+  ],
+  "realModelTrials": [
+    {
+      "round": 0,
+      "providerCalls": 1,
+      "writeCount": 2,
+      "goalStatus": "fulfilled",
+      "verdict": "satisfied",
+      "independent": true,
+      "successfulReadEffect": true
+    },
+    {
+      "round": 1,
+      "providerCalls": 1,
+      "writeCount": 2,
+      "goalStatus": "fulfilled",
+      "verdict": "satisfied",
+      "independent": true,
+      "successfulReadEffect": true
+    },
+    {
+      "round": 2,
+      "providerCalls": 1,
+      "writeCount": 2,
+      "goalStatus": "fulfilled",
+      "verdict": "satisfied",
+      "independent": true,
+      "successfulReadEffect": true
+    }
+  ],
+  "compiledMain": {
+    "path": "apps/stage-tamagotchi/out/main/index.js",
+    "bytes": 12573479,
+    "sha256": "6f8397154731394c89da6f33df65d097afde14888c1c88c034477a121330e26a"
+  },
+  "limits": {
+    "durableLearnedMethodCandidates": 32,
+    "selectorMaxCandidates": 1000,
+    "disclosedMethods": 4,
+    "methodArrayBytes": 3000,
+    "maxToolsPerModelStep": 8,
+    "maxProposedActionsPerTurn": 63,
+    "maxModelStepsPerTurn": 64,
+    "progressContextBytes": 1536,
+    "defaultBatchExecution": "sequential with per-action policy and durability",
+    "crossProductModelParity": "not measured",
+    "installer": "not rebuilt in this request"
+  },
+  "environment": {
+    "backgroundOnly": true,
+    "runtime": "Existing bundled Node 24; scoped PATH exposes the existing desktop vue-tsc binary. No global environment or dependency change.",
+    "upstreamCache": {
+      "files": 66,
+      "bytes": 1112416,
+      "fullRepoClones": 0,
+      "installedUpstreamDependencies": false
+    },
+    "temporaryFixtures": "Current successful test fixtures cleaned by their owned-directory cleanup. The earlier policy-blocked temp directory was not retried."
+  }
+}

@@ -15,6 +15,7 @@ import type {
   AlicizationRuntimeDigest,
   AlicizationVisibleReplyExecution,
 } from '../../../shared/eventa'
+import type { ProviderAccounting } from './agent-harness/provider-usage-ledger'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { LifeReplyGroundingInput, LifeReplyGroundingResult } from './life-reply-grounding-runtime'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
@@ -34,10 +35,16 @@ import type { AlicizationMemoryWriteProposal } from './turn-os/memory-participan
 import { errorMessageFrom } from '@moeru/std'
 import { alicizationEmotionWhitelist, buildAlicizationProviderFactBlock, createAlicizationRuntimeEvent, extractAlicizationToolExecutionFailure, isAlicizationToolExecutionFailureResult, resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 
+import { discloseCapabilities } from './agent-harness/capability-disclosure'
+import { withGovernedReadScope } from './agent-harness/governed-read-scope'
+import { isParallelReadAction } from './agent-harness/parallel-admission'
+import { agentHarnessMaxModelSteps, prepareAgentContinuation } from './agent-harness/progress-context'
+import { withProviderUsageScope } from './agent-harness/provider-usage-scope'
 import { deriveAlicizationRuntimeSnapshot, projectAlicizationRuntimeDigest } from './alicization-runtime-architecture'
 import { contextualExpression } from './contextual-expression'
 import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
 import { inheritActionNotStarted, withActionDispatch } from './execution/action-dispatch-context'
+import { markOwnedReadStopped } from './execution/owned-read-stop'
 import { refineCommittedInteractionIntent } from './interaction-intent'
 import { readLifeInputText } from './life-input-preview'
 import { readLifePersonalIntent } from './life-personal-intent'
@@ -65,6 +72,7 @@ import {
   resolvePreferredPersonStateProjection,
   resolvePreferredSelfContinuityAuthority,
 } from './person-state-projection-resolution'
+import { personaContextForText } from './persona-development/projection'
 import {
   mainChatFirstEventTimeoutMs,
   mainChatFirstEventTimeoutWithVisualGroundingMs,
@@ -206,6 +214,8 @@ interface RunAlicizationMainChatBackgroundOptions {
   emitError: (payload: AlicizationChatErrorEvent) => void
   incrementChunkStats: (rawDelta: string) => void
   appendRuntimeDebugLine: (event: string, payload: Record<string, unknown>) => Promise<void>
+  providerAccounting?: ProviderAccounting
+  beforeToolCall?: (cardId: string, event: { toolName: string, toolCallId: string, input: unknown }, signal: AbortSignal) => Promise<{ extensionId: string, version: string, reason: string } | null>
   queueScopedAuditLog: (cardId: string, input: {
     level: 'warning' | 'notice'
     category: string
@@ -331,7 +341,7 @@ export function resolveAlicizationExecutionPayoffContinuityInputs(input: {
   }
 }
 
-export async function runAlicizationMainChatBackground(
+async function runMainChatBackgroundInScope(
   input: RunAlicizationMainChatBackgroundOptions,
 ) {
   let prepared: AlicizationPreparedMainChatExecutionResult | null = null
@@ -749,6 +759,8 @@ export async function runAlicizationMainChatBackground(
       return (prepared.memoryContext?.longTermRecall?.evidence ?? []).flatMap(item => item.source === 'memory_facts' && item.sourceVersion && /^\d+$/u.test(item.sourceVersion) ? [{ cardId, kind: 'memory_facts', id: item.id, version: item.sourceVersion, usage: item.temporalScope?.perspective ?? 'current' as const }] : [])
     }
     const growthCandidateByTurn = new Map<string, string | null>()
+    const personaProjectionByTurn = new Map<string, ReturnType<typeof import('./persona-development/projection').projectPersonaDevelopment>>()
+    const currentPersonaContext = personaContextForText(input.payload.messages.filter(item => item.role === 'user').map(item => typeof item.content === 'string' ? item.content : '').at(-1) ?? '')
     const lifeBaseCountByTurn = new Map<string, number>()
     const lifeOwnersByTurn = new Map<string, import('../../../shared/life-contracts').LifeOwnerVersion[]>()
     const acceptedReviewByTurn = new Map<string, string>()
@@ -757,11 +769,15 @@ export async function runAlicizationMainChatBackground(
     let argumentRepairCount = 0
     let preDispatchRefreshes = 0
     let pendingActionReplan: { actionId: string, capabilityId: string, providerToolName: string } | null = null
+    let programmaticReads = 0
     const participant = createAlicizationMainChatParticipant<AlicizationPreparedMainChatExecutionResult>({
+      waitForActionStop: (action, context) => ['tool.life_programmatic_read', 'tool.life_language_query'].includes(action.capabilityId) || context.prepared.toolRegistry.get(action.capabilityId)?.executionChannel === 'extension-isolate',
+      canRunInParallel: (action, context) => isParallelReadAction(action, context.prepared.toolRegistry),
       onContextAssembled: async (context, runtime) => {
-        const lifeView = await input.life.context(runtime.cardId)
+        const lifeView = await input.life.context(runtime.cardId, currentPersonaContext)
         lifeOwnersByTurn.set(runtime.turnId, lifeView.owners)
         growthCandidateByTurn.set(runtime.turnId, lifeView.growthCandidateId)
+        personaProjectionByTurn.set(runtime.turnId, lifeView.personaDevelopment)
         context.providerMessages.splice(1, 0, { role: 'system', content: lifeView.text })
         lifeBaseCountByTurn.set(runtime.turnId, context.providerMessages.length)
         await input.appendRuntimeDebugLine('life.context-consumed', { cardId: runtime.cardId, turnId: runtime.turnId, revision: lifeView.revision })
@@ -826,7 +842,7 @@ export async function runAlicizationMainChatBackground(
         requestPreparation = { rebases: 0, signal: AbortSignal.any([runtime.abortSignal, AbortSignal.timeout(input.preparationTimeoutMs ?? mainChatPreparationTimeoutMs)]) },
       ): Promise<AlicizationMainChatProviderStep> {
         requestPreparation.signal.throwIfAborted()
-        const currentLife = await input.life.context(runtime.cardId)
+        const currentLife = await input.life.context(runtime.cardId, currentPersonaContext)
         const consumedOwners = lifeOwnersByTurn.get(runtime.turnId) ?? []
         const relevant = lifeDialogueReadOwners
         const stale = relevant.some((name) => {
@@ -842,7 +858,7 @@ export async function runAlicizationMainChatBackground(
           // Preparation commits this turn's cognition and emotion owners.
           // Fence the provider against the view after those commits, not the
           // stale view that triggered the refresh.
-          const afterPreparationLife = await input.life.context(runtime.cardId)
+          const afterPreparationLife = await input.life.context(runtime.cardId, currentPersonaContext)
           context.prepared = refreshed
           prepared = refreshed
           const refreshedMessages = [...refreshed.messages] as Message[]
@@ -851,6 +867,7 @@ export async function runAlicizationMainChatBackground(
           lifeBaseCountByTurn.set(runtime.turnId, refreshed.messages.length + 1)
           lifeOwnersByTurn.set(runtime.turnId, afterPreparationLife.owners)
           growthCandidateByTurn.set(runtime.turnId, afterPreparationLife.growthCandidateId)
+          personaProjectionByTurn.set(runtime.turnId, afterPreparationLife.personaDevelopment)
           const participant = memoryParticipants.get(runtime.turnId)
           if (participant) {
             await participant.recordLongTermRecall({ sessionId: runtime.conversationId, status: refreshed.memoryContext?.longTermRecall?.status ?? 'empty', confidence: refreshed.memoryContext?.longTermRecall?.confidence ?? 0, evidence: refreshed.memoryContext?.longTermRecall?.evidence ?? [] })
@@ -880,9 +897,18 @@ export async function runAlicizationMainChatBackground(
         const replanningTools = actionReplan ? context.prepared.tools?.filter(tool => sanitizeText(tool.function?.name) === actionReplan.providerToolName) : undefined
         if (actionReplan && !replanningTools?.length)
           throw new Error('当前任务需要的操作已不可用，这次操作尚未开始。')
-        const planningPrepared: AlicizationPreparedMainChatExecutionResult = actionReplan
-          ? { ...context.prepared, tools: replanningTools, toolChoice: 'required', waitForTools: true }
-          : context.prepared
+        const continuation = prepareAgentContinuation(context.providerMessages, { hasTools: Boolean(context.prepared.tools?.length) })
+        continuation.replyOnly ||= continuation.actionCount + programmaticReads >= agentHarnessMaxModelSteps - 1
+        context.providerMessages = continuation.messages
+        const basePlanningPrepared: AlicizationPreparedMainChatExecutionResult = continuation.replyOnly
+          ? { ...context.prepared, tools: undefined, toolChoice: 'none', waitForTools: false }
+          : actionReplan
+            ? { ...context.prepared, tools: replanningTools, toolChoice: 'required', waitForTools: true }
+            : context.prepared
+        const disclosure = discloseCapabilities({ tools: basePlanningPrepared.tools, registry: basePlanningPrepared.toolRegistry, messages: context.providerMessages, actions: runtime.actions })
+        const planningPrepared = { ...basePlanningPrepared, tools: disclosure.tools }
+        if (disclosure.report)
+          await input.appendRuntimeDebugLine('life.capability-disclosure', { turnId: runtime.turnId, ...disclosure.report })
         const replanFact = actionReplan
           ? `${buildAlicizationProviderFactBlock('alicization-action-replanning', { priorActionId: actionReplan.actionId, capabilityId: actionReplan.capabilityId, status: 'not-dispatched', noSideEffects: true, currentContextRefreshed: true })}\nFor this recovery step, propose one fresh action for the unchanged current user request using the refreshed state and offered tool schema. The prior action was never admitted or dispatched and is not a completion receipt. Do not merely acknowledge it or report that work completed. Ordinary authorization and independent verification still apply. A later admitted action receipt supersedes this recovery request; do not repeat that action.`
           : null
@@ -913,7 +939,7 @@ export async function runAlicizationMainChatBackground(
           context.providerMessages,
         )
         try {
-          await input.life.recordContextUse({ cardId: runtime.cardId, turnId: runtime.turnId, requestHash: participantRequest.requestHash, growthCandidateId: growthCandidateByTurn.get(runtime.turnId), evidenceIds: participantRequest.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [] }, requestPreparation.signal)
+          await input.life.recordContextUse({ personaContext: currentPersonaContext, personaFacetIds: personaProjectionByTurn.get(runtime.turnId)?.facets.map(facet => facet.id), cardId: runtime.cardId, turnId: runtime.turnId, requestHash: participantRequest.requestHash, growthCandidateId: growthCandidateByTurn.get(runtime.turnId), evidenceIds: participantRequest.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [] }, requestPreparation.signal)
         }
         catch (error) {
           if (!(error instanceof LifeStateConflictError) || requestPreparation.rebases >= 2 || requestPreparation.signal.aborted || !input.isRunActive())
@@ -941,6 +967,7 @@ export async function runAlicizationMainChatBackground(
         const factualWorkReply = explicitWorkflow || actionTurns.has(runtime.turnId)
         let needsGrounding = factualWorkReply
         const publicStream = {
+          providerAccounting: input.providerAccounting,
           onReplyEmotion: (emotion: string) => {
             const accepted = alicizationEmotionWhitelist.find(value => value === emotion)
             if (!accepted || !input.isRunActive() || runtime.abortSignal.aborted)
@@ -972,7 +999,7 @@ export async function runAlicizationMainChatBackground(
             argumentRepairPrepared = { ...planningPrepared, tools, toolChoice: 'required' }
             const bounded = boundLifeProviderRequest(messages, tools, requestBudgetOptions).messages
             const request = buildAlicizationProviderRequestSnapshot(bounded)
-            await input.life.recordContextUse({ cardId: runtime.cardId, turnId: runtime.turnId, requestHash: request.requestHash, evidenceIds: request.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [], growthCandidateId: growthCandidateByTurn.get(runtime.turnId) }, runtime.abortSignal)
+            await input.life.recordContextUse({ personaContext: currentPersonaContext, personaFacetIds: personaProjectionByTurn.get(runtime.turnId)?.facets.map(facet => facet.id), cardId: runtime.cardId, turnId: runtime.turnId, requestHash: request.requestHash, evidenceIds: request.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [], growthCandidateId: growthCandidateByTurn.get(runtime.turnId) }, runtime.abortSignal)
             await input.appendRuntimeDebugLine('life.tool-arguments-repair', { cardId: runtime.cardId, turnId: runtime.turnId, ...failure, scope: 'current-rejected-proposal-only', actionAdmitted: false, priorReadReceiptsRetained: actionTurns.has(runtime.turnId), correctionNumber: argumentRepairCount + 1, toolReplayed: false })
             return bounded
           },
@@ -987,6 +1014,7 @@ export async function runAlicizationMainChatBackground(
             const result = await runAlicizationMainChatProviderStep({
               ...publicStream,
               providerBudget: planned.providerBudget,
+              maxToolCalls: Math.max(0, agentHarnessMaxModelSteps - 1 - continuation.actionCount - programmaticReads),
               payload: input.payload,
               prepared: stepPrepared,
               messages: planned.messages,
@@ -1010,8 +1038,9 @@ export async function runAlicizationMainChatBackground(
             return result
           },
         })
-        if (providerStep.kind === 'action') {
-          if (actionReplan && providerStep.action.capabilityId !== actionReplan.capabilityId)
+        if (providerStep.kind === 'action' || providerStep.kind === 'actions') {
+          const proposed = providerStep.kind === 'action' ? [providerStep.action] : providerStep.actions
+          if (actionReplan && (proposed.length !== 1 || proposed[0]!.capabilityId !== actionReplan.capabilityId))
             throw new Error('状态刷新后的提议改变了本次操作范围，尚未执行。')
           if (actionReplan) {
             pendingActionReplan = null
@@ -1045,9 +1074,9 @@ export async function runAlicizationMainChatBackground(
           const repairBudget = planLifeProviderRequest([...context.providerMessages, { role: 'assistant', content: providerStep.fullText }, { role: 'system', content: 'Repair the framing of your previous reply once. Return exactly one JSON object with format="mind-turn-v1", thought="", emotion from the output contract, reply containing ALL spoken words, performance and interaction. Metadata must be outside reply and no text may precede or follow the object. Preserve your natural wording and the actual action results. If you cannot emit the object, return only the natural spoken words, with no metadata. Do not call any tools or invent a memory claim during this repair.' }], [], providerLimits, requestBudgetStrategy)
           const messages = repairBudget.messages
           const request = buildAlicizationProviderRequestSnapshot(messages)
-          await input.life.recordContextUse({ cardId: runtime.cardId, turnId: runtime.turnId, requestHash: request.requestHash, evidenceIds: request.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [] }, runtime.abortSignal)
+          await input.life.recordContextUse({ personaContext: currentPersonaContext, personaFacetIds: personaProjectionByTurn.get(runtime.turnId)?.facets.map(facet => facet.id), cardId: runtime.cardId, turnId: runtime.turnId, requestHash: request.requestHash, evidenceIds: request.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [] }, runtime.abortSignal)
           providerStep = await runAlicizationMainChatProviderStep({ ...publicStream, providerBudget: repairBudget.providerBudget, payload: input.payload, prepared: { ...context.prepared, tools: undefined, toolChoice: 'none', waitForTools: false }, messages, headers: input.headers, controller: input.runState.controller, signal: runtime.abortSignal, firstEventTimeoutMs: mainChatFirstEventTimeoutMs, providerContinuationTimeoutMs: mainChatProviderContinuationTimeoutMs, providerRetryPolicy: { maxRetries: 0 }, isRunActive: input.isRunActive, nonProgressEventTypes, emitToolCall: () => {}, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
-          if (providerStep.kind === 'action')
+          if (providerStep.kind !== 'reply')
             throw new AlicizationVisibleReplySettlementBlockedError('Format recovery attempted an action', null)
           settled = await settleProviderDraft()
         }
@@ -1106,11 +1135,11 @@ export async function runAlicizationMainChatBackground(
           const repairBudget = planLifeProviderRequest([...repairSystemMessages, ...context.providerMessages.filter(message => message.role !== 'system')], [], providerLimits, requestBudgetStrategy)
           const repairMessages: Message[] = repairBudget.messages
           const repairRequest = buildAlicizationProviderRequestSnapshot(repairMessages)
-          await input.life.recordContextUse({ cardId: runtime.cardId, turnId: runtime.turnId, requestHash: repairRequest.requestHash, evidenceIds: repairRequest.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [], growthCandidateId: growthCandidateByTurn.get(runtime.turnId) }, runtime.abortSignal)
+          await input.life.recordContextUse({ personaContext: currentPersonaContext, personaFacetIds: personaProjectionByTurn.get(runtime.turnId)?.facets.map(facet => facet.id), cardId: runtime.cardId, turnId: runtime.turnId, requestHash: repairRequest.requestHash, evidenceIds: repairRequest.longTermRecall.evidenceIds, evidenceRefs: adoptedMemoryRefs(context.prepared, runtime.cardId), owners: lifeOwnersByTurn.get(runtime.turnId) ?? [], growthCandidateId: growthCandidateByTurn.get(runtime.turnId) }, runtime.abortSignal)
           // No public stream callbacks: neither revision text nor expression may
           // escape before review. Publication appends only the accepted suffix.
           providerStep = await runAlicizationMainChatProviderStep({ providerBudget: repairBudget.providerBudget, payload: input.payload, prepared: { ...context.prepared, tools: undefined, toolChoice: 'none', waitForTools: false }, messages: repairMessages, headers: input.headers, controller: input.runState.controller, signal: runtime.abortSignal, firstEventTimeoutMs: mainChatFirstEventTimeoutMs, providerContinuationTimeoutMs: mainChatProviderContinuationTimeoutMs, providerRetryPolicy: { maxRetries: 0 }, isRunActive: input.isRunActive, nonProgressEventTypes, emitToolCall: () => {}, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
-          if (providerStep.kind === 'action')
+          if (providerStep.kind !== 'reply')
             throw new AlicizationVisibleReplySettlementBlockedError('Reply repair attempted a new action', null)
           const repairedFullText = composeAlicizationReplyContinuation({ fullText: providerStep.fullText, publishedPrefix, prepared: context.prepared })
           settled = await settleAlicizationVisibleReply({ draft: { fullText: repairedFullText, visibleReplyExecution }, prepared: context.prepared, requireProviderMemoryUsage: true, allowPlainTextProviderReply: true, appendRuntimeDebugLine: input.appendRuntimeDebugLine })
@@ -1136,6 +1165,11 @@ export async function runAlicizationMainChatBackground(
       },
       executeTool: async (action, context, runtime) => {
         actionTurns.add(runtime.turnId)
+        if (Object.keys(runtime.actions).length + programmaticReads > agentHarnessMaxModelSteps - 1)
+          return { actionId: action.actionId, observationId: `${action.actionId}:budget-blocked`, toolCallId: action.toolCallId, terminal: true, outcome: 'failure', output: { status: 'blocked', errorCode: 'TURN_ACTION_BUDGET_EXHAUSTED', noSideEffects: true, effectMayHaveOccurred: false } }
+        const blocked = await input.beforeToolCall?.(runtime.cardId, { toolName: action.providerToolName, toolCallId: action.toolCallId ?? action.actionId, input: action.input }, runtime.abortSignal)
+        if (blocked)
+          return { actionId: action.actionId, observationId: `${action.actionId}:extension-blocked`, toolCallId: action.toolCallId, terminal: true, outcome: 'failure', output: { status: 'blocked', errorCode: 'EXTENSION_BLOCKED', noSideEffects: true, effectMayHaveOccurred: false, ...blocked } }
         const providerToolName = action.providerToolName
         const providerInvocation = context.prepared.toolRegistry
           .resolveProviderInvocation(providerToolName, action.input)
@@ -1209,13 +1243,28 @@ export async function runAlicizationMainChatBackground(
             await dispatch.authorizeDispatch(action.input)
           result = dispatch.cached
             ? dispatch.cached.output
-            : await withActionDispatch(dispatch.assertDispatchCurrent, () => {
+            : await withActionDispatch(dispatch.assertDispatchCurrent, async () => {
                 adapterStarted = true
-                return tool.execute(action.input, {
+                const receipts: string[] = []
+                return withGovernedReadScope({ owner: { cardId: runtime.cardId, turnId: runtime.turnId, actionId: action.actionId, conversationId: runtime.conversationId }, signal: runtime.abortSignal, effectRefs: receipts, callTool: async (name, parameters, signal) => {
+                  signal.throwIfAborted()
+                  await dispatch.assertDispatchCurrent()
+                  if (Object.keys(runtime.actions).length + ++programmaticReads > 63)
+                    throw new Error('The turn action budget is exhausted')
+                  const invocation = context.prepared.toolRegistry.resolveProviderInvocation(name, parameters)
+                  const child = { actionId: `${action.actionId}:read:${programmaticReads}`, toolCallId: `${toolCallId}:read:${programmaticReads}`, capabilityId: invocation?.capabilityId ?? '', providerToolName: name, input: parameters }
+                  if (!isParallelReadAction(child, context.prepared.toolRegistry))
+                    throw new Error('Programmatic calls require a current canonical local read interface')
+                  const result = await participant.executeAction(child, { ...runtime, abortSignal: signal, appendActionProgress: progress => runtime.appendActionProgress({ ...progress, actionId: action.actionId, toolCallId, capabilityId: action.capabilityId, providerToolName }) })
+                  receipts.push(`action:${runtime.turnId}:${child.actionId}`)
+                  if (result.outcome !== 'success')
+                    throw new Error(`Program read failed: ${JSON.stringify(result.output)}`)
+                  return result.output ?? null
+                } }, () => tool.execute(action.input, {
                   abortSignal: runtime.abortSignal,
                   messages: context.providerMessages,
                   toolCallId,
-                })
+                }))
               })
         }
         catch (error) {
@@ -1225,9 +1274,13 @@ export async function runAlicizationMainChatBackground(
           progressListeners.delete(progressListener)
         }
         await progressWrite
+        const failureOutput = toolError ? inheritActionNotStarted(toolError, { ...buildMainChatToolFailureObservation({ error: toolError, toolName: providerToolName }), effectMayHaveOccurred: adapterStarted && context.prepared.toolRegistry.get(action.capabilityId)?.effects?.sideEffect !== 'read' }) : null
         if (!dispatch.cached) {
-          const output = toolError ? inheritActionNotStarted(toolError, { ...buildMainChatToolFailureObservation({ error: toolError, toolName: providerToolName }), effectMayHaveOccurred: adapterStarted && context.prepared.toolRegistry.get(action.capabilityId)?.effects?.sideEffect !== 'read' }) : canonicalizeToolObservationOutput(result)
-          await input.life.afterAction({ cardId: runtime.cardId, id: dispatch.id, outcome: toolError || isAlicizationToolExecutionFailureResult(result) ? 'failure' : 'success', output, interrupted: adapterStarted && runtime.abortSignal.aborted })
+          const output = failureOutput ?? canonicalizeToolObservationOutput(result)
+          // These fixed local Node I/O readers have returned all their work.
+          // Keep unknown transport/native failures subject to reconciliation.
+          const joinedLocalRead = !toolError && !isAlicizationToolExecutionFailureResult(result) && ['tool.filesystem_read_file', 'tool.filesystem_list_directory'].includes(action.capabilityId) && isParallelReadAction(action, context.prepared.toolRegistry)
+          await input.life.afterAction({ cardId: runtime.cardId, id: dispatch.id, outcome: toolError || isAlicizationToolExecutionFailureResult(result) ? 'failure' : 'success', output, interrupted: adapterStarted && runtime.abortSignal.aborted, stopped: joinedLocalRead ? markOwnedReadStopped(result) : toolError ?? result })
         }
         if (toolError) {
           return {
@@ -1236,10 +1289,7 @@ export async function runAlicizationMainChatBackground(
             toolCallId: action.toolCallId,
             terminal: true,
             outcome: 'failure',
-            output: buildMainChatToolFailureObservation({
-              error: toolError,
-              toolName: providerToolName,
-            }),
+            output: failureOutput,
           }
         }
         if (prepared && providerToolName.endsWith('list_interactables') && /system|desktop/u.test(providerToolName)) {
@@ -1396,7 +1446,7 @@ export async function runAlicizationMainChatBackground(
     const eventLoop = createAlicizationEventLoop({
       // Observing, filling, saving, handling a popup and independently reading
       // the result need more steps than a plain conversational turn.
-      maxSteps: 16,
+      maxSteps: agentHarnessMaxModelSteps,
       persistence: input.turnLoop.persistence,
       participant,
       onPersistedEvent: projectPersistedToolEvent,
@@ -1607,4 +1657,8 @@ export async function runAlicizationMainChatBackground(
     if (input.runState.cancelTurn === registeredCancelTurn)
       delete input.runState.cancelTurn
   }
+}
+
+export function runAlicizationMainChatBackground(input: RunAlicizationMainChatBackgroundOptions) {
+  return withProviderUsageScope({ cardId: input.payload.cardId, turnId: input.payload.turnId, rootTurnId: input.payload.turnId }, () => runMainChatBackgroundInScope(input))
 }

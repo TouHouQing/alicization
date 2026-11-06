@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path'
 import { expect, it, vi } from 'vitest'
 
 import { callLocalFilesystem, inspectFilesystemWritePrecondition, localFilesystemTools } from '../../airi/mcp-servers/local-filesystem'
+import { lifeFileEffectEvidence } from '../life-file-effect-evidence'
+import { createLifeReplyGroundingRuntime } from '../life-reply-grounding-runtime'
 import { createLifeTurnRuntime } from '../life-turn-runtime'
 import { buildMainGatewayTools } from '../main-chat-execution-surface'
 import { createFileRecoveryTestFixture } from '../test-support/file-recovery-fixture'
@@ -94,6 +96,47 @@ it.each(operations.flatMap(operation => [true, false].map(cached => ({ operation
 })
 
 const boundaries = ['content', 'path', 'expectedHash', 'host-edit', 'cancel', 'withdraw'] as const
+
+it.each(operations)('grounds a real independently verified %s result while rejecting missing or mismatched proof', async (operation) => {
+  const f = await fixture()
+  try {
+    const { result } = await f.execute('read_file', { path: f.path })
+    const { id } = await f.execute(operation, f.parameters(operation, result.contentHash))
+    const view = await f.dbHandle.readLifeState()
+    const effect = (await f.dbHandle.getLifeEffect(id))!
+    const evidence = lifeFileEffectEvidence(effect, view)!
+    expect(evidence.fileVerification).toMatchObject({ path: f.path, bytes: Buffer.byteLength(expected) })
+    expect(evidence.returnedText).toBe(expected)
+    for (const field of ['verifiedPath', 'contentHash', 'byteLength']) {
+      const output = effect.receipt!.output as Record<string, unknown>
+      expect(lifeFileEffectEvidence({ ...effect, receipt: { ...effect.receipt, output: { ...output, [field]: field === 'byteLength' ? 1 : 'foreign' } } }, view)).toBeNull()
+    }
+    let includeProof = true
+    const read = async () => {
+      const current = await f.dbHandle.readLifeState()
+      return includeProof ? current : { ...current, obligations: current.obligations.filter(goal => goal.id !== `file-goal:${id}`) }
+    }
+    const text = `文件长度为 ${Buffer.byteLength(expected)} 字节。`
+    const review = createLifeReplyGroundingRuntime({
+      read,
+      readUserInput: f.dbHandle.getLifeUserInput,
+      readMemoryEvidence: cardId => f.dbHandle.readLifeFactVersions({ cardId }),
+      commit: f.dbHandle.commitLifeState,
+      now: Date.now,
+      generate: async ({ user }) => {
+        const step = JSON.parse(user).completedExecutionSteps.find((step: { capability: string }) => step.capability === `tool.filesystem_${operation}`)
+        expect(Boolean(step.result.fileVerification)).toBe(includeProof)
+        return JSON.stringify({ claims: [{ kind: 'execution-step-outcome', quote: text, binding: step.binding, meaningMatchesBinding: true }] })
+      },
+    })
+    const check = async () => review({ cardId: 'alice', turnId: 'edit', text, owners: (await read()).owners, signal: f.controller.signal })
+    expect((await check()).accepted).toBe(true)
+    includeProof = false
+    expect((await check()).accepted).toBe(false)
+  }
+  finally { await f.close() }
+})
+
 it.each(operations.flatMap(operation => boundaries.map(boundary => ({ operation, boundary }))))('refuses $operation at $boundary before overwriting file bytes', async ({ operation, boundary }) => {
   const f = await fixture()
   const hostContent = '用户刚刚修改的内容🙂\r\n'

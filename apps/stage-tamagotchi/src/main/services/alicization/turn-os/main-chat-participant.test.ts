@@ -1,6 +1,7 @@
 import type {
   AlicizationRuntimeEventEnvelope,
 } from '@proj-alicization/stage-shared'
+import type { Message } from '@xsai/shared-chat'
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -106,6 +107,114 @@ function providerReplyArtifact(visibleText: string, fullText = visibleText) {
 }
 
 describe('main chat EventLoop participant', () => {
+  it.each(['replanRequired', 'effectMayHaveOccurred'] as const)('returns unstarted batch results and a fresh model step after %s', async (flag) => {
+    const persistence = createPersistence()
+    const calls = [1, 2, 3, 4].map(index => ({ actionId: `batch-${index}`, toolCallId: `call-${index}`, capabilityId: 'test.inspect', providerToolName: 'inspect', input: {} }))
+    let steps = 0
+    const executeTool = vi.fn(async action => ({ actionId: action.actionId, toolCallId: action.toolCallId, observationId: `${action.actionId}:receipt`, terminal: true, outcome: 'failure' as const, output: { ok: false, errorCode: 'OWNER_REFRESH', [flag]: true } }))
+    const participant = createAlicizationMainChatParticipant({
+      runProviderStep: async (context) => {
+        if (steps++ === 0)
+          return { kind: 'actions', actions: calls }
+        const results = context.providerMessages.filter(message => message.role === 'tool')
+        expect(results.map(message => message.tool_call_id)).toEqual(calls.map(action => action.toolCallId))
+        for (const skipped of results.slice(1))
+          expect(JSON.parse(String(skipped.content))).toMatchObject({ errorCode: 'BATCH_REPLAN_REQUIRED', noSideEffects: true, effectMayHaveOccurred: false })
+        return { kind: 'reply', artifact: providerReplyArtifact('需要先核对当前状态。') }
+      },
+      executeTool,
+      publishReply: vi.fn(),
+    })
+    const result = await createAlicizationEventLoop({ persistence, participant }).runTurn({ scope, deliveryOwner: 'inline', turnInput: createTurnInput() })
+    expect(result.status).toBe('completed')
+    expect(executeTool).toHaveBeenCalledOnce()
+    expect(persistence.events.filter(event => event.eventType === 'action.settlement.completed')).toHaveLength(4)
+  })
+
+  it.each(['empty', 'invalid-tail', 'duplicate-action', 'duplicate-call', 'over-limit'])('rejects the complete %s batch before any tool starts', async (mode) => {
+    const persistence = createPersistence()
+    const first = { actionId: 'one', toolCallId: 'call-one', capabilityId: 'test.inspect', providerToolName: 'inspect', input: {} }
+    const second = { ...first, actionId: mode === 'duplicate-action' ? 'one' : 'two', toolCallId: mode === 'duplicate-call' ? 'call-one' : 'call-two', capabilityId: mode === 'invalid-tail' ? '' : first.capabilityId }
+    const actions = mode === 'empty' ? [] : mode === 'over-limit' ? Array.from({ length: 9 }, (_, index) => ({ ...first, actionId: `action-${index}`, toolCallId: `call-${index}` })) : [first, second]
+    const executeTool = vi.fn()
+    const participant = createAlicizationMainChatParticipant({ runProviderStep: async () => ({ kind: 'actions', actions }), executeTool, publishReply: vi.fn() })
+    const result = await createAlicizationEventLoop({ persistence, participant }).runTurn({ scope, deliveryOwner: 'inline', turnInput: createTurnInput() })
+    expect(result.status).toBe('failed')
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(persistence.events.some(event => event.eventType === 'action.started')).toBe(false)
+  })
+
+  it('cancels a batch at a durable receipt boundary without starting its tail', async () => {
+    const persistence = createPersistence()
+    const controller = new AbortController()
+    const append = persistence.appendRuntimeEvent.getMockImplementation()!
+    persistence.appendRuntimeEvent.mockImplementation(async (...args) => {
+      const event = await append(...args)
+      if (event.eventType === 'action.settlement.completed')
+        controller.abort(new DOMException('stop batch', 'AbortError'))
+      return event
+    })
+    const calls = [1, 2].map(index => ({ actionId: `batch-${index}`, toolCallId: `call-${index}`, capabilityId: 'test.inspect', providerToolName: 'inspect', input: {} }))
+    const executeTool = vi.fn(async action => ({ actionId: action.actionId, toolCallId: action.toolCallId, observationId: 'first-receipt', terminal: true, outcome: 'success' as const, output: { ok: true } }))
+    const participant = createAlicizationMainChatParticipant({ runProviderStep: async () => ({ kind: 'actions', actions: calls }), executeTool, publishReply: vi.fn() })
+    const result = await createAlicizationEventLoop({ persistence, participant }).runTurn({ scope, signal: controller.signal, deliveryOwner: 'inline', turnInput: createTurnInput() })
+    expect(result.status).toBe('cancelled')
+    expect(executeTool).toHaveBeenCalledOnce()
+    expect(result.state.actions['batch-2']).toBeUndefined()
+  })
+
+  it('does not publish an unpersisted result or dispatch the batch tail after storage fails', async () => {
+    const persistence = createPersistence()
+    const append = persistence.appendRuntimeEvent.getMockImplementation()!
+    persistence.appendRuntimeEvent.mockImplementation(async (...args) => {
+      if (args[1].eventType === 'action.settlement.completed')
+        throw new Error('receipt disk failure')
+      return append(...args)
+    })
+    const calls = [1, 2].map(index => ({ actionId: `batch-${index}`, toolCallId: `call-${index}`, capabilityId: 'test.inspect', providerToolName: 'inspect', input: {} }))
+    const executeTool = vi.fn(async action => ({ actionId: action.actionId, toolCallId: action.toolCallId, observationId: 'first-receipt', terminal: true, outcome: 'success' as const, output: { ok: true } }))
+    let providerMessages: Message[] = []
+    const participant = createAlicizationMainChatParticipant({ runProviderStep: async (context) => {
+      providerMessages = context.providerMessages
+      return { kind: 'actions', actions: calls }
+    }, executeTool, publishReply: vi.fn() })
+    await expect(createAlicizationEventLoop({ persistence, participant }).runTurn({ scope, deliveryOwner: 'inline', turnInput: createTurnInput() })).rejects.toThrow('receipt disk failure')
+    expect(executeTool).toHaveBeenCalledOnce()
+    expect(providerMessages.some(message => message.role === 'tool')).toBe(false)
+  })
+
+  it('returns an ordered batch and settled adapter failures to the next model request', async () => {
+    const persistence = createPersistence()
+    const calls = [1, 2].map(index => ({ actionId: `batch-${index}`, toolCallId: `call-${index}`, capabilityId: 'test.inspect', providerToolName: 'inspect', input: { index } }))
+    let step = 0
+    const executeTool = vi.fn(async (action) => {
+      expect(persistence.events.filter(event => event.eventType === 'model.tool_call.proposed')).toHaveLength(2)
+      if (action.actionId === 'batch-1')
+        throw new Error('inspection unavailable')
+      return { actionId: action.actionId, toolCallId: action.toolCallId, observationId: `${action.actionId}:receipt`, terminal: true, outcome: 'success' as const, output: { ok: true, value: 2 } }
+    })
+    const participant = createAlicizationMainChatParticipant({
+      runProviderStep: async (context) => {
+        if (step++ === 0) {
+          context.providerMessages.push({ role: 'assistant', content: '', tool_calls: calls.map(action => ({ id: action.toolCallId, type: 'function', function: { name: 'inspect', arguments: JSON.stringify(action.input) } })) })
+          return { kind: 'actions', actions: calls }
+        }
+        const results = context.providerMessages.filter(message => message.role === 'tool')
+        expect(results.map(message => message.tool_call_id)).toEqual(['call-1', 'call-2'])
+        expect(results[0]?.content).toContain('inspection unavailable')
+        expect(results[1]?.content).toContain('"value":2')
+        expect(persistence.events.filter(event => event.eventType === 'action.settlement.completed')).toHaveLength(2)
+        return { kind: 'reply', artifact: providerReplyArtifact('第一项失败，第二项已检查。') }
+      },
+      executeTool,
+      publishReply: vi.fn(),
+    })
+    const result = await createAlicizationEventLoop({ persistence, participant }).runTurn({ scope, deliveryOwner: 'inline', turnInput: createTurnInput() })
+    expect(result.status).toBe('completed')
+    expect(executeTool).toHaveBeenCalledTimes(2)
+    expect(persistence.events.filter(event => event.eventType === 'model.step.started')).toHaveLength(2)
+  })
+
   it('publishes provider text without a fixed reply envelope', async () => {
     const persistence = createPersistence()
     const publishReply = vi.fn(async () => {})

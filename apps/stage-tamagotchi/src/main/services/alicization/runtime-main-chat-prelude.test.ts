@@ -699,6 +699,23 @@ describe('runtime main chat prelude', () => {
     expect(prelude.perceptionAugmentation.capture.inspectionRequested).toBe(false)
   })
 
+  it('keeps the original local retrieval request when stale augmentation tries to attach a large screen image', async () => {
+    const userMessage = { role: 'user', content: '请用 life_search_sessions 查找我之前发出的只读测试请求。' } as Message
+    const runtime = createRuntime({ augmentMainChatMessagesWithPerception: async () => ({
+      messages: [{ role: 'user', content: [{ type: 'text', text: userMessage.content }, { type: 'image_url', image_url: { url: `data:image/png;base64,${'stale-frame'.repeat(10000)}` } }] }],
+      systemBlocks: [],
+      promptSystemBlocks: [],
+      digitalLifeRuntimeSurface: createVisibleBrowserContinuationRuntimeSurface(),
+      memoryRecallSeed: '',
+      recallGovernor: null,
+      capture: { inspectionRequested: true, groundedThisTurn: true, snapshot: null, fallbackReason: null },
+      chatGovernance: { turnMode: 'answer', personaKernelMode: 'full', mindTurnGovernance: null },
+    }) })
+    const prelude = await runtime.prepareMainChatPrelude({ cardId: 'card-agent-read', turnId: 'turn-agent-read', providerId: 'openai', model: 'gpt-5', providerConfig: {}, messages: [userMessage] } as any, mainGateway)
+    expect(prelude.messages).toEqual([userMessage])
+    expect(prelude.perceptionAugmentation.capture).toMatchObject({ inspectionRequested: false, groundedThisTurn: false })
+  })
+
   it('keeps perception and inspection context when the user explicitly asks to view the screen', async () => {
     const passivePerceptionBlock = JSON.stringify({
       type: 'alicization-perception',

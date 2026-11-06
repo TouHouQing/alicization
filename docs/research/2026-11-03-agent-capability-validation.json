@@ -1,0 +1,1496 @@
+{
+  "version": "alicization-agent-capability-acceptance-v1",
+  "completedAt": "2026-11-03T16:38:34.302Z",
+  "reviewDate": "2026-11-04",
+  "baseCommit": "45f74b07740e44eda1bc92252932a74c952355d8",
+  "verdict": "Selected current-build acceptance paths passed. Four-product capability parity is not established.",
+  "sourceFingerprint": "357450fd64668a0f5be5d41948c943ded76d3a16367acb1751faf164ab5260b4",
+  "sourceInputs": [
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/codex-agent-harness-license.txt",
+      "bytes": 10926,
+      "sha256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/codex-agent-harness-notice.txt",
+      "bytes": 548,
+      "sha256": "3211fceb94c900609bff81cf60d94605ec7271e84f8e549e580a9415803b7eb3"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/deepseek-harness-license.txt",
+      "bytes": 1065,
+      "sha256": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/hermes-agent-license.txt",
+      "bytes": 1091,
+      "sha256": "e29dfaf6905a8d396a58ea4bd84ad27057756bbd9599b5bec0971ae34d2a2118"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/hermes-agent-notice.txt",
+      "bytes": 635,
+      "sha256": "3a2e6632fdd8ca4ac8b7bdfb7bd6bf1625d155298916aeaaf01d75298af3a2c2"
+    },
+    {
+      "path": "apps/stage-tamagotchi/resources/licenses/pi-agent-harness-notice.txt",
+      "bytes": 1080,
+      "sha256": "7dd6c9b92cff7c33ddbfc5629c91a8d7a5c295fd8423f84a4cdec2c08c125184"
+    },
+    {
+      "path": "apps/stage-tamagotchi/scripts/codex-real-acceptance.ts",
+      "bytes": 58233,
+      "sha256": "e1976678dc0a90da8c260c130ccd11a484af321fd10083d85561685f37dab59e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/scripts/life-acceptance/native-capture-observer.cjs",
+      "bytes": 7199,
+      "sha256": "e14d712a23e3adf9da46007d180a33879fcf9df25f4a89b085207c5d87fc70f7"
+    },
+    {
+      "path": "apps/stage-tamagotchi/scripts/life-acceptance/native-observation-promise.cjs",
+      "bytes": 1881,
+      "sha256": "7c816e2d771ccd3cd4a6533fdc3d57445c344b86a09ab00d1f5ce049fc569db1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/capability-disclosure.test.ts",
+      "bytes": 9773,
+      "sha256": "7719202abaf2a1c6346af1a2e2e9e11229307b44fbabeb087e2151bb98566f77"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/capability-disclosure.ts",
+      "bytes": 7416,
+      "sha256": "862caf5326c42d42f7133b5eafa2a3b15f015aa97d42f0dda459ec1e190ea8b5"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/capability-search-vocabulary.ts",
+      "bytes": 1145,
+      "sha256": "58bdcf393249bab319413b9008072bde27be8e5a3164d745217f29f905c97a12"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/procedure-catalog-page.test.ts",
+      "bytes": 1702,
+      "sha256": "542aff8a115ac0df75086b8bc05957fafc6c8610d0c901462559b8fd438ad632"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/procedure-catalog-page.ts",
+      "bytes": 2609,
+      "sha256": "035d4560f3a162786677d00e92e7510ed125047a56046975d944cd1b31350b38"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/procedure-context.test.ts",
+      "bytes": 3493,
+      "sha256": "3e784da455a8b0ef033098ba505d23b12878179405d7a8fe5816f292d5675a3a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/procedure-context.ts",
+      "bytes": 4720,
+      "sha256": "7c187fc710e4228d9ff765d6f61e6d5c3903dba1a410f90e02c1e451708b8860"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/progress-context.test.ts",
+      "bytes": 7072,
+      "sha256": "af8eb3c0735b3a250743dabb3a63a4b3bd7153f3f733069a8601a210c6e74021"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/progress-context.ts",
+      "bytes": 5847,
+      "sha256": "b3c574257282c69745a7801254cbe82c241ad671d0fcbad229dbff8ec59343f1"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/provider-step-completion.test.ts",
+      "bytes": 1230,
+      "sha256": "e6fedf640311e3d4ef2dac6dca5f696e91b9da5c5736aaf3bd66e89910c29a79"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/provider-step-completion.ts",
+      "bytes": 1594,
+      "sha256": "2a33d1d0d05d1555185c7756e30a7b1afe5b0d88ff30e45caaecc099c3587f60"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/provider-usage.test.ts",
+      "bytes": 4195,
+      "sha256": "7f41098d751809fc87dd92265b4c4a6a48288ac18b5cc0414bd04fb595070ecf"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/provider-usage.ts",
+      "bytes": 2262,
+      "sha256": "ceb5f5ed197b35f4a13d219872cded876631af8e8235977c2aa21fd9a4885150"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/skill-selection.test.ts",
+      "bytes": 3171,
+      "sha256": "2432cbac313c4545f6b8a3878152d3a734aa78a4a7ec30198aa91a125d715c72"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/tool-observation.test.ts",
+      "bytes": 6480,
+      "sha256": "d71d15c556eabdb33355f01089daf297ff8635d822480c4780b3fecd7faf1cd6"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/tool-observation.ts",
+      "bytes": 7026,
+      "sha256": "46fe7056392c8bab40b014f9086f61006dc1b22e9459fd204669f75598b504f3"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/codex-real-acceptance.test.ts",
+      "bytes": 24791,
+      "sha256": "35fb27fc8b6ec00f4ec116d9654af4167d56a8a907a91b840ed56acf1d2f62a3"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/learned-procedure-runtime.ts",
+      "bytes": 13360,
+      "sha256": "a6716d57e2a7f98dd4e48d8af459981f014d340723179b1e4be9a03d8727aead"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/main-filesystem-mutation-dispatch.test.ts",
+      "bytes": 15704,
+      "sha256": "36626ac4b3a58d48fcb06b53f1a7bdfd3e15c51ecd40f7a4f9b81b77eb4b0ad7"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/native-observation-promise.test.ts",
+      "bytes": 2052,
+      "sha256": "62b65671d923f20f5ebacfcc041f003b129af9a65ae2792e351031ab43ed6a72"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-candidate-repository.ts",
+      "bytes": 18236,
+      "sha256": "2a14e9b6e34dd5fb25e273ca240dffb20e9880a78a7963b6858841bb03a04634"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-index.integration.test.ts",
+      "bytes": 4196,
+      "sha256": "40e1376da503cbe3fd822e8c782b89fe4f67007052ce083dbfbb1a82090f1e7a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-index.test.ts",
+      "bytes": 4076,
+      "sha256": "d89f3505b37d0d291523455c14d8bf500393dacdea7e7fe1f510601d31bfc862"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-index.ts",
+      "bytes": 4047,
+      "sha256": "091bc3e9bd5c27ea22a4087ff06a891412534a0741a3bf2459eaf4c9a87fcf3f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-learning.test.ts",
+      "bytes": 22243,
+      "sha256": "4b122b2351641752d4c5f2fd57b7f1f1c9cce7c80f88a16eb068d547b85281a5"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/skill-lifecycle-repository.test.ts",
+      "bytes": 11506,
+      "sha256": "e348c63759f875cb5661e25928c6b92c8cfba79f740bb073e880e602eaf10632"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/execution/skill-lifecycle-repository.ts",
+      "bytes": 3352,
+      "sha256": "3363c558774995913c5a230a9133f02222dc161abe65ec14661e559902c97c63"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-file-effect-evidence.ts",
+      "bytes": 2943,
+      "sha256": "6bc39b840869d30a104afe994e42d6de6e015a739bcbea698070a267f5c4429e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-provider-budget.test.ts",
+      "bytes": 16659,
+      "sha256": "6f2593907aed267a9c7f0b5c1ed2f24975c343498d1a84133aaadb03de8c929f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-provider-budget.ts",
+      "bytes": 11476,
+      "sha256": "b1b995b7721cd7e15b84794fdb1b38174f9c4df4ed880cf4a4c1b3b0709d10dc"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-reply-grounding-runtime.ts",
+      "bytes": 80472,
+      "sha256": "e62d8780f7db9659bc97ca16e051f0b37a7c760e6733b56bf95ef5e361e3400f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-turn-runtime.ts",
+      "bytes": 21796,
+      "sha256": "c71f40e9be6e539377211719c2cc02d8ab6d3e116efdc0b2ff9abf165e370675"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/life-workflow-tool-scope.ts",
+      "bytes": 824,
+      "sha256": "8bce1caf74328b912d04de3731b030e8be62e10f9290b1e95336e85728003260"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+      "bytes": 206563,
+      "sha256": "4b812de6b2eb0c3d94ce24b0d0e01daaa147191567c0fc4b9b2378847946a3c8"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.ts",
+      "bytes": 86099,
+      "sha256": "25d172d3b789a108aab0b339d5c77e88671ab183a6d33031ecf1c36cd5014e48"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-execution-surface.test.ts",
+      "bytes": 181570,
+      "sha256": "77101e09361b7eeac67527723dbeaf138a8b489ea8f539e23fe748c1186d1500"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-execution-surface.ts",
+      "bytes": 211549,
+      "sha256": "6dc6435b4b1ab7a50482326c5b0a20da9dc3e8ec03902312796d692e309ae4fa"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.ts",
+      "bytes": 14548,
+      "sha256": "b4d500049b73c819aac50749ae1d9b5f610c6538e38e2c5aefa56f5fc372a8eb"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts",
+      "bytes": 344003,
+      "sha256": "2005c2f54554a012268ddd60a08c3b84623b3383ad98ec246585517e11bacefa"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts",
+      "bytes": 150383,
+      "sha256": "f04bb55eb692cf39c2618a8e7f55d1ba853605e33ac532f7861c547aea29fe23"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+      "bytes": 233885,
+      "sha256": "d363e9861eb6e05de2efa77fa4123bb11ca2eae8ee2cb05cd9c64eeb8bbd9ecb"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.ts",
+      "bytes": 119706,
+      "sha256": "925bdfde597fb5fac6050a7a65a70602a0b9939c8dc494728a4c3ea7d85cd3d8"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/runtime.ts",
+      "bytes": 385626,
+      "sha256": "5a0dc3e1555e93e7013f2ce1b1dcfcc1126fb01427fdc637be5bf6e0f0380d04"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/codex-skill-selector.ts",
+      "bytes": 5524,
+      "sha256": "36fc5cce911e8456e15bd43a24bb01a267aa0520c4f4e6344e47234bf7716d70"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/deepseek-repeat-tool.ts",
+      "bytes": 1815,
+      "sha256": "3775d9b160c1eb2f98a46c57ce3d45c8eeb182e06fd57e1cb20bb0c2d444357a"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/hermes-tool-catalog.ts",
+      "bytes": 2790,
+      "sha256": "c4e2c389c337b660065803440672c8cc966bbd373a725452764b2eae335d2f9e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/pi-tool-batch.ts",
+      "bytes": 769,
+      "sha256": "d411362ba29403e67d08ecebb4bf7abb05b6678d452f3989ebc1ca9b18fc713e"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/third-party/pi-tool-text.ts",
+      "bytes": 2018,
+      "sha256": "97b41b2d33458d872f189fb8aa59d055052447565ac0ee1dd0b16683bd220398"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/event-loop.ts",
+      "bytes": 48818,
+      "sha256": "527c26892ada767eba2e7656b843f1e57acce34635e25e0485776b5482d5b107"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/main-chat-participant.test.ts",
+      "bytes": 23030,
+      "sha256": "aae1c3c09235a2c6be7025cda47ee7348c61a7208ad2223598fd1033f63ee58f"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/main-chat-participant.ts",
+      "bytes": 7497,
+      "sha256": "0e5f5fa89cb8fb033ec4189d55b7001f228ae49f3fb29c7d9d27756f2d121aac"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/skill-loader.ts",
+      "bytes": 21972,
+      "sha256": "0297cea5be4142ee542026e1008d8f6075d790d8e89c77aebc5a42bce5016d03"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/tool-registry.test.ts",
+      "bytes": 28132,
+      "sha256": "e7f1d0136f0fffbe1972612980170838b1d47c0f9b2a201a6f98b838fa35ea57"
+    },
+    {
+      "path": "apps/stage-tamagotchi/src/main/services/alicization/turn-os/tool-registry.ts",
+      "bytes": 45035,
+      "sha256": "59c450aa39e613417508b089939065d294a70f7bef64be95984122dd958e7045"
+    }
+  ],
+  "research": {
+    "priorVerifiedSelection": {
+      "path": "docs/research/2026-11-03-agent-ecosystem-source-manifest.json",
+      "bytes": 106250,
+      "sha256": "8e5b1e9abbd728b1c0a9c0ddad306a9feca11e694ec99e0d2de17da9b279eb27"
+    },
+    "latestRemoteHeads": [
+      {
+        "name": "codex",
+        "repository": "openai/codex",
+        "commit": "bfdbf01bfaeaa6ab23b10e2bd64ed031fd1e5619"
+      },
+      {
+        "name": "pi",
+        "repository": "earendil-works/pi",
+        "commit": "d71c66e05bdafd67e0558bfa65e748c71cd1f379"
+      },
+      {
+        "name": "deepseek",
+        "repository": "deepseek-ai/deepseek-harness",
+        "commit": "8bd073392eef6f54e921a093b95076248eb08cbb"
+      },
+      {
+        "name": "hermes",
+        "repository": "NousResearch/hermes-agent",
+        "commit": "c314285f077e91937c995d419b9fa40af9eb4981"
+      }
+    ],
+    "currentPrimaryWebSections": [
+      {
+        "repository": "openai/codex",
+        "commit": "bfdbf01bfaeaa6ab23b10e2bd64ed031fd1e5619",
+        "path": "codex-rs/core/src/tools/parallel.rs",
+        "url": "https://github.com/openai/codex/blob/bfdbf01bfaeaa6ab23b10e2bd64ed031fd1e5619/codex-rs/core/src/tools/parallel.rs",
+        "evidence": "Selected sections inspected through primary web source; local download was unavailable."
+      },
+      {
+        "repository": "openai/codex",
+        "commit": "bfdbf01bfaeaa6ab23b10e2bd64ed031fd1e5619",
+        "path": "codex-rs/core/src/tools/handlers/tool_search.rs",
+        "url": "https://github.com/openai/codex/blob/bfdbf01bfaeaa6ab23b10e2bd64ed031fd1e5619/codex-rs/core/src/tools/handlers/tool_search.rs",
+        "evidence": "Selected sections inspected through primary web source; local download was unavailable."
+      },
+      {
+        "repository": "earendil-works/pi",
+        "commit": "d71c66e05bdafd67e0558bfa65e748c71cd1f379",
+        "path": "packages/durable/README.md",
+        "url": "https://github.com/earendil-works/pi/blob/d71c66e05bdafd67e0558bfa65e748c71cd1f379/packages/durable/README.md",
+        "evidence": "Selected sections inspected through primary web source; local download was unavailable."
+      },
+      {
+        "repository": "earendil-works/pi",
+        "commit": "d71c66e05bdafd67e0558bfa65e748c71cd1f379",
+        "path": "packages/durable/test/harness-cancellation-barrier.test.ts",
+        "url": "https://github.com/earendil-works/pi/blob/d71c66e05bdafd67e0558bfa65e748c71cd1f379/packages/durable/test/harness-cancellation-barrier.test.ts",
+        "evidence": "Selected sections inspected through primary web source; local download was unavailable."
+      },
+      {
+        "repository": "earendil-works/pi",
+        "commit": "d71c66e05bdafd67e0558bfa65e748c71cd1f379",
+        "path": "packages/durable/src/harness/usage.ts",
+        "url": "https://github.com/earendil-works/pi/blob/d71c66e05bdafd67e0558bfa65e748c71cd1f379/packages/durable/src/harness/usage.ts",
+        "evidence": "Selected sections inspected through primary web source; local download was unavailable."
+      },
+      {
+        "repository": "earendil-works/pi",
+        "commit": "d71c66e05bdafd67e0558bfa65e748c71cd1f379",
+        "path": "packages/durable/src/harness/compaction.ts",
+        "url": "https://github.com/earendil-works/pi/blob/d71c66e05bdafd67e0558bfa65e748c71cd1f379/packages/durable/src/harness/compaction.ts",
+        "evidence": "Selected sections inspected through primary web source; local download was unavailable."
+      },
+      {
+        "repository": "deepseek-ai/deepseek-harness",
+        "commit": "8bd073392eef6f54e921a093b95076248eb08cbb",
+        "path": "packages/session/session-checkpoint-policy/src/index.ts",
+        "url": "https://github.com/deepseek-ai/deepseek-harness/blob/8bd073392eef6f54e921a093b95076248eb08cbb/packages/session/session-checkpoint-policy/src/index.ts",
+        "evidence": "Selected sections inspected through primary web source; local download was unavailable."
+      },
+      {
+        "repository": "deepseek-ai/deepseek-harness",
+        "commit": "8bd073392eef6f54e921a093b95076248eb08cbb",
+        "path": "packages/guard/timeout-policy/src/index.ts",
+        "url": "https://github.com/deepseek-ai/deepseek-harness/blob/8bd073392eef6f54e921a093b95076248eb08cbb/packages/guard/timeout-policy/src/index.ts",
+        "evidence": "Selected sections inspected through primary web source; local download was unavailable."
+      },
+      {
+        "repository": "NousResearch/hermes-agent",
+        "commit": "c314285f077e91937c995d419b9fa40af9eb4981",
+        "path": "tools/delegate_tool.py",
+        "url": "https://github.com/NousResearch/hermes-agent/blob/c314285f077e91937c995d419b9fa40af9eb4981/tools/delegate_tool.py",
+        "evidence": "Selected sections inspected through primary web source; local download was unavailable."
+      },
+      {
+        "repository": "NousResearch/hermes-agent",
+        "commit": "c314285f077e91937c995d419b9fa40af9eb4981",
+        "path": "tools/tool_search_catalog.py",
+        "url": "https://github.com/NousResearch/hermes-agent/blob/c314285f077e91937c995d419b9fa40af9eb4981/tools/tool_search_catalog.py",
+        "evidence": "Selected sections inspected through primary web source; local download was unavailable."
+      },
+      {
+        "repository": "NousResearch/hermes-agent",
+        "commit": "c314285f077e91937c995d419b9fa40af9eb4981",
+        "path": "agent/iteration_budget.py",
+        "url": "https://github.com/NousResearch/hermes-agent/blob/c314285f077e91937c995d419b9fa40af9eb4981/agent/iteration_budget.py",
+        "evidence": "Selected sections inspected through primary web source; local download was unavailable."
+      }
+    ],
+    "downloadLimit": "GitHub API returned 403 for supplemental downloads. Failed files are not counted as downloaded or verified source.",
+    "localDownloadRecord": {
+      "path": "output/agent-acceptance-20261103/latest-source-manifest.json",
+      "bytes": 4187,
+      "sha256": "9334b3ff21de2f8fb054d1b3b5abc18770e20822ae36d89da58e6d1f0526af04"
+    }
+  },
+  "checks": [
+    {
+      "name": "cross-subsystem-regression",
+      "command": "pnpm exec vitest run <56 files in regressionTests> --maxWorkers=2 --reporter=json",
+      "report": {
+        "path": "output/agent-acceptance-20261103/final-regression.json",
+        "bytes": 421377,
+        "sha256": "78493401b025272be64402c275c579bf385e4348f76ee4c43882256e86e1e970"
+      },
+      "files": 56,
+      "passed": 1178,
+      "failed": 0,
+      "skipped": 3
+    },
+    {
+      "name": "root-typecheck",
+      "command": "pnpm typecheck",
+      "exitCode": 0,
+      "log": {
+        "path": "output/agent-acceptance-20261103/typecheck-verified.log",
+        "bytes": 4060,
+        "sha256": "5c07b8122ff8611b64351d808b182fbf650fd4c6f6b1a8adea800e27a6ab6bc4"
+      }
+    },
+    {
+      "name": "root-lint-fix",
+      "command": "pnpm lint:fix",
+      "exitCode": 0,
+      "existingEslintWarnings": 1195,
+      "log": {
+        "path": "output/agent-acceptance-20261103/lint-fix-verified.log",
+        "bytes": 229785,
+        "sha256": "53c0a08118a3a3270bcdec12091cea58a0bd2ed5f9938129802bcbe27b783f02"
+      }
+    },
+    {
+      "name": "root-lint-current",
+      "command": "pnpm lint",
+      "exitCode": 0,
+      "log": {
+        "path": "output/agent-acceptance-20261103/lint-final.log",
+        "bytes": 229769,
+        "sha256": "82160bfbd61c9a14e20ff31dd2646fe67295a1eeba0a920c7f4662bae186d598"
+      }
+    },
+    {
+      "name": "desktop-build",
+      "command": "pnpm -F @proj-alicization/stage-tamagotchi build",
+      "exitCode": 0,
+      "log": {
+        "path": "output/agent-acceptance-20261103/build-final.log",
+        "bytes": 110286,
+        "sha256": "79ea2fdcfeda4d14b384caf7507c205cde36d1ecb0325b8633e5488d05a3f66f"
+      },
+      "compiledMain": {
+        "path": "apps/stage-tamagotchi/out/main/index.js",
+        "bytes": 12598535,
+        "sha256": "1033966584b9a493412403171196bf1ffc8d0bd8c266984fa9edb754445b0064"
+      }
+    }
+  ],
+  "regressionTests": [
+    "packages/stage-ui/src/stores/alicization-bridge.test.ts",
+    "packages/stage-ui/src/stores/alicization-presence-dispatcher.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/codex-real-acceptance.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/initiative-arbiter.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/initiative-engine.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/life-execution-presence.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/life-provider-budget.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/life-reply-grounding-runtime.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/life-soul-activation-runtime.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/life-task-verification-runtime.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/life-workflow-tool-scope.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/main-chat-execution-surface.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/main-chat-memory-context.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/provider-retry-policy.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/task-thread-dispatcher.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/task-thread-governor.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/task-thread-orchestrator.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/capability-disclosure.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/procedure-catalog-page.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/procedure-context.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/progress-context.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/provider-step-completion.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/provider-usage.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/skill-selection.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/agent-harness/tool-observation.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/embodiment/runtime-embodiment-coordinator.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-owner-context.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/executor-adapters/codex.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/executor-adapters/thread-permission.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/delegated-product-permission-binding.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/initiative-stop-observer.integration.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/main-filesystem-mutation-dispatch.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/native-observation-promise.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-browser-replay.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-delegated-replay.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-desktop-learning.integration.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-failure-recovery.integration.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-index.integration.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-index.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-learning.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-performance.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/product-permission-binding.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/skill-lifecycle-repository.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/work-plan-admission.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/work-plan-closure.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/work-plan-no-dispatch.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/execution/work-plan-revision.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/turn-os/event-loop.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/turn-os/main-chat-participant.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/turn-os/skill-loader.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/turn-os/tool-projection.test.ts",
+    "apps/stage-tamagotchi/src/main/services/alicization/turn-os/tool-registry.test.ts"
+  ],
+  "skippedTests": [
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-delegated-replay.test.ts",
+      "name": "evaluates coding_agent.codex real writes, no-result and post-write interruption before activation and three fresh uses",
+      "status": "skipped"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/procedure-desktop-learning.integration.test.ts",
+      "name": "captures, evaluates, persists, reuses and revokes a real passive native editor method",
+      "status": "skipped"
+    },
+    {
+      "file": "apps/stage-tamagotchi/src/main/services/alicization/execution/work-adaptation.test.ts",
+      "name": "grounded future read repair within one responsibility runs three actual configured-model revisions through real file operations and independent goal verification",
+      "status": "skipped"
+    }
+  ],
+  "skippedTestLimits": "Real coding writes and passive native editor method opt-in cases were not run. The separately gated autonomous configured-model repair test was not enabled; current product acceptance instead tests three explicit host UI repairs. Prior autonomous-model trials remain in the preceding study.",
+  "currentBuildProducts": [
+    {
+      "case": "product-local-search-chinese-final",
+      "passed": true,
+      "report": {
+        "path": "output/agent-acceptance-20261103/product-local-search-chinese-final/report.json",
+        "bytes": 49523,
+        "sha256": "2ae88572785d4b0872453b584eacb15bcd5047c8ae0169f77aa036128c416c03"
+      },
+      "actualCompiledMainSha256": "1033966584b9a493412403171196bf1ffc8d0bd8c266984fa9edb754445b0064",
+      "scope": "actual-model-unknown-name-content-search-full-read-native-stop-and-unchanged-owned-files",
+      "renderer": "live2d",
+      "checks": 15,
+      "mainProviderRequests": 3,
+      "reportedModels": [
+        "gpt-6-luna"
+      ],
+      "mainProviderUsage": [
+        {
+          "requestId": "91dba0d2-b19a-43ad-a9ec-149fd7bd612a",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 5649,
+            "outputTokens": 174,
+            "totalTokens": 5823,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "b44d97a1-d494-4cf2-84c1-9dfcec06b5f1",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 6626,
+            "outputTokens": 91,
+            "totalTokens": 6717,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "b21d15f9-a5a1-4ac9-822d-3b57ff65fd6c",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 7115,
+            "outputTokens": 296,
+            "totalTokens": 7411,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        }
+      ],
+      "usageScope": "Main dialogue requests only, excluding onboarding, independent review and other auxiliary requests.",
+      "normalNativeExit": true,
+      "windowsOutsideEveryDisplayAndUnfocused": true,
+      "credentialsRemoved": true,
+      "syntheticProfileRemoved": true,
+      "exported": [
+        {
+          "path": "product-local-search-chinese-final/evidence/alicization.db",
+          "bytes": 1933312,
+          "sha256": "37fe6f87e36cc00881ccde5a485d038b911d7271ac93147d590ad56d084d5bb2"
+        },
+        {
+          "path": "product-local-search-chinese-final/evidence/alicization.db-wal",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "product-local-search-chinese-final/evidence/alicization.db-shm",
+          "bytes": 32768,
+          "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+        },
+        {
+          "path": "product-local-search-chinese-final/evidence/runtime-debug.log",
+          "bytes": 63752,
+          "sha256": "99b42dfdb33df7cfee21289e6ca4d763071f07e102525ccd6091223d493d367b"
+        }
+      ],
+      "search": {
+        "searchEffectId": "action:chat:session:primary:default:Qy1Bppz4kV2eCnfHTLKjt:gw1:chat:session:primary:default:Qy1Bppz4kV2eCnfHTLKjt:gw1:action:call_3f0bfd3005d04d69aa835c9e35105ac2",
+        "readEffectId": "action:chat:session:primary:default:Qy1Bppz4kV2eCnfHTLKjt:gw1:chat:session:primary:default:Qy1Bppz4kV2eCnfHTLKjt:gw1:action:call_f63256ecbbc943b5877d27b69cb350fd",
+        "turnId": "chat:session:primary:default:Qy1Bppz4kV2eCnfHTLKjt:gw1",
+        "nativeProcessBindingHash": "3bd89efe84effe90d0ff6639d4ace1e51cfce549b50a7d1d0c064461741605e6",
+        "fullReadSha256": "f7babd07a22428bc498ef6b0579e748146792ea3d54b7f8a597a20d4b4a08570",
+        "fullReadBytes": 198,
+        "readOnly": true
+      }
+    },
+    {
+      "case": "product-local-mutation-current",
+      "passed": true,
+      "report": {
+        "path": "output/agent-acceptance-20261103/product-local-mutation-current/report.json",
+        "bytes": 62420,
+        "sha256": "195bf8d663dbff1274afb8b1d661f160604ba7cbd76711087272d5f37d27b06e"
+      },
+      "actualCompiledMainSha256": "1033966584b9a493412403171196bf1ffc8d0bd8c266984fa9edb754445b0064",
+      "scope": "actual-model-explicit-write-edit-patch-tools-owned-before-images-permission-and-independent-shutdown-inspection",
+      "renderer": "live2d",
+      "checks": 19,
+      "mainProviderRequests": 9,
+      "reportedModels": [
+        "gpt-6-luna"
+      ],
+      "mainProviderUsage": [
+        {
+          "requestId": "1a0b9309-3c9e-4815-b525-dde06991c45b",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 5053,
+            "outputTokens": 69,
+            "totalTokens": 5122,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "d49a3a83-d38e-4586-86e1-a5c1b8736042",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 5443,
+            "outputTokens": 130,
+            "totalTokens": 5573,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "d46873a2-0677-485a-96b4-107cc1555c4d",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 6224,
+            "outputTokens": 178,
+            "totalTokens": 6402,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "04d6faf4-6bf3-4a88-93e1-23d820d08177",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 5765,
+            "outputTokens": 69,
+            "totalTokens": 5834,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "71a412de-bb51-483f-97de-b30628ddd97e",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 6145,
+            "outputTokens": 145,
+            "totalTokens": 6290,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "958a353e-1575-4f86-93ab-7cf7e5c1eb14",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 7004,
+            "outputTokens": 172,
+            "totalTokens": 7176,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "bf3560f1-177a-42f2-adaf-b16519b06a0c",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 6432,
+            "outputTokens": 69,
+            "totalTokens": 6501,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "3bf47e34-0594-4c8b-bf2e-82ce3c77854f",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 6821,
+            "outputTokens": 158,
+            "totalTokens": 6979,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "a457e010-26a6-49ed-9e1e-7688abcfc66d",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 7686,
+            "outputTokens": 173,
+            "totalTokens": 7859,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        }
+      ],
+      "usageScope": "Main dialogue requests only, excluding onboarding, independent review and other auxiliary requests.",
+      "normalNativeExit": true,
+      "windowsOutsideEveryDisplayAndUnfocused": true,
+      "credentialsRemoved": true,
+      "syntheticProfileRemoved": true,
+      "exported": [
+        {
+          "path": "product-local-mutation-current/evidence/alicization.db",
+          "bytes": 3072000,
+          "sha256": "5e6322df9e11ecf60f9036e9c46e77ce557a4f4ebed32fc528a0acc9445f1d75"
+        },
+        {
+          "path": "product-local-mutation-current/evidence/alicization.db-wal",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "product-local-mutation-current/evidence/alicization.db-shm",
+          "bytes": 32768,
+          "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+        },
+        {
+          "path": "product-local-mutation-current/evidence/runtime-debug.log",
+          "bytes": 145266,
+          "sha256": "5fb0d709b87adea50650742c7498e1c4a309f24955e1adcbe2764971840820d8"
+        }
+      ],
+      "mutations": [
+        {
+          "operation": "write_file",
+          "effectId": "action:chat:session:primary:default:yzRCU9Nx9z1IlAJGmnp_z:gw1:chat:session:primary:default:yzRCU9Nx9z1IlAJGmnp_z:gw1:action:call_5140e63624ad4bfa8f18af3ad7ee606f",
+          "turnId": "chat:session:primary:default:yzRCU9Nx9z1IlAJGmnp_z:gw1",
+          "versionId": "25483409a9bd1e8dedd5f0f3757b55796255cbd8badcee560f84ce0f2aaca978",
+          "originalSha256": "4638a2c0176f8ce2461ea828e00a5d214b5fdb0b5f467fc7d62b1024d315589b",
+          "writtenSha256": "890734fcfca62437c6e1b5946c2eb4d6b1f25cd03e5a96c3f952b15aefae089e"
+        },
+        {
+          "operation": "edit_file",
+          "effectId": "action:chat:session:primary:default:PF28OY7bth1V9TDZRM-9i:gw1:chat:session:primary:default:PF28OY7bth1V9TDZRM-9i:gw1:action:call_928e833bece14c48a4935f231903d653",
+          "turnId": "chat:session:primary:default:PF28OY7bth1V9TDZRM-9i:gw1",
+          "versionId": "a197bebb3745e993049491d3029cf28a91cc90b1ba70d7b8295bc56d47af0e0d",
+          "originalSha256": "d2fa7aa85c0c026618347575de3a83f0906f2de6182b8fe6585669f341a94a9b",
+          "writtenSha256": "890734fcfca62437c6e1b5946c2eb4d6b1f25cd03e5a96c3f952b15aefae089e"
+        },
+        {
+          "operation": "patch_file",
+          "effectId": "action:chat:session:primary:default:bXIylv7JTJKN41g4kVwWp:gw1:chat:session:primary:default:bXIylv7JTJKN41g4kVwWp:gw1:action:call_64bb85868424448da059629be767b504",
+          "turnId": "chat:session:primary:default:bXIylv7JTJKN41g4kVwWp:gw1",
+          "versionId": "43c81c4d77e434122954c69628277ee059162da9119dd976efb7d869173f55c6",
+          "originalSha256": "fabd17c53cc13e9cbd426ad11c84d94942d4a4e83ba80c36d41071aa51d4db41",
+          "writtenSha256": "890734fcfca62437c6e1b5946c2eb4d6b1f25cd03e5a96c3f952b15aefae089e"
+        }
+      ]
+    },
+    {
+      "case": "product-repair-and-learning",
+      "passed": true,
+      "report": {
+        "path": "output/agent-acceptance-20261103/product-repair-and-learning/report.json",
+        "bytes": 252183,
+        "sha256": "9c1ab661e75a236e2e8593de6dc279d1a4c513791f1363cf0de5ba2a858a65d5"
+      },
+      "actualCompiledMainSha256": "1033966584b9a493412403171196bf1ffc8d0bd8c266984fa9edb754445b0064",
+      "scope": "execution-work-product-experience",
+      "renderer": "live2d",
+      "checks": 74,
+      "mainProviderRequests": 25,
+      "reportedModels": [
+        "gpt-6-luna"
+      ],
+      "mainProviderUsage": [
+        {
+          "requestId": "9a4eb23b-278b-4a2d-81d7-9df675b45cd6",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 5248,
+            "outputTokens": 86,
+            "totalTokens": 5334,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "4871275c-57bb-4b4a-afaa-00bf9b9a8d54",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 5945,
+            "outputTokens": 159,
+            "totalTokens": 6104,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "25a598aa-998e-4f11-823a-242696dfb439",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 6419,
+            "outputTokens": 125,
+            "totalTokens": 6544,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "54bd0942-9952-4a84-8246-800673a8380f",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 7365,
+            "outputTokens": 89,
+            "totalTokens": 7454,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "aacaa46f-0dad-4e3b-b757-df1e85b42e8a",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 8066,
+            "outputTokens": 158,
+            "totalTokens": 8224,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "51afcc91-e71a-4b64-99fb-9c28f91f2d98",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 7524,
+            "outputTokens": 80,
+            "totalTokens": 7604,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "cadf046c-24c5-4d44-a47e-8b72da6c7eb9",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 8184,
+            "outputTokens": 138,
+            "totalTokens": 8322,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "052cbe54-ecd3-4cbd-b63b-2a42ba370abd",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 9984,
+            "outputTokens": 93,
+            "totalTokens": 10077,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "470fd9d7-6cde-4c6e-bc4e-538bd7c590a0",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 10721,
+            "outputTokens": 155,
+            "totalTokens": 10876,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "d8059567-ce4c-48e1-a919-55400df515da",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 9921,
+            "outputTokens": 91,
+            "totalTokens": 10012,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "a8a20abd-9964-4a74-8d71-c0779afd7458",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 10587,
+            "outputTokens": 139,
+            "totalTokens": 10726,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "858ddc90-7ace-4246-a762-a9236b96c899",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 12147,
+            "outputTokens": 89,
+            "totalTokens": 12236,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "1340cfa5-f84a-47f1-89d2-2748fbcbf2c4",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 12819,
+            "outputTokens": 183,
+            "totalTokens": 13002,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "9235c9ab-75a4-4f18-a252-f400f880ef63",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 13302,
+            "outputTokens": 132,
+            "totalTokens": 13434,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "0d4d1e2e-0fa5-4811-b14b-f911fa382fa3",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 12114,
+            "outputTokens": 46,
+            "totalTokens": 12160,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "09b4c80e-2944-4545-a6d9-5566860f7eb5",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 12776,
+            "outputTokens": 239,
+            "totalTokens": 13015,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "becd8f53-63f4-4666-8f11-f3348eb871c4",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 13580,
+            "outputTokens": 194,
+            "totalTokens": 13774,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "e6dc7a87-b996-4278-a7e1-8d9f7e820e67",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 13922,
+            "outputTokens": 133,
+            "totalTokens": 14055,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "96e45103-3b14-4c87-b5a0-5eb28b470370",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 12699,
+            "outputTokens": 46,
+            "totalTokens": 12745,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "e70bb896-d4a8-4e79-8c8d-f16b505d1563",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 13360,
+            "outputTokens": 243,
+            "totalTokens": 13603,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "dc887c5c-e6e4-48ac-a7c7-170525f4d9b3",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 14159,
+            "outputTokens": 187,
+            "totalTokens": 14346,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "55262d74-9586-4141-9a7e-b2f85f3d4119",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 14537,
+            "outputTokens": 119,
+            "totalTokens": 14656,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "50a45ec1-f360-4fc7-ad9b-549ae4984170",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 12813,
+            "outputTokens": 46,
+            "totalTokens": 12859,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "b6274f1f-138c-40a9-ae58-1ac1550b71e5",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 13473,
+            "outputTokens": 242,
+            "totalTokens": 13715,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null
+          },
+          "source": "provider-reported"
+        },
+        {
+          "requestId": "359ad23b-e60a-4271-ae59-e3ad17c59e0b",
+          "settlement": "completed",
+          "usage": {
+            "inputTokens": 14250,
+            "outputTokens": 248,
+            "totalTokens": 14498,
+            "cacheReadTokens": null,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 55
+          },
+          "source": "provider-reported"
+        }
+      ],
+      "usageScope": "Main dialogue requests only, excluding onboarding, independent review and other auxiliary requests.",
+      "normalNativeExit": true,
+      "windowsOutsideEveryDisplayAndUnfocused": true,
+      "credentialsRemoved": true,
+      "syntheticProfileRemoved": true,
+      "exported": [
+        {
+          "path": "product-repair-and-learning/evidence/alicization.db",
+          "bytes": 12201984,
+          "sha256": "ea09b709b824bf57e09d4e75e68857af22973ef66245d10d148eec7e98fecd7c"
+        },
+        {
+          "path": "product-repair-and-learning/evidence/alicization.db-wal",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "product-repair-and-learning/evidence/alicization.db-shm",
+          "bytes": 32768,
+          "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+        },
+        {
+          "path": "product-repair-and-learning/evidence/runtime-debug.log",
+          "bytes": 593117,
+          "sha256": "fd36f11f83d48bc7925c3a920db86b5ac692f5c027239c6ae5ee2ae3a6cce428"
+        }
+      ],
+      "taskRepair": {
+        "passed": true,
+        "readOnly": true,
+        "scope": "three-actual-host-step-repairs-with-one-original-write",
+        "results": [
+          {
+            "goalId": "task:work:159e2317d96993c615d7b6d664d398b8e78f921bcead50af7095c11f15c6d6f9",
+            "planId": "plan:159e2317d96993c615d7b6d664d398b8e78f921bcead50af7095c11f15c6d6f9",
+            "revision": 2,
+            "originalWriteEffectId": "action:task-run:fe508c02-e1e5-47dd-954c-f45f9038bf48:write-report",
+            "writeEffects": 1,
+            "correctedReadEffectId": "action:task-run:3a5b6768-20fc-4592-91d4-d66a7caf4204:read-source"
+          },
+          {
+            "goalId": "task:work:0f3c6786fbb541cfc351da8be36b17c42e2fb8093c00b5b9ed82db7612f9d0bc",
+            "planId": "plan:0f3c6786fbb541cfc351da8be36b17c42e2fb8093c00b5b9ed82db7612f9d0bc",
+            "revision": 2,
+            "originalWriteEffectId": "action:task-run:86e9be1b-e8db-4e9b-95ba-09728cd4350a:write-report",
+            "writeEffects": 1,
+            "correctedReadEffectId": "action:task-run:921faabe-3aa7-4d91-8f26-723717d62a17:read-source"
+          },
+          {
+            "goalId": "task:work:ed35707f473a13d853a8ec7d96e1ca91e6c4df5774655b8fc73aa91c8621ed28",
+            "planId": "plan:ed35707f473a13d853a8ec7d96e1ca91e6c4df5774655b8fc73aa91c8621ed28",
+            "revision": 2,
+            "originalWriteEffectId": "action:task-run:f2f74f40-f243-4ccd-a9ae-b81833c1ecba:write-report",
+            "writeEffects": 1,
+            "correctedReadEffectId": "action:task-run:f0d79d3c-e5cc-4a8e-9518-1efd649000ba:read-source"
+          }
+        ]
+      },
+      "learnedMethod": {
+        "passed": true,
+        "readOnly": true,
+        "deliveries": [
+          {
+            "goalId": "task:work:f6a78539411c27a5b71fe7239abafe96bb5e6bfe2e09ac48e89e0dc0df533f9e",
+            "source": {
+              "candidateId": "procedure:a4458029f220aa554fdf260449c15d99c0c66c993fc1ff1d191e9e6af240cf61",
+              "version": "a4458029f220aa554fdf260449c15d99c0c66c993fc1ff1d191e9e6af240cf61"
+            },
+            "independent": true,
+            "sourceWithdrawn": true
+          },
+          {
+            "goalId": "task:work:83f63526848257d33a43f122721c3c99ddfe7b3f7691505c4a3742f8693b4170",
+            "source": {
+              "candidateId": "procedure:a4458029f220aa554fdf260449c15d99c0c66c993fc1ff1d191e9e6af240cf61",
+              "version": "a4458029f220aa554fdf260449c15d99c0c66c993fc1ff1d191e9e6af240cf61"
+            },
+            "independent": true,
+            "sourceWithdrawn": true
+          },
+          {
+            "goalId": "task:work:ce555419fc4b02c39f8fb6780642da6aaf2ad403080ee8cab1e000831f9c9718",
+            "source": {
+              "candidateId": "procedure:a4458029f220aa554fdf260449c15d99c0c66c993fc1ff1d191e9e6af240cf61",
+              "version": "a4458029f220aa554fdf260449c15d99c0c66c993fc1ff1d191e9e6af240cf61"
+            },
+            "independent": true,
+            "sourceWithdrawn": true
+          }
+        ]
+      }
+    }
+  ],
+  "historicalProductAttempts": [
+    {
+      "case": "product-local-mutation",
+      "passed": false,
+      "failure": "Infrastructure failure text is not a normal work acknowledgment",
+      "compiledMainSha256": "163b5d6755ea6951766da0f886b149b57db7e1f4450244b9372517a54b293c83",
+      "report": {
+        "path": "output/agent-acceptance-20261103/product-local-mutation/report.json",
+        "bytes": 57262,
+        "sha256": "79374f817e93c6cb00a9f284c20515cef2a5ea22f1597164c9696ce4fad1dec2"
+      }
+    },
+    {
+      "case": "product-local-mutation-current",
+      "passed": true,
+      "failure": null,
+      "compiledMainSha256": "1033966584b9a493412403171196bf1ffc8d0bd8c266984fa9edb754445b0064",
+      "report": {
+        "path": "output/agent-acceptance-20261103/product-local-mutation-current/report.json",
+        "bytes": 62420,
+        "sha256": "195bf8d663dbff1274afb8b1d661f160604ba7cbd76711087272d5f37d27b06e"
+      }
+    },
+    {
+      "case": "product-local-mutation-final",
+      "passed": false,
+      "failure": "Infrastructure failure text is not a normal work acknowledgment",
+      "compiledMainSha256": "c66ee44853dad12e52c113cf74927868c2fdb5c319521560a5ad25fffed3aa9a",
+      "report": {
+        "path": "output/agent-acceptance-20261103/product-local-mutation-final/report.json",
+        "bytes": 59581,
+        "sha256": "a1e48dd07282c9e57022589fddda439d3bc3b8b91569a967f913b3e450e2cc39"
+      }
+    },
+    {
+      "case": "product-local-mutation-verified-text",
+      "passed": true,
+      "failure": null,
+      "compiledMainSha256": "326c1ceb7a62a5dd7271861ec7d36d08375adc8c0cbb56e01b7cbea22b249261",
+      "report": {
+        "path": "output/agent-acceptance-20261103/product-local-mutation-verified-text/report.json",
+        "bytes": 61879,
+        "sha256": "d78de54a6ccf8d8cdc764c6a756fd276aec19b8a9b084af68bd34318653063ad"
+      }
+    },
+    {
+      "case": "product-local-search",
+      "passed": false,
+      "failure": "Infrastructure failure text is not a normal work acknowledgment",
+      "compiledMainSha256": "f8ac12efaad65a163c3fec4f470daf3fc4a5b21dfd160bfcf48ea403a17b0081",
+      "report": {
+        "path": "output/agent-acceptance-20261103/product-local-search/report.json",
+        "bytes": 56716,
+        "sha256": "1eb48defe08c233c1aab7ab8b0c3b4a29176e3914fcb6614945cba91b1edcd42"
+      }
+    },
+    {
+      "case": "product-local-search-chinese",
+      "passed": false,
+      "failure": "Owned native observation rejected: {\"code\":-32000,\"message\":\"Promise was collected\"}",
+      "compiledMainSha256": "1033966584b9a493412403171196bf1ffc8d0bd8c266984fa9edb754445b0064",
+      "report": {
+        "path": "output/agent-acceptance-20261103/product-local-search-chinese/report.json",
+        "bytes": 62192,
+        "sha256": "04dd88fd29c00cc40a74345fc0bd5d7e2c5699372535db9dcbecd56d2fcc34c3"
+      }
+    },
+    {
+      "case": "product-local-search-chinese-final",
+      "passed": true,
+      "failure": null,
+      "compiledMainSha256": "1033966584b9a493412403171196bf1ffc8d0bd8c266984fa9edb754445b0064",
+      "report": {
+        "path": "output/agent-acceptance-20261103/product-local-search-chinese-final/report.json",
+        "bytes": 49523,
+        "sha256": "2ae88572785d4b0872453b584eacb15bcd5047c8ae0169f77aa036128c416c03"
+      }
+    },
+    {
+      "case": "product-local-search-final",
+      "passed": true,
+      "failure": null,
+      "compiledMainSha256": "163b5d6755ea6951766da0f886b149b57db7e1f4450244b9372517a54b293c83",
+      "report": {
+        "path": "output/agent-acceptance-20261103/product-local-search-final/report.json",
+        "bytes": 50032,
+        "sha256": "cab3bb485cc62f94248e7eee35882b16e1ef8ab740b181cf141a62b4ce4aa5ba"
+      }
+    },
+    {
+      "case": "product-local-search-fixed",
+      "passed": false,
+      "failure": "Owned native observation rejected: {\"code\":-32000,\"message\":\"Promise was collected\"}",
+      "compiledMainSha256": "163b5d6755ea6951766da0f886b149b57db7e1f4450244b9372517a54b293c83",
+      "report": {
+        "path": "output/agent-acceptance-20261103/product-local-search-fixed/report.json",
+        "bytes": 60131,
+        "sha256": "ab41a1b04ff28e7cae550abf144ecf1a26e33f99da0a44882a6a41fcf6c9f632"
+      }
+    },
+    {
+      "case": "product-repair-and-learning",
+      "passed": true,
+      "failure": null,
+      "compiledMainSha256": "1033966584b9a493412403171196bf1ffc8d0bd8c266984fa9edb754445b0064",
+      "report": {
+        "path": "output/agent-acceptance-20261103/product-repair-and-learning/report.json",
+        "bytes": 252183,
+        "sha256": "9c1ab661e75a236e2e8593de6dc279d1a4c513791f1363cf0de5ba2a858a65d5"
+      }
+    }
+  ],
+  "discoveryObservation": {
+    "beforeReport": {
+      "path": "output/agent-acceptance-20261103/product-local-search-final/report.json",
+      "bytes": 50032,
+      "sha256": "cab3bb485cc62f94248e7eee35882b16e1ef8ab740b181cf141a62b4ce4aa5ba"
+    },
+    "beforePassed": true,
+    "beforeMainProviderRequests": 6,
+    "afterCase": "product-local-search-chinese-final",
+    "afterMainProviderRequests": 3,
+    "limit": "Single semantically matched synthetic task observation with different random filenames/markers; not randomized paired evaluation or a total-model-cost measurement."
+  },
+  "codexIntegration": {
+    "installedVersion": "0.160.0",
+    "firstRun": {
+      "path": "output/agent-acceptance-20261103/codex-real-cli.json",
+      "bytes": 105241,
+      "sha256": "7e9adb05b0ceb773398e7e324d563ffd40a58ba738e63758c8454a50c3c35ae7"
+    },
+    "repeat": {
+      "path": "output/agent-acceptance-20261103/codex-long-task-repeat.json",
+      "bytes": 42395,
+      "sha256": "f12a83cd0b6e40549754476eac6c493dedc41c50c5dc1b9c3387816191a1ad2d"
+    },
+    "firstAttempts": [
+      {
+        "scenario": "long-task",
+        "status": "failed",
+        "durationMs": 180326,
+        "failures": [
+          "长任务没有以成功终态完成。",
+          "任务线程没有持久化 planned -> running -> completed 生命周期。"
+        ]
+      },
+      {
+        "scenario": "cancel",
+        "status": "passed",
+        "durationMs": 14022,
+        "failures": []
+      },
+      {
+        "scenario": "timeout",
+        "status": "passed",
+        "durationMs": 15115,
+        "failures": []
+      }
+    ],
+    "longTaskRepeat": [
+      {
+        "scenario": "long-task",
+        "status": "passed",
+        "durationMs": 34739,
+        "assertions": {
+          "semanticProgressObserved": true,
+          "terminalSettlementObserved": true,
+          "taskThreadLifecyclePersisted": true,
+          "progressPersisted": true,
+          "observableTaskThread": true,
+          "workspaceUnchanged": true
+        }
+      }
+    ],
+    "limit": "Tests Alicization delegation lifecycle using the installed CLI; upstream Pi, DSH and Hermes runtimes were not executed in an equal-model benchmark."
+  },
+  "cleanup": {
+    "receipt": {
+      "path": "output/agent-acceptance-20261103/cleanup.json",
+      "bytes": 13761,
+      "sha256": "9d36517ad2a1f2840f5e7d077502a06a4f031f027cf98e72865cc686f89f015f"
+    },
+    "profilesRemoved": 10,
+    "profileBytesRemoved": 132997382,
+    "scope": "Only exact synthetic profiles after observed normal exit and credential cleanup; owned document fixtures verified before deletion.",
+    "upstreamCache": {
+      "path": "output/agent-acceptance-20261103/source-cache-cleanup.json",
+      "bytes": 2080,
+      "sha256": "1b48460f5b684b502611514c27302323bad040310ac4c414fdb0dd89295f91d5"
+    },
+    "retainedSourceFilesReverified": 260,
+    "applicationGitMetadataRetained": true
+  },
+  "limits": [
+    "No same-model same-budget four-product benchmark.",
+    "Compiled desktop runtime tested; no new installer produced.",
+    "Scripted method identity and parameter requirements do not establish autonomous natural method selection.",
+    "Regression invariants and Live2D drawing do not establish months of personhood continuity or subjective lifelikeness.",
+    "Native LSP, arbitrary PTC, ecosystem installers, safe parallel read scheduling and a unified external-agent spending cap remain gaps."
+  ]
+}

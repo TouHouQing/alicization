@@ -3,8 +3,15 @@ import type { ErrorObject, ValidateFunction } from 'ajv'
 import type { LifeCapabilityEffects } from '../../../../shared/life-contracts'
 
 import Ajv from 'ajv'
+import addFormats from 'ajv-formats'
+
+import { z } from 'zod'
 
 import { localFilesystemInputSchemas } from '../../airi/mcp-servers/local-filesystem-schema'
+import { languageInputSchema, languageToolName } from '../agent-harness/language-tool'
+import { programmaticInputSchema, programmaticToolName } from '../agent-harness/programmatic-tool'
+import { sessionSearchName, sessionSearchSchema } from '../agent-harness/session-search'
+import { automationParameters } from '../agent-harness/work-automation'
 import { probeOperationCapability } from '../execution/operation-capabilities'
 
 export type CapabilityKind = 'tool' | 'skill'
@@ -275,6 +282,12 @@ function createManifest(
 
 function createCanonicalManifests(mcpAllowlist: ReadonlySet<string>): CapabilityManifest[] {
   const manifests = [
+    createBuiltInManifest('life_schedule_work', z.toJSONSchema(automationParameters, { target: 'draft-7', io: 'input' }), { description: 'Admit explicitly requested bounded scheduled or recurring independently verified work.', permissions: ['execution.invoke'], risk: 'medium', supportsCancellation: true, timeoutMs: 120000, idempotency: 'required' }),
+    createBuiltInManifest('life_list_automations', { type: 'object', properties: {}, additionalProperties: false }, { description: 'Read scheduled work state for the current life owner.', permissions: ['workspace.read'], risk: 'low', idempotency: 'best-effort' }),
+    createBuiltInManifest('life_cancel_automation', { type: 'object', properties: { groupId: { type: 'string', pattern: '^automation:[a-f0-9]{64}$' } }, required: ['groupId'], additionalProperties: false }, { description: 'Stop one admitted automation and its owned occurrences.', permissions: ['execution.invoke'], risk: 'low', supportsCancellation: true, idempotency: 'required' }),
+    createBuiltInManifest(sessionSearchName, sessionSearchSchema, { description: 'Search actual same-card historical dialogue with source and presentation checks.', permissions: ['memory.read'], risk: 'low', supportsCancellation: true, idempotency: 'best-effort' }),
+    createBuiltInManifest(languageToolName, languageInputSchema, { description: 'Actual read-only TypeScript/JavaScript language service.', permissions: ['workspace.read'], risk: 'medium', supportsCancellation: true, timeoutMs: 30000, idempotency: 'best-effort' }),
+    createBuiltInManifest(programmaticToolName, programmaticInputSchema, { description: 'Bounded isolated programmatic local reads with per-call life admission.', permissions: ['workspace.read'], risk: 'low', supportsCancellation: true, timeoutMs: 35000, idempotency: 'best-effort' }),
     createManifest('coding_agent.codex', codingAgentPromptInputSchema, {
       description: 'Coding agent execution through Codex.',
       executionChannel: 'codex',
@@ -473,7 +486,10 @@ function createCanonicalManifests(mcpAllowlist: ReadonlySet<string>): Capability
       supportsCancellation: true,
       idempotency: 'required',
     }),
-    createBuiltInManifest('life_list_learned_procedures', { type: 'object', properties: {}, required: [], additionalProperties: false }, { description: 'List approved active independently replayed procedures.', permissions: ['workspace.read'], risk: 'low', idempotency: 'best-effort' }),
+    createBuiltInManifest('life_read_tool_observation', { type: 'object', additionalProperties: false, required: ['toolCallId', 'expectedHash', 'offset', 'maxBytes'], properties: { toolCallId: { type: 'string', minLength: 1, maxLength: 512 }, expectedHash: { type: 'string', pattern: '^[a-f0-9]{64}$' }, offset: { type: 'integer', minimum: 0 }, maxBytes: { type: 'integer', minimum: 64, maximum: 8192 } } }, { description: 'Read a bounded exact page of this turn\'s settled tool receipt without repeating its action.', permissions: ['workspace.read'], risk: 'low', supportsCancellation: true, idempotency: 'best-effort' }),
+    createBuiltInManifest('life_search_capabilities', { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 256 }, limit: { type: 'integer', minimum: 1, maximum: 10 } }, required: ['query'], additionalProperties: false }, { description: 'Search current executable capability metadata without running an operation.', permissions: ['workspace.read'], risk: 'low', idempotency: 'best-effort' }),
+    createBuiltInManifest('life_describe_capabilities', { type: 'object', properties: { names: { type: 'array', minItems: 1, maxItems: 3, items: { type: 'string', minLength: 1, maxLength: 128 } } }, required: ['names'], additionalProperties: false }, { description: 'Read exact live operation interfaces; discovery does not grant action permission.', permissions: ['workspace.read'], risk: 'low', idempotency: 'best-effort' }),
+    createBuiltInManifest('life_list_learned_procedures', { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 256 }, offset: { type: 'integer', minimum: 0, maximum: 1000 }, limit: { type: 'integer', minimum: 1, maximum: 20 }, expectedCatalogHash: { type: 'string', pattern: '^[a-f0-9]{64}$' } }, required: [], additionalProperties: false }, { description: 'Inspect a bounded page of approved active independently replayed procedures.', permissions: ['workspace.read'], risk: 'low', idempotency: 'best-effort' }),
     createBuiltInManifest('life_list_execution_verifiers', { type: 'object', properties: {}, required: [], additionalProperties: false }, { description: 'List content-bound host verification recipes without paths or keys.', permissions: ['workspace.read'], risk: 'low', idempotency: 'best-effort' }),
     createBuiltInManifest('life_use_learned_procedure', { type: 'object', additionalProperties: false, required: ['id', 'version', 'goal', 'arguments'], properties: { id: { type: 'string', minLength: 1, maxLength: 512 }, version: { type: 'string', pattern: '^[a-f0-9]{64}$' }, goal: { type: 'string', minLength: 1, maxLength: 2000 }, arguments: { type: 'array', minItems: 1, maxItems: 64, items: { type: 'object', additionalProperties: false, required: ['name', 'value'], properties: { name: { type: 'string', pattern: '^input[0-9]+$' }, value: { anyOf: [{ type: 'string', maxLength: 64000 }, { type: 'array', maxItems: 512, items: { type: 'string', maxLength: 4096 } }] } } } } } }, { description: 'Admit fresh governed work using an exact independently replayed procedure version.', permissions: ['workspace.write'], risk: 'medium', supportsCancellation: true, idempotency: 'required' }),
     createBuiltInManifest('life_create_personal_piece', { type: 'object', properties: {}, required: [], additionalProperties: false }, {
@@ -670,7 +686,10 @@ function createManifestSnapshot(manifest: CapabilityManifest) {
 
 function withEffectContract(manifest: CapabilityManifest): CapabilityManifest {
   const readOnly = new Set(['filesystem_read_file', 'filesystem_list_directory', 'filesystem_search_files', 'filesystem::read_file', 'filesystem::list_directory', 'filesystem::search_files', 'browser_read_page', 'browser_wait', 'desktop_inspect_scene', 'desktop_list_interactables', 'desktop_wait', 'executor_capability_snapshot', 'sensory_capture_state'])
-  const reader = ['life_list_learned_procedures', 'life_list_execution_verifiers'].includes(manifest.adapterToolName) || readOnly.has(manifest.adapterToolName) || readOnly.has(manifest.capabilityId.replace(/^mcp\./u, ''))
+  if (manifest.executionChannel === 'extension-isolate' && /^extension\.[a-z][\w-]*\.[a-z]\w*$/u.test(manifest.capabilityId) && manifest.permissions.length === 1 && manifest.permissions[0] === 'workspace.read')
+    readOnly.add(manifest.adapterToolName)
+  readOnly.add('life_list_automations')
+  const reader = [sessionSearchName, languageToolName, programmaticToolName, 'life_search_capabilities', 'life_describe_capabilities', 'life_read_tool_observation', 'life_list_learned_procedures', 'life_list_execution_verifiers'].includes(manifest.adapterToolName) || readOnly.has(manifest.adapterToolName) || readOnly.has(manifest.capabilityId.replace(/^mcp\./u, ''))
   const external = manifest.adapterToolName === 'browser_open_url' || manifest.adapterToolName === 'browser_search_web' || manifest.adapterToolName === 'browser_upload_files' || manifest.executionChannel === 'openclaw'
   const unknown = manifest.permissions.includes('mcp.invoke')
   const effects = manifest.effects ?? { version: 'life-capability-effects-v1', sideEffect: unknown ? 'unknown' : reader ? 'read' : external ? 'external' : 'mutation', retryClass: unknown ? 'manual-only' : reader ? 'read-only' : 'verify-before-retry', verifier: reader ? 'returned-observation' : 'independent-goal-proof', compensation: reader ? 'none' : 'manual-review' } as LifeCapabilityEffects
@@ -688,6 +707,7 @@ export function createToolRegistry(options: CreateToolRegistryOptions = {}): Too
   const adapterToolNames = new Map<string, string>()
   const validators = new Map<string, ValidateFunction>()
   const ajv = new Ajv({ allErrors: true, strict: false })
+  addFormats(ajv)
 
   function resolveCapabilityId(name: string) {
     if (manifests.has(name))

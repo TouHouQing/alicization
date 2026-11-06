@@ -14,6 +14,20 @@ vi.mock('@vueuse/core', async () => {
 })
 
 describe('life expression outbox isolation', () => {
+  it('records an excerpt as partial delivery and preserves one utterance epoch', async () => {
+    ports.session.mockResolvedValue({ id: 'surface' })
+    ports.send.mockResolvedValue({ presentationVerified: true })
+    const scope = effectScope()
+    try {
+      const reporter = scope.run(() => useLifeExpressionReporter(() => 'default'))!
+      const base = { cardId: 'default', turnId: 'source', utteranceId: 'voice', playbackEpoch: 'voice', playedMs: 1000, errorCode: null }
+      await reporter.audio({ ...base, state: 'audio-started' })
+      await reporter.audio({ ...base, state: 'audio-ended', alignedTextEnd: 30, alignmentSource: 'segment', coverage: 'excerpt' })
+      expect(ports.send).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'audio-ended', segmentId: 'utterance', alignedTextEnd: 30, alignmentSource: 'segment', errorCode: 'excerpt-only' }))
+      expect(ports.send.mock.calls.at(-1)?.[0]).not.toHaveProperty('coverage')
+    }
+    finally { scope.stop() }
+  })
   it('retains a rejected observation while settling independent playback and rendering receipts', async () => {
     ports.session.mockResolvedValue({ id: 'issued-surface' })
     ports.send.mockImplementation(async (receipt) => {

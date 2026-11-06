@@ -104,7 +104,11 @@ export function useLifeExpressionReporter(activeCard: () => string | undefined) 
       const key = `${current.id}:${input.playbackEpoch}:${input.utteranceId}`
       const sequence = sequences.get(key) ?? 0
       sequences.set(key, sequence + 1)
-      const receipt: LifeExpressionReceipt = { ...input, receiptId: `audio:${key}:${sequence}`, deliveryId: input.turnId, segmentId: 'utterance', surfaceSessionId: current.id, sequence, playedMs: Math.max(0, Math.round(input.playedMs)), alignedTextEnd: null, alignmentSource: null, occurredAt: Date.now() }
+      const { coverage, ...playback } = input
+      const excerptEnded = coverage === 'excerpt' && input.state === 'audio-ended'
+      // A deliberate excerpt ended normally. Its reason code prevents whole
+      // reply/reminder completion without misclassifying it as an interruption.
+      const receipt: LifeExpressionReceipt = { ...playback, errorCode: excerptEnded ? 'excerpt-only' : input.errorCode, receiptId: `audio:${key}:${sequence}`, deliveryId: input.turnId, segmentId: 'utterance', surfaceSessionId: current.id, sequence, playedMs: Math.max(0, Math.round(input.playedMs)), alignedTextEnd: input.alignedTextEnd ?? null, alignmentSource: input.alignmentSource ?? null, occurredAt: Date.now() }
       if (input.state === 'audio-progress')
         pending.value = pending.value.filter(item => item.state !== 'audio-progress' || item.surfaceSessionId !== current.id || item.playbackEpoch !== input.playbackEpoch || item.utteranceId !== input.utteranceId)
       pending.value.push(receipt)
