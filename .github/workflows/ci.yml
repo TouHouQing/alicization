@@ -103,6 +103,8 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - name: Verify capability platform contracts
+        run: pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/turn-os/tool-registry.test.ts
       - run: pnpm run test:alicization-final-gate
 
   check-provenance:

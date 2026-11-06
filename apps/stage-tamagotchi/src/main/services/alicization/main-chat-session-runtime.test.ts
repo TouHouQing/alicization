@@ -35,6 +35,7 @@ import {
 } from './main-chat-session-runtime'
 import { buildAlicizationProviderRequestSnapshot } from './main-chat-stream-runner'
 import { createAlicizationMainChatPreludeRuntime } from './runtime-main-chat-prelude'
+import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
 type ExecutiveTurnOrganicMemoryTuneInput = Parameters<
   Parameters<typeof createAlicizationMainChatSessionRuntime>[0]['tuneOrganicMemoryPromptContextForExecutiveTurn']
@@ -829,6 +830,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       recalledFragments: [],
     }))
     const runtime = createAlicizationMainChatSessionRuntime({
+      buildToolRegistry: () => createCanonicalToolRegistry({ platform: 'win32' }),
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
       executeMainGatewayTaskThread: vi.fn(),
@@ -1216,6 +1218,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       capture: null,
     } satisfies AlicizationSensoryCacheSnapshot))
     const runtime = createAlicizationMainChatSessionRuntime({
+      buildToolRegistry: () => createCanonicalToolRegistry({ platform: 'win32' }),
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
       executeMainGatewayTaskThread: vi.fn(),
@@ -1300,6 +1303,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       capture: null,
     } satisfies AlicizationSensoryCacheSnapshot))
     const runtime = createAlicizationMainChatSessionRuntime({
+      buildToolRegistry: () => createCanonicalToolRegistry({ platform: 'win32' }),
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
       executeMainGatewayTaskThread: vi.fn(),
@@ -1504,6 +1508,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       output: null,
     }))
     const runtime = createAlicizationMainChatSessionRuntime({
+      buildToolRegistry: () => createCanonicalToolRegistry({ platform: 'win32' }),
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
       executeMainGatewayTaskThread,

@@ -32,6 +32,18 @@ const manifestFields: Array<keyof CapabilityManifest> = [
 ]
 
 describe('canonical ToolRegistry', () => {
+  it('gates browser and desktop scene operations by their implemented platform', () => {
+    for (const platform of ['win32', 'darwin', 'linux']) {
+      const registry = createCanonicalToolRegistry({ platform })
+      for (const name of ['tool.browser_open_url', 'tool.desktop_inspect_scene']) {
+        if (platform === 'linux')
+          expect(registry.resolveActive(name)).toBeUndefined()
+        else
+          expect(registry.resolveActive(name)?.activationStatus).toBe('active')
+      }
+    }
+  })
+
   it('exposes window vision and mouse input only after actual Windows helper readiness, with separate privacy and mutation contracts', () => {
     for (const platform of ['darwin', 'linux']) expect(createCanonicalToolRegistry({ platform, windowsVisualReady: true }).resolveActive('tool.desktop_locate_window')).toBeUndefined()
     expect(createCanonicalToolRegistry({ platform: 'win32' }).resolveActive('tool.desktop_pointer_action')).toBeUndefined()

@@ -23,6 +23,10 @@ personality feedback or duplicate training examples.
 The workbench database integration suite has a bounded 30-second timeout per
 case because a production trial also verifies four isolated native SQLite
 scopes. Unit tests retain their normal timeout.
+Desktop capability fixtures explicitly select Windows; Linux availability
+checks still reject operations without an implemented adapter. CI runs the
+capability registry's platform checks before the final gate. Local worktrees stay
+ignored and must not be committed as unregistered submodules.
 
 ## Manual deployment
 
