@@ -155,7 +155,9 @@ afterEach(async () => {
   }
 })
 
-describe('memory quality workbench DB loop', () => {
+// Each production trial also creates and verifies four isolated SQLite scopes.
+// Native database I/O needs an integration budget beyond the unit default.
+describe('memory quality workbench DB loop', { timeout: 30_000 }, () => {
   it('builds labelable samples from the canonical conversation and validates their binding', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {

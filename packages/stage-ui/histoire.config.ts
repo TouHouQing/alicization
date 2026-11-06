@@ -71,6 +71,10 @@ export default defineConfig({
   ],
   vite: {
     base: '/ui/',
+    build: {
+      // The bundled WASM dependencies initialize with top-level await.
+      target: 'es2022',
+    },
   },
   setupFile: {
     browser: 'stories/setup.ts',

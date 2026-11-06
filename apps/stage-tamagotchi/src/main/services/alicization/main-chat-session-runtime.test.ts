@@ -52,6 +52,24 @@ type WorkingMemoryLongTermQueueScopedDrain = NonNullable<
   Parameters<typeof createAlicizationMainChatSessionRuntime>[0]['drainWorkingMemoryLongTermQueueScoped']
 >
 
+type PreparedExecution = Awaited<ReturnType<ReturnType<typeof createAlicizationMainChatSessionRuntime>['prepareExecution']>>
+
+async function expectDiscoverableTool(result: PreparedExecution, name: string) {
+  const describe = result.tools?.find(entry => entry.function.name === 'life_describe_capabilities')
+  expect(describe).toBeDefined()
+  const description = await describe!.execute({ names: [name] }, {
+    messages: result.messages,
+    toolCallId: `describe-${name}`,
+  }) as { tools: Array<{ name: string, parameters: unknown, schemaHash: string }> }
+  expect(description.tools).toEqual([
+    expect.objectContaining({
+      name,
+      parameters: expect.any(Object),
+      schemaHash: expect.stringMatching(/^[a-f0-9]{64}$/u),
+    }),
+  ])
+}
+
 describe('main chat runtime architecture', () => {
   it('does not derive Coding Agent authority from the old dialogue encounter projection', () => {
     const source = readFileSync(new URL('./main-chat-session-runtime.ts', import.meta.url), 'utf8')
@@ -865,7 +883,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const toolNames = result.tools
       ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean) ?? []
-    expect(toolNames).toContain('browser_open_url')
+    await expectDiscoverableTool(result, 'browser_open_url')
     expect(toolNames).not.toContain('cli')
     expect(toolNames).not.toContain('executor_run_coding_agent')
     expect(result.runtimeSurface.tooling.toolsOffered).toBe(true)
@@ -1252,7 +1270,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const toolNames = result.tools
       ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean) ?? []
-    expect(toolNames).toContain('browser_open_url')
+    await expectDiscoverableTool(result, 'browser_open_url')
     expect(toolNames).not.toContain('executor_run_coding_agent')
   })
 
@@ -1336,7 +1354,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const toolNames = result.tools
       ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean) ?? []
-    expect(toolNames).toContain('desktop_inspect_scene')
+    await expectDiscoverableTool(result, 'desktop_inspect_scene')
     expect(toolNames).not.toContain('executor_run_coding_agent')
   })
 
@@ -1559,7 +1577,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       'coding_agent',
       'local_visual',
     ])
-    expect(toolNames).toContain('browser_open_url')
+    await expectDiscoverableTool(result, 'browser_open_url')
     expect(systemText).toContain('"type":"alicization-execution-capabilities"')
     const codingAgentTool = result.tools
       ?.find((entry: any) => entry.function?.name === 'coding_agent') as any

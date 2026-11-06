@@ -1,18 +1,7 @@
 name: Deploy Stage Server Docker
 
 on:
-  push:
-    branches:
-      - 'main'
-    paths:
-      - '.github/workflows/deploy-stage-server-docker.yml'
-      - 'apps/server/**'
-      - 'packages/server-schema/**'
-      - 'patches/**'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - 'package.json'
-
+  # Resume deployments manually after the server accepts the configured SSH key.
   workflow_dispatch:
 
 concurrency:

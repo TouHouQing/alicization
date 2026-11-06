@@ -155,7 +155,7 @@ describe('db-backed memory dialogue replay harness', () => {
     })
   })
 
-  it('puts compressed context and recalled evidence into the second provider request', async () => {
+  it('retains recent exchanges and puts compressed context and recalled evidence into the third provider request', async () => {
     const persistence = createPersistedDb({
       recall: async input => createRecallBundle({
         query: input.currentUserText,
@@ -206,22 +206,31 @@ describe('db-backed memory dialogue replay harness', () => {
         },
         {
           turnId: 'turn-2',
-          userText: '你还记得白樱线吗？',
+          userText: '我们继续沿着当前对话聊一会儿。',
           now: baseNow + 1_000,
+        },
+        {
+          turnId: 'turn-3',
+          userText: '你还记得白樱线吗？',
+          now: baseNow + 2_000,
         },
       ],
     })
 
     expect(report.passed).toBe(true)
-    expect(provider.generate).toHaveBeenCalledTimes(2)
+    expect(provider.generate).toHaveBeenCalledTimes(3)
     expect(report.turns[1]?.stages.find(stage => stage.name === 'compression')).toMatchObject({
+      status: 'succeeded',
+      details: { changed: false },
+    })
+    expect(report.turns[2]?.stages.find(stage => stage.name === 'compression')).toMatchObject({
       status: 'succeeded',
       details: {
         changed: true,
       },
     })
-    const secondMemoryContext = JSON.parse(
-      providerMessages[1]?.find(message => message.content.includes('alicization-turn-memory-context'))?.content ?? '{}',
+    const thirdMemoryContext = JSON.parse(
+      providerMessages[2]?.find(message => message.content.includes('alicization-turn-memory-context'))?.content ?? '{}',
     ) as {
       data?: {
         workingMemory?: {
@@ -232,10 +241,10 @@ describe('db-backed memory dialogue replay harness', () => {
         }
       }
     }
-    expect(secondMemoryContext.data?.workingMemory?.compressedTimeline?.[0]?.summary).toContain('白樱线')
-    expect(secondMemoryContext.data?.longTermRecall?.evidence?.[0]?.id).toBe('memory-white-sakura')
-    expect(report.turns[1]?.providerOutput).toBe('我记得白樱线，我们继续沿着同一条关系线。')
-    expect(report.turns[1]?.providerOutput).not.toBe(report.turns[0]?.providerOutput)
+    expect(thirdMemoryContext.data?.workingMemory?.compressedTimeline?.[0]?.summary).toContain('白樱线')
+    expect(thirdMemoryContext.data?.longTermRecall?.evidence?.[0]?.id).toBe('memory-white-sakura')
+    expect(report.turns[2]?.providerOutput).toBe('我记得白樱线，我们继续沿着同一条关系线。')
+    expect(report.turns[2]?.providerOutput).not.toBe(report.turns[0]?.providerOutput)
   })
 
   it('does not write memory or Persona for a failed provider turn', async () => {

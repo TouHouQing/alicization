@@ -3422,19 +3422,15 @@ describe('persona training dataset database provenance', () => {
       })
       const snapshot = await db.getPersonaTrainingDataset({ cardId: 'default' })
 
-      expect(snapshot.examples).toEqual(expect.arrayContaining([
+      expect(snapshot.examples).toEqual([
         expect.objectContaining({
           sourceId: reflection!.id,
           sourceKind: 'cleaned-long-term-reflection',
           allowTraining: false,
           state: 'quarantined',
         }),
-        expect.objectContaining({
-          sourceKind: 'persona-reinforcement',
-          allowTraining: false,
-          state: 'quarantined',
-        }),
-      ]))
+      ])
+      expect(await db.listPersonaReinforcementEvents({ cardId: 'default', limit: 8 })).toEqual([])
     }
     finally {
       await db.close()

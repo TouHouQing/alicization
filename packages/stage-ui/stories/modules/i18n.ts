@@ -22,7 +22,10 @@ const languageRemap: Record<string, string> = {
 }
 
 function getLocale() {
-  let language = localStorage.getItem('settings/language')
+  // Story collection runs in Node, where browser storage is unavailable.
+  let language = typeof window === 'undefined'
+    ? null
+    : window.localStorage?.getItem('settings/language')
   const languages = Object.keys(messages!)
 
   if (languageRemap[language || 'en'] != null) {

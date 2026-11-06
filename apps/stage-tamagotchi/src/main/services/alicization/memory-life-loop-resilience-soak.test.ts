@@ -120,6 +120,8 @@ describe('memory life-loop resilience soak', () => {
       })
       expect(checkpointBeforeRestart?.compressedTimeline.length).toBeGreaterThan(0)
       expect(checkpointBeforeRestart?.recentRawTurns.map(turn => turn.turnId)).toEqual([
+        'turn-restart-2:user',
+        'turn-restart-2:alice',
         'turn-restart-3:user',
         'turn-restart-3:alice',
       ])
@@ -179,9 +181,14 @@ describe('memory life-loop resilience soak', () => {
       expect(calls.at(-1)?.compressedTimelineLength).toBeGreaterThan(0)
 
       const checkpointAfterRestart = await restarted.getWorkingMemoryCheckpoint(cardId, sessionId)
-      expect(checkpointAfterRestart?.recentRawTurns.at(-1)?.turnId).toBe('turn-restart-4:alice')
+      expect(checkpointAfterRestart?.recentRawTurns.map(turn => turn.turnId)).toEqual([
+        'turn-restart-3:user',
+        'turn-restart-3:alice',
+        'turn-restart-4:user',
+        'turn-restart-4:alice',
+      ])
       expect(checkpointAfterRestart?.compressedTimeline.some(item =>
-        item.sourceTurnIds.some(sourceTurnId => sourceTurnId.startsWith('turn-restart-3:')),
+        item.sourceTurnIds.some(sourceTurnId => sourceTurnId.startsWith('turn-restart-2:')),
       )).toBe(true)
       expect((await restarted.listWorkingMemoryCheckpoints(cardId)).map(snapshot => snapshot.sessionId)).toEqual([
         sessionId,

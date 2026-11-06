@@ -6144,15 +6144,10 @@ describe('alicization sqlite dao', () => {
       expect.objectContaining({
         targetScope: 'relationship',
         summary: '用户希望出错或超时时直接说明问题，不要固定安抚模板。',
+        status: 'pending',
       }),
     ]))
-    expect(await db.listPersonaReinforcementEvents({ cardId: 'default', limit: 8 })).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        dimension: 'truthful-grounding',
-        valence: 'reinforce',
-        summary: '用户希望出错或超时时直接说明问题，不要固定安抚模板。',
-      }),
-    ]))
+    expect(await db.listPersonaReinforcementEvents({ cardId: 'default', limit: 8 })).toEqual([])
 
     await db.close()
   })
@@ -6272,13 +6267,10 @@ describe('alicization sqlite dao', () => {
     expect(await db.listMemoryReflections({ cardId: 'default', limit: 8 })).toEqual(expect.arrayContaining([
       expect.objectContaining({
         summary: '用户希望某个私人关系边界只在内在记忆治理中使用。',
+        status: 'pending',
       }),
     ]))
-    expect(await db.listPersonaReinforcementEvents({ cardId: 'default', limit: 8 })).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        summary: '用户希望某个私人关系边界只在内在记忆治理中使用。',
-      }),
-    ]))
+    expect(await db.listPersonaReinforcementEvents({ cardId: 'default', limit: 8 })).toEqual([])
 
     await db.close()
   })

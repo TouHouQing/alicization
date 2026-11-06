@@ -17,10 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
-          node-version: lts/*
+          node-version: '24'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -32,6 +32,7 @@ jobs:
     name: Build Test (${{ matrix.app_name }})
     if: ${{ !(github.event_name == 'pull_request' && startsWith(github.event.pull_request.head.label, 'moeru-ai:i18n/')) }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - app_name: stage-web
@@ -62,7 +63,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
-          node-version: lts/*
+          node-version: '24'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -79,10 +80,10 @@ jobs:
       - uses: actions/checkout@v6
 
       # Node.js
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
-          node-version: lts/*
+          node-version: '24'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -95,10 +96,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
-          node-version: lts/*
+          node-version: '24'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile

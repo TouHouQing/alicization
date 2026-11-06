@@ -1,10 +1,7 @@
 name: Deploy Stage Web Server
 
 on:
-  push:
-    branches:
-      - 'main'
-
+  # Production deployment is deliberately manual; CI still builds every push.
   workflow_dispatch:
 
 concurrency:
@@ -57,7 +54,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: lts/*
+          node-version: '24'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
