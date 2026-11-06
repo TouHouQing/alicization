@@ -177,7 +177,7 @@ describe('canonical ToolRegistry', () => {
   })
 
   it('pre-registers the built-in non-executor surface capabilities', () => {
-    const registry = createCanonicalToolRegistry()
+    const registry = createCanonicalToolRegistry({ platform: 'win32' })
 
     for (const capabilityId of [
       'tool.set_reminder',
